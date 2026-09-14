@@ -54,9 +54,9 @@
     }
   },
   "lighting": {
-    "day_ambient_brightness": 100.0,
-    "twilight_ambient_brightness": 40.0,
-    "night_ambient_brightness": 20.0,
+    "day_ambient_brightness": 70.0,
+    "twilight_ambient_brightness": 30.0,
+    "night_ambient_brightness": 15.0,
     "max_sun_illuminance": 10000.0,
     "max_full_moon_illuminance": 200.0,
     "shadow_step_degrees": 0.08
@@ -115,5 +115,5 @@
     },
     "quest_panel": { "card_width": 240.0, "bar_height": 8.0 }
   },
-  "grass": { "enabled": true }
+  "grass": { "enabled": true, "color": "#315f2f" }
 }

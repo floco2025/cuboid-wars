@@ -229,11 +229,11 @@ pub struct PressurePlate {
 // aliases.
 pub const TERRAIN_MATERIAL: &str = "terrain";
 
-// Client-display-only metadata for a terrain floor. The compiled floor slab
-// carries collision and its five authored non-top materials; this parallel
-// cell record tells the client which top faces to render procedurally. The
-// cell center + floor-top y are shipped (not col/row) so the client never
-// needs `MapGeometry` to build its surface and vegetation chunks.
+// Client-display-only metadata identifying the authored terrain cells. The
+// compiled floor slab carries collision and its five authored non-top
+// materials; its top material tells the client to render and grass the final
+// slab footprint procedurally, including trim. The cell center + floor-top y
+// are shipped (not col/row), independently of `MapGeometry`.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct TerrainCell {
     pub x: f32,

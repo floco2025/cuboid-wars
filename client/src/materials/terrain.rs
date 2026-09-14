@@ -7,7 +7,7 @@ use bevy::{
 };
 
 use super::standard::load_texture;
-use crate::constants::{TERRAIN_GRASS_TILE_SIZE, TERRAIN_RELIEF};
+use crate::constants::{TERRAIN_GRASS_TILE_SIZE, TERRAIN_RELIEF, TERRAIN_SOIL_RELIEF, TERRAIN_SOIL_TILE_SIZE};
 
 const TERRAIN_SHADER: &str = "embedded://client/materials/terrain.wgsl";
 
@@ -20,6 +20,11 @@ pub struct TerrainExtension {
     #[texture(101)]
     #[sampler(102)]
     pub grass: Handle<Image>,
+    #[texture(103)]
+    #[sampler(104)]
+    pub soil: Handle<Image>,
+    #[uniform(105)]
+    pub grass_color: Vec4,
 }
 
 impl MaterialExtension for TerrainExtension {
@@ -32,7 +37,7 @@ impl MaterialExtension for TerrainExtension {
     }
 }
 
-pub fn terrain_material(server: &AssetServer, anisotropy: u16, mipmaps: bool) -> TerrainMaterial {
+pub fn terrain_material(server: &AssetServer, anisotropy: u16, mipmaps: bool, grass_color: Color) -> TerrainMaterial {
     TerrainMaterial {
         base: StandardMaterial {
             perceptual_roughness: 0.95,
@@ -40,7 +45,12 @@ pub fn terrain_material(server: &AssetServer, anisotropy: u16, mipmaps: bool) ->
             ..default()
         },
         extension: TerrainExtension {
-            surface: Vec4::new(TERRAIN_GRASS_TILE_SIZE, TERRAIN_RELIEF, 0.0, 0.0),
+            surface: Vec4::new(
+                TERRAIN_GRASS_TILE_SIZE,
+                TERRAIN_RELIEF,
+                TERRAIN_SOIL_RELIEF,
+                TERRAIN_SOIL_TILE_SIZE,
+            ),
             grass: load_texture(
                 server,
                 "textures/meadow/meadow-albedo.png",
@@ -49,6 +59,15 @@ pub fn terrain_material(server: &AssetServer, anisotropy: u16, mipmaps: bool) ->
                 anisotropy,
                 mipmaps,
             ),
+            soil: load_texture(
+                server,
+                "textures/soil/soil-albedo.png",
+                true,
+                false,
+                anisotropy,
+                mipmaps,
+            ),
+            grass_color: Vec4::from_array(grass_color.to_linear().to_f32_array()),
         },
     }
 }

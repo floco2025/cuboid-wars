@@ -6,6 +6,7 @@ use bevy::{app::TaskPoolPlugin, asset::AssetPlugin, ecs::message::Messages};
 fn terrain_images_queue_base_and_meadow_texture_once() {
     let mut images = Assets::<Image>::default();
     let grass = images.add(Image::default());
+    let soil = images.add(Image::default());
     let normal = images.add(Image::default());
     let material = TerrainMaterial {
         base: StandardMaterial {
@@ -14,7 +15,9 @@ fn terrain_images_queue_base_and_meadow_texture_once() {
         },
         extension: TerrainExtension {
             grass: grass.clone(),
+            soil: soil.clone(),
             surface: Vec4::ZERO,
+            grass_color: Vec4::ONE,
         },
     };
     let mut state = MaterialMipmapState::default();
@@ -23,7 +26,7 @@ fn terrain_images_queue_base_and_meadow_texture_once() {
     }
     assert_eq!(
         state.queued.keys().copied().collect::<HashSet<_>>(),
-        HashSet::from([grass.id(), normal.id()])
+        HashSet::from([grass.id(), soil.id(), normal.id()])
     );
 }
 
@@ -34,6 +37,7 @@ fn terrain_texture_replacement_rebinds_only_dependent_materials() {
         .init_asset::<TerrainMaterial>();
     let mut images = Assets::<Image>::default();
     let grass = images.add(Image::default());
+    let soil = images.add(Image::default());
     let unrelated_image = images.add(Image::default());
     let (dependent, _unrelated) = {
         let mut materials = app.world_mut().resource_mut::<Assets<TerrainMaterial>>();
@@ -41,14 +45,18 @@ fn terrain_texture_replacement_rebinds_only_dependent_materials() {
             base: default(),
             extension: TerrainExtension {
                 grass: grass.clone(),
+                soil: soil.clone(),
                 surface: Vec4::ZERO,
+                grass_color: Vec4::ONE,
             },
         });
         let unrelated = materials.add(TerrainMaterial {
             base: default(),
             extension: TerrainExtension {
                 grass: unrelated_image.clone(),
+                soil: unrelated_image.clone(),
                 surface: Vec4::ZERO,
+                grass_color: Vec4::ONE,
             },
         });
         (dependent, unrelated)
@@ -59,7 +67,7 @@ fn terrain_texture_replacement_rebinds_only_dependent_materials() {
         .clear();
     mark_terrain_materials_using_images_changed(
         &mut app.world_mut().resource_mut::<Assets<TerrainMaterial>>(),
-        &HashSet::from([grass.id()]),
+        &HashSet::from([soil.id()]),
     );
     app.update();
     let modified: Vec<_> = app

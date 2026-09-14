@@ -44,7 +44,7 @@ pub fn batch_floor(
         level,
     });
 
-    let top_rectangles = top_rectangles_without_terrain(floor, terrain, cell_size);
+    let top_rectangles = standard_top_rectangles(floor, material_ids, terrain, cell_size);
     let cut_top = !(top_rectangles.len() == 1
         && top_rectangles[0]
             == [
@@ -99,6 +99,24 @@ pub fn batch_floor(
         }
     } else {
         batcher.add_mesh(&material_ids.top, &surface_meshes.up, transform);
+    }
+}
+
+// A terrain floor's procedural top is spawned from the final compiled floor
+// footprint, including its perimeter extensions and corner fillers. Omitting
+// the complete ordinary top here avoids leaving those narrow pieces behind as
+// the textureless `terrain` alias. Debug rendering passes an empty terrain
+// slice and therefore keeps the complete ordinary top for inspection.
+fn standard_top_rectangles(
+    floor: &Floor,
+    material_ids: &FaceMaterials,
+    terrain: &[TerrainCell],
+    cell_size: f32,
+) -> Vec<[f32; 4]> {
+    if !terrain.is_empty() && material_ids.top == TERRAIN_MATERIAL {
+        Vec::new()
+    } else {
+        top_rectangles_without_terrain(floor, terrain, cell_size)
     }
 }
 
@@ -196,6 +214,23 @@ mod tests {
         other_carrier.carrier = CarrierId::from_carried_index(0);
         assert_eq!(
             top_rectangles_without_terrain(&floor(), &[other_level, other_carrier], 2.0),
+            vec![[-3.0, -1.0, 3.0, 1.0]]
+        );
+    }
+
+    #[test]
+    fn terrain_material_omits_the_complete_standard_top_including_trim() {
+        let mut materials = FaceMaterials::uniform("slab");
+        materials.top = TERRAIN_MATERIAL.to_owned();
+        assert!(standard_top_rectangles(&floor(), &materials, &[terrain(0.0)], 2.0).is_empty());
+    }
+
+    #[test]
+    fn debug_rendering_keeps_the_terrain_top() {
+        let mut materials = FaceMaterials::uniform("slab");
+        materials.top = TERRAIN_MATERIAL.to_owned();
+        assert_eq!(
+            standard_top_rectangles(&floor(), &materials, &[], 2.0),
             vec![[-3.0, -1.0, 3.0, 1.0]]
         );
     }

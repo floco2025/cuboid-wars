@@ -5,6 +5,7 @@ pub(super) struct TerrainCover {
     pub soil: f32,
     pub dry: f32,
     pub shade: f32,
+    pub grass_macro: f32,
 }
 
 impl TerrainCover {
@@ -18,7 +19,14 @@ impl TerrainCover {
         Self {
             soil: smooth(0.54, 0.73, patch),
             dry: smooth(0.28, 0.82, noise(position / 37.0 + Vec2::new(71.0, 19.0))),
-            shade: 0.9 + noise(position / 9.0 + Vec2::new(5.0, 29.0)) * 0.22,
+            shade: {
+                let patch = noise(position / 4.8 + Vec2::new(5.0, 29.0)) * 0.65
+                    + noise(position / 2.3 + Vec2::new(149.0, 11.0)) * 0.35;
+                let region = noise(position / 19.0 + Vec2::new(61.0, 173.0));
+                (0.52 + smooth(0.28, 0.72, patch) * 0.60) * (0.9 + region * 0.2)
+            },
+            grass_macro: noise(position / 4.6 + Vec2::new(211.0, 43.0)) * 0.7
+                + noise(position / 2.2 + Vec2::new(17.0, 191.0)) * 0.3,
         }
     }
 

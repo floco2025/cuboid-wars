@@ -5,6 +5,9 @@ use serde::Deserialize;
 
 use crate::config::validate_positive_finite;
 
+const HILL_BLEND_START: f32 = 6.0;
+const HILL_BLEND_END: f32 = 50.0;
+
 #[derive(Debug, Clone, Deserialize, Encode, Decode)]
 pub struct GroundsSettings {
     pub level: u8,
@@ -77,9 +80,14 @@ impl Grounds {
 
     pub fn height(&self, x: f32, z: f32) -> f32 {
         let distance = self.distance_outside_map(x, z).max(0.0);
-        let blend = ((distance - 10.0) / 45.0).clamp(0.0, 1.0);
+        // Keep the map seam and its immediate surroundings level, then ease
+        // into broad, low-gradient hills. Authored terrain slabs never call
+        // this function and therefore remain perfectly flat.
+        let blend = ((distance - HILL_BLEND_START) / (HILL_BLEND_END - HILL_BLEND_START)).clamp(0.0, 1.0);
         let blend = blend * blend * (3.0 - 2.0 * blend);
-        let hills = (x * 0.021 + 0.6).sin() * (z * 0.017).cos() * 3.5 + (x * 0.043 - z * 0.031).sin() * 1.2;
+        let hills = (x * 0.018 + z * 0.006 + 0.6).sin() * 4.5
+            + (x * 0.009 - z * 0.015 + 1.7).sin() * 3.0
+            + (x * 0.043 + z * 0.031 - 0.4).sin() * 1.4;
         let distant = ((distance - 180.0) / 240.0).clamp(0.0, 1.0);
         self.y + blend * hills + distant * (18.0 + 16.0 * (x * 0.006 + z * 0.004).sin().powi(2))
     }

@@ -51,6 +51,36 @@ fn terrain_joins_the_map_leaves_the_basement_open_and_faces_up() {
 }
 
 #[test]
+fn terrain_stays_flat_through_the_map_join() {
+    let grounds = grounds();
+    for (x, z) in [
+        (0.0, 0.0),
+        (20.0, 0.0),
+        (-20.0 - HILL_BLEND_START, 4.0),
+        (7.0, 30.0 + HILL_BLEND_START),
+    ] {
+        assert_eq!(grounds.height(x, z), grounds.y);
+    }
+}
+
+#[test]
+fn exterior_has_visible_rolling_height_variation() {
+    let grounds = grounds();
+    let mut min = f32::INFINITY;
+    let mut max = f32::NEG_INFINITY;
+    for z in -6..=6 {
+        for x in -6..=6 {
+            let x = x as f32 * 18.0;
+            let z = z as f32 * 18.0;
+            let height = grounds.height(x, z);
+            min = min.min(height);
+            max = max.max(height);
+        }
+    }
+    assert!(max - min > 10.0, "terrain height range was only {} metres", max - min);
+}
+
+#[test]
 fn collision_triangles_match_the_visible_inner_terrain() {
     let grounds = grounds();
     let collision = grounds.mesh(false);

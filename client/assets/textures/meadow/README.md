@@ -1,6 +1,6 @@
 # Meadow ground
 
-`meadow-albedo.png` is an opaque seamless grass detail generated with the built-in OpenAI image-generation tool. The terrain shader warps and combines rotated samples at incommensurate scales, then blends them with fully procedural soil through the non-periodic cover field mirrored in `client/src/map/terrain_surface.rs`. That same field varies nearby grass density and leaves brown soil patches bare.
+`meadow-albedo.png` is an opaque seamless grass detail generated with the built-in OpenAI image-generation tool. The terrain shader uses continuous stochastic triangular tiling with stable random offsets and quarter-turns. Its luminance supplies fine detail beneath `client.json::grass.color`, while strong two-to-five-metre light/dark patches break up the surface before it blends with the authored soil detail in `../soil/`. The cover field mirrored in `client/src/map/terrain_surface.rs` varies nearby grass density and leaves brown soil patches bare.
 
 Generation prompt:
 

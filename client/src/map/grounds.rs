@@ -37,6 +37,7 @@ pub(super) fn grounds_spawn_system(
         &server,
         settings.rendering.texture_anisotropy,
         settings.rendering.mipmaps,
+        settings.grass.base_color(),
     ));
     let terrain = grounds.mesh(true);
     let positions: Vec<[f32; 3]> = terrain.vertices.iter().map(|v| v.to_array()).collect();
@@ -68,7 +69,13 @@ pub(super) fn grounds_spawn_system(
     ));
 
     if settings.grass.enabled {
-        spawn_terrain_grass(&mut commands, grounds, &mut meshes, &mut grass_materials);
+        spawn_terrain_grass(
+            &mut commands,
+            grounds,
+            settings.grass.base_color(),
+            &mut meshes,
+            &mut grass_materials,
+        );
     }
 
     let trees = TreeAssets::new(&server, &mut meshes, &mut materials);

@@ -12,11 +12,13 @@ fn cover_is_deterministic_but_has_no_old_map_sized_repeat() {
         assert_eq!(cover.soil, same.soil);
         assert_eq!(cover.dry, same.dry);
         assert_eq!(cover.shade, same.shade);
+        assert_eq!(cover.grass_macro, same.grass_macro);
         let shifted = TerrainCover::at(position + Vec2::splat(512.0));
         assert!(
             (cover.soil - shifted.soil).abs() > 0.0001
                 || (cover.dry - shifted.dry).abs() > 0.0001
                 || (cover.shade - shifted.shade).abs() > 0.0001
+                || (cover.grass_macro - shifted.grass_macro).abs() > 0.0001
         );
     }
 }
@@ -43,4 +45,25 @@ fn brown_soil_is_bare_and_green_density_varies() {
     let min = green_densities.iter().copied().fold(f32::INFINITY, f32::min);
     let max = green_densities.iter().copied().fold(f32::NEG_INFINITY, f32::max);
     assert!(max - min > 0.3);
+}
+
+#[test]
+fn two_to_five_metre_terrain_tints_have_visible_range() {
+    let values =
+        (-20..=20).flat_map(|z| (-20..=20).map(move |x| TerrainCover::at(Vec2::new(x as f32 * 0.25, z as f32 * 0.25))));
+    let (shade_min, shade_max, macro_min, macro_max) = values.fold(
+        (f32::INFINITY, f32::NEG_INFINITY, f32::INFINITY, f32::NEG_INFINITY),
+        |(shade_min, shade_max, macro_min, macro_max), cover| {
+            assert!((0.468..=1.232).contains(&cover.shade));
+            assert!((0.0..=1.0).contains(&cover.grass_macro));
+            (
+                shade_min.min(cover.shade),
+                shade_max.max(cover.shade),
+                macro_min.min(cover.grass_macro),
+                macro_max.max(cover.grass_macro),
+            )
+        },
+    );
+    assert!(shade_max - shade_min > 0.35);
+    assert!(macro_max - macro_min > 0.35);
 }

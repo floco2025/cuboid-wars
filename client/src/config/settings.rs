@@ -1,7 +1,8 @@
 use std::{fs, path::Path};
 
 use anyhow::{Result, bail};
-use bevy::prelude::Resource;
+use bevy::prelude::{Color, Resource};
+use common::protocol::HexColor;
 use serde::{Deserialize, Serialize};
 
 use crate::constants::{
@@ -210,12 +211,21 @@ impl Default for UserPreferences {
     }
 }
 
-// Grass is an on/off accessibility/performance choice. Density, shape, LOD,
-// color, and wind are cohesive art-direction constants in the renderer.
+// Grass density, shape, LOD, and wind are cohesive art-direction constants.
+// The base color remains configurable because it is routinely tuned against
+// the terrain textures and scene lighting.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GrassConfig {
     pub enabled: bool,
+    pub color: HexColor,
+}
+
+impl GrassConfig {
+    pub fn base_color(self) -> Color {
+        let [red, green, blue] = self.color.0;
+        Color::srgb_u8(red, green, blue)
+    }
 }
 
 impl ClientSettings {

@@ -1,45 +1,56 @@
 use std::f32::consts::TAU;
+use std::sync::Arc;
 
 use bevy::{mesh::VertexAttributeValues, prelude::*};
-use common::protocol::{CarrierId, TerrainCell};
+use common::protocol::{CarrierId, Floor};
 
 use super::{
     burn::{BURN_VERTICAL_TOLERANCE, GrassBurn, grass_burn_system},
     mesh::{
-        BLADE_HEIGHT_MAX, BLADE_MAX_OVERHANG, GrassLod, MID_SWAY_WEIGHT, VERTICES_PER_BLADE, WIND_SWAY_FACTOR,
-        cell_tuft_count, grass_cell_mesh,
+        BLADE_HEIGHT_MAX, GrassLod, MID_SWAY_WEIGHT, VERTICES_PER_BLADE, WIND_SWAY_FACTOR, grass_patch_mesh,
+        patch_tuft_count,
     },
-    spawn::{GrassChunkVisual, OpenEdges, grass_chunk_mesh, terrain_cell_aabb},
+    spawn::{GrassChunkVisual, GrassPatch, grass_chunk_mesh, terrain_patch_aabb},
 };
 use crate::{
     constants::{EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR},
     map::terrain_surface::TerrainCover,
-    test_fixtures::{CELL, map_settings},
+    test_fixtures::CELL,
     vfx::ClipRegion,
 };
 
-fn test_cell() -> TerrainCell {
-    TerrainCell {
-        x: CELL * 2.5,
+fn test_patch() -> GrassPatch {
+    GrassPatch {
+        x1: CELL * 2.0,
+        x2: CELL * 3.0,
         y: 0.0,
-        z: -CELL * 1.5,
+        z1: -CELL * 2.0,
+        z2: -CELL,
         level: 0,
         carrier: CarrierId::WORLD,
     }
 }
 
-const ALL_OPEN: OpenEdges = OpenEdges {
-    pos_x: true,
-    neg_x: true,
-    pos_z: true,
-    neg_z: true,
-};
-const ALL_CLOSED: OpenEdges = OpenEdges {
-    pos_x: false,
-    neg_x: false,
-    pos_z: false,
-    neg_z: false,
-};
+fn patch_floor(patch: GrassPatch) -> Floor {
+    Floor {
+        x1: patch.x1,
+        x2: patch.x2,
+        z1: patch.z1,
+        z2: patch.z2,
+        y: patch.y,
+        thickness: 0.2,
+        level: patch.level,
+        carrier: patch.carrier,
+    }
+}
+
+fn patch_mesh(patch: GrassPatch, lod: GrassLod, burns: &[GrassBurn]) -> Mesh {
+    grass_patch_mesh(patch, &[patch_floor(patch)], lod, test_green(), burns)
+}
+
+fn test_green() -> Color {
+    Color::srgb_u8(0x27, 0x73, 0x31)
+}
 
 fn positions(mesh: &Mesh) -> &[[f32; 3]] {
     match mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
@@ -74,25 +85,48 @@ fn max_y(values: &[[f32; 3]]) -> f32 {
 }
 
 #[test]
-fn same_cell_and_lod_produce_identical_mesh() {
-    let first = grass_cell_mesh(test_cell(), CELL, GrassLod::Near, ALL_OPEN, &[]);
-    let second = grass_cell_mesh(test_cell(), CELL, GrassLod::Near, ALL_OPEN, &[]);
+fn same_patch_and_lod_produce_identical_mesh() {
+    let patch = test_patch();
+    let first = patch_mesh(patch, GrassLod::Near, &[]);
+    let second = patch_mesh(patch, GrassLod::Near, &[]);
     assert_eq!(positions(&first), positions(&second));
     assert_eq!(uvs(&first), uvs(&second));
     assert_eq!(colors(&first), colors(&second));
 }
 
 #[test]
+fn configured_green_changes_the_blade_colors() {
+    let patch = test_patch();
+    let green = grass_patch_mesh(
+        patch,
+        &[patch_floor(patch)],
+        GrassLod::Near,
+        Color::srgb_u8(0x10, 0x80, 0x20),
+        &[],
+    );
+    let blue = grass_patch_mesh(
+        patch,
+        &[patch_floor(patch)],
+        GrassLod::Near,
+        Color::srgb_u8(0x10, 0x20, 0x80),
+        &[],
+    );
+    assert_eq!(positions(&green), positions(&blue));
+    assert_ne!(colors(&green), colors(&blue));
+}
+
+#[test]
 fn near_lod_is_denser_than_mid_lod() {
-    let near = grass_cell_mesh(test_cell(), CELL, GrassLod::Near, ALL_OPEN, &[]);
-    let mid = grass_cell_mesh(test_cell(), CELL, GrassLod::Mid, ALL_OPEN, &[]);
+    let patch = test_patch();
+    let near = patch_mesh(patch, GrassLod::Near, &[]);
+    let mid = patch_mesh(patch, GrassLod::Mid, &[]);
     assert!(positions(&near).len() > positions(&mid).len() * 3);
-    assert!(cell_tuft_count(GrassLod::Near, CELL) > cell_tuft_count(GrassLod::Mid, CELL));
+    assert!(patch_tuft_count(GrassLod::Near, patch) > patch_tuft_count(GrassLod::Mid, patch));
 }
 
 #[test]
 fn generated_blades_never_root_in_brown_soil() {
-    let mesh = grass_cell_mesh(test_cell(), CELL, GrassLod::Near, ALL_OPEN, &[]);
+    let mesh = patch_mesh(test_patch(), GrassLod::Near, &[]);
     for blade in positions(&mesh).chunks_exact(VERTICES_PER_BLADE) {
         let root = Vec2::new((blade[0][0] + blade[1][0]) * 0.5, (blade[0][2] + blade[1][2]) * 0.5);
         assert!(TerrainCover::at(root).soil < 0.28);
@@ -101,23 +135,27 @@ fn generated_blades_never_root_in_brown_soil() {
 
 #[test]
 fn burned_grass_remains_visible_short_dark_and_still() {
-    let cell = test_cell();
-    let normal = grass_cell_mesh(cell, CELL, GrassLod::Near, ALL_OPEN, &[]);
+    let patch = test_patch();
+    let normal = patch_mesh(patch, GrassLod::Near, &[]);
     let burn = GrassBurn::new(
         CarrierId::WORLD,
-        Vec3::new(cell.x, cell.y, cell.z),
+        Vec3::new(
+            f32::midpoint(patch.x1, patch.x2),
+            patch.y,
+            f32::midpoint(patch.z1, patch.z2),
+        ),
         CELL * 4.0,
         0.7,
         3,
         ClipRegion::default(),
     );
-    let burned = grass_cell_mesh(cell, CELL, GrassLod::Near, ALL_OPEN, &[burn]);
+    let burned = patch_mesh(patch, GrassLod::Near, &[burn]);
 
     assert!(!positions(&burned).is_empty());
     assert_eq!(positions(&burned).len(), positions(&normal).len());
     let max_height = positions(&burned)
         .iter()
-        .map(|position| position[1] - cell.y)
+        .map(|position| position[1] - patch.y)
         .fold(0.0_f32, f32::max);
     assert!(max_height <= BLADE_HEIGHT_MAX * EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR + 0.001);
     let max_sway = uvs(&burned).iter().map(|uv| uv[0]).fold(0.0_f32, f32::max);
@@ -127,19 +165,23 @@ fn burned_grass_remains_visible_short_dark_and_still() {
 
 #[test]
 fn recovering_grass_interpolates_between_burned_and_healthy() {
-    let cell = test_cell();
-    let normal = grass_cell_mesh(cell, CELL, GrassLod::Near, ALL_OPEN, &[]);
+    let patch = test_patch();
+    let normal = patch_mesh(patch, GrassLod::Near, &[]);
     let mut burn = GrassBurn::new(
         CarrierId::WORLD,
-        Vec3::new(cell.x, cell.y, cell.z),
+        Vec3::new(
+            f32::midpoint(patch.x1, patch.x2),
+            patch.y,
+            f32::midpoint(patch.z1, patch.z2),
+        ),
         CELL * 4.0,
         0.7,
         3,
         ClipRegion::default(),
     );
-    let burned = grass_cell_mesh(cell, CELL, GrassLod::Near, ALL_OPEN, std::slice::from_ref(&burn));
+    let burned = patch_mesh(patch, GrassLod::Near, std::slice::from_ref(&burn));
     burn.set_intensity(0.5);
-    let recovering = grass_cell_mesh(cell, CELL, GrassLod::Near, ALL_OPEN, &[burn]);
+    let recovering = patch_mesh(patch, GrassLod::Near, &[burn]);
     assert!(max_y(positions(&burned)) < max_y(positions(&recovering)));
     assert!(max_y(positions(&recovering)) < max_y(positions(&normal)));
     assert!(average_rgb(colors(&burned)) < average_rgb(colors(&recovering)));
@@ -164,40 +206,51 @@ fn different_scorch_variants_produce_different_burn_outlines() {
 
 #[test]
 fn burn_on_another_level_does_not_change_grass() {
-    let cell = test_cell();
-    let normal = grass_cell_mesh(cell, CELL, GrassLod::Near, ALL_OPEN, &[]);
+    let patch = test_patch();
+    let normal = patch_mesh(patch, GrassLod::Near, &[]);
     let burn = GrassBurn::new(
         CarrierId::WORLD,
-        Vec3::new(cell.x, cell.y + BURN_VERTICAL_TOLERANCE * 2.0, cell.z),
+        Vec3::new(
+            f32::midpoint(patch.x1, patch.x2),
+            patch.y + BURN_VERTICAL_TOLERANCE * 2.0,
+            f32::midpoint(patch.z1, patch.z2),
+        ),
         CELL * 4.0,
         0.0,
         0,
         ClipRegion::default(),
     );
-    let other_level = grass_cell_mesh(cell, CELL, GrassLod::Near, ALL_OPEN, &[burn]);
+    let other_level = patch_mesh(patch, GrassLod::Near, &[burn]);
     assert_eq!(positions(&normal), positions(&other_level));
     assert_eq!(colors(&normal), colors(&other_level));
 }
 
 #[test]
 fn removing_burn_restores_original_chunk_mesh() {
-    let cell = test_cell();
-    let origin = Vec3::new(cell.x, cell.y, cell.z);
-    let cells = vec![(cell, ALL_OPEN)];
-    let baseline = grass_chunk_mesh(&cells, CELL, GrassLod::Near, origin, &[]).expect("grass expected");
+    let patch = test_patch();
+    let origin = Vec3::new(
+        f32::midpoint(patch.x1, patch.x2),
+        patch.y,
+        f32::midpoint(patch.z1, patch.z2),
+    );
+    let patches = vec![patch];
+    let footprint: Arc<[Floor]> = vec![patch_floor(patch)].into();
+    let baseline =
+        grass_chunk_mesh(&patches, &footprint, GrassLod::Near, origin, test_green(), &[]).expect("grass expected");
     let expected_positions = positions(&baseline).to_vec();
 
     let mut app = App::new();
     app.add_plugins(MinimalPlugins)
-        .insert_resource(map_settings())
         .insert_resource(Assets::<Mesh>::default())
         .add_systems(Update, grass_burn_system);
     let mesh_handle = app.world_mut().resource_mut::<Assets<Mesh>>().add(baseline);
     app.world_mut().spawn((
         GrassChunkVisual {
-            cells,
+            patches,
+            footprint,
             lod: GrassLod::Near,
             origin,
+            green: test_green(),
         },
         Mesh3d(mesh_handle.clone()),
     ));
@@ -205,7 +258,11 @@ fn removing_burn_restores_original_chunk_mesh() {
         .world_mut()
         .spawn(GrassBurn::new(
             CarrierId::WORLD,
-            Vec3::new(cell.x, cell.y, cell.z),
+            Vec3::new(
+                f32::midpoint(patch.x1, patch.x2),
+                patch.y,
+                f32::midpoint(patch.z1, patch.z2),
+            ),
             CELL * 4.0,
             0.0,
             0,
@@ -236,31 +293,47 @@ fn removing_burn_restores_original_chunk_mesh() {
 }
 
 #[test]
-fn root_vertices_have_zero_sway_and_closed_edges_clip_overhang() {
-    let cell = test_cell();
-    let mesh = grass_cell_mesh(cell, CELL, GrassLod::Near, ALL_CLOSED, &[]);
-    let bound = CELL / 2.0;
+fn root_vertices_have_zero_sway_and_stay_on_the_terrain_footprint() {
+    let patch = test_patch();
+    let mesh = patch_mesh(patch, GrassLod::Near, &[]);
     for (position, uv) in positions(&mesh).iter().zip(uvs(&mesh)) {
-        assert!((position[0] - cell.x).abs() <= bound);
-        assert!((position[2] - cell.z).abs() <= bound);
         match uv[0] {
-            0.0 => assert!((position[1] - cell.y).abs() < f32::EPSILON),
-            MID_SWAY_WEIGHT | 1.0 => assert!(position[1] > cell.y),
+            0.0 => {
+                assert!((position[1] - patch.y).abs() < f32::EPSILON);
+                assert!(patch.contains_base(position[0], position[2]));
+            }
+            MID_SWAY_WEIGHT | 1.0 => assert!(position[1] > patch.y),
             weight => panic!("unexpected sway weight {weight}"),
         }
     }
 }
 
 #[test]
-fn padded_cell_bounds_contain_full_sway() {
-    let cell = test_cell();
-    let mesh = grass_cell_mesh(cell, CELL, GrassLod::Near, ALL_OPEN, &[]);
-    let aabb = terrain_cell_aabb(cell, CELL);
-    let bound = CELL / 2.0 + BLADE_MAX_OVERHANG;
+fn narrow_trim_patch_still_receives_grass() {
+    let patch = GrassPatch {
+        x1: 0.0,
+        x2: 0.15,
+        z1: -5.0,
+        z2: 5.0,
+        y: 0.0,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    };
+    let mesh = patch_mesh(patch, GrassLod::Near, &[]);
+    assert!(!positions(&mesh).is_empty());
+    for blade in positions(&mesh).chunks_exact(VERTICES_PER_BLADE) {
+        assert!(patch.contains_base(blade[0][0], blade[0][2]));
+        assert!(patch.contains_base(blade[1][0], blade[1][2]));
+    }
+}
+
+#[test]
+fn padded_patch_bounds_contain_full_sway() {
+    let patch = test_patch();
+    let mesh = patch_mesh(patch, GrassLod::Near, &[]);
+    let aabb = terrain_patch_aabb(patch);
     let max_sway = crate::constants::GRASS_WIND_STRENGTH * WIND_SWAY_FACTOR;
     for position in positions(&mesh) {
-        assert!((position[0] - cell.x).abs() <= bound);
-        assert!((position[2] - cell.z).abs() <= bound);
         let swayed_min = Vec3::from_array(*position) - Vec3::new(max_sway, 0.0, max_sway);
         let swayed_max = Vec3::from_array(*position) + Vec3::new(max_sway, 0.0, max_sway);
         assert!(swayed_min.cmpge(aabb.min().into()).all());

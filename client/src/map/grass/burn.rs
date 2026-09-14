@@ -1,13 +1,13 @@
 use super::{
     mesh::BLADE_MAX_OVERHANG,
-    spawn::{GrassChunkVisual, grass_chunk_mesh},
+    spawn::{GrassChunkVisual, GrassPatch, grass_chunk_mesh},
 };
 use crate::{
     constants::EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR,
     vfx::{ClipRegion, ScorchOutline},
 };
 use bevy::prelude::*;
-use common::protocol::{CarrierId, MapSettings, TerrainCell};
+use common::protocol::CarrierId;
 use std::collections::HashMap;
 
 pub(super) const BURN_VERTICAL_TOLERANCE: f32 = 0.1;
@@ -72,13 +72,18 @@ impl GrassBurn {
         (1.0 - edge) * self.intensity
     }
 
-    fn intersects_cell(&self, cell: TerrainCell, cell_size: f32) -> bool {
-        if cell.carrier != self.carrier || (self.center.y - cell.y).abs() > BURN_VERTICAL_TOLERANCE {
+    fn intersects_patch(&self, patch: GrassPatch) -> bool {
+        if patch.carrier != self.carrier || (self.center.y - patch.y).abs() > BURN_VERTICAL_TOLERANCE {
             return false;
         }
-        let half_extent = cell_size * 0.5 + BLADE_MAX_OVERHANG;
-        let closest_x = self.center.x.clamp(cell.x - half_extent, cell.x + half_extent);
-        let closest_z = self.center.z.clamp(cell.z - half_extent, cell.z + half_extent);
+        let closest_x = self
+            .center
+            .x
+            .clamp(patch.x1 - BLADE_MAX_OVERHANG, patch.x2 + BLADE_MAX_OVERHANG);
+        let closest_z = self
+            .center
+            .z
+            .clamp(patch.z1 - BLADE_MAX_OVERHANG, patch.z2 + BLADE_MAX_OVERHANG);
         Vec2::new(self.center.x - closest_x, self.center.z - closest_z).length_squared() <= self.radius * self.radius
     }
 }
@@ -87,10 +92,8 @@ pub fn grass_burn_system(
     mut previous_burns: Local<HashMap<Entity, GrassBurn>>,
     burns: Query<(Entity, &GrassBurn)>,
     chunks: Query<(Ref<GrassChunkVisual>, &Mesh3d)>,
-    map_settings: Res<MapSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let cell_size = map_settings.geometry.grid_cell_size;
     let current_burns: HashMap<Entity, GrassBurn> = burns.iter().map(|(entity, burn)| (entity, burn.clone())).collect();
     let mut dirty_footprints = Vec::new();
 
@@ -108,32 +111,30 @@ pub fn grass_burn_system(
     }
 
     for (visual, mesh_handle) in &chunks {
-        let dirty = dirty_footprints.iter().any(|burn| {
-            visual
-                .cells
-                .iter()
-                .any(|(cell, _)| burn.intersects_cell(*cell, cell_size))
-        });
+        let dirty = dirty_footprints
+            .iter()
+            .any(|burn| visual.patches.iter().any(|patch| burn.intersects_patch(*patch)));
         if !dirty && !visual.is_added() {
             continue;
         }
 
         let affecting_burns: Vec<GrassBurn> = current_burns
             .values()
-            .filter(|burn| {
-                visual
-                    .cells
-                    .iter()
-                    .any(|(cell, _)| burn.intersects_cell(*cell, cell_size))
-            })
+            .filter(|burn| visual.patches.iter().any(|patch| burn.intersects_patch(*patch)))
             .cloned()
             .collect();
         if !dirty && affecting_burns.is_empty() {
             continue;
         }
 
-        if let Some(rebuilt) = grass_chunk_mesh(&visual.cells, cell_size, visual.lod, visual.origin, &affecting_burns)
-            && let Some(mut mesh) = meshes.get_mut(&mesh_handle.0)
+        if let Some(rebuilt) = grass_chunk_mesh(
+            &visual.patches,
+            &visual.footprint,
+            visual.lod,
+            visual.origin,
+            visual.green,
+            &affecting_burns,
+        ) && let Some(mut mesh) = meshes.get_mut(&mesh_handle.0)
         {
             *mesh = rebuilt;
         }

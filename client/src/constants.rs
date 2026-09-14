@@ -615,10 +615,11 @@ pub const TREE_LOD_DISTANCES: [[f32; 2]; 3] = [[55.0, 65.0], [125.0, 150.0], [38
 
 pub const TERRAIN_GRASS_TILE_SIZE: f32 = 1.6;
 pub const TERRAIN_RELIEF: f32 = 0.014;
+pub const TERRAIN_SOIL_TILE_SIZE: f32 = 1.25;
+pub const TERRAIN_SOIL_RELIEF: f32 = 0.09;
 pub const TERRAIN_GRASS_CHUNK_SIZE: f32 = 10.0;
 pub const TERRAIN_GRASS_NEAR_DENSITY: f32 = 48.0;
 pub const TERRAIN_GRASS_MID_DENSITY: f32 = 8.0;
 pub const TERRAIN_GRASS_NEAR_RANGE: [f32; 4] = [0.0, 0.0, 20.0, 28.0];
 pub const TERRAIN_GRASS_MID_RANGE: [f32; 4] = [20.0, 28.0, 64.0, 80.0];
-pub const TERRAIN_GRASS_GREEN: Color = Color::srgb(0.43, 0.62, 0.26);
 pub const TERRAIN_GRASS_DRY: Color = Color::srgb(0.52, 0.50, 0.24);

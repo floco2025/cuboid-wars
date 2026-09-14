@@ -178,3 +178,14 @@ fn removed_grass_density_setting_is_rejected() {
     let error = serde_json::from_value::<ClientSettings>(json).expect_err("removed grass setting was accepted");
     assert!(error.to_string().contains("tufts_per_m2"), "unexpected error: {error}");
 }
+
+#[test]
+fn grass_color_uses_hex_srgb_and_rejects_named_colors() {
+    let settings = test_fixtures::client_settings();
+    assert_eq!(settings.grass.base_color(), Color::srgb_u8(0x31, 0x5f, 0x2f));
+
+    let mut json: serde_json::Value =
+        serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client JSON is invalid");
+    json["grass"]["color"] = serde_json::json!("green");
+    serde_json::from_value::<ClientSettings>(json).expect_err("named grass color was accepted");
+}

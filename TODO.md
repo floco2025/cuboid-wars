@@ -2,6 +2,8 @@
 
 ## Fixes
 
+- **Grass close-up mismatch:** preserve the meadow texture's fine color and value detail when applying `client.json::grass.color`, and keep the textured surface visually aligned with the 3D blades at close range.
+
 - **View-dependent stars:** procedural stars appear to change or disappear when the camera turns. Keep star sampling world-fixed and stable across view directions and all scene cameras.
 
 - **Missing UI characters:** the bundled Fira Mono subset renders dashes, ellipses, arrows, and other unsupported symbols as rectangles. Bundle full Fira Mono with a symbol fallback for consistent rendering across platforms, and check coverage of the characters used in UI text.
