@@ -169,7 +169,9 @@ pub fn setup_cameras_system(
         Transform::default().looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
     ));
     if deferred_rendering_enabled {
-        rearview_camera.insert((DepthPrepass, DeferredPrepass, TemporalAntiAliasing::default()));
+        // No TAA here: it post-processes the whole shared scene image, not
+        // this camera's viewport, and would paint over the main view.
+        rearview_camera.insert((DepthPrepass, DeferredPrepass));
     }
 
     // Compositor: shows the scene image upscaled to the window, then draws
