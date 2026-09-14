@@ -256,7 +256,9 @@ impl QueryDispatcher for CharacterQueryDispatcher<'_> {
             let mut impact_pose = *pose;
             impact_pose.translation += velocity * hit.time_of_impact;
             // Rapier's slope decomposition discards forward motion on imprecise capsule cast normals.
-            if let Some(contact) = self.0.contact(&impact_pose, a, b, f32::MAX)? {
+            // The shapes touch at the impact pose, so a short prediction finds the contact; an
+            // unbounded one makes a trimesh (the terrain) test every triangle it has.
+            if let Some(contact) = self.0.contact(&impact_pose, a, b, CHARACTER_STEP_HEIGHT)? {
                 hit.normal1 = contact.normal1.normalize_or_zero();
                 hit.normal2 = contact.normal2.normalize_or_zero();
                 hit.witness1 = contact.point1;

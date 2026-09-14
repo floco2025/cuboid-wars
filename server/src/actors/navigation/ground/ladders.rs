@@ -77,7 +77,7 @@ impl NavGraph {
     }
 
     pub(super) fn route_neighbors(&self, node: NavNode, ladders: &[LadderLink]) -> Vec<NavNode> {
-        let mut neighbors = self.neighbors(node).to_vec();
+        let mut neighbors = self.neighbors(node);
         for link in ladders.iter().filter(|link| link.from == node && link.to != node) {
             if !neighbors.contains(&link.to) {
                 neighbors.push(link.to);

@@ -37,7 +37,8 @@ pub fn map_plugin(app: &mut App) {
                 grass_streaming_system
                     .after(terrain_spawn_system)
                     .after(grounds::grounds_spawn_system),
-                grass_burn_system.after(grass_streaming_system),
+                grass_chunk_finish_system.after(grass_streaming_system),
+                grass_burn_system.after(grass_chunk_finish_system),
                 weather_surfaces::weather_surfaces_system.after(grass_chunks_reset_system),
             ),
             update_focused_map_level_system,

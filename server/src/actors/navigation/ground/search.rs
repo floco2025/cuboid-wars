@@ -12,6 +12,15 @@ use rand::{Rng, RngExt};
 
 use super::{NavGraphs, NavNode, NavWaypoint, PlannedRoute};
 
+// A goal estimate ranks the frontier by distance so far plus the estimate,
+// weighted a hair above true so that, among nodes estimated equally far
+// from the goal, the one nearer it goes first: over open ground a search
+// then heads for the goal instead of sweeping every cell at the same
+// estimate before reaching it.
+const HEURISTIC_WEIGHT: f32 = 1.001;
+// How many waypoints ahead one straight leg of a joined route may reach.
+const STRAIGHT_LEG_LOOKAHEAD: usize = 12;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 struct Node {
     carrier: CarrierId,
@@ -70,11 +79,15 @@ impl GroundNavigation<'_> {
         })
     }
 
+    // `heuristic` estimates the travel left from a position to the goal;
+    // without one the search spreads evenly, which a goal of many equally
+    // good positions (cover, a roam) wants.
     pub(crate) fn advance(
         &self,
         search: &mut GroundSearch,
         goal: impl Fn(Position, f32) -> Option<Position>,
         allowed: impl Fn(Position, Position) -> bool,
+        heuristic: Option<&dyn Fn(Position) -> f32>,
         work: &mut usize,
         fallback: Option<&dyn Fn(Position) -> f32>,
         limit: Option<usize>,
@@ -138,10 +151,11 @@ impl GroundNavigation<'_> {
                 }
                 search.parents.insert(next, node);
                 search.distances.insert(next, distance);
+                let estimate = heuristic.map_or(0.0, |estimate| estimate(previous) * HEURISTIC_WEIGHT);
                 search.queue.push(Frontier {
                     node: next,
                     cost: distance,
-                    priority: distance,
+                    priority: distance + estimate,
                     order: search.distances.len(),
                 });
             }
@@ -160,6 +174,14 @@ impl GroundNavigation<'_> {
             .map_or(GroundSearchResult::Unreachable, GroundSearchResult::Found)
     }
 
+    // Straightens a found route from where the body stands and checks it
+    // can be walked. From the body, then from each kept waypoint, the
+    // farthest later walk waypoint the body can walk to on one supported,
+    // allowed line replaces the cell-by-cell legs between, so a route
+    // crosses open floor on one line and turns only where the walls make
+    // it. Legs over bridge cells keep their waypoints, since
+    // `drop_route_onto_lost_bridge` judges the next waypoint. `false` when
+    // a leg the search accepted cannot be walked from here.
     pub(crate) fn join_route(
         &self,
         start: Position,
@@ -167,35 +189,39 @@ impl GroundNavigation<'_> {
         allowed: &impl Fn(Position, Position) -> bool,
     ) -> bool {
         let pose = self.carriers.pose(self.carrier);
-        let mut previous = start;
-        let mut skip = 0;
-        for (index, point) in route.waypoints.iter().enumerate() {
-            if !point.is_walk() {
-                break;
-            }
+        let graph = self.graphs.get(self.carrier);
+        let waypoints = std::mem::take(&mut route.waypoints);
+        let mut anchor = start;
+        let mut index = 0;
+        while index < waypoints.len() {
+            let straight = (index + 1..waypoints.len().min(index + STRAIGHT_LEG_LOOKAHEAD))
+                .rev()
+                .find(|&candidate| {
+                    waypoints
+                        .range(index..=candidate)
+                        .all(|point| point.is_walk() && !graph.position_over_bridge(&point.position))
+                        && {
+                            let end = pose.transform_position(&waypoints[candidate].position);
+                            allowed(anchor, end) && self.walk_clear(anchor, end)
+                        }
+                });
+            let kept = straight.unwrap_or(index);
+            let point = waypoints[kept];
             let end = pose.transform_position(&point.position);
-            if start.distance_sq(&end) < self.graphs.get(self.carrier).cell_size().powi(2)
-                && allowed(start, end)
-                && self.walk_clear(start, end)
+            if straight.is_none()
+                && !(allowed(anchor, end)
+                    && self
+                        .world
+                        .character_ground_route_clear(anchor, end, self.physics, self.open)
+                    && (!point.is_walk() || !graph.position_over_unpowered_bridge(&point.position)))
             {
-                skip = index;
+                return false;
             }
+            route.waypoints.push_back(point);
+            anchor = end;
+            index = kept + 1;
         }
-        route.waypoints.drain(..skip);
-        route.waypoints.iter().all(|point| {
-            let end = pose.transform_position(&point.position);
-            let clear = allowed(previous, end)
-                && self
-                    .world
-                    .character_ground_route_clear(previous, end, self.physics, self.open)
-                && (!point.is_walk()
-                    || !self
-                        .graphs
-                        .get(self.carrier)
-                        .position_over_unpowered_bridge(&point.position));
-            previous = end;
-            clear
-        })
+        true
     }
 
     fn walk_clear(&self, start: Position, end: Position) -> bool {
@@ -261,7 +287,7 @@ impl GroundNavigation<'_> {
         fallback: Option<&dyn Fn(Position) -> f32>,
     ) -> Option<PlannedRoute> {
         let mut search = self.search(start)?;
-        match self.advance(&mut search, goal, allowed, &mut work, fallback, None) {
+        match self.advance(&mut search, goal, allowed, None, &mut work, fallback, None) {
             GroundSearchResult::Found(route) => Some(route),
             _ => None,
         }

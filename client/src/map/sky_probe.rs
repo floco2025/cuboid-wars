@@ -32,11 +32,47 @@ const HORIZON_BLEND: f32 = 0.12;
 // `sky.wgsl` at probe fidelity — gradient, sunset band, sun halo, clouds,
 // haze; no stars, no discs — and fills the lower half with the meadow's
 // bounce, since the dome shows sky there but the ground is what surrounds a
-// surface below the horizon.
+// surface below the horizon. The radiance is rendered every
+// `SKY_PROBE_REFRESH_SECS` and the image crossfades to it over the same
+// interval: a probe that stepped would step the ambient light with it,
+// and under moving overcast, where every render shifts the bright gaps
+// between the clouds, that step flickers every leaf.
 #[derive(Resource)]
 pub struct SkyProbe {
     image: Handle<Image>,
     refreshed_at: f32,
+    fade: Option<ProbeFade>,
+}
+
+struct ProbeFade {
+    from: Vec<Vec3>,
+    to: Vec<Vec3>,
+}
+
+impl SkyProbe {
+    // Renders a fresh target and starts fading from whatever is shown now.
+    fn retarget(&mut self, now: f32, target: Vec<Vec3>) {
+        let from = self.shown(now).unwrap_or_else(|| target.clone());
+        self.refreshed_at = now;
+        self.fade = Some(ProbeFade { from, to: target });
+    }
+
+    // The radiance the image shows at `now`, `None` before the first render.
+    fn shown(&self, now: f32) -> Option<Vec<Vec3>> {
+        let fade = self.fade.as_ref()?;
+        let progress = ((now - self.refreshed_at) / SKY_PROBE_REFRESH_SECS).clamp(0.0, 1.0);
+        Some(
+            fade.from
+                .iter()
+                .zip(&fade.to)
+                .map(|(from, to)| from.lerp(*to, progress))
+                .collect(),
+        )
+    }
+
+    fn fading(&self, now: f32) -> bool {
+        self.fade.is_some() && now - self.refreshed_at < SKY_PROBE_REFRESH_SECS
+    }
 }
 
 pub fn setup_sky_probe_system(
@@ -67,6 +103,7 @@ pub fn setup_sky_probe_system(
             commands.insert_resource(SkyProbe {
                 image: handle.clone(),
                 refreshed_at: f32::NEG_INFINITY,
+                fade: None,
             });
             handle
         }
@@ -90,12 +127,17 @@ pub fn refresh_sky_probe_system(
     let Some(mut probe) = probe else {
         return;
     };
-    if time.elapsed_secs() - probe.refreshed_at < SKY_PROBE_REFRESH_SECS {
-        return;
+    let now = time.elapsed_secs();
+    let due = now - probe.refreshed_at >= SKY_PROBE_REFRESH_SECS;
+    if due {
+        let target = probe_radiance(&state, settings.sky, settings.grass.base_color());
+        probe.retarget(now, target);
     }
-    probe.refreshed_at = time.elapsed_secs();
-    if let Some(mut image) = images.get_mut(&probe.image) {
-        image.data = Some(probe_texels(&state, settings.sky, settings.grass.base_color()));
+    if (due || probe.fading(now))
+        && let Some(shown) = probe.shown(now)
+        && let Some(mut image) = images.get_mut(&probe.image)
+    {
+        image.data = Some(probe_bytes(&shown));
     }
 }
 
@@ -105,7 +147,7 @@ const LUMINANCE: Vec3 = Vec3::new(0.2126, 0.7152, 0.0722);
 // is art-directed, not physical, so its colours are scaled until the sky's
 // mean luminance is the configured ambient level: the JSON still sets how
 // much ambient there is, the sky sets its colour and where it comes from.
-fn probe_texels(state: &SkyState, sky: SkyConfig, ground_albedo: Color) -> Vec<u8> {
+fn probe_radiance(state: &SkyState, sky: SkyConfig, ground_albedo: Color) -> Vec<Vec3> {
     let count = (FACES * PROBE_SIZE * PROBE_SIZE) as usize;
     let mut directions = Vec::with_capacity(count);
     let mut radiance = Vec::with_capacity(count);
@@ -135,10 +177,20 @@ fn probe_texels(state: &SkyState, sky: SkyConfig, ground_albedo: Color) -> Vec<u
     let albedo = albedo.lerp(Vec3::splat(albedo.dot(LUMINANCE)), SKY_PROBE_GROUND_GREYING);
     let sunlight = state.sun_illuminance * state.sun_direction.y.max(0.0) / PI;
     let ground = albedo * (sky_mean * scale + Vec3::splat(sunlight)) * SKY_PROBE_GROUND_BOUNCE;
-    let mut bytes = Vec::with_capacity(count * 8);
-    for (direction, sky) in directions.iter().zip(&radiance) {
-        let below = 1.0 - smoothstep(-HORIZON_BLEND, 0.0, direction.y);
-        let color = (*sky * scale).lerp(ground, below);
+    directions
+        .iter()
+        .zip(&radiance)
+        .map(|(direction, sky)| {
+            let below = 1.0 - smoothstep(-HORIZON_BLEND, 0.0, direction.y);
+            (*sky * scale).lerp(ground, below)
+        })
+        .collect()
+}
+
+// The image's `Rgba16Float` texels.
+fn probe_bytes(radiance: &[Vec3]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(radiance.len() * 8);
+    for color in radiance {
         for channel in [color.x, color.y, color.z, 1.0] {
             bytes.extend_from_slice(&f16::from_f32(channel).to_le_bytes());
         }

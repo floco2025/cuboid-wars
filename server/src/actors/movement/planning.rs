@@ -123,6 +123,7 @@ pub(crate) fn plan_actor_moves(
             info,
             &local_pos,
             &current_pos,
+            face_yaw.0,
             actor_movement.roam_speed,
             actor_movement.active_speed,
             delta,

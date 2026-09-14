@@ -152,6 +152,7 @@ pub(super) fn enter_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>, r
         target,
         |pos, _| context.stable_cover(&context.to_local(&pos), &threats).then_some(pos),
         |from, to| segment_threat_distance_sq(from.into(), to.into(), &threats) + 0.00001 >= minimum,
+        None,
         Some(&retreat),
         Some(256),
     );
@@ -202,6 +203,7 @@ pub(super) fn enter_roam_or_return(info: &mut ActorInfo, context: &BehaviorConte
             destination_variation(pos, seed)
         }
     };
+    let travel_home = |pos: Position| context.territory.distance_outside(context.to_local(&pos).into());
     let result = info.ground.route(
         &context.navigation(&info.spawn_kind),
         task,
@@ -214,6 +216,7 @@ pub(super) fn enter_roam_or_return(info: &mut ActorInfo, context: &BehaviorConte
                     .territory
                     .path_contains(context.to_local(&from).into(), context.to_local(&to).into())
         },
+        (!roaming).then_some(&travel_home as &dyn Fn(Position) -> f32),
         roaming.then_some(&score as &dyn Fn(Position) -> f32),
         roaming.then_some(128),
     );
@@ -271,6 +274,9 @@ pub(super) fn keep_or_install_engagement_route(
     {
         return true;
     }
+    // Routes walk the grid one axis at a time, so the walk left to the
+    // target is at least its distance along both.
+    let travel_to_target = |pos: Position| (target_pos.x - pos.x).abs() + (target_pos.z - pos.z).abs();
     let result = info.ground.route(
         &context.navigation(&info.spawn_kind),
         GroundTask::Pursue(target),
@@ -289,6 +295,7 @@ pub(super) fn keep_or_install_engagement_route(
             super::geometry::attack_position(candidate, target_pos, beam).then_some(candidate)
         },
         |_, _| true,
+        Some(&travel_to_target),
         None,
         None,
     );

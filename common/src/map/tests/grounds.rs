@@ -231,3 +231,59 @@ fn rocks_within_finds_every_rock_that_reaches_a_cell() {
         );
     }
 }
+
+// The terrain is one trimesh of tens of thousands of triangles, so a step
+// whose queries scale with the mesh instead of what the body touches is a
+// hitch on every tick outdoors: this is the regression a coarse bound
+// catches, not a benchmark.
+#[test]
+fn a_step_on_the_grounds_touches_only_the_terrain_under_the_body() {
+    let grounds = grounds();
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        grounds: Some(grounds.clone()),
+        ..Default::default()
+    });
+    let carriers = Carriers::default();
+    let physics = load_test_gameplay().expect("test gameplay rejected").player.physics();
+    let environment = CharacterEnvironment {
+        collision_world: &world,
+        carriers: &carriers,
+        physics,
+        gravity: 25.0,
+        passable_kinds: &[],
+        ladder_climb_ratio: 0.5,
+        ladder_mode: LadderMode::Automatic,
+        portals: None,
+    };
+    let (x, z) = (120.0, 40.0);
+    let mut pos = Position {
+        x,
+        y: grounds.height(x, z) + 0.05,
+        z,
+    };
+    let mut velocity = 0.0;
+    let started = std::time::Instant::now();
+    let steps = 100;
+    for _ in 0..steps {
+        let result = step_character_movement(
+            CharacterStep {
+                start: pos,
+                vertical_velocity: velocity,
+                control_velocity: Vec3::new(0.7, 0.0, 0.7) * 6.0,
+                external_displacement: Vec3::ZERO,
+                delta: 1.0 / 30.0,
+            },
+            &environment,
+        );
+        pos = result.position;
+        velocity = result.vertical_velocity;
+    }
+    let elapsed = started.elapsed();
+    assert!(pos.x > x + 10.0, "the body walked over the hills");
+    // Under 100 µs a step when bounded; 15 ms and up when a contact query
+    // scans the mesh.
+    assert!(
+        elapsed < std::time::Duration::from_millis(steps * 2),
+        "{steps} steps took {elapsed:?}"
+    );
+}

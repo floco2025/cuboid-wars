@@ -1,13 +1,13 @@
 use super::super::GroundNavigation;
-use super::{NavGraphs, NavWaypoint};
+use super::{GroundSearchResult, NavGraphs, NavWaypoint};
 use crate::map::ZoneVolume;
 use crate::{
     actors::test_kinds::{self, CONTACT},
     map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
-    test_geometry::{CELL, FLOOR_THICKNESS, geometry},
+    test_geometry::{CELL, FLOOR_THICKNESS, WALL_THICKNESS, geometry},
 };
 use common::{
-    map::Carriers,
+    map::{Carriers, Grounds, GroundsSettings},
     physics::CollisionWorld,
     protocol::{Barrier, BarrierId, BarrierKindId, Carrier, CarrierId, Floor, MapLayout, Position, Wall},
 };
@@ -236,6 +236,7 @@ fn long_routes_resume_under_a_small_budget_and_failed_queries_are_cached() {
             |_, _| true,
             None,
             None,
+            None,
         );
         assert!(state.work <= 4);
         match result {
@@ -261,6 +262,7 @@ fn long_routes_resume_under_a_small_budget_and_failed_queries_are_cached() {
                 |_, _| None,
                 |_, _| true,
                 None,
+                None,
                 None
             ),
             GroundSearchResult::Unreachable
@@ -280,6 +282,7 @@ fn long_routes_resume_under_a_small_budget_and_failed_queries_are_cached() {
             |_, _| panic!("cached failure searched again"),
             |_, _| true,
             None,
+            None,
             None
         ),
         GroundSearchResult::Unreachable
@@ -297,6 +300,7 @@ fn long_routes_resume_under_a_small_budget_and_failed_queries_are_cached() {
             },
             |_, _| None,
             |_, _| true,
+            None,
             None,
             None
         ),
@@ -393,6 +397,7 @@ fn many_unreachable_queries_keep_their_per_tick_work_limit() {
                     |_, _| true,
                     None,
                     None,
+                    None,
                 );
                 if matches!(result, GroundSearchResult::Pending) {
                     break;
@@ -407,4 +412,194 @@ fn many_unreachable_queries_keep_their_per_tick_work_limit() {
         "16 actors, 4 players, 1600-node map, 120 unreachable-search ticks: {:?}",
         elapsed.elapsed()
     );
+}
+
+#[test]
+fn routes_walk_out_onto_the_grounds() {
+    let map = rectangle(2, 1);
+    let geometry = map.root_grid().geometry;
+    let half_width = geometry.width() / 2.0 + WALL_THICKNESS / 2.0;
+    let half_depth = geometry.depth() / 2.0 + WALL_THICKNESS / 2.0;
+    let layout = MapLayout {
+        floors: vec![Floor {
+            x1: -half_width,
+            z1: -half_depth,
+            x2: half_width,
+            z2: half_depth,
+            y: 0.0,
+            thickness: FLOOR_THICKNESS,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        grounds: Some(Grounds {
+            half_size: [half_width, half_depth],
+            y: 0.0,
+            settings: GroundsSettings { level: 0 },
+        }),
+        ..Default::default()
+    };
+    let mut graphs = NavGraphs::new(&map);
+    graphs.add_grounds(&layout);
+    let world = CollisionWorld::from_map_layout(&layout);
+    let carriers = Carriers::default();
+    let navigation = GroundNavigation {
+        graphs: &graphs,
+        carriers: &carriers,
+        carrier: CarrierId::WORLD,
+        kind: CONTACT,
+        world: &world,
+        physics: test_kinds::physics(CONTACT),
+        open: &[],
+    };
+    let start = Position {
+        x: geometry.cell_center_x(0),
+        y: 0.0,
+        z: 0.0,
+    };
+    let target = Position {
+        x: geometry.cell_center_x(2),
+        y: 0.0,
+        z: 0.0,
+    };
+    let route = navigation
+        .route(
+            start,
+            |pos, _| (pos.distance_sq(&target) < 0.001).then_some(target),
+            |_, _| true,
+            100,
+            None,
+        )
+        .expect("the grounds continue the floor past the map's edge");
+    assert_eq!(route.waypoints.back().map(|point| point.position), Some(target));
+    assert!(target.x > half_width, "the target lies past the map's edge");
+}
+
+#[test]
+fn a_goal_estimate_reaches_a_far_target_within_a_budget_a_plain_search_exhausts() {
+    let map = rectangle(20, 20);
+    let geometry = map.root_grid().geometry;
+    let graphs = NavGraphs::new(&map);
+    let carriers = Carriers::default();
+    let world = CollisionWorld::from_map_layout(&MapLayout::default());
+    let navigation = GroundNavigation {
+        graphs: &graphs,
+        carriers: &carriers,
+        carrier: CarrierId::WORLD,
+        kind: CONTACT,
+        world: &world,
+        physics: test_kinds::physics(CONTACT),
+        open: &[],
+    };
+    let start = Position {
+        x: geometry.cell_center_x(0),
+        y: 0.0,
+        z: geometry.cell_center_z(0),
+    };
+    let target = Position {
+        x: geometry.cell_center_x(19),
+        y: 0.0,
+        z: geometry.cell_center_z(19),
+    };
+    let goal = |pos: Position, _| (pos.distance_sq(&target) < 0.001).then_some(target);
+    let estimate = |pos: Position| (target.x - pos.x).abs() + (target.z - pos.z).abs();
+
+    let mut work = 200;
+    let mut search = navigation.search(start).expect("start cell missing");
+    let result = navigation.advance(&mut search, goal, |_, _| true, Some(&estimate), &mut work, None, None);
+    assert!(matches!(result, GroundSearchResult::Found(_)));
+
+    let mut work = 200;
+    let mut search = navigation.search(start).expect("start cell missing");
+    let result = navigation.advance(&mut search, goal, |_, _| true, None, &mut work, None, None);
+    assert!(matches!(result, GroundSearchResult::Pending));
+}
+
+#[test]
+fn a_joined_route_crosses_open_floor_on_one_leg_and_turns_at_a_wall() {
+    let map = rectangle(6, 3);
+    let geometry = map.root_grid().geometry;
+    let graphs = NavGraphs::new(&map);
+    let carriers = Carriers::default();
+    let floor = Floor {
+        x1: -geometry.width() / 2.0,
+        z1: -geometry.depth() / 2.0,
+        x2: geometry.width() / 2.0,
+        z2: geometry.depth() / 2.0,
+        y: 0.0,
+        thickness: FLOOR_THICKNESS,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    };
+    let open = CollisionWorld::from_map_layout(&MapLayout {
+        floors: vec![floor],
+        ..Default::default()
+    });
+    let navigation = |world| GroundNavigation {
+        graphs: &graphs,
+        carriers: &carriers,
+        carrier: CarrierId::WORLD,
+        kind: CONTACT,
+        world,
+        physics: test_kinds::physics(CONTACT),
+        open: &[],
+    };
+    let start = Position {
+        x: geometry.cell_center_x(0),
+        y: 0.0,
+        z: geometry.cell_center_z(0),
+    };
+    let target = Position {
+        x: geometry.cell_center_x(5),
+        y: 0.0,
+        z: geometry.cell_center_z(2),
+    };
+    let route_to_target = |navigation: &GroundNavigation<'_>| {
+        let mut route = navigation
+            .route(
+                start,
+                |pos, _| (pos.distance_sq(&target) < 0.001).then_some(target),
+                |_, _| true,
+                1000,
+                None,
+            )
+            .expect("an open floor is walkable");
+        assert!(navigation.join_route(start, &mut route, &|_, _| true));
+        route
+    };
+
+    let straight = route_to_target(&navigation(&open));
+    assert_eq!(
+        straight
+            .waypoints
+            .iter()
+            .map(|point| point.position)
+            .collect::<Vec<_>>(),
+        vec![target],
+        "open floor is crossed on one diagonal leg"
+    );
+
+    // A wall across the middle row from the north edge, open at the south.
+    let walled = CollisionWorld::from_map_layout(&MapLayout {
+        floors: vec![floor],
+        walls: vec![Wall {
+            carrier: CarrierId::WORLD,
+            level: 0,
+            x1: geometry.cell_to_world_x(3),
+            x2: geometry.cell_to_world_x(3),
+            z1: geometry.cell_to_world_z(0),
+            z2: geometry.cell_to_world_z(2),
+            y: 0.0,
+            height: 10.0,
+            width: WALL_THICKNESS,
+        }],
+        ..Default::default()
+    });
+    let around = route_to_target(&navigation(&walled));
+    assert!(around.waypoints.len() >= 2, "the wall forces a turn");
+    assert!(
+        around.waypoints.len() <= 3,
+        "legs on either side of the wall's end are straight: {:?}",
+        around.waypoints
+    );
+    assert_eq!(around.waypoints.back().map(|point| point.position), Some(target));
 }

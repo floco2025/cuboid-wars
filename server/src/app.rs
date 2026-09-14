@@ -125,6 +125,7 @@ fn build_server_app_with_loader(
     let collision_world = CollisionWorld::from_map_layout(&map_layout);
     let carriers = Carriers::from_layout(&map_layout);
     let mut nav_graphs = NavGraphs::new(&map_config);
+    nav_graphs.add_grounds(&map_layout);
     nav_graphs.add_ladder_routes(&map_layout, &map_settings, &server_gameplay_config);
     validate_map_actor_kinds(&server_gameplay_config, &map_config)?;
     validate_map_quests(

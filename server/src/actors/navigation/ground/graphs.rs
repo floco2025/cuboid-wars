@@ -38,6 +38,16 @@ impl NavGraphs {
         Self(graphs)
     }
 
+    // The exterior grounds continue the root grid past its edge.
+    pub fn add_grounds(&mut self, layout: &MapLayout) {
+        if let Some(grounds) = &layout.grounds {
+            self.0
+                .first_mut()
+                .expect("root grid missing from the navigation graphs")
+                .set_grounds(grounds.clone());
+        }
+    }
+
     pub fn add_ladder_routes(&mut self, layout: &MapLayout, settings: &MapSettings, config: &ServerGameplayConfig) {
         if !config
             .actors

@@ -23,6 +23,13 @@ impl ActorTerritory {
         self.contains_position(from) && self.contains_position(to)
     }
 
+    // The walk along the grid's axes from `point` to where the territory
+    // begins, zero inside it.
+    pub(crate) fn distance_outside(&self, point: Vec3) -> f32 {
+        self.volume
+            .axis_distance_outside(point + Vec3::Y * self.center_height, self.distance)
+    }
+
     pub(crate) fn in_frame(&self, home: CarrierPose, frame: CarrierPose) -> Self {
         let mut territory = self.clone();
         territory.volume.min = frame.inverse_transform_point(home.transform_point(self.volume.min));

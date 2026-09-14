@@ -6,6 +6,7 @@ pub(super) use bevy::prelude::Entity;
 pub(super) use common::{
     config::CharacterPhysicsConfig,
     map::Carriers,
+    math::angle_delta_radians,
     physics::{CharacterMovePlan, CollisionWorld},
     protocol::{ActorId, ActorMoveIntent, Floor, MapLayout, Position, Wall},
 };
@@ -22,7 +23,7 @@ pub(super) use super::super::{
     context::{ActorMoveContext, blocked_step_made_useful_progress},
     ordering::{ActorPlanOrder, actor_route_distance, sort_actor_plan_order},
     planning::select_route_move,
-    steering::{ActorDesire, desired_move, direction_toward},
+    steering::{ACTOR_TURN_RATE, ActorDesire, desired_move, direction_toward, steer},
 };
 
 pub(crate) const TEST_KIND: &str = crate::actors::test_kinds::BEAM;

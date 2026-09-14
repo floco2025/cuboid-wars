@@ -10,6 +10,8 @@
 
 - **Body clipping flickers on moving portals:** straddle detection uses the current tick's portal frame against the interpolated player position, while the visible portal and clipping planes use the interpolated carrier pose. Use the same rendered frames for detection and clipping.
 
+- **Actors stuck on ramp lips:** a scuttler was seen parked on the grass at the top corner of a hotel basement ramp. Re-test after the terrain query fix, since the server then stalled for seconds per tick whenever an actor searched outdoors. If it persists, the suspect is the floor extension along a ramp's side: it reaches a wall width over the ramp with its top at the storey's floor, so a short way below the landing it stands more than `CHARACTER_STEP_HEIGHT` above the ramp surface, and a body that dropped onto the ramp's side cannot climb back onto the floor beside it.
+
 ## Enhancements
 
 - **Actor gameplay definitions:** Group each actor kind's health, damage, scoring, and destruction-feed setting under `gameplay.json::actors.kinds`, alongside its body and behaviour, so adding a kind does not require updating several separate tables.
@@ -22,9 +24,15 @@
 
 - **Player-scaled actor counts:** let a spawn zone's actor count depend on the number of logged-in players instead of one fixed `count`. The scaling rule is still to be decided; define it so that later joins fill the added slots and departures let the surplus die off without a cull.
 
-- **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier’s slope decomposition; `running_across_flat_floor_tiles_keeps_its_speed` still fails without it on 0.35.
+- **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier’s slope decomposition; `running_across_flat_floor_tiles_keeps_its_speed` still fails without it on 0.35. Whatever replaces it must keep its contact query bounded, since an unbounded prediction scans the whole terrain trimesh.
 
 ## Testing
+
+- **Outdoors after the terrain query fix:** run fast far out on the hotel's grounds and check that movement stays smooth and the frame rate holds, that chasing actors no longer stop and go, and that grass chunks appearing beside a sprint no longer stutter the frame.
+
+- **Rain flicker:** stand among the trees during rain and confirm the leaves no longer pulse every half second; the sky probe now crossfades between its renders.
+
+- **Actors on the grounds:** Watch the hotel's bruisers and scuttlers roam past the seam, chase a player onto the hills and around trees and rocks, and return home. Check none stalls at the rim, that chases across open ground start promptly, that routes cross open floor and lawn on straight diagonals, and that corners are taken as turns at speed and reversals as pivots on the spot, with the turn rate feeling right for both kinds.
 
 - **Actor movement sound mix:** Check the tank engine/background balance and speed-driven pitch in-game while moving, turning, stopping, climbing, and hovering. Tune the Enemy movement slider and `assets.json::actors.movement_volume_db` / `sfx_volume_db` against weapons and footsteps.
 

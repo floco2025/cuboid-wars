@@ -23,6 +23,13 @@ impl ZoneVolume {
         }
     }
 
+    // Distance to the extended volume summed over the horizontal axes, zero
+    // inside it.
+    pub fn axis_distance_outside(self, point: Vec3, extension: f32) -> f32 {
+        let offset = point - point.clamp(self.min, self.max);
+        (offset.x.abs() + offset.z.abs() - extension).max(0.0)
+    }
+
     pub fn contains(self, point: Vec3, extension: f32) -> bool {
         point.is_finite()
             && point

@@ -7,7 +7,7 @@ use bevy::{
     mesh::{Indices, PrimitiveTopology},
     prelude::*,
 };
-use common::map::GroundDecoration;
+use common::map::{DecorationKind, GroundDecoration};
 use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
 use crate::{
@@ -107,6 +107,9 @@ impl TreeAssets {
     pub(super) fn far_chunk(&self, decorations: &[GroundDecoration], origin: Vec3) -> Option<(Mesh, Mesh)> {
         let mut merged: Option<(Mesh, Mesh)> = None;
         for decoration in decorations {
+            if decoration.kind != DecorationKind::Tree {
+                continue;
+            }
             let (wood, leaves) = &self.far[decoration.variant as usize % self.far.len()];
             let transform = Transform::from_translation(decoration.position - origin)
                 .with_scale(decoration.scale)

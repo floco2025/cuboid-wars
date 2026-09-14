@@ -16,6 +16,7 @@ to obstacle courses.
 
 - Clear and rainy skies with changing daylight.
 - Hotel grounds with lawns, paths, trees, rocks, and hills to explore.
+- Enemies roam the grounds too, and give chase out there.
 
 ## Controls
 

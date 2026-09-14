@@ -10,6 +10,7 @@ use bevy::{
     },
     light::NotShadowCaster,
     prelude::*,
+    tasks::{AsyncComputeTaskPool, Task, block_on, poll_once},
 };
 use common::{
     map::{Carriers, Grounds},
@@ -58,6 +59,16 @@ pub(in crate::map) struct ChunkKey {
 pub(crate) enum GrassChunkSource {
     Patches { footprint: Arc<[Floor]> },
     Grounds { grounds: Grounds, cell: IVec2 },
+}
+
+// A chunk whose mesh is still being built on the compute pool: a near chunk
+// is tens of thousands of blades, milliseconds the frame cannot spare while
+// a sprint streams several in. The visual joins the entity with the mesh,
+// so a burn sees the chunk added once it has blades to burn.
+#[derive(Component)]
+pub struct GrassChunkBuild {
+    visual: GrassChunkVisual,
+    task: Task<Option<Mesh>>,
 }
 
 // Everything a chunk's mesh is rebuilt from, so a burn can regenerate it.
@@ -260,12 +271,8 @@ pub fn grass_streaming_system(
     mut chunks: ResMut<GrassChunks>,
     carriers: Res<Carriers>,
     camera: Query<&GlobalTransform, With<MainCameraMarker>>,
-    mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let Some(material) = chunks.grass_material.clone() else {
-        return;
-    };
-    if !chunks.enabled {
+    if chunks.grass_material.is_none() || !chunks.enabled {
         return;
     }
     let Ok(camera) = camera.single() else {
@@ -356,27 +363,54 @@ pub fn grass_streaming_system(
         };
         // Burns in effect reach a new chunk through `grass_burn_system`,
         // which rebuilds every chunk it sees added.
-        let mut chunk = commands.spawn((GrassChunkMarker, Transform::from_translation(entry.origin)));
+        let mut chunk = commands.spawn((
+            GrassChunkMarker,
+            Transform::from_translation(entry.origin),
+            Visibility::Visible,
+        ));
         if let Some(parent) = entry.parent {
             chunk.insert(ChildOf(parent));
         }
         if let Some(level) = entry.level {
             chunk.insert(level);
         }
-        if let Some(mesh) = grass_chunk_mesh(&visual, &[]) {
+        let build = visual.clone();
+        chunk.insert(GrassChunkBuild {
+            visual,
+            task: AsyncComputeTaskPool::get().spawn(async move { grass_chunk_mesh(&build, &[]) }),
+        });
+        let entity = chunk.id();
+        chunks.spawned.insert((key, lod), entity);
+    }
+}
+
+// Gives every chunk whose build has finished its mesh.
+pub fn grass_chunk_finish_system(
+    mut commands: Commands,
+    chunks: Res<GrassChunks>,
+    mut builds: Query<(Entity, &mut GrassChunkBuild)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    let Some(material) = chunks.grass_material.clone() else {
+        return;
+    };
+    for (entity, mut build) in &mut builds {
+        let Some(mesh) = block_on(poll_once(&mut build.task)) else {
+            continue;
+        };
+        let mut chunk = commands.entity(entity);
+        chunk.remove::<GrassChunkBuild>();
+        if let Some(mesh) = mesh {
             let bounds = padded_grass_bounds(&mesh);
             chunk.insert((
                 Mesh3d(meshes.add(mesh)),
                 MeshMaterial3d(material.clone()),
-                Visibility::Visible,
                 NotShadowCaster,
                 bounds,
-                lod.visibility_range(),
+                build.visual.lod.visibility_range(),
             ));
         }
-        chunk.insert(visual);
-        let entity = chunk.id();
-        chunks.spawned.insert((key, lod), entity);
+        chunk.insert(build.visual.clone());
     }
 }
 

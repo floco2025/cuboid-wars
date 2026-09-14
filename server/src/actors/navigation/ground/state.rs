@@ -80,6 +80,7 @@ impl GroundState {
         target: Position,
         goal: impl Fn(Position, f32) -> Option<Position>,
         allowed: impl Fn(Position, Position) -> bool,
+        heuristic: Option<&dyn Fn(Position) -> f32>,
         fallback: Option<&dyn Fn(Position) -> f32>,
         limit: Option<usize>,
     ) -> GroundSearchResult {
@@ -112,7 +113,15 @@ impl GroundState {
             });
         }
         let query = self.query.as_mut().expect("ground search missing from active query");
-        let result = nav.advance(&mut query.search, goal, &allowed, &mut self.work, fallback, limit);
+        let result = nav.advance(
+            &mut query.search,
+            goal,
+            &allowed,
+            heuristic,
+            &mut self.work,
+            fallback,
+            limit,
+        );
         match result {
             GroundSearchResult::Pending => GroundSearchResult::Pending,
             GroundSearchResult::Found(mut route) => {

@@ -50,13 +50,14 @@ fn day_sky_outshines_night_and_the_ground_reflects_the_meadow() {
     assert!(day.length() > night.length() * 5.0);
     assert!(day.z > day.x, "the day zenith is blue");
 
-    let texels = probe_texels(&state(40.0), sky, Color::srgb(0.35, 0.41, 0.19));
-    assert_eq!(texels.len(), (FACES * PROBE_SIZE * PROBE_SIZE * 8) as usize);
-    let texel = |face: u32, u: u32, v: u32| {
-        let offset = (((face * PROBE_SIZE + v) * PROBE_SIZE + u) * 8) as usize;
-        let channel = |i: usize| f16::from_le_bytes([texels[offset + i * 2], texels[offset + i * 2 + 1]]).to_f32();
-        Vec3::new(channel(0), channel(1), channel(2))
-    };
+    let radiance = probe_radiance(&state(40.0), sky, Color::srgb(0.35, 0.41, 0.19));
+    assert_eq!(radiance.len(), (FACES * PROBE_SIZE * PROBE_SIZE) as usize);
+    let bytes = probe_bytes(&radiance);
+    assert_eq!(bytes.len(), radiance.len() * 8);
+    let texel = |face: u32, u: u32, v: u32| radiance[((face * PROBE_SIZE + v) * PROBE_SIZE + u) as usize];
+    let first = |i: usize| f16::from_le_bytes([bytes[i * 2], bytes[i * 2 + 1]]).to_f32();
+    assert!((first(0) - radiance[0].x).abs() < radiance[0].x * 0.002 + 1e-3);
+    assert_eq!(first(3), 1.0, "texels are opaque");
     let ground = texel(3, PROBE_SIZE / 2, PROBE_SIZE / 2);
     assert!(
         ground.y > ground.x && ground.y > ground.z,
@@ -77,4 +78,32 @@ fn day_sky_outshines_night_and_the_ground_reflects_the_meadow() {
         }
     }
     assert!((total / count - 70.0).abs() < 1.0);
+}
+
+#[test]
+fn the_probe_crossfades_to_each_render_instead_of_stepping() {
+    let mut probe = SkyProbe {
+        image: Handle::default(),
+        refreshed_at: f32::NEG_INFINITY,
+        fade: None,
+    };
+    assert!(probe.shown(0.0).is_none(), "nothing shows before the first render");
+    probe.retarget(0.0, vec![Vec3::splat(2.0)]);
+    assert_eq!(
+        probe.shown(0.0),
+        Some(vec![Vec3::splat(2.0)]),
+        "the first render shows at once"
+    );
+    assert!(!probe.fading(SKY_PROBE_REFRESH_SECS));
+    probe.retarget(SKY_PROBE_REFRESH_SECS, vec![Vec3::splat(4.0)]);
+    let midway = SKY_PROBE_REFRESH_SECS * 1.5;
+    assert!(probe.fading(midway));
+    assert_eq!(probe.shown(midway), Some(vec![Vec3::splat(3.0)]));
+    let arrived = SKY_PROBE_REFRESH_SECS * 2.0;
+    assert_eq!(probe.shown(arrived), Some(vec![Vec3::splat(4.0)]));
+    assert!(!probe.fading(arrived));
+    // A render that arrives mid-fade starts from what is shown, not from the
+    // target it interrupted.
+    probe.retarget(midway, vec![Vec3::splat(0.0)]);
+    assert_eq!(probe.shown(midway), Some(vec![Vec3::splat(3.0)]));
 }

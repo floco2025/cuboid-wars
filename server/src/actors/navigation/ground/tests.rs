@@ -1,7 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 
 use common::{
-    map::CarrierPose,
+    map::{CarrierPose, Grounds, GroundsSettings},
     physics::CollisionWorld,
     protocol::{BridgeId, CarrierId, MapLayout, Position, Wall},
 };
@@ -636,4 +636,104 @@ fn route_start_stays_direct_when_the_body_fits_past_the_wall_end() {
 
     assert_eq!(route.waypoints.len(), 1);
     assert_eq!(route.waypoints.front().map(|point| &point.position), Some(&target));
+}
+
+fn grounds_for(nav: &NavGraph, level: u8) -> Grounds {
+    Grounds {
+        half_size: [
+            nav.geometry.width() / 2.0 + WALL_THICKNESS / 2.0,
+            nav.geometry.depth() / 2.0 + WALL_THICKNESS / 2.0,
+        ],
+        y: nav.geometry.level_y(level),
+        settings: GroundsSettings { level },
+    }
+}
+
+#[test]
+fn grounds_continue_the_grid_past_its_unwalled_rim() {
+    let mut cells = CellGrid::new(3, 3);
+    for cell in cells.rows.iter_mut().flatten() {
+        cell.has_floor = true;
+    }
+    let mut edges = EdgeGrid::new(3, 3);
+    edges.horizontal[0][1] = true;
+    let mut nav = nav_for(MapConfig::for_grid(vec![level(cells, edges)], geometry(3, 3)));
+    let outside = NavNode {
+        level: 0,
+        row: -1,
+        col: 0,
+    };
+    assert!(
+        !nav.is_traversable(outside),
+        "without grounds the grid ends at its edge"
+    );
+
+    nav.set_grounds(grounds_for(&nav, 0));
+    assert!(nav.is_traversable(outside));
+    assert!(
+        !nav.is_traversable(NavNode { level: 1, ..outside }),
+        "the grounds lie on one storey"
+    );
+    let rim = NavNode {
+        level: 0,
+        row: 0,
+        col: 0,
+    };
+    assert!(nav.neighbors(rim).contains(&outside));
+    assert!(nav.neighbors(outside).contains(&rim));
+    assert!(nav.neighbors(outside).contains(&NavNode { row: -2, ..outside }));
+    let walled_rim = NavNode { col: 1, ..rim };
+    let behind_wall = NavNode { col: 1, ..outside };
+    assert!(!nav.neighbors(walled_rim).contains(&behind_wall));
+    assert!(!nav.neighbors(behind_wall).contains(&walled_rim));
+    assert!(
+        nav.neighbors(behind_wall).contains(&outside),
+        "grounds cells meet along the rim"
+    );
+}
+
+#[test]
+fn grounds_cells_follow_the_hills_and_stop_short_of_the_terrain_edge() {
+    let mut nav = full_floor_nav(3, 3);
+    let grounds = grounds_for(&nav, 0);
+    nav.set_grounds(grounds.clone());
+
+    let on_a_hill = NavNode {
+        level: 0,
+        row: -30,
+        col: 0,
+    };
+    let center = nav.node_center(on_a_hill);
+    assert_eq!(center.y, grounds.height(center.x, center.z));
+    assert!(nav.contains(&center));
+    assert_eq!(
+        nav.nearest_node_for_position(&Position {
+            y: center.y + 3.0,
+            ..center
+        }),
+        Some(on_a_hill),
+        "a body on the hills is on the grounds' storey whatever its height"
+    );
+
+    let reach = (1..400)
+        .take_while(|&rows_out| {
+            nav.is_traversable(NavNode {
+                level: 0,
+                row: -rows_out,
+                col: 0,
+            })
+        })
+        .count();
+    let last = nav.node_center(NavNode {
+        level: 0,
+        row: -(reach as i32),
+        col: 0,
+    });
+    let beyond = nav.node_center(NavNode {
+        level: 0,
+        row: -(reach as i32 + 1),
+        col: 0,
+    });
+    assert!(grounds.distance_outside_map(last.x, last.z) + CELL <= grounds.extent() + 0.001);
+    assert!(grounds.distance_outside_map(beyond.x, beyond.z) + CELL > grounds.extent());
 }
