@@ -81,9 +81,6 @@ pub(super) fn validate_maps(
             .with_context(|| format!("invalid {path} barrier_kinds or bridge_kinds"))?;
         validate_texture_catalog(&entry.settings.textures, &format!("{path} textures"))?;
         entry.settings.geometry.validate(&format!("{path} geometry"))?;
-        if let Some(grounds) = &entry.settings.grounds {
-            grounds.validate(&format!("{path} grounds"))?;
-        }
         let movement_path = format!("{path} movement");
         let movement = &entry.settings.movement;
         for kind in movement.actors.keys() {

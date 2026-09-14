@@ -27,7 +27,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     constants::{
         GRASS_CHUNK_SIZE, GRASS_MID_CHUNKS_PER_FRAME, GRASS_MID_RANGE, GRASS_NEAR_CHUNKS_PER_FRAME, GRASS_NEAR_RANGE,
-        GRASS_STREAM_HYSTERESIS, GRASS_STREAM_MARGIN, GRASS_WIND_STRENGTH,
+        GRASS_ROCK_CLEARANCE, GRASS_STREAM_HYSTERESIS, GRASS_STREAM_MARGIN, GRASS_WIND_STRENGTH,
     },
     map::{DebugColors, MapLevel},
     materials::{GrassMaterial, TerrainMaterial, terrain_material},
@@ -78,12 +78,20 @@ pub(in crate::map) struct ChunkEntry {
     pub(in crate::map) level: Option<MapLevel>,
 }
 
-// Every grass chunk the map could show, and the ones built right now. Chunks
-// are built only around the camera: building the whole map at once costs
-// gigabytes of vertices for blades that are never within their fade range.
+struct GroundsGrass {
+    grounds: Grounds,
+    level: u8,
+}
+
+// The interior grass chunks the map could show, the exterior ground whose
+// cells are taken from the camera's surroundings, and the chunks built right
+// now. Chunks are built only around the camera: building the whole map at
+// once costs gigabytes of vertices for blades that are never within their
+// fade range.
 #[derive(Resource, Default)]
 pub struct GrassChunks {
     entries: BTreeMap<ChunkKey, ChunkEntry>,
+    grounds: Option<GroundsGrass>,
     spawned: HashMap<(ChunkKey, GrassLod), Entity>,
     grass_material: Option<Handle<GrassMaterial>>,
     terrain_material: Option<Handle<TerrainMaterial>>,
@@ -94,6 +102,10 @@ pub struct GrassChunks {
 impl GrassChunks {
     pub(in crate::map) fn register(&mut self, key: ChunkKey, entry: ChunkEntry) {
         self.entries.insert(key, entry);
+    }
+
+    pub(in crate::map) fn set_grounds(&mut self, grounds: Grounds, level: u8) {
+        self.grounds = Some(GroundsGrass { grounds, level });
     }
 
     pub(crate) fn terrain_material(&self) -> Handle<TerrainMaterial> {
@@ -109,6 +121,71 @@ impl GrassChunks {
     pub(crate) fn grass_material_handle(&self) -> Option<Handle<GrassMaterial>> {
         self.grass_material.clone()
     }
+
+    // Where a chunk's centre is this frame.
+    fn center(&self, key: &ChunkKey, carriers: &Carriers) -> Option<Vec3> {
+        match key.kind {
+            ChunkKind::Terrain => {
+                let entry = self.entries.get(key)?;
+                Some(carriers.pose(entry.carrier).transform_point(entry.origin))
+            }
+            ChunkKind::Grounds => {
+                let grounds = &self.grounds.as_ref()?.grounds;
+                let center = grounds_cell_center(IVec2::new(key.x, key.z));
+                Some(Vec3::new(center.x, grounds.height(center.x, center.y), center.y))
+            }
+        }
+    }
+}
+
+impl GroundsGrass {
+    // One chunk per ten-metre cell outside the map, out to the terrain's edge.
+    fn cell_is_meadow(&self, cell: IVec2) -> bool {
+        let center = grounds_cell_center(cell);
+        let grounds = &self.grounds;
+        let half = GRASS_CHUNK_SIZE * 0.5;
+        let inside = center.x.abs() + half < grounds.half_size[0] && center.y.abs() + half < grounds.half_size[1];
+        !inside && grounds.distance_outside_map(center.x, center.y) - half < grounds.extent()
+    }
+
+    fn key(&self, cell: IVec2) -> ChunkKey {
+        ChunkKey {
+            kind: ChunkKind::Grounds,
+            carrier: CarrierId::WORLD,
+            level: self.level,
+            x: cell.x,
+            z: cell.y,
+        }
+    }
+
+    fn entry(&self, cell: IVec2) -> ChunkEntry {
+        let center = grounds_cell_center(cell);
+        let origin = Vec3::new(center.x, self.grounds.height(center.x, center.y), center.y);
+        let patch = GrassPatch {
+            x1: cell.x as f32 * GRASS_CHUNK_SIZE,
+            x2: (cell.x + 1) as f32 * GRASS_CHUNK_SIZE,
+            z1: cell.y as f32 * GRASS_CHUNK_SIZE,
+            z2: (cell.y + 1) as f32 * GRASS_CHUNK_SIZE,
+            y: origin.y,
+            level: self.level,
+            carrier: CarrierId::WORLD,
+        };
+        ChunkEntry {
+            patches: vec![patch],
+            source: GrassChunkSource::Grounds {
+                grounds: self.grounds.clone(),
+                cell,
+            },
+            origin,
+            carrier: CarrierId::WORLD,
+            parent: None,
+            level: None,
+        }
+    }
+}
+
+fn grounds_cell_center(cell: IVec2) -> Vec2 {
+    (cell.as_vec2() + Vec2::splat(0.5)) * GRASS_CHUNK_SIZE
 }
 
 impl GrassLod {
@@ -164,6 +241,7 @@ pub fn grass_chunks_reset_system(
     }
     chunks.spawned.clear();
     chunks.entries.clear();
+    chunks.grounds = None;
     chunks.enabled = settings.grass.enabled;
     chunks.green = settings.grass.base_color();
     chunks.grass_material = Some(grass_materials.add(grass_material()));
@@ -193,26 +271,56 @@ pub fn grass_streaming_system(
         return;
     };
     let eye = camera.translation();
+    let distance_to = |center: Vec3| Vec2::new(center.x - eye.x, center.z - eye.z).length();
 
     let mut released = Vec::new();
-    let mut wanted: Vec<(f32, ChunkKey, GrassLod)> = Vec::new();
-    for (key, entry) in &chunks.entries {
-        let center = carriers.pose(entry.carrier).transform_point(entry.origin);
-        let distance = Vec2::new(center.x - eye.x, center.z - eye.z).length();
-        for lod in [GrassLod::Near, GrassLod::Mid] {
-            let (stream_in, stream_out) = lod.stream_radii();
-            match chunks.spawned.get(&(*key, lod)) {
-                Some(&entity) if distance > stream_out => {
-                    commands.entity(entity).despawn();
-                    released.push((*key, lod));
-                }
-                None if distance <= stream_in => wanted.push((distance, *key, lod)),
-                _ => {}
-            }
+    for (&(key, lod), &entity) in &chunks.spawned {
+        let (_, stream_out) = lod.stream_radii();
+        let gone = chunks
+            .center(&key, &carriers)
+            .is_none_or(|center| distance_to(center) > stream_out);
+        if gone {
+            commands.entity(entity).despawn();
+            released.push((key, lod));
         }
     }
     for slot in released {
         chunks.spawned.remove(&slot);
+    }
+
+    let mut wanted: Vec<(f32, ChunkKey, GrassLod)> = Vec::new();
+    for (key, entry) in &chunks.entries {
+        let distance = distance_to(carriers.pose(entry.carrier).transform_point(entry.origin));
+        for lod in [GrassLod::Near, GrassLod::Mid] {
+            if distance <= lod.stream_radii().0 && !chunks.spawned.contains_key(&(*key, lod)) {
+                wanted.push((distance, *key, lod));
+            }
+        }
+    }
+    if let Some(grounds) = &chunks.grounds {
+        for lod in [GrassLod::Near, GrassLod::Mid] {
+            let (stream_in, _) = lod.stream_radii();
+            let low = ((Vec2::new(eye.x, eye.z) - Vec2::splat(stream_in)) / GRASS_CHUNK_SIZE)
+                .floor()
+                .as_ivec2();
+            let high = ((Vec2::new(eye.x, eye.z) + Vec2::splat(stream_in)) / GRASS_CHUNK_SIZE)
+                .floor()
+                .as_ivec2();
+            for z in low.y..=high.y {
+                for x in low.x..=high.x {
+                    let cell = IVec2::new(x, z);
+                    let key = grounds.key(cell);
+                    if chunks.spawned.contains_key(&(key, lod)) || !grounds.cell_is_meadow(cell) {
+                        continue;
+                    }
+                    let center = grounds_cell_center(cell);
+                    let distance = distance_to(Vec3::new(center.x, eye.y, center.y));
+                    if distance <= stream_in {
+                        wanted.push((distance, key, lod));
+                    }
+                }
+            }
+        }
     }
 
     wanted.sort_by(|a, b| a.0.total_cmp(&b.0));
@@ -226,7 +334,18 @@ pub fn grass_streaming_system(
             continue;
         }
         budget[slot] -= 1;
-        let entry = &chunks.entries[&key];
+        let grounds_entry;
+        let entry = match key.kind {
+            ChunkKind::Terrain => &chunks.entries[&key],
+            ChunkKind::Grounds => {
+                grounds_entry = chunks
+                    .grounds
+                    .as_ref()
+                    .expect("grounds grass cell wanted without grounds")
+                    .entry(IVec2::new(key.x, key.z));
+                &grounds_entry
+            }
+        };
         let visual = GrassChunkVisual {
             patches: entry.patches.clone(),
             source: entry.source.clone(),
@@ -286,8 +405,20 @@ pub(super) fn grass_chunk_mesh(visual: &GrassChunkVisual, burns: &[GrassBurn]) -
     Some(mesh.transformed_by(Transform::from_translation(-visual.origin)))
 }
 
+// Blades over the exterior ground, leaving the rocks' footprints bare.
 fn grounds_chunk_mesh(grounds: &Grounds, cell: IVec2, lod: GrassLod, green: Color, burns: &[GrassBurn]) -> Mesh {
     let seed = (cell.x as u64).wrapping_mul(0x9E3779B97F4A7C15) ^ (cell.y as u64).wrapping_mul(0xC2B2AE3D27D4EB4F);
+    let min = cell.as_vec2() * GRASS_CHUNK_SIZE;
+    let rocks: Vec<(Vec2, f32)> = grounds
+        .rocks_within(min, min + Vec2::splat(GRASS_CHUNK_SIZE))
+        .into_iter()
+        .map(|rock| {
+            (
+                Vec2::new(rock.position.x, rock.position.z),
+                rock.scale.x * GRASS_ROCK_CLEARANCE,
+            )
+        })
+        .collect();
     grass_scatter_mesh(
         seed,
         lod.tuft_count(GRASS_CHUNK_SIZE.powi(2)),
@@ -297,7 +428,11 @@ fn grounds_chunk_mesh(grounds: &Grounds, cell: IVec2, lod: GrassLod, green: Colo
         |rng| {
             let x = (cell.x as f32 + rng.random::<f32>()) * GRASS_CHUNK_SIZE;
             let z = (cell.y as f32 + rng.random::<f32>()) * GRASS_CHUNK_SIZE;
-            (grounds.distance_outside_map(x, z) >= 0.2).then(|| Vec3::new(x, grounds.height(x, z), z))
+            let clear = grounds.distance_outside_map(x, z) >= 0.2
+                && rocks
+                    .iter()
+                    .all(|(center, radius)| center.distance_squared(Vec2::new(x, z)) > radius * radius);
+            clear.then(|| Vec3::new(x, grounds.height(x, z), z))
         },
         |_, _| true,
     )

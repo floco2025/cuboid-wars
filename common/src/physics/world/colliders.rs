@@ -126,7 +126,7 @@ impl ColliderKind {
 }
 
 pub(super) fn insert_grounds_colliders(colliders: &mut ColliderSet, grounds: &Grounds) -> Vec<ColliderHandle> {
-    let mesh = grounds.mesh(false);
+    let mesh = grounds.mesh();
     let collider = ColliderBuilder::trimesh(mesh.vertices.into_iter().map(to_rapier).collect(), mesh.triangles)
         .expect("grounds mesh contains invalid triangles")
         .user_data(ColliderKind::Grounds.user_data(CarrierId::WORLD))

@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use crate::{
     config::{AssetSet, ClientSettings},
-    constants::{DECORATION_FAR_CHUNK_SIZE, DECORATION_FAR_FADE, DECORATION_NEAR_BAND, GRASS_CHUNK_SIZE},
-    map::grass::{ChunkEntry, ChunkKey, ChunkKind, GrassChunkSource, GrassChunks},
+    constants::{DECORATION_FAR_CHUNK_SIZE, DECORATION_FAR_FADE, DECORATION_NEAR_BAND},
+    map::grass::GrassChunks,
     materials::TreeMaterial,
 };
 use bevy::{
@@ -14,11 +14,11 @@ use bevy::{
     prelude::*,
 };
 use common::{
-    map::{DecorationKind, GroundDecoration, Grounds, RockClass},
-    protocol::{CarrierId, MapLayout},
+    map::{DecorationKind, GroundDecoration, RockClass},
+    protocol::MapLayout,
 };
 
-use super::{grass::GrassPatch, rocks::RockAssets, trees::TreeAssets};
+use super::{rocks::RockAssets, trees::TreeAssets};
 
 #[derive(Component)]
 pub(super) struct GroundsVisual;
@@ -43,7 +43,7 @@ pub(super) fn grounds_spawn_system(
     }
     let Some(grounds) = &layout.grounds else { return };
     let material = chunks.terrain_material();
-    let terrain = grounds.mesh(true);
+    let terrain = grounds.mesh();
     let positions: Vec<[f32; 3]> = terrain.vertices.iter().map(|v| v.to_array()).collect();
     let uvs: Vec<[f32; 2]> = terrain.vertices.iter().map(|v| [v.x, v.z]).collect();
     let normals: Vec<[f32; 3]> = terrain
@@ -63,7 +63,7 @@ pub(super) fn grounds_spawn_system(
         Transform::default(),
     ));
 
-    register_grounds_grass(&mut chunks, grounds);
+    chunks.set_grounds(grounds.clone(), grounds.settings.level);
 
     let trees = TreeAssets::new(&server, &mut meshes, &mut materials, &mut tree_materials);
     let rocks = RockAssets::new(&server, &asset_set, &settings, &mut meshes, &mut materials);
@@ -120,54 +120,6 @@ pub(super) fn grounds_spawn_system(
                     use_aabb: true,
                 },
             ));
-        }
-    }
-}
-
-// One chunk per ten-metre cell outside the map, out to the playable margin
-// and a little beyond; the streamer builds them as the camera approaches.
-fn register_grounds_grass(chunks: &mut GrassChunks, grounds: &Grounds) {
-    let extent = Vec2::from_array(grounds.half_size) + Vec2::splat(grounds.settings.margin + 20.0);
-    let count = (extent / GRASS_CHUNK_SIZE).ceil().as_ivec2();
-    for z in -count.y..count.y {
-        for x in -count.x..count.x {
-            let cell = IVec2::new(x, z);
-            let center = (cell.as_vec2() + Vec2::splat(0.5)) * GRASS_CHUNK_SIZE;
-            if center.x.abs() + GRASS_CHUNK_SIZE * 0.5 < grounds.half_size[0]
-                && center.y.abs() + GRASS_CHUNK_SIZE * 0.5 < grounds.half_size[1]
-            {
-                continue;
-            }
-            let origin = Vec3::new(center.x, grounds.height(center.x, center.y), center.y);
-            let patch = GrassPatch {
-                x1: cell.x as f32 * GRASS_CHUNK_SIZE,
-                x2: (cell.x + 1) as f32 * GRASS_CHUNK_SIZE,
-                z1: cell.y as f32 * GRASS_CHUNK_SIZE,
-                z2: (cell.y + 1) as f32 * GRASS_CHUNK_SIZE,
-                y: origin.y,
-                level: grounds.settings.level,
-                carrier: CarrierId::WORLD,
-            };
-            chunks.register(
-                ChunkKey {
-                    kind: ChunkKind::Grounds,
-                    carrier: CarrierId::WORLD,
-                    level: grounds.settings.level,
-                    x,
-                    z,
-                },
-                ChunkEntry {
-                    patches: vec![patch],
-                    source: GrassChunkSource::Grounds {
-                        grounds: grounds.clone(),
-                        cell,
-                    },
-                    origin,
-                    carrier: CarrierId::WORLD,
-                    parent: None,
-                    level: None,
-                },
-            );
         }
     }
 }

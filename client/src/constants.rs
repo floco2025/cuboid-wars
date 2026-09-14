@@ -626,6 +626,8 @@ pub const GRASS_STREAM_HYSTERESIS: f32 = 10.0;
 pub const GRASS_NEAR_CHUNKS_PER_FRAME: usize = 2;
 pub const GRASS_MID_CHUNKS_PER_FRAME: usize = 8;
 pub const GRASS_DRY: Color = Color::srgb(0.55, 0.50, 0.24);
+// No blades within this many rock radii of a rock's centre.
+pub const GRASS_ROCK_CLEARANCE: f32 = 1.15;
 // Blade sway amplitude at the tip (m), oscillation speed (rad/s), and the
 // direction of every wind in the scene.
 pub const GRASS_WIND_STRENGTH: f32 = 0.05;

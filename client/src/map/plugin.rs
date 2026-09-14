@@ -30,7 +30,6 @@ pub fn map_plugin(app: &mut App) {
             map_spawn_geometry_system,
             grass_chunks_reset_system,
             grounds::grounds_spawn_system.after(grass_chunks_reset_system),
-            boundary::boundary_notice_system,
             erasers_spawn_system,
             checkpoints_spawn_system,
             terrain_spawn_system.after(grass_chunks_reset_system),

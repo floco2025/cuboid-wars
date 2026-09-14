@@ -1,4 +1,3 @@
-mod boundary;
 mod checkpoints;
 mod equipment;
 mod falling;
@@ -26,7 +25,6 @@ mod resources_tests;
 #[path = "tests/respawn.rs"]
 pub(crate) mod respawn_tests;
 
-pub(crate) use boundary::players_boundary_system;
 pub use checkpoints::{CheckpointId, PlayerCheckpoint};
 pub(crate) use checkpoints::{
     checkpoint_at_position, checkpoint_spawn_position, checkpoints_exist, players_checkpoints_system,

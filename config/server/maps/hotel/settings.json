@@ -22,7 +22,7 @@
     "start_local_time": "09:00",
     "start_moon_phase": 0.25
   },
-  "grounds": { "level": 1, "margin": 50.0, "return_secs": 8.0 },
+  "grounds": { "level": 1 },
   "geometry": {
     "grid_cell_size": 3.4,
     "level_height": 4.4,

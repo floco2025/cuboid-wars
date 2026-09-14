@@ -12,18 +12,14 @@ fn grounds() -> Grounds {
     Grounds {
         half_size: [20.0, 30.0],
         y: 4.4,
-        settings: GroundsSettings {
-            level: 1,
-            margin: 50.0,
-            return_secs: 8.0,
-        },
+        settings: GroundsSettings { level: 1 },
     }
 }
 
 #[test]
 fn terrain_joins_the_map_leaves_the_basement_open_and_faces_up() {
     let grounds = grounds();
-    let mesh = grounds.mesh(false);
+    let mesh = grounds.mesh();
     for &[a, b, c] in &mesh.triangles {
         let [a, b, c] = [a, b, c].map(|i| mesh.vertices[i as usize]);
         assert!((b - a).cross(c - a).y > 0.0);
@@ -81,27 +77,27 @@ fn exterior_has_visible_rolling_height_variation() {
 }
 
 #[test]
-fn collision_triangles_match_the_visible_inner_terrain() {
+fn terrain_reaches_past_the_decorations_and_is_closed_around_the_map() {
     let grounds = grounds();
-    let collision = grounds.mesh(false);
-    let visual = grounds.mesh(true);
-    let collision_side = collision.vertices.len() / 4;
-    let visual_side = visual.vertices.len() / 4;
-    for side in 0..4 {
-        assert_eq!(
-            collision.vertices[side * collision_side..(side + 1) * collision_side],
-            visual.vertices[side * visual_side..side * visual_side + collision_side]
-        );
-    }
-}
-
-#[test]
-fn boundary_timer_cancels_on_reentry_and_counts_down_from_the_start() {
-    let mut timer = BoundaryTimer::default();
-    assert_eq!(timer.tick(true, 3.0, 8.0), Some(5.0));
-    assert_eq!(timer.tick(false, 10.0, 8.0), None);
-    assert_eq!(timer.tick(true, 1.0, 8.0), Some(7.0));
-    assert_eq!(timer.tick(true, 10.0, 8.0), Some(0.0));
+    let mesh = grounds.mesh();
+    let farthest = mesh
+        .vertices
+        .iter()
+        .map(|v| grounds.distance_outside_map(v.x, v.z))
+        .fold(0.0f32, f32::max);
+    assert!((farthest - grounds.extent()).abs() < 0.01);
+    assert!(grounds.extent() > 700.0, "the terrain reaches past the decorations");
+    let decorations = grounds.decorations();
+    assert!(
+        decorations
+            .iter()
+            .all(|d| grounds.distance_outside_map(d.position.x, d.position.z) < grounds.extent())
+    );
+    assert_eq!(
+        grounds.collidable_decorations().len(),
+        decorations.iter().filter(|d| d.collides()).count(),
+        "every solid decoration collides wherever it stands"
+    );
 }
 
 #[test]
@@ -160,7 +156,6 @@ fn decorations_keep_off_the_map_and_only_reachable_ones_collide() {
         all.len() > 1000,
         "a jittered grid over the grounds places thousands of decorations"
     );
-    let reachable = grounds.settings.margin + 80.0;
     let mut trees = Vec::new();
     let mut rocks = Vec::new();
     for decoration in &all {
@@ -183,7 +178,7 @@ fn decorations_keep_off_the_map_and_only_reachable_ones_collide() {
                 assert!(decoration.scale.x >= min && decoration.scale.x <= max);
                 assert!(decoration.position.y < ground && decoration.position.y > ground - max);
                 if class == RockClass::Pebble {
-                    assert!(outside <= reachable + 30.0, "pebbles stop where nobody sees them");
+                    assert!(outside <= 160.0, "pebbles stop where nobody sees them");
                 }
                 rocks.push(decoration);
             }
@@ -205,8 +200,34 @@ fn decorations_keep_off_the_map_and_only_reachable_ones_collide() {
     let collidable = grounds.collidable_decorations();
     assert!(!collidable.is_empty() && collidable.len() < all.len());
     for decoration in &collidable {
-        let outside = grounds.distance_outside_map(decoration.position.x, decoration.position.z);
-        assert!(outside <= reachable);
         assert_ne!(decoration.kind, DecorationKind::Rock(RockClass::Pebble));
+    }
+}
+
+#[test]
+fn rocks_within_finds_every_rock_that_reaches_a_cell() {
+    let grounds = grounds();
+    let rocks: Vec<_> = grounds
+        .decorations()
+        .into_iter()
+        .filter(|d| matches!(d.kind, DecorationKind::Rock(_)))
+        .collect();
+    let min = Vec2::new(60.0, -40.0);
+    let max = min + Vec2::splat(10.0);
+    let expected: Vec<_> = rocks
+        .iter()
+        .filter(|rock| {
+            let center = Vec2::new(rock.position.x, rock.position.z);
+            let nearest = center.clamp(min, max);
+            center.distance(nearest) <= rock.scale.x * 2.0
+        })
+        .collect();
+    assert!(!expected.is_empty(), "the sample cell has rocks reaching into it");
+    let found = grounds.rocks_within(min, max);
+    for rock in expected {
+        assert!(
+            found.iter().any(|f| f.position == rock.position),
+            "a rock reaching the cell is missing"
+        );
     }
 }
