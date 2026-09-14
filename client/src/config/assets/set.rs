@@ -54,6 +54,7 @@ pub struct AssetSet {
     pub footsteps: FootstepSounds,
     pub(super) materials: HashMap<String, MaterialDef>,
     ladder: MaterialBinding,
+    rocks: MaterialBinding,
     pressure_plate: PressurePlateDef,
     #[serde(default)]
     aliases: HashMap<String, String>,
@@ -106,6 +107,11 @@ impl AssetSet {
             self.materials.contains_key(&self.ladder.material),
             "`ladder.material` points to unknown material `{}`",
             self.ladder.material
+        );
+        anyhow::ensure!(
+            self.materials.contains_key(&self.rocks.material),
+            "`rocks.material` points to unknown material `{}`",
+            self.rocks.material
         );
         self.pressure_plate.validate()?;
         validate_model("player.model", &self.player.model)?;
@@ -204,6 +210,11 @@ impl AssetSet {
     #[must_use]
     pub fn ladder_material_def(&self) -> &MaterialDef {
         self.exact_material(&self.ladder.material)
+    }
+
+    #[must_use]
+    pub fn rock_material_def(&self) -> &MaterialDef {
+        self.exact_material(&self.rocks.material)
     }
 
     #[must_use]

@@ -5,6 +5,7 @@ mod grass;
 mod grounds;
 mod rendering;
 mod resources;
+mod rocks;
 pub mod spawn;
 mod terrain_surface;
 mod trees;

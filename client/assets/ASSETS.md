@@ -28,6 +28,7 @@
 | `textures/trees/oak-leaf-spray.png` | OpenAI image generation; [prompt](textures/trees/README.md) | Project-owned |
 | `textures/meadow/meadow-albedo.png` | OpenAI image generation; [prompt](textures/meadow/README.md) | Project-owned |
 | `textures/soil/soil-albedo.png` | OpenAI image generation; [prompt](textures/soil/README.md) | Project-owned |
+| `textures/rocks/rock_*.png` | Project-created with [rock.py](textures/rocks/rock.py) | Project-owned |
 | `textures/art-deco-scales-wallpaper-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Art Deco scales wallpaper | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/beige-carpet-worn1-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Beige carpet worn 1 | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/bricks-mortar-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Bricks mortar | [FreePBR terms](https://freepbr.com/about-free-pbr/) |

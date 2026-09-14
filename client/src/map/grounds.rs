@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    constants::{GRASS_CHUNK_SIZE, GROUNDS_ROCK_COLOR, TREE_FAR_CHUNK_SIZE, TREE_FAR_FADE, TREE_NEAR_BAND},
+    config::{AssetSet, ClientSettings},
+    constants::{DECORATION_FAR_CHUNK_SIZE, DECORATION_FAR_FADE, DECORATION_NEAR_BAND, GRASS_CHUNK_SIZE},
     map::grass::{ChunkEntry, ChunkKey, ChunkKind, GrassChunkSource, GrassChunks},
     materials::TreeMaterial,
 };
@@ -13,11 +14,11 @@ use bevy::{
     prelude::*,
 };
 use common::{
-    map::{GroundDecoration, Grounds},
+    map::{DecorationKind, GroundDecoration, Grounds, RockClass},
     protocol::{CarrierId, MapLayout},
 };
 
-use super::{grass::GrassPatch, trees::TreeAssets};
+use super::{grass::GrassPatch, rocks::RockAssets, trees::TreeAssets};
 
 #[derive(Component)]
 pub(super) struct GroundsVisual;
@@ -26,6 +27,8 @@ pub(super) fn grounds_spawn_system(
     mut commands: Commands,
     layout: Res<MapLayout>,
     server: Res<AssetServer>,
+    asset_set: Res<AssetSet>,
+    settings: Res<ClientSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut tree_materials: ResMut<Assets<TreeMaterial>>,
@@ -63,21 +66,17 @@ pub(super) fn grounds_spawn_system(
     register_grounds_grass(&mut chunks, grounds);
 
     let trees = TreeAssets::new(&server, &mut meshes, &mut materials, &mut tree_materials);
-    let rock = meshes.add(Sphere::new(1.0).mesh().ico(1).expect("rock subdivision invalid"));
-    let stone = materials.add(StandardMaterial {
-        base_color: GROUNDS_ROCK_COLOR,
-        perceptual_roughness: 0.95,
-        ..default()
-    });
-    let mut far_trees: BTreeMap<(i32, i32), Vec<GroundDecoration>> = BTreeMap::new();
+    let rocks = RockAssets::new(&server, &asset_set, &settings, &mut meshes, &mut materials);
+    let mut far: BTreeMap<(i32, i32), Vec<GroundDecoration>> = BTreeMap::new();
     for decoration in grounds.decorations() {
         let outside = grounds.distance_outside_map(decoration.position.x, decoration.position.z);
-        if decoration.tree && outside > TREE_NEAR_BAND {
+        let merges_far = decoration.kind != DecorationKind::Rock(RockClass::Pebble);
+        if merges_far && outside > DECORATION_NEAR_BAND {
             let key = (
-                (decoration.position.x / TREE_FAR_CHUNK_SIZE).floor() as i32,
-                (decoration.position.z / TREE_FAR_CHUNK_SIZE).floor() as i32,
+                (decoration.position.x / DECORATION_FAR_CHUNK_SIZE).floor() as i32,
+                (decoration.position.z / DECORATION_FAR_CHUNK_SIZE).floor() as i32,
             );
-            far_trees.entry(key).or_default().push(decoration);
+            far.entry(key).or_default().push(decoration);
             continue;
         }
         let root = commands
@@ -85,30 +84,30 @@ pub(super) fn grounds_spawn_system(
                 GroundsVisual,
                 Transform::from_translation(decoration.position)
                     .with_scale(decoration.scale)
-                    .with_rotation(Quat::from_rotation_y(decoration.yaw)),
+                    .with_rotation(decoration.rotation),
                 Visibility::Visible,
             ))
             .id();
-        if decoration.tree {
-            trees.spawn(&mut commands, root, &decoration);
-        } else {
-            commands.spawn((
-                ChildOf(root),
-                Mesh3d(rock.clone()),
-                MeshMaterial3d(stone.clone()),
-                Transform::from_xyz(0.0, 0.45, 0.0),
-            ));
+        match decoration.kind {
+            DecorationKind::Tree => trees.spawn(&mut commands, root, &decoration),
+            DecorationKind::Rock(class) => rocks.spawn(&mut commands, root, &decoration, class),
         }
     }
     let (far_bark, far_foliage) = trees.far_materials();
-    for ((chunk_x, chunk_z), group) in far_trees {
-        let x = (chunk_x as f32 + 0.5) * TREE_FAR_CHUNK_SIZE;
-        let z = (chunk_z as f32 + 0.5) * TREE_FAR_CHUNK_SIZE;
+    let far_stone = rocks.material();
+    for ((chunk_x, chunk_z), group) in far {
+        let x = (chunk_x as f32 + 0.5) * DECORATION_FAR_CHUNK_SIZE;
+        let z = (chunk_z as f32 + 0.5) * DECORATION_FAR_CHUNK_SIZE;
         let origin = Vec3::new(x, grounds.height(x, z), z);
-        let Some((wood, leaves)) = trees.far_chunk(&group, origin) else {
-            continue;
-        };
-        for (mesh, material) in [(wood, far_bark.clone()), (leaves, far_foliage.clone())] {
+        let mut chunk_meshes = Vec::new();
+        if let Some((wood, leaves)) = trees.far_chunk(&group, origin) {
+            chunk_meshes.push((wood, far_bark.clone()));
+            chunk_meshes.push((leaves, far_foliage.clone()));
+        }
+        if let Some(stone) = rocks.far_chunk(&group, origin) {
+            chunk_meshes.push((stone, far_stone.clone()));
+        }
+        for (mesh, material) in chunk_meshes {
             commands.spawn((
                 GroundsVisual,
                 Mesh3d(meshes.add(mesh)),
@@ -117,7 +116,7 @@ pub(super) fn grounds_spawn_system(
                 NotShadowCaster,
                 VisibilityRange {
                     start_margin: 0.0..0.0,
-                    end_margin: TREE_FAR_FADE[0]..TREE_FAR_FADE[1],
+                    end_margin: DECORATION_FAR_FADE[0]..DECORATION_FAR_FADE[1],
                     use_aabb: true,
                 },
             ));

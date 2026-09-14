@@ -218,6 +218,19 @@
         "metallic_roughness": "textures/fiberous-plaster1-ue/fiberous_plaster_metallic-roughness.png"
       }
     },
+    "rock": {
+      "tile_size": 1.0,
+      "metallic": 0.0,
+      "roughness": 0.9,
+      "repeat": true,
+      "linear_data_textures": true,
+      "textures": {
+        "base_color": "textures/rocks/rock_albedo.png",
+        "normal": "textures/rocks/rock_normal-gl.png",
+        "occlusion": "textures/rocks/rock_ao.png",
+        "metallic_roughness": "textures/rocks/rock_metallic-roughness.png"
+      }
+    },
     "procedural-terrain": {
       "metallic": 0.0,
       "roughness": 0.95,
@@ -259,6 +272,7 @@
     "perimeter-wall": "patched-brickwork"
   },
   "ladder": { "material": "used-stainless-steel" },
+  "rocks": { "material": "rock" },
   "pressure_plate": {
     "scene": "models/pressure_plate.glb",
     "default_color": "#2c99bc",

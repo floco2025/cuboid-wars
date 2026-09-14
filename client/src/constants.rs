@@ -555,10 +555,15 @@ pub const RAIN_SPLASH_RADIUS: f32 = 0.15;
 pub const RAIN_SPLASH_HEIGHT: f32 = 0.2;
 
 // ============================================================================
-// Grounds
+// Ground Decorations
 // ============================================================================
 
-pub const GROUNDS_ROCK_COLOR: Color = Color::srgb(0.35, 0.36, 0.32);
+// Trees and rocks within this distance of the map edge are individual
+// entities with their detail levels; farther ones merge into one static mesh
+// per chunk at their coarsest level, so thousands cost a few draws.
+pub const DECORATION_NEAR_BAND: f32 = 200.0;
+pub const DECORATION_FAR_CHUNK_SIZE: f32 = 100.0;
+pub const DECORATION_FAR_FADE: [f32; 2] = [750.0, 850.0];
 
 // ============================================================================
 // Trees
@@ -569,16 +574,30 @@ pub const TREE_BARK_COLOR: Color = Color::srgb(0.19, 0.13, 0.085);
 pub const TREE_FOLIAGE_CUTOFF: f32 = 0.35;
 pub const TREE_FOLIAGE_TRANSMISSION: f32 = 0.25;
 pub const TREE_LOD_DISTANCES: [[f32; 2]; 3] = [[55.0, 65.0], [125.0, 150.0], [380.0, 440.0]];
-// Trees within this distance of the map edge are individual entities with
-// wind and the three detail levels; farther ones merge into one static mesh
-// per chunk of the far detail level, so thousands cost a few draws.
-pub const TREE_NEAR_BAND: f32 = 200.0;
-pub const TREE_FAR_CHUNK_SIZE: f32 = 100.0;
-pub const TREE_FAR_FADE: [f32; 2] = [750.0, 850.0];
 // Crown sway amplitude (metres) and swing rate (rad/s); the direction is
 // `GRASS_WIND_DIRECTION_DEGREES`.
 pub const TREE_WIND_STRENGTH: f32 = 0.22;
 pub const TREE_WIND_SPEED: f32 = 1.0;
+
+// ============================================================================
+// Rocks
+// ============================================================================
+
+// Metres of stone the texture spans across one unit of a pebble, stone, and
+// boulder shape, so the grain stays about the same size on every class.
+pub const ROCK_TEXTURE_SPAN: [f32; 3] = [0.3, 0.9, 2.4];
+pub const ROCK_PEBBLE_FADE: [f32; 2] = [30.0, 40.0];
+pub const ROCK_STONE_LOD_DISTANCES: [[f32; 2]; 3] = [[28.0, 36.0], [90.0, 110.0], [300.0, 340.0]];
+pub const ROCK_BOULDER_LOD_DISTANCES: [[f32; 2]; 3] = [[60.0, 75.0], [200.0, 240.0], [900.0, 1000.0]];
+// Per-variant multipliers over the stone texture, and the lichen that
+// creeps over the tops.
+pub const ROCK_TINTS: [Color; 4] = [
+    Color::srgb(1.0, 1.0, 1.0),
+    Color::srgb(1.0, 0.93, 0.84),
+    Color::srgb(0.86, 0.9, 1.0),
+    Color::srgb(0.78, 0.76, 0.74),
+];
+pub const ROCK_LICHEN_COLOR: Color = Color::srgb(0.47, 0.55, 0.3);
 
 // ============================================================================
 // Terrain

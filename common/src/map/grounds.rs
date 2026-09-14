@@ -1,10 +1,11 @@
 use std::f32::consts::TAU;
 
 use anyhow::{Result, ensure};
-use bevy_math::{Vec2, Vec3};
+use bevy_math::{EulerRot, Quat, Vec2, Vec3};
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
+use super::rocks::{ROCK_VARIANTS, RockClass};
 use crate::config::validate_positive_finite;
 
 const HILL_BLEND_START: f32 = 6.0;
@@ -13,16 +14,20 @@ const HILL_BLEND_END: f32 = 50.0;
 // rendered hills continue beyond it.
 pub const GROUNDS_COLLISION_EXTENT: f32 = 400.0;
 const COLLISION_RING_SPACING: f32 = 4.0;
-// Decorations scatter over a jittered grid, so their number follows the
-// ground's area, with a slow noise carving groves and clearings. They stop
-// short of the map edge, which keeps the seam walkable, and end where the
-// fog hides them.
-const DECORATION_CELL: f32 = 16.0;
-const DECORATION_CLEARANCE: f32 = 8.0;
+// Trees scatter over a jittered grid, so their number follows the ground's
+// area, with a slow noise carving groves and clearings. They stop short of
+// the map edge, which keeps the seam walkable, and end where the fog hides
+// them.
+const TREE_CELL: f32 = 16.0;
+const TREE_CLEARANCE: f32 = 8.0;
 const DECORATION_EXTENT: f32 = 700.0;
-// Rocks and colliders exist only where a player can get: the return
-// countdown starts at the margin and pulls them back long before this.
+// Colliders exist only where a player can get: the return countdown starts
+// at the margin and pulls them back long before this.
 const REACHABLE_PAST_MARGIN: f32 = 80.0;
+// Pebbles are too small to see from afar, so they stop this far past reach.
+const PEBBLE_PAST_REACH: f32 = 30.0;
+// How far into the ground a rock sits, as a fraction of its size.
+const ROCK_SINK: f32 = 0.1;
 
 #[derive(Debug, Clone, Deserialize, Encode, Decode)]
 pub struct GroundsSettings {
@@ -53,13 +58,28 @@ pub struct GroundsMesh {
     pub triangles: Vec<[u32; 3]>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DecorationKind {
+    Tree,
+    Rock(RockClass),
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct GroundDecoration {
     pub position: Vec3,
     pub scale: Vec3,
-    pub yaw: f32,
+    pub rotation: Quat,
     pub variant: u32,
-    pub tree: bool,
+    pub kind: DecorationKind,
+}
+
+impl GroundDecoration {
+    pub fn collides(&self) -> bool {
+        match self.kind {
+            DecorationKind::Tree => true,
+            DecorationKind::Rock(class) => class.collides(),
+        }
+    }
 }
 
 fn cell_hash(x: i32, z: i32, salt: u32) -> f32 {
@@ -71,15 +91,49 @@ fn cell_hash(x: i32, z: i32, salt: u32) -> f32 {
     (value ^ (value >> 16)) as f32 / u32::MAX as f32
 }
 
-fn grove_noise(position: Vec2) -> f32 {
+fn value_noise(position: Vec2, salt: u32) -> f32 {
     let cell = position.floor().as_ivec2();
     let t = position - position.floor();
     let t = t * t * (Vec2::splat(3.0) - t * 2.0);
-    let corner = |dx: i32, dz: i32| cell_hash(cell.x + dx, cell.y + dz, 9);
+    let corner = |dx: i32, dz: i32| cell_hash(cell.x + dx, cell.y + dz, salt);
     let lerp = |a: f32, b: f32, t: f32| a + (b - a) * t;
     let bottom = lerp(corner(0, 0), corner(1, 0), t.x);
     let top = lerp(corner(0, 1), corner(1, 1), t.x);
     lerp(bottom, top, t.y)
+}
+
+// Rock scatter per class: grid cell and clearance from the map seam in
+// metres, the hash salt, and how the rockiness noise fills a cell.
+fn rock_cell(class: RockClass) -> f32 {
+    match class {
+        RockClass::Pebble => 3.5,
+        RockClass::Stone => 9.0,
+        RockClass::Boulder => 40.0,
+    }
+}
+
+fn rock_clearance(class: RockClass) -> f32 {
+    match class {
+        RockClass::Pebble => 1.5,
+        RockClass::Stone => 4.0,
+        RockClass::Boulder => 8.0,
+    }
+}
+
+fn rock_salt(class: RockClass) -> u32 {
+    match class {
+        RockClass::Pebble => 20,
+        RockClass::Stone => 40,
+        RockClass::Boulder => 60,
+    }
+}
+
+fn rock_density(class: RockClass, rockiness: f32) -> f32 {
+    match class {
+        RockClass::Pebble => 0.15 + 0.6 * smoothstep(0.3, 0.7, rockiness),
+        RockClass::Stone => 0.05 + 0.6 * smoothstep(0.4, 0.75, rockiness),
+        RockClass::Boulder => 0.06 + 0.6 * smoothstep(0.45, 0.8, rockiness),
+    }
 }
 
 fn smoothstep(low: f32, high: f32, value: f32) -> f32 {
@@ -89,36 +143,56 @@ fn smoothstep(low: f32, high: f32, value: f32) -> f32 {
 
 impl Grounds {
     pub fn decorations(&self) -> Vec<GroundDecoration> {
-        let reach = self.half_size[0].max(self.half_size[1]) + DECORATION_EXTENT;
-        let cells = (reach / DECORATION_CELL).ceil() as i32;
-        let reachable = self.reachable_extent();
         let mut decorations = Vec::new();
+        let cells = self.decoration_cells(TREE_CELL, DECORATION_EXTENT);
         for cz in -cells..cells {
             for cx in -cells..cells {
-                let x = (cx as f32 + 0.15 + 0.7 * cell_hash(cx, cz, 1)) * DECORATION_CELL;
-                let z = (cz as f32 + 0.15 + 0.7 * cell_hash(cx, cz, 2)) * DECORATION_CELL;
-                let outside = self.distance_outside_map(x, z);
-                if !(DECORATION_CLEARANCE..=DECORATION_EXTENT).contains(&outside) {
-                    continue;
+                decorations.extend(self.tree_at(cx, cz));
+            }
+        }
+        for class in RockClass::ALL {
+            let cell = rock_cell(class);
+            let salt = rock_salt(class);
+            let extent = if class == RockClass::Pebble {
+                self.reachable_extent() + PEBBLE_PAST_REACH
+            } else {
+                DECORATION_EXTENT
+            };
+            let cells = self.decoration_cells(cell, extent);
+            for cz in -cells..cells {
+                for cx in -cells..cells {
+                    let x = (cx as f32 + 0.1 + 0.8 * cell_hash(cx, cz, salt)) * cell;
+                    let z = (cz as f32 + 0.1 + 0.8 * cell_hash(cx, cz, salt + 1)) * cell;
+                    let outside = self.distance_outside_map(x, z);
+                    if !(rock_clearance(class)..=extent).contains(&outside) {
+                        continue;
+                    }
+                    let rockiness = value_noise(Vec2::new(x, z) / 60.0, 11);
+                    if cell_hash(cx, cz, salt + 2) > rock_density(class, rockiness) {
+                        continue;
+                    }
+                    let (min, max) = class.size_range();
+                    let spread = cell_hash(cx, cz, salt + 3);
+                    let size = min + (max - min) * spread * spread;
+                    if self.tree_within(x, z, size + 1.0) {
+                        continue;
+                    }
+                    let settle = Quat::from_rotation_arc(Vec3::Y, self.normal(x, z).normalize_or(Vec3::Y));
+                    let yaw = Quat::from_rotation_y(cell_hash(cx, cz, salt + 4) * TAU);
+                    let tilt = Quat::from_euler(
+                        EulerRot::XYZ,
+                        (cell_hash(cx, cz, salt + 5) - 0.5) * 0.4,
+                        0.0,
+                        (cell_hash(cx, cz, salt + 6) - 0.5) * 0.4,
+                    );
+                    decorations.push(GroundDecoration {
+                        position: Vec3::new(x, self.height(x, z) - size * ROCK_SINK, z),
+                        scale: Vec3::splat(size),
+                        rotation: settle * yaw * tilt,
+                        variant: (cell_hash(cx, cz, salt + 7) * ROCK_VARIANTS as f32) as u32,
+                        kind: DecorationKind::Rock(class),
+                    });
                 }
-                let grove = grove_noise(Vec2::new(cx as f32, cz as f32) / 6.0);
-                let density = 0.1 + 0.9 * smoothstep(0.3, 0.7, grove);
-                if cell_hash(cx, cz, 3) > density {
-                    continue;
-                }
-                let tree = outside > reachable || cell_hash(cx, cz, 4) > 0.12;
-                let size = 0.8 + cell_hash(cx, cz, 5) * 0.8;
-                decorations.push(GroundDecoration {
-                    position: Vec3::new(x, self.height(x, z) - 0.2, z),
-                    scale: if tree {
-                        Vec3::splat(size)
-                    } else {
-                        Vec3::new(1.8, 1.0, 1.4) * size
-                    },
-                    yaw: cell_hash(cx, cz, 6) * TAU,
-                    variant: (cell_hash(cx, cz, 7) * 3.0) as u32,
-                    tree,
-                });
             }
         }
         decorations
@@ -128,8 +202,52 @@ impl Grounds {
         let reachable = self.reachable_extent();
         self.decorations()
             .into_iter()
-            .filter(|decoration| self.distance_outside_map(decoration.position.x, decoration.position.z) <= reachable)
+            .filter(|decoration| {
+                decoration.collides()
+                    && self.distance_outside_map(decoration.position.x, decoration.position.z) <= reachable
+            })
             .collect()
+    }
+
+    fn decoration_cells(&self, cell: f32, extent: f32) -> i32 {
+        ((self.half_size[0].max(self.half_size[1]) + extent) / cell).ceil() as i32
+    }
+
+    fn tree_at(&self, cx: i32, cz: i32) -> Option<GroundDecoration> {
+        let x = (cx as f32 + 0.15 + 0.7 * cell_hash(cx, cz, 1)) * TREE_CELL;
+        let z = (cz as f32 + 0.15 + 0.7 * cell_hash(cx, cz, 2)) * TREE_CELL;
+        let outside = self.distance_outside_map(x, z);
+        if !(TREE_CLEARANCE..=DECORATION_EXTENT).contains(&outside) {
+            return None;
+        }
+        let grove = value_noise(Vec2::new(cx as f32, cz as f32) / 6.0, 9);
+        let density = 0.1 + 0.9 * smoothstep(0.3, 0.7, grove);
+        if cell_hash(cx, cz, 3) > density {
+            return None;
+        }
+        let size = 0.8 + cell_hash(cx, cz, 5) * 0.8;
+        Some(GroundDecoration {
+            position: Vec3::new(x, self.height(x, z) - 0.2, z),
+            scale: Vec3::splat(size),
+            rotation: Quat::from_rotation_y(cell_hash(cx, cz, 6) * TAU),
+            variant: (cell_hash(cx, cz, 7) * 3.0) as u32,
+            kind: DecorationKind::Tree,
+        })
+    }
+
+    fn tree_within(&self, x: f32, z: f32, distance: f32) -> bool {
+        let cx = (x / TREE_CELL).floor() as i32;
+        let cz = (z / TREE_CELL).floor() as i32;
+        for dz in -1..=1 {
+            for dx in -1..=1 {
+                if let Some(tree) = self.tree_at(cx + dx, cz + dz)
+                    && Vec2::new(tree.position.x - x, tree.position.z - z).length() < distance
+                {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn reachable_extent(&self) -> f32 {

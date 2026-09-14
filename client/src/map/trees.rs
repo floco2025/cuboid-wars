@@ -110,7 +110,7 @@ impl TreeAssets {
             let (wood, leaves) = &self.far[decoration.variant as usize % self.far.len()];
             let transform = Transform::from_translation(decoration.position - origin)
                 .with_scale(decoration.scale)
-                .with_rotation(Quat::from_rotation_y(decoration.yaw));
+                .with_rotation(decoration.rotation);
             let wood = wood.clone().transformed_by(transform);
             let leaves = leaves.clone().transformed_by(transform);
             match &mut merged {

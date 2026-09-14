@@ -160,22 +160,53 @@ fn decorations_keep_off_the_map_and_only_reachable_ones_collide() {
         all.len() > 1000,
         "a jittered grid over the grounds places thousands of decorations"
     );
+    let reachable = grounds.settings.margin + 80.0;
+    let mut trees = Vec::new();
+    let mut rocks = Vec::new();
     for decoration in &all {
         let outside = grounds.distance_outside_map(decoration.position.x, decoration.position.z);
-        assert!(outside >= 8.0, "a decoration sits on the map seam");
+        let clearance = match decoration.kind {
+            DecorationKind::Tree | DecorationKind::Rock(RockClass::Boulder) => 8.0,
+            DecorationKind::Rock(RockClass::Stone) => 4.0,
+            DecorationKind::Rock(RockClass::Pebble) => 1.5,
+        };
+        assert!(outside >= clearance, "a decoration sits on the map seam");
         assert!(outside <= 700.0);
+        let ground = grounds.height(decoration.position.x, decoration.position.z);
+        match decoration.kind {
+            DecorationKind::Tree => {
+                assert!((decoration.position.y - (ground - 0.2)).abs() < 0.001);
+                trees.push(decoration);
+            }
+            DecorationKind::Rock(class) => {
+                let (min, max) = class.size_range();
+                assert!(decoration.scale.x >= min && decoration.scale.x <= max);
+                assert!(decoration.position.y < ground && decoration.position.y > ground - max);
+                if class == RockClass::Pebble {
+                    assert!(outside <= reachable + 30.0, "pebbles stop where nobody sees them");
+                }
+                rocks.push(decoration);
+            }
+        }
+    }
+    for class in RockClass::ALL {
+        assert!(rocks.iter().any(|rock| rock.kind == DecorationKind::Rock(class)));
+    }
+    for rock in &rocks {
+        let clear = rock.scale.x + 1.0 - 0.01;
         assert!(
-            (decoration.position.y - (grounds.height(decoration.position.x, decoration.position.z) - 0.2)).abs()
-                < 0.001
+            trees.iter().all(
+                |tree| Vec2::new(tree.position.x - rock.position.x, tree.position.z - rock.position.z).length()
+                    >= clear
+            ),
+            "a rock sits in a trunk"
         );
     }
     let collidable = grounds.collidable_decorations();
     assert!(!collidable.is_empty() && collidable.len() < all.len());
     for decoration in &collidable {
         let outside = grounds.distance_outside_map(decoration.position.x, decoration.position.z);
-        assert!(outside <= grounds.settings.margin + 80.0);
+        assert!(outside <= reachable);
+        assert_ne!(decoration.kind, DecorationKind::Rock(RockClass::Pebble));
     }
-    assert!(all.iter().filter(|decoration| !decoration.tree).all(|rock| {
-        grounds.distance_outside_map(rock.position.x, rock.position.z) <= grounds.settings.margin + 80.0
-    }));
 }

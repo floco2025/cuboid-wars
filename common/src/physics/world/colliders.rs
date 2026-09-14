@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bevy_math::Vec3;
 use rapier3d::prelude::{
     Collider, ColliderBuilder, ColliderHandle, ColliderSet, Group, InteractionGroups, InteractionTestMode, Pose,
@@ -7,7 +9,7 @@ use rapier3d::prelude::{
 use super::shape_cast::FieldKind;
 
 use crate::{
-    map::{Grounds, RampAxis, ramp_axis},
+    map::{DecorationKind, Grounds, ROCK_HULL_SUBDIVISIONS, RampAxis, RockShape, ramp_axis, rock_shape},
     math::to_rapier,
     protocol::{Barrier, BarrierId, BridgeId, CarrierId, Floor, LightBridge, Ramp, Wall},
 };
@@ -131,21 +133,27 @@ pub(super) fn insert_grounds_colliders(colliders: &mut ColliderSet, grounds: &Gr
         .collision_groups(collider_interaction_groups(FLOOR_COLLISION_GROUP))
         .build();
     let mut handles = vec![colliders.insert(collider)];
+    let mut hulls: HashMap<(_, u32), RockShape> = HashMap::new();
     for decoration in grounds.collidable_decorations() {
-        let (shape, position) = if decoration.tree {
-            (
+        let (shape, position) = match decoration.kind {
+            DecorationKind::Tree => (
                 ColliderBuilder::cylinder(2.0 * decoration.scale.y, 0.32 * decoration.scale.x),
                 decoration.position + Vec3::Y * (2.0 * decoration.scale.y),
-            )
-        } else {
-            (
-                ColliderBuilder::cuboid(
-                    decoration.scale.x * 0.7,
-                    decoration.scale.y * 0.7,
-                    decoration.scale.z * 0.7,
-                ),
-                decoration.position + Vec3::Y * (decoration.scale.y * 0.45),
-            )
+            ),
+            DecorationKind::Rock(class) => {
+                let shape = hulls
+                    .entry((class, decoration.variant))
+                    .or_insert_with(|| rock_shape(class, decoration.variant, ROCK_HULL_SUBDIVISIONS));
+                let points: Vec<Vector> = shape
+                    .vertices
+                    .iter()
+                    .map(|vertex| to_rapier(decoration.rotation * (*vertex * decoration.scale)))
+                    .collect();
+                (
+                    ColliderBuilder::convex_hull(&points).expect("rock hull points are coplanar"),
+                    decoration.position,
+                )
+            }
         };
         handles.push(
             colliders.insert(
