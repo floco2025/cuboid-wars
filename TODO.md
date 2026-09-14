@@ -2,8 +2,6 @@
 
 ## Fixes
 
-- **View-dependent stars:** procedural stars appear to change or disappear when the camera turns. Keep star sampling world-fixed and stable across view directions and all scene cameras.
-
 - **Missing UI characters:** the bundled Fira Mono subset renders dashes, ellipses, arrows, and other unsupported symbols as rectangles. Bundle full Fira Mono with a symbol fallback for consistent rendering across platforms, and check coverage of the characters used in UI text.
 
 - **Portal body pose jumps at the crossing:** between floor portals, the emerging twin is upside down but the main body replaces it upright when the center crosses, swapping the visible legs for the upper body. Preserve the rendered pose across the handoff before reorienting it.

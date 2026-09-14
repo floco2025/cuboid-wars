@@ -36,10 +36,6 @@ struct SkyUniform {
 @group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> sky: SkyUniform;
 
 const PI: f32 = 3.14159265359;
-fn hash13(p: vec3<f32>) -> f32 {
-    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
-}
-
 fn hash21(p: vec2<f32>) -> f32 {
     var p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
     p3 += dot(p3, p3.yzx + vec3(33.33));
@@ -177,31 +173,85 @@ fn rotate_about_axis(v: vec3<f32>, axis: vec3<f32>, angle: f32) -> vec3<f32> {
     return v * c + cross(axis, v) * s + axis * dot(axis, v) * (1.0 - c);
 }
 
-fn star_layer(direction: vec3<f32>, scale: f32, seed_offset: f32) -> vec3<f32> {
+// A star's natural core is a fraction of a pixel at any playable resolution,
+// so sampling it point-wise makes stars pop as the view moves. The drawn
+// radius is held near one pixel and the light it carries scaled down to the
+// natural core's, so a star is stable under motion and no brighter for being
+// enlarged. Centres fall anywhere in their cell and every sample checks the
+// eight cells nearest to it, so an enlarged star is drawn whole wherever it
+// sits: confining centres to the cell's middle leaves star-free bands along
+// the lattice planes, which cut the sky sphere in visible circles.
+const STAR_CORE_RADIUS: f32 = 0.075;
+const STAR_PIXEL_RADIUS: f32 = 0.9;
+const STAR_MAX_RADIUS: f32 = 0.25;
+// Only centres this close to the sphere are stars, and they are drawn where
+// they project onto it, so the visible set never depends on the drawn radius.
+const STAR_SHELL: f32 = 0.25;
+// Cells per pixel beyond which a one-pixel star no longer fits its cell.
+const STAR_LOD_FOOTPRINT: f32 = 0.3;
+
+fn star_hash(cell: vec3<i32>, salt: u32) -> f32 {
+    var value = bitcast<u32>(cell.x) * 374761393u
+        + bitcast<u32>(cell.y) * 668265263u
+        + bitcast<u32>(cell.z) * 2246822519u
+        + salt * 3266489917u;
+    value = (value ^ (value >> 13u)) * 1274126177u;
+    return f32(value ^ (value >> 16u)) / 4294967295.0;
+}
+
+// `footprint` is the sky angle one pixel covers, in radians.
+fn star_layer(direction: vec3<f32>, scale: f32, seed: u32, footprint: f32) -> vec3<f32> {
     let p = direction * scale;
-    let cell = floor(p);
-    let local = fract(p) - 0.5;
-    let seed = sky.stars.x + seed_offset;
-    let jitter = vec3(
-        hash13(cell + vec3(seed, 0.0, 0.0)),
-        hash13(cell + vec3(0.0, seed, 0.0)),
-        hash13(cell + vec3(0.0, 0.0, seed))
-    ) - 0.5;
-    let distance = length(local - jitter * 0.72);
-    let selection = hash13(cell + vec3(seed * 0.37));
-    let selected = step(1.0 - sky.stars.y, selection);
-    let core = smoothstep(0.075, 0.008, distance) * selected;
-    let value = hash13(cell + vec3(seed * 1.91));
-    var luminance = mix(sky.stars.z, sky.stars.w, value * value);
-    luminance *= mix(1.0, 2.8, step(1.0 - sky.star_detail.x, value));
-    let twinkle = 1.0 + sky.star_detail.y * sin(sky.time_weather_phase.x * (0.7 + value * 1.8) + value * 31.0);
-    let tint = mix(vec3(0.68, 0.79, 1.0), vec3(1.0, 0.88, 0.68), hash13(cell + vec3(seed * 2.7)));
-    return tint * core * luminance * twinkle;
+    let base = floor(p);
+    let radius = clamp(footprint * scale * STAR_PIXEL_RADIUS, STAR_CORE_RADIUS, STAR_MAX_RADIUS);
+    let energy = (STAR_CORE_RADIUS * STAR_CORE_RADIUS) / (radius * radius);
+    let side = select(vec3(-1.0), vec3(1.0), p - base >= vec3(0.5));
+    var total = vec3(0.0);
+    for (var i = 0; i < 8; i += 1) {
+        let corner = base + vec3(f32(i & 1), f32((i >> 1) & 1), f32((i >> 2) & 1)) * side;
+        let cell = vec3<i32>(corner);
+        if star_hash(cell, seed) < 1.0 - sky.stars.y {
+            continue;
+        }
+        let center = corner + vec3(star_hash(cell, seed + 1u), star_hash(cell, seed + 2u), star_hash(cell, seed + 3u));
+        let depth = length(center) - scale;
+        if abs(depth) > STAR_SHELL {
+            continue;
+        }
+        let core = smoothstep(radius, radius * 0.1, length(p - center * (scale / length(center))));
+        if core <= 0.0 {
+            continue;
+        }
+        let value = star_hash(cell, seed + 4u);
+        var luminance = mix(sky.stars.z, sky.stars.w, value * value);
+        luminance *= mix(1.0, 2.8, step(1.0 - sky.star_detail.x, value));
+        let twinkle = 1.0 + sky.star_detail.y * sin(sky.time_weather_phase.x * (0.7 + value * 1.8) + value * 31.0);
+        let tint = mix(vec3(0.68, 0.79, 1.0), vec3(1.0, 0.88, 0.68), star_hash(cell, seed + 5u));
+        total += tint * core * luminance * twinkle;
+    }
+    return total * energy;
+}
+
+// Coarser cells where a pixel spans too much sky for one-pixel stars, as in
+// a small viewport like the rearview mirror, cross-faded between power-of-two
+// steps so no seam shows where the footprint crosses one.
+fn star_lod(direction: vec3<f32>, scale: f32, seed: u32, footprint: f32) -> vec3<f32> {
+    let lod = max(0.0, log2(footprint * scale / STAR_LOD_FOOTPRINT));
+    let lower = floor(lod);
+    let blend = lod - lower;
+    let lower_scale = scale / exp2(lower);
+    let stars = star_layer(direction, lower_scale, seed, footprint);
+    if blend < 0.001 {
+        return stars;
+    }
+    return mix(stars, star_layer(direction, lower_scale * 0.5, seed, footprint), blend);
 }
 
 fn star_field(ray: vec3<f32>, night: f32) -> vec3<f32> {
     let rotated = rotate_about_axis(ray, normalize(sky.pole_rotation.xyz), -sky.pole_rotation.w);
-    let field = star_layer(rotated, 185.0, 17.0) + star_layer(rotated, 317.0, 83.0) * 0.7;
+    let footprint = length(fwidth(ray));
+    let seed = u32(sky.stars.x) * 8u;
+    let field = star_lod(rotated, 185.0, seed, footprint) + star_lod(rotated, 240.0, seed + 16u, footprint) * 0.7;
     return field * night * smoothstep(-0.08, 0.12, ray.y);
 }
 

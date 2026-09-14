@@ -46,7 +46,7 @@
     "night_brightness": 0.16,
     "sun": { "size_scale": 3.0, "luminance": 60.0 },
     "moon": { "size_scale": 3.0, "luminance": 5.0 },
-    "stars": { "density": 0.15, "luminance": 8.0 },
+    "stars": { "density": 0.04, "luminance": 8.0 },
     "clouds": {
       "clear_coverage": 0.4,
       "overcast_coverage": 0.9,
