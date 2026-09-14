@@ -195,8 +195,20 @@ pub(crate) fn textured_layout(layout: &MapLayout) -> MapLayout {
 
 pub(crate) fn test_textures() -> BTreeMap<String, TextureSettings> {
     BTreeMap::from([
-        ("test".to_owned(), TextureSettings { portalable: true }),
-        ("blocked".to_owned(), TextureSettings { portalable: false }),
+        (
+            "test".to_owned(),
+            TextureSettings {
+                material: "test".to_owned(),
+                portalable: true,
+            },
+        ),
+        (
+            "blocked".to_owned(),
+            TextureSettings {
+                material: "test".to_owned(),
+                portalable: false,
+            },
+        ),
     ])
 }
 

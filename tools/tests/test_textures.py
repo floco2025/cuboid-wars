@@ -12,14 +12,20 @@ from map_editor.validation import validate_map
 
 
 class TextureCatalogTests(unittest.TestCase):
-    def test_missing_or_non_boolean_permission_is_rejected(self):
+    def test_missing_material_or_non_boolean_permission_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "gameplay.json"
             path.write_text(json.dumps({"default_map": "host", "maps": ["host"]}))
             maps = Path(directory) / "maps"
             settings = maps / "host" / "settings.json"
             settings.parent.mkdir(parents=True)
-            for entry in ({}, {"portalable": 1}, {"portalable": "false"}):
+            for entry in (
+                {"portalable": True},
+                {"material": " ", "portalable": True},
+                {"material": "stone"},
+                {"material": "stone", "portalable": 1},
+                {"material": "stone", "portalable": "false"},
+            ):
                 settings.write_text(json.dumps({"textures": {"stone": entry}}))
                 with patch("map_editor.catalogs.GAMEPLAY_PATH", path), patch("map_editor.catalogs.MAPS_DIR", maps):
                     with self.assertRaisesRegex(ValueError, "settings.json: textures.stone"):

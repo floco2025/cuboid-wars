@@ -121,11 +121,19 @@ def load_texture_catalog(host: str) -> dict[str, bool]:
     path = f"{map_settings_path(host)}: textures"
     value = settings.get("textures")
     if not isinstance(value, dict):
-        raise ValueError(f"{path} must be an object of aliases with a portalable boolean")
+        raise ValueError(f"{path} must be an object of aliases with a material and a portalable boolean")
     result = {}
     for alias, entry in value.items():
-        if not alias.strip() or not isinstance(entry, dict) or type(entry.get("portalable")) is not bool:
-            raise ValueError(f"{path}.{alias}: expected a nonempty alias and an explicit portalable boolean")
+        if (
+            not alias.strip()
+            or not isinstance(entry, dict)
+            or not isinstance(entry.get("material"), str)
+            or not entry["material"].strip()
+            or type(entry.get("portalable")) is not bool
+        ):
+            raise ValueError(
+                f"{path}.{alias}: expected a nonempty alias, a material, and an explicit portalable boolean"
+            )
         result[alias] = entry["portalable"]
     return dict(sorted(result.items()))
 

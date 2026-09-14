@@ -1,7 +1,7 @@
 {
   "textures": {
-    "basement-floor": { "portalable": true },
-    "slab": { "portalable": true }
+    "basement-floor": { "material": "test", "portalable": true },
+    "slab": { "material": "test", "portalable": true }
   },
   "celestial": {
     "latitude_degrees": 40.0,

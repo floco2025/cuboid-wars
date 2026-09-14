@@ -224,9 +224,9 @@ pub struct PressurePlate {
     pub carrier: CarrierId,
 }
 
-// The material alias used by procedural terrain tops and the exterior
-// grounds. Terrain's authored bottom and side materials remain ordinary map
-// aliases.
+// The alias of procedural terrain tops and the exterior grounds, bound by
+// `assets.json::terrain` rather than a map's textures. Terrain's authored
+// bottom and side materials remain ordinary map aliases.
 pub const TERRAIN_MATERIAL: &str = "terrain";
 
 // Client-display-only metadata identifying the authored terrain cells. The

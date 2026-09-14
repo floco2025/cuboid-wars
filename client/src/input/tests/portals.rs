@@ -28,7 +28,14 @@ fn firing_sends_the_client_resolved_geometry_and_current_body_generation() {
             ..default()
         };
         let mut settings = test_fixtures::map_settings();
-        settings.textures = [("surface".to_owned(), TextureSettings { portalable })].into();
+        settings.textures = [(
+            "surface".to_owned(),
+            TextureSettings {
+                material: "test".to_owned(),
+                portalable,
+            },
+        )]
+        .into();
         let collision = CollisionWorld::from_map_layout(&layout);
         let id = PlayerId(7);
         let entity = app.world_mut().spawn((id, LocalPlayerMarker)).id();

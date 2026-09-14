@@ -8,7 +8,7 @@ use bevy::{
 use common::{
     map::Carriers,
     physics::{CharacterSupport, CollisionWorld},
-    protocol::{CarrierId, Health, MapLayout, PlateState, PlayerId},
+    protocol::{CarrierId, Health, MapLayout, MapSettings, PlateState, PlayerId},
 };
 use rand::RngExt;
 
@@ -113,6 +113,7 @@ fn player_footsteps_system(
     clips: Res<Assets<AnimationClip>>,
     world: Res<CollisionWorld>,
     layout: Res<MapLayout>,
+    map_settings: Res<MapSettings>,
     carriers: Res<Carriers>,
     plates: Res<PlateState>,
     players: Res<PlayerMap>,
@@ -211,7 +212,13 @@ fn player_footsteps_system(
             }
             nearest
                 .and_then(|(_, hit)| world.surface_material(&hit, &layout))
-                .and_then(|alias| assets.material_by_id(alias).footstep.as_deref())
+                .and_then(|alias| {
+                    assets
+                        .map_materials(&map_settings.textures)
+                        .get(alias)
+                        .footstep
+                        .as_deref()
+                })
         };
         let set = assets.footsteps.resolve(binding);
         let surface_volume = 10.0_f32.powf(set.volume_db / 20.0);

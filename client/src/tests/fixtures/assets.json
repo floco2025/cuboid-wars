@@ -11,9 +11,9 @@
       "roughness": 0.8
     }
   },
-  "aliases": { "basement-floor": "test", "slab": "test" },
   "ladder": { "material": "test" },
   "rocks": { "material": "test" },
+  "terrain": { "material": "test" },
   "pressure_plate": {
     "scene": "models/pressure_plate.glb",
     "default_color": "#2c99bc",

@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::Path,
 };
@@ -7,7 +7,7 @@ use std::{
 use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
 use common::protocol::{
-    MapLayout, MapSettings, TERRAIN_MATERIAL, validate_texture_catalog, validate_texture_materials,
+    MapLayout, MapSettings, TERRAIN_MATERIAL, TextureSettings, validate_texture_catalog, validate_texture_materials,
 };
 use serde::Deserialize;
 
@@ -55,9 +55,8 @@ pub struct AssetSet {
     pub(super) materials: HashMap<String, MaterialDef>,
     ladder: MaterialBinding,
     rocks: MaterialBinding,
+    terrain: MaterialBinding,
     pressure_plate: PressurePlateDef,
-    #[serde(default)]
-    aliases: HashMap<String, String>,
     player: PlayerAssets,
     pub actors: ActorCatalog,
     wall_lights: HashMap<String, WallLightModelDef>,
@@ -82,14 +81,6 @@ impl AssetSet {
         self.footsteps.validate()?;
         validate_volume(self.actors.movement_volume_db, "actors.movement_volume_db")?;
         validate_volume(self.actors.sfx_volume_db, "actors.sfx_volume_db")?;
-        // Every alias must resolve to a real material so a typo can't go
-        // unnoticed until something tries to render at runtime.
-        for (alias, target) in &self.aliases {
-            anyhow::ensure!(
-                self.materials.contains_key(target),
-                "alias `{alias}` points to unknown material `{target}`"
-            );
-        }
         for (name, material) in &self.materials {
             if let Some(binding) = &material.footstep {
                 self.footsteps
@@ -112,6 +103,11 @@ impl AssetSet {
             self.materials.contains_key(&self.rocks.material),
             "`rocks.material` points to unknown material `{}`",
             self.rocks.material
+        );
+        anyhow::ensure!(
+            self.materials.contains_key(&self.terrain.material),
+            "`terrain.material` points to unknown material `{}`",
+            self.terrain.material
         );
         self.pressure_plate.validate()?;
         validate_model("player.model", &self.player.model)?;
@@ -178,10 +174,11 @@ impl AssetSet {
             );
         }
         validate_texture_catalog(&settings.textures, "map.textures")?;
-        for alias in settings.textures.keys() {
+        for (alias, texture) in &settings.textures {
             anyhow::ensure!(
-                self.aliases.contains_key(alias),
-                "map texture alias {alias:?} has no binding in assets.json"
+                self.materials.contains_key(&texture.material),
+                "map texture alias {alias:?} names material {:?}, which assets.json does not define",
+                texture.material
             );
         }
         for (kind, materials) in [
@@ -218,13 +215,20 @@ impl AssetSet {
     }
 
     #[must_use]
+    pub fn terrain_material_def(&self) -> &MaterialDef {
+        self.exact_material(&self.terrain.material)
+    }
+
+    #[must_use]
     pub fn pressure_plate(&self) -> &PressurePlateDef {
         &self.pressure_plate
     }
 
-    // Direct lookup for references INSIDE assets.json. Aliases are the map-authoring vocabulary — indirection only
-    // earns its keep for references living outside this file, so internal
-    // bindings name concrete materials.
+    #[must_use]
+    pub fn map_materials<'a>(&'a self, textures: &'a BTreeMap<String, TextureSettings>) -> MapMaterials<'a> {
+        MapMaterials { assets: self, textures }
+    }
+
     fn exact_material(&self, id: &str) -> &MaterialDef {
         self.materials
             .get(id)
@@ -266,21 +270,26 @@ impl AssetSet {
             .get(kind)
             .unwrap_or_else(|| panic!("asset set is missing actor kind {kind:?}"))
     }
+}
 
-    // Aliases are the only legal way `map.json` references textures: a face
-    // value must be an alias key (assets.json::aliases). Raw material ids are
-    // rejected so the alias system can't drift silently. The editor enforces
-    // the same rule in `validate_map`; this is the runtime backstop.
-    pub fn material_by_id(&self, id: &str) -> &MaterialDef {
-        let resolved = self.aliases.get(id).map(String::as_str).unwrap_or_else(|| {
-            panic!(
-                "material {id:?} is not an alias; only `aliases` entries are legal in map.json. \
-                 Add an alias for it in assets.json or pick an existing alias."
-            )
-        });
-        self.materials
-            .get(resolved)
-            .unwrap_or_else(|| panic!("alias {id:?} points to unknown material {resolved:?}"))
+// A map's face aliases resolved through its textures catalog, which `validate_map_bindings` has checked.
+#[derive(Clone, Copy)]
+pub struct MapMaterials<'a> {
+    assets: &'a AssetSet,
+    textures: &'a BTreeMap<String, TextureSettings>,
+}
+
+impl<'a> MapMaterials<'a> {
+    #[must_use]
+    pub fn get(self, alias: &str) -> &'a MaterialDef {
+        if alias == TERRAIN_MATERIAL {
+            return self.assets.terrain_material_def();
+        }
+        let texture = self
+            .textures
+            .get(alias)
+            .unwrap_or_else(|| panic!("texture alias {alias:?} missing from the map's textures"));
+        self.assets.exact_material(&texture.material)
     }
 }
 

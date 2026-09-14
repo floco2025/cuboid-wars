@@ -251,28 +251,9 @@
       "footstep": "concrete"
     }
   },
-  "aliases": {
-    "brushed-metal": "brushed-metal",
-    "synth-rubber": "synth-rubber",
-    "portal-resistant": "used-stainless-steel",
-    "terrain": "procedural-terrain",
-    "grounds-path": "smooth-temple-blocks",
-    "slab": "fiberous-plaster1-ue",
-    "basement-floor": "smooth-temple-blocks",
-    "ground-floor": "cheap_old_linoleum1",
-    "upper-floors": "beige-carpet-worn1",
-    "rooftop-floor": "rectangle-polished-tile",
-    "skybridge": "steelplate1",
-    "basement-support-wall": "bricks-mortar",
-    "basement-perimeter-wall": "damp-block-wall",
-    "ground-interior-wall": "art-deco-scales-wallpaper",
-    "exterior-walls": "modern-brick1",
-    "upper-interior-walls": "forest-wallpaper",
-    "rooftop-wall": "stucco1",
-    "perimeter-wall": "patched-brickwork"
-  },
   "ladder": { "material": "used-stainless-steel" },
   "rocks": { "material": "rock" },
+  "terrain": { "material": "procedural-terrain" },
   "pressure_plate": {
     "scene": "models/pressure_plate.glb",
     "default_color": "#2c99bc",

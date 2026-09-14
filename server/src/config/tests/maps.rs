@@ -395,7 +395,7 @@ fn map_entry_requires_explicit_weather() {
 }
 
 #[test]
-fn textures_require_an_explicit_catalog_and_boolean_permissions() {
+fn textures_require_an_explicit_catalog_with_materials_and_boolean_permissions() {
     let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
     let mut hotel = source.clone();
     hotel
@@ -408,9 +408,13 @@ fn textures_require_an_explicit_catalog_and_boolean_permissions() {
             .to_string()
             .contains("textures")
     );
-    for permission in [serde_json::json!({}), serde_json::json!({"portalable": "false"})] {
+    for texture in [
+        serde_json::json!({"portalable": true}),
+        serde_json::json!({"material": "stone"}),
+        serde_json::json!({"material": "stone", "portalable": "false"}),
+    ] {
         let mut hotel = source.clone();
-        hotel["textures"] = serde_json::json!({"stone": permission});
+        hotel["textures"] = serde_json::json!({"stone": texture});
         assert!(serde_json::from_value::<MapServerConfig>(hotel).is_err());
     }
 }

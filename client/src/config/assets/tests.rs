@@ -53,16 +53,20 @@ fn sound_definitions_default_to_zero_db_and_reject_invalid_files_and_gains() {
 }
 
 #[test]
-fn missing_map_texture_binding_fails_before_rendering() {
+fn map_texture_naming_an_unknown_material_fails_before_rendering() {
     let assets = test_fixtures::asset_set();
     let mut settings = map_settings();
-    settings
-        .textures
-        .insert("missing-binding".to_owned(), TextureSettings { portalable: false });
+    settings.textures.insert(
+        "walkway".to_owned(),
+        TextureSettings {
+            material: "missing-material".to_owned(),
+            portalable: false,
+        },
+    );
     let error = assets
         .validate_map_bindings(&settings, &MapLayout::default())
-        .expect_err("missing binding was accepted");
-    assert!(error.to_string().contains("missing-binding"));
+        .expect_err("unknown material was accepted");
+    assert!(error.to_string().contains("missing-material"));
 }
 
 #[test]
@@ -184,7 +188,7 @@ fn normal_map_without_a_convention_suffix_is_rejected() {
 #[test]
 fn procedural_terrain_keeps_surface_audio_without_a_retired_texture_pack() {
     let assets = AssetSet::load_default().expect("shipped asset set rejected");
-    let terrain = assets.material_by_id("terrain");
+    let terrain = assets.terrain_material_def();
     assert!(terrain.textures.is_none());
     assert_eq!(terrain.footstep.as_deref(), Some("grass"));
     assets.validate().expect("surface-only terrain material rejected");

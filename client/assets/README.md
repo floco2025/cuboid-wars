@@ -12,11 +12,10 @@ See [ASSETS.md](ASSETS.md) for the provenance register: authors, sources, licens
 
 ## Asset Set
 
-`config/client/assets.json` is the client asset set. Only the client reads it; the server takes map materials from each map's layout and `settings.json::textures`. Asset paths are relative to `client/assets`.
+`config/client/assets.json` is the client asset set. Only the client reads it; each map's `settings.json::textures` binds that map's face aliases to these materials, with a `portalable` flag, and its layout names aliases per face. Asset paths are relative to `client/assets`.
 
 - `materials` — texture sets: `textures` paths (`base_color`, `normal`, `occlusion`, `metallic_roughness`), `tile_size` in metres, `metallic`, `roughness`, `repeat`, and `linear_data_textures`. Normal maps carry their Y convention in the file name (`-normal-dx` or `-normal-gl`).
-- `aliases` — map texture alias → material. A map enables an alias in its `settings.json::textures` with a `portalable` flag, and its layout names aliases per face.
-- `ladder` — fixture material.
+- `ladder`, `rocks`, and `terrain` — the materials of ladders, rock decorations, and procedural terrain.
 - `pressure_plate` — model `scene`, fallback `default_color`, `light_color`, and `emissive_luminance`. Treads inherit barrier/bridge colors or a switch's `plate_color` override.
 - `player` and `actors.<kind>` — `model` (`scene`, `scale`, `x_offset` / `y_offset` / `z_offset`, `x_rotation_degrees`, `animation_index`, `animation_speed`, optional `wheels` and `aim_rig`, `rotate_with_facing`) and `sounds`. Positions are feet-based, so `y_offset` is the model origin's offset from the character's feet.
 - `wall_lights.<kind>` — `scene`, `scale`, `offset_from_wall`, `brightness`, `range`, `radius`, `emissive_luminance`, `color`, and `flicker`.

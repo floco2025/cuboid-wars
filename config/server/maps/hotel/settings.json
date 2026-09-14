@@ -1,19 +1,37 @@
 {
   "textures": {
-    "basement-floor": { "portalable": true },
-    "basement-perimeter-wall": { "portalable": true },
-    "basement-support-wall": { "portalable": true },
-    "exterior-walls": { "portalable": true },
-    "ground-floor": { "portalable": true },
-    "ground-interior-wall": { "portalable": true },
-    "grounds-path": { "portalable": false },
-    "perimeter-wall": { "portalable": true },
-    "rooftop-floor": { "portalable": true },
-    "rooftop-wall": { "portalable": true },
-    "skybridge": { "portalable": false },
-    "slab": { "portalable": true },
-    "upper-floors": { "portalable": true },
-    "upper-interior-walls": { "portalable": true }
+    "basement-floor": {
+      "material": "smooth-temple-blocks",
+      "portalable": true
+    },
+    "basement-perimeter-wall": {
+      "material": "damp-block-wall",
+      "portalable": true
+    },
+    "basement-support-wall": {
+      "material": "bricks-mortar",
+      "portalable": true
+    },
+    "exterior-walls": { "material": "modern-brick1", "portalable": true },
+    "ground-floor": { "material": "cheap_old_linoleum1", "portalable": true },
+    "ground-interior-wall": {
+      "material": "art-deco-scales-wallpaper",
+      "portalable": true
+    },
+    "grounds-path": { "material": "smooth-temple-blocks", "portalable": false },
+    "perimeter-wall": { "material": "patched-brickwork", "portalable": true },
+    "rooftop-floor": {
+      "material": "rectangle-polished-tile",
+      "portalable": true
+    },
+    "rooftop-wall": { "material": "stucco1", "portalable": true },
+    "skybridge": { "material": "steelplate1", "portalable": false },
+    "slab": { "material": "fiberous-plaster1-ue", "portalable": true },
+    "upper-floors": { "material": "beige-carpet-worn1", "portalable": true },
+    "upper-interior-walls": {
+      "material": "forest-wallpaper",
+      "portalable": true
+    }
   },
   "celestial": {
     "latitude_degrees": 40.0,

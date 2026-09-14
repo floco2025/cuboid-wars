@@ -5,7 +5,7 @@ use rand::{RngExt, rng};
 
 use crate::{
     carriers::CarrierEntities,
-    config::{AssetSet, ClientSettings},
+    config::{ClientSettings, MapMaterials},
     map::{DebugColorMode, GroundMarker, MapLevel, RampMarker, RoofMarker, WallMarker},
     materials::MaterialHandleCache,
 };
@@ -136,7 +136,7 @@ impl MapGeometryBatch {
         materials: &mut Assets<StandardMaterial>,
         material_cache: &mut MaterialHandleCache,
         asset_server: &AssetServer,
-        asset_set: &AssetSet,
+        map_materials: MapMaterials<'_>,
         client_settings: &ClientSettings,
         carrier_entities: &CarrierEntities,
     ) {
@@ -148,7 +148,7 @@ impl MapGeometryBatch {
 
             let material = match mode {
                 DebugColorMode::Off => {
-                    let material_def = asset_set.material_by_id(&batch.material_id);
+                    let material_def = map_materials.get(&batch.material_id);
                     material_cache.standard(
                         &batch.material_id,
                         material_def,

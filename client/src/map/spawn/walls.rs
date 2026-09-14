@@ -4,7 +4,7 @@ use super::{
     cuboid_mesh::{tiled_cuboid, tiled_wall_surface_meshes},
     geometry_batch::{MapGeometryBatch, MapGeometryKind, SegmentTarget},
 };
-use crate::{carriers::CarrierStoreys, config::AssetSet};
+use crate::{carriers::CarrierStoreys, config::MapMaterials};
 use common::protocol::{FaceMaterials, Wall};
 
 #[derive(Clone, Copy)]
@@ -38,7 +38,7 @@ impl CardinalDirection {
 // Spawn a wall segment entity based on a shared `Wall` config.
 pub fn batch_wall(
     batcher: &mut MapGeometryBatch,
-    asset_set: &AssetSet,
+    map_materials: MapMaterials<'_>,
     storeys: &CarrierStoreys,
     wall: &Wall,
     material_ids: &FaceMaterials,
@@ -65,7 +65,7 @@ pub fn batch_wall(
     let transform = Transform::from_translation(carrier_center).with_rotation(rotation);
 
     if material_ids.is_uniform() {
-        let material_def = asset_set.material_by_id(material_ids.primary());
+        let material_def = map_materials.get(material_ids.primary());
         let mesh = tiled_cuboid(
             mesh_size_x,
             wall.height,
@@ -86,12 +86,12 @@ pub fn batch_wall(
     let negative_x_material_id = negative_x_direction.material_id(material_ids);
     let positive_z_material_id = positive_z_direction.material_id(material_ids);
     let negative_z_material_id = negative_z_direction.material_id(material_ids);
-    let positive_x_material_def = asset_set.material_by_id(positive_x_material_id);
-    let negative_x_material_def = asset_set.material_by_id(negative_x_material_id);
-    let positive_z_material_def = asset_set.material_by_id(positive_z_material_id);
-    let negative_z_material_def = asset_set.material_by_id(negative_z_material_id);
-    let top_material_def = asset_set.material_by_id(&material_ids.top);
-    let bottom_material_def = asset_set.material_by_id(&material_ids.bottom);
+    let positive_x_material_def = map_materials.get(positive_x_material_id);
+    let negative_x_material_def = map_materials.get(negative_x_material_id);
+    let positive_z_material_def = map_materials.get(positive_z_material_id);
+    let negative_z_material_def = map_materials.get(negative_z_material_id);
+    let top_material_def = map_materials.get(&material_ids.top);
+    let bottom_material_def = map_materials.get(&material_ids.bottom);
     let surface_meshes = tiled_wall_surface_meshes(
         mesh_size_x,
         wall.height,

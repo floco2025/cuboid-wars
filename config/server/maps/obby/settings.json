@@ -1,7 +1,11 @@
 {
   "textures": {
-    "basement-floor": { "portalable": true },
-    "portal-resistant": { "portalable": false }
+    "pedestal": { "material": "stucco1", "portalable": true },
+    "portal-resistant": {
+      "material": "used-stainless-steel",
+      "portalable": false
+    },
+    "walkway": { "material": "steelplate1", "portalable": true }
   },
   "celestial": {
     "latitude_degrees": 40.0,

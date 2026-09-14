@@ -26,7 +26,7 @@ def map_settings(name="hotel"):
         },
         "player_fall": {"safe_distance": 8, "lethal_distance": 15},
         "textures": {
-            alias: {"portalable": alias != "portal-resistant"}
+            alias: {"material": "test", "portalable": alias != "portal-resistant"}
             for alias in (
                 ["basement-floor", "floor-a", "floor-b", "slab", "upper-floors", "wall"]
                 if name == "hotel"

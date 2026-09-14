@@ -4,7 +4,7 @@ use super::{
     cuboid_mesh::{tiled_cuboid, tiled_floor_surface_meshes, tiled_floor_top_mesh},
     geometry_batch::{MapGeometryBatch, MapGeometryKind, SegmentTarget},
 };
-use crate::{carriers::CarrierStoreys, config::AssetSet};
+use crate::{carriers::CarrierStoreys, config::MapMaterials};
 use common::protocol::{FaceMaterials, *};
 
 const FLOOR_CUT_EPSILON: f32 = 0.0001;
@@ -18,7 +18,7 @@ const FLOOR_CUT_EPSILON: f32 = 0.0001;
 // moves.
 pub fn batch_floor(
     batcher: &mut MapGeometryBatch,
-    asset_set: &AssetSet,
+    map_materials: MapMaterials<'_>,
     storeys: &CarrierStoreys,
     floor: &Floor,
     material_ids: &FaceMaterials,
@@ -55,7 +55,7 @@ pub fn batch_floor(
             ]);
 
     if material_ids.is_uniform() && !cut_top {
-        let material_def = asset_set.material_by_id(material_ids.primary());
+        let material_def = map_materials.get(material_ids.primary());
         let mesh = tiled_cuboid(
             size_x,
             floor.thickness,
@@ -68,12 +68,12 @@ pub fn batch_floor(
         return;
     }
 
-    let north_material_def = asset_set.material_by_id(&material_ids.north);
-    let south_material_def = asset_set.material_by_id(&material_ids.south);
-    let east_material_def = asset_set.material_by_id(&material_ids.east);
-    let west_material_def = asset_set.material_by_id(&material_ids.west);
-    let top_material_def = asset_set.material_by_id(&material_ids.top);
-    let bottom_material_def = asset_set.material_by_id(&material_ids.bottom);
+    let north_material_def = map_materials.get(&material_ids.north);
+    let south_material_def = map_materials.get(&material_ids.south);
+    let east_material_def = map_materials.get(&material_ids.east);
+    let west_material_def = map_materials.get(&material_ids.west);
+    let top_material_def = map_materials.get(&material_ids.top);
+    let bottom_material_def = map_materials.get(&material_ids.bottom);
     let surface_meshes = tiled_floor_surface_meshes(
         size_x,
         floor.thickness,

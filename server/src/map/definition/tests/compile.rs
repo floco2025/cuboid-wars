@@ -306,7 +306,14 @@ fn compiled_wall_trim_blocks_portal_shots_through_the_storey_seam() {
         &layout,
         &Carriers::default(),
         &[],
-        &[("test".to_owned(), TextureSettings { portalable: true })].into(),
+        &[(
+            "test".to_owned(),
+            TextureSettings {
+                material: "test".to_owned(),
+                portalable: true,
+            },
+        )]
+        .into(),
     )
     .expect("stacked wall seam has no fitting portal surface");
     let front_face = geometry.cell_to_world_x(1) - geometry.wall_half_thickness();

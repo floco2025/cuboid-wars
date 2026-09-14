@@ -4,16 +4,23 @@ use anyhow::{Result, ensure};
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
-use super::FaceMaterials;
+use super::{FaceMaterials, TERRAIN_MATERIAL};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize)]
 pub struct TextureSettings {
+    // An id in the client's `assets.json::materials`; the server never resolves it.
+    pub material: String,
     pub portalable: bool,
 }
 
 pub fn validate_texture_catalog(textures: &BTreeMap<String, TextureSettings>, path: &str) -> Result<()> {
-    for alias in textures.keys() {
+    for (alias, texture) in textures {
         ensure!(!alias.trim().is_empty(), "{path} contains an empty texture alias");
+        ensure!(
+            alias != TERRAIN_MATERIAL,
+            "{path}.{alias}: the procedural terrain alias cannot be redefined by a map"
+        );
+        ensure!(!texture.material.trim().is_empty(), "{path}.{alias}.material is empty");
     }
     Ok(())
 }

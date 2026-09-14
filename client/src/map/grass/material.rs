@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use common::protocol::TERRAIN_MATERIAL;
 
 use crate::{
     config::{AssetSet, ClientSettings},
@@ -52,7 +51,7 @@ pub fn setup_grass_materials_system(
         grass: grass.add(grass_material()),
         terrain: terrain.add(terrain_material(
             &server,
-            asset_set.material_by_id(TERRAIN_MATERIAL),
+            asset_set.terrain_material_def(),
             settings.rendering.texture_anisotropy,
             settings.rendering.mipmaps,
             settings.grass.base_color(),

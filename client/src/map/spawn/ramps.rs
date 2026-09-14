@@ -4,7 +4,7 @@ use super::{
     geometry_batch::{MapGeometryBatch, MapGeometryKind, SegmentTarget},
     ramp_mesh::build_ramp_meshes,
 };
-use crate::{carriers::CarrierStoreys, config::AssetSet};
+use crate::{carriers::CarrierStoreys, config::MapMaterials};
 use common::{config::MapGeometryConfig, protocol::*};
 
 // Spawn a ramp entity based on shared `Ramp` config.
@@ -16,7 +16,7 @@ use common::{config::MapGeometryConfig, protocol::*};
 // sides are added later, this is the spot to split them.
 pub fn batch_ramp(
     batcher: &mut MapGeometryBatch,
-    asset_set: &AssetSet,
+    map_materials: MapMaterials<'_>,
     geometry: MapGeometryConfig,
     storeys: &CarrierStoreys,
     ramp: &Ramp,
@@ -24,8 +24,8 @@ pub fn batch_ramp(
 ) {
     let top_material_id = material_ids.top.clone();
     let side_material_id = material_ids.north.clone();
-    let top_material_def = asset_set.material_by_id(&top_material_id);
-    let side_material_def = asset_set.material_by_id(&side_material_id);
+    let top_material_def = map_materials.get(&top_material_id);
+    let side_material_def = map_materials.get(&side_material_id);
 
     // Build meshes split by material usage
     let (mesh_top, mesh_side) = build_ramp_meshes(

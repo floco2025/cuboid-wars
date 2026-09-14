@@ -60,9 +60,10 @@ pub fn map_spawn_geometry_system(
     info!("spawning {}", map_layout.summary());
 
     let mut geometry = MapGeometryBatch::new(debug_colors.0);
+    let map_materials = asset_set.map_materials(&map_settings.textures);
 
     for (wall, materials) in map_layout.walls.iter().zip(map_layout.wall_materials.iter()) {
-        batch_wall(&mut geometry, &asset_set, &storeys, wall, materials);
+        batch_wall(&mut geometry, map_materials, &storeys, wall, materials);
     }
 
     for light in &map_layout.wall_lights {
@@ -108,7 +109,7 @@ pub fn map_spawn_geometry_system(
     for (floor, materials) in map_layout.floors.iter().zip(map_layout.floor_materials.iter()) {
         batch_floor(
             &mut geometry,
-            &asset_set,
+            map_materials,
             &storeys,
             floor,
             materials,
@@ -120,7 +121,7 @@ pub fn map_spawn_geometry_system(
     for (ramp, materials) in map_layout.ramps.iter().zip(map_layout.ramp_materials.iter()) {
         batch_ramp(
             &mut geometry,
-            &asset_set,
+            map_materials,
             map_settings.geometry,
             &storeys,
             ramp,
@@ -140,7 +141,7 @@ pub fn map_spawn_geometry_system(
         &mut materials,
         &mut material_cache,
         &asset_server,
-        &asset_set,
+        map_materials,
         &client_settings,
         &carrier_entities,
     );
