@@ -10,8 +10,6 @@
 
 - **Body clipping flickers on moving portals:** straddle detection uses the current tick's portal frame against the interpolated player position, while the visible portal and clipping planes use the interpolated carrier pose. Use the same rendered frames for detection and clipping.
 
-- **Actors stuck on ramp lips:** a scuttler was seen parked on the grass at the top corner of a hotel basement ramp. Re-test after the terrain query fix, since the server then stalled for seconds per tick whenever an actor searched outdoors. If it persists, the suspect is the floor extension along a ramp's side: it reaches a wall width over the ramp with its top at the storey's floor, so a short way below the landing it stands more than `CHARACTER_STEP_HEIGHT` above the ramp surface, and a body that dropped onto the ramp's side cannot climb back onto the floor beside it.
-
 ## Enhancements
 
 - **Actor gameplay definitions:** Group each actor kind's health, damage, scoring, and destruction-feed setting under `gameplay.json::actors.kinds`, alongside its body and behaviour, so adding a kind does not require updating several separate tables.
@@ -28,7 +26,7 @@
 
 ## Testing
 
-- **Outdoors after the terrain query fix:** run fast far out on the hotel's grounds and check that movement stays smooth and the frame rate holds, that chasing actors no longer stop and go, and that grass chunks appearing beside a sprint no longer stutter the frame.
+- **Outdoors after the terrain query fix:** run fast far out on the hotel's grounds and check that movement stays smooth and the frame rate holds, that chasing actors no longer stop and go, and that grass chunks appearing beside a sprint no longer stutter the frame. Then lead scuttlers and bruisers down the basement ramps and stand against the wall at the foot: they should follow to touching distance instead of parking at the top.
 
 - **Rain flicker:** stand among the trees during rain and confirm the leaves no longer pulse every half second; the sky probe now crossfades between its renders.
 
