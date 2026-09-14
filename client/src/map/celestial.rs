@@ -14,11 +14,11 @@ use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker, SkyRenderLayer},
     config::ClientSettings,
     constants::{
-        AMBIENT_DAY_COLOR, AMBIENT_NIGHT_COLOR, AMBIENT_OVERCAST_COLOR, AMBIENT_TWILIGHT_COLOR, CLOUD_SUN_DIMMING,
-        FOG_CLEAR_RANGE, FOG_RAIN_RANGE, LIGHTING_RAIN_AMBIENT_FACTOR, LIGHTING_RAIN_DIRECT_FACTOR,
-        SCENE_DAY_SATURATION, SCENE_NIGHT_SATURATION, SCENE_TWILIGHT_SATURATION, SHADOW_CASCADE_DISTANCE,
-        SHADOW_FIRST_CASCADE_BOUND, SKY_CLOUD_SCALE, SKY_DAY_HORIZON_COLOR, SKY_NIGHT_HORIZON_COLOR,
-        SKY_OVERCAST_COLOR, SKY_TWILIGHT_HORIZON_COLOR,
+        AMBIENT_DAY_COLOR, AMBIENT_FILL_UNDER_SKY_PROBE, AMBIENT_NIGHT_COLOR, AMBIENT_OVERCAST_COLOR,
+        AMBIENT_TWILIGHT_COLOR, CLOUD_SUN_DIMMING, FOG_CLEAR_RANGE, FOG_RAIN_RANGE, LIGHTING_RAIN_AMBIENT_FACTOR,
+        LIGHTING_RAIN_DIRECT_FACTOR, SCENE_DAY_SATURATION, SCENE_NIGHT_SATURATION, SCENE_TWILIGHT_SATURATION,
+        SHADOW_CASCADE_DISTANCE, SHADOW_FIRST_CASCADE_BOUND, SKY_CLOUD_SCALE, SKY_DAY_HORIZON_COLOR,
+        SKY_NIGHT_HORIZON_COLOR, SKY_OVERCAST_COLOR, SKY_TWILIGHT_HORIZON_COLOR,
     },
     map::clouds::cumulus_toward,
     materials::ProceduralSkyMaterial,
@@ -39,6 +39,22 @@ pub(super) struct SkyAttached;
 
 #[derive(Component)]
 pub(super) struct SkyDome;
+
+// This frame's sun and phases, as `celestial_sky_system` derives them, for
+// everything else that follows the sky.
+#[derive(Resource, Default, Clone, Copy)]
+pub(super) struct SkyState {
+    pub(super) sun_direction: Vec3,
+    pub(super) sun_altitude: f32,
+    pub(super) twilight: f32,
+    pub(super) daylight: f32,
+    pub(super) rain: f32,
+    pub(super) sun_illuminance: f32,
+    // The configured ambient level for this phase and weather; the sky probe
+    // scales itself to it, so the JSON keeps setting how much ambient there is.
+    pub(super) ambient_brightness: f32,
+    pub(super) seconds: f32,
+}
 
 #[derive(Resource)]
 pub struct SkyAssets {
@@ -207,6 +223,7 @@ pub struct CelestialRender<'w, 's> {
         (With<MoonLightMarker>, Without<SunLightMarker>),
     >,
     ambient: ResMut<'w, GlobalAmbientLight>,
+    sky_state: ResMut<'w, SkyState>,
     gradings: Query<'w, 's, &'static mut ColorGrading, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
     cameras: Query<'w, 's, (Entity, Option<&'static mut DistanceFog>), With<Camera3d>>,
 }
@@ -306,7 +323,18 @@ pub fn celestial_sky_system(
         .lerp(lighting.twilight_ambient_brightness, twilight)
         .lerp(lighting.day_ambient_brightness, daylight)
         * 1.0_f32.lerp(LIGHTING_RAIN_AMBIENT_FACTOR, rain);
-    render.ambient.brightness = ambient_brightness;
+    // The sky probe carries the ambient; this is the fill under it.
+    render.ambient.brightness = ambient_brightness * AMBIENT_FILL_UNDER_SKY_PROBE;
+    *render.sky_state = SkyState {
+        sun_direction: directions.sun,
+        sun_altitude,
+        twilight,
+        daylight,
+        rain,
+        sun_illuminance,
+        ambient_brightness,
+        seconds: time.elapsed_secs_wrapped(),
+    };
     let ambient_color = mix_color(AMBIENT_NIGHT_COLOR, AMBIENT_TWILIGHT_COLOR, twilight)
         .lerp(Vec3::from_array(AMBIENT_DAY_COLOR), daylight)
         .lerp(Vec3::from_array(AMBIENT_OVERCAST_COLOR), rain);

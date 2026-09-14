@@ -5,6 +5,7 @@ mod grounds;
 mod rendering;
 mod resources;
 mod rocks;
+mod sky_probe;
 pub mod spawn;
 mod terrain_surface;
 mod trees;

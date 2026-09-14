@@ -2182,6 +2182,7 @@ dependencies = [
  "bincode",
  "common",
  "crossbeam-channel",
+ "half",
  "rand",
  "rapier3d",
  "raw-window-handle",

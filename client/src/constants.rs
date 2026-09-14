@@ -83,6 +83,15 @@ pub const AMBIENT_DAY_COLOR: [f32; 3] = [0.74, 0.84, 1.0];
 pub const AMBIENT_TWILIGHT_COLOR: [f32; 3] = [0.95, 0.68, 0.6];
 pub const AMBIENT_NIGHT_COLOR: [f32; 3] = [0.5, 0.6, 1.0];
 pub const AMBIENT_OVERCAST_COLOR: [f32; 3] = [0.84, 0.87, 0.92];
+// The sky lights the scene through a small cubemap refilled at this cadence,
+// scaled to the ambient level above; the uniform ambient stays as this much
+// fill under it.
+pub const SKY_PROBE_REFRESH_SECS: f32 = 0.5;
+// The meadow's bounce in the probe's lower half: how much of the lit
+// ground's radiance, and how far its green is pulled toward grey.
+pub const SKY_PROBE_GROUND_BOUNCE: f32 = 0.4;
+pub const SKY_PROBE_GROUND_GREYING: f32 = 0.5;
+pub const AMBIENT_FILL_UNDER_SKY_PROBE: f32 = 0.15;
 // Sun shadows reach this far (metres); the first cascade covers the near ground.
 pub const SHADOW_CASCADE_DISTANCE: f32 = 300.0;
 pub const SHADOW_FIRST_CASCADE_BOUND: f32 = 12.0;

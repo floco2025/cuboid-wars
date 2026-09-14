@@ -78,10 +78,15 @@ pub fn map_plugin(app: &mut App) {
 // before `Presentation` so the shared particle clouds consume this frame's
 // spawned drops.
 pub fn sky_weather_plugin(app: &mut App) {
+    app.init_resource::<celestial::SkyState>();
     app.add_systems(
         Update,
         (
             celestial::setup_sky_system,
+            sky_probe::setup_sky_probe_system.after(ClientSet::Camera),
+            sky_probe::refresh_sky_probe_system
+                .after(sky_probe::setup_sky_probe_system)
+                .after(celestial::celestial_sky_system),
             celestial::attach_sky_to_cameras_system
                 .after(celestial::setup_sky_system)
                 .after(ClientSet::Camera),
