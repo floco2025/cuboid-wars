@@ -81,7 +81,7 @@ pub const CHARACTER_FALL_DEATH_Y: f32 = -25.0;
 
 // Hard cap on a falling character's downward speed. Prevents arbitrarily large
 // velocities from very tall drops.
-pub const CHARACTER_TERMINAL_VELOCITY: f32 = 25.0; // m/s
+pub const CHARACTER_TERMINAL_VELOCITY: f32 = 50.0; // m/s
 
 // How far the Rapier character controller may snap downward to stay attached to
 // valid ground while walking over seams, ramps, and small frame-step gaps.

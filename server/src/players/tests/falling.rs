@@ -4,13 +4,92 @@ use crate::{
     players::{CheckpointId, PlayerCheckpoint, PlayerInfo, PowerUpState, outcomes::Landing},
     test_geometry::geometry,
 };
-use common::protocol::{
-    BarrierKindId, CarrierId, Checkpoint, CheckpointKind, Floor, Lane, MapLayout, PlayerGeneration, PortalMode,
-    PowerUpKind,
+use common::{
+    config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
+    physics::{CharacterEnvironment, CharacterStep, CharacterSupport, LadderMode, step_character_movement},
+    protocol::{
+        BarrierKindId, CarrierId, Checkpoint, CheckpointKind, Floor, Lane, MapLayout, PlayerGeneration, PortalMode,
+        PowerUpKind,
+    },
 };
 use crossbeam_channel::unbounded;
 
 const TEST_GRAVITY: f32 = 25.0;
+
+#[test]
+fn simulated_tall_fall_reaches_lethal_damage_without_low_gravity() {
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        floors: vec![Floor {
+            x1: -4.0,
+            x2: 4.0,
+            z1: -4.0,
+            z2: 4.0,
+            y: 0.0,
+            thickness: 0.4,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        ..default()
+    });
+    let carriers = Carriers::default();
+    for gravity in [24.0, 13.2] {
+        let environment = CharacterEnvironment {
+            collision_world: &world,
+            carriers: &carriers,
+            gravity,
+            physics: CharacterPhysicsConfig {
+                movement_collider: MovementColliderConfig {
+                    diameter: 0.6,
+                    height: 1.8,
+                },
+                hitbox: HitboxConfig {
+                    width: 0.6,
+                    height: 1.8,
+                    depth: 0.6,
+                    bottom_offset: 0.0,
+                },
+            },
+            passable_kinds: &[],
+            ladder_climb_ratio: 0.4,
+            ladder_mode: LadderMode::Automatic,
+            portals: None,
+        };
+        let mut pos = Position { y: 21.6, ..default() };
+        let mut vertical_velocity = 0.0;
+        let mut impact = None;
+        for _ in 0..300 {
+            let result = step_character_movement(
+                CharacterStep {
+                    start: pos,
+                    vertical_velocity,
+                    control_velocity: Vec3::ZERO,
+                    external_displacement: Vec3::ZERO,
+                    delta: 1.0 / 30.0,
+                },
+                &environment,
+            );
+            pos = result.position;
+            vertical_velocity = result.vertical_velocity;
+            if result.support == CharacterSupport::Ground {
+                impact = Some(result.impact_speed);
+                break;
+            }
+        }
+        let distance = fall_distance_for_speed(impact.expect("the fall never landed"), 24.0);
+        let damage = fall_damage_for_distance(distance, 8.0, 15.0, 100.0);
+        if gravity == 24.0 {
+            assert_eq!(
+                damage, 100.0,
+                "normal-gravity fall was not lethal: effective drop {distance}"
+            );
+        } else {
+            assert!(
+                (50.0..60.0).contains(&damage),
+                "low gravity lost its protection: damage {damage}"
+            );
+        }
+    }
+}
 
 #[test]
 fn a_crushed_player_dies_at_the_reported_contact() {

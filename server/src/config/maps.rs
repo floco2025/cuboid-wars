@@ -94,7 +94,9 @@ pub(super) fn validate_maps(
             &format!("{movement_path}.actors"),
         )?;
         movement.validate(&movement_path)?;
-        entry.player_fall.validate(&format!("{path} player_fall"))?;
+        entry
+            .player_fall
+            .validate(&format!("{path} player_fall"), movement.gravity)?;
         if let Some(random_items) = &entry.random_items {
             random_items.validate(&format!("{path} random_items"))?;
         }

@@ -13,6 +13,7 @@ from map_editor.constants import MODE_FLOOR, MODE_FLOOR_MATERIAL, MODE_JUMP_REAC
 from map_editor.jump_reach import (
     ANTI_GRAVITY,
     BOTH,
+    CHARACTER_TERMINAL_VELOCITY,
     NORMAL,
     SPEED,
     FallSettings,
@@ -276,7 +277,15 @@ class JumpReachWindowTests(WindowTestCase):
 
 class FallImpactTests(unittest.TestCase):
     def test_terminal_speed_limits_fall_damage(self):
-        fall = FallSettings(4, 20, 100)
-        self.assertAlmostEqual(fall.damage_fraction(100, 25, 25), (12.5 - 4) / (20 - 4))
+        terminal_drop = CHARACTER_TERMINAL_VELOCITY**2 / (2 * 25)
+        fall = FallSettings(4, terminal_drop * 2, 100)
+        self.assertAlmostEqual(
+            fall.damage_fraction(terminal_drop * 4, 25, 25), (terminal_drop - 4) / (terminal_drop * 2 - 4)
+        )
         self.assertEqual(fall.damage_fraction(2, 25, 25), 0)
         self.assertEqual(fall.damage_fraction(20, 5, 25), 0)
+
+    def test_tall_drop_is_lethal_without_low_gravity(self):
+        fall = FallSettings(8, 15, 100)
+        self.assertEqual(fall.damage_fraction(21.6, 24, 24), 1)
+        self.assertAlmostEqual(fall.damage_fraction(21.6, 13.2, 24), (11.88 - 8) / 7)
