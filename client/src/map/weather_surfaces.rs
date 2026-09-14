@@ -4,7 +4,7 @@ use super::grass::GrassChunks;
 use crate::{
     constants::{WETNESS_DARKENING, WETNESS_DRY_SECS, WETNESS_ROUGHNESS, WETNESS_SOAK_SECS},
     materials::{GrassMaterial, TerrainMaterial},
-    vfx::RainIntensity,
+    vfx::WeatherIntensity,
 };
 
 // Ground and blades soak while it rains and dry out slowly afterwards. The
@@ -12,7 +12,7 @@ use crate::{
 // re-uploads a uniform.
 pub fn weather_surfaces_system(
     time: Res<Time>,
-    rain: Res<RainIntensity>,
+    rain: Res<WeatherIntensity>,
     chunks: Res<GrassChunks>,
     mut wetness: Local<f32>,
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,

@@ -24,7 +24,7 @@ use crate::{
     ui::{HudBanner, MessageFeed, QuestLog},
     vfx::{
         BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, FireworkShow, PortalFizzleAssets,
-        RainIntensity,
+        WeatherIntensity,
     },
 };
 
@@ -92,7 +92,7 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) firework_show: ResMut<'w, FireworkShow>,
     pub(super) plates: ResMut<'w, PlateState>,
     pub(super) locked_switches: ResMut<'w, LockedSwitches>,
-    pub(super) rain_intensity: ResMut<'w, RainIntensity>,
+    pub(super) weather_intensity: ResMut<'w, WeatherIntensity>,
     pub(super) celestial_clock: ResMut<'w, CelestialClockAnchor>,
     pub(super) player_data: Query<'w, 's, &'static Position, With<PlayerMarker>>,
     pub(super) actor_data: Query<'w, 's, &'static Position, With<ActorMarker>>,

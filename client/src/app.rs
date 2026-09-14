@@ -33,7 +33,7 @@ use crate::{
     projectiles::LastBounceSound,
     schedule::configure_client_sets,
     ui::{ConsoleState, HudShapeAssets, MessageFeed, hud_plugin, setup_ui_system},
-    vfx::{ExplosionAssets, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
+    vfx::{ExplosionAssets, ExplosionVfxBudget, ParticleClouds, WeatherIntensity, presentation_plugin},
 };
 use common::{
     physics::PortalSet,
@@ -206,7 +206,7 @@ pub fn build_client_app(
         .init_resource::<MissileAssets>()
         .init_resource::<HudShapeAssets>()
         .init_resource::<ParticleClouds>()
-        .init_resource::<RainIntensity>()
+        .init_resource::<WeatherIntensity>()
         .init_resource::<ExplosionAssets>()
         .init_resource::<ExplosionVfxBudget>()
         .add_systems(

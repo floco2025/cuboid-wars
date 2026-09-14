@@ -63,14 +63,14 @@ const RAIN_EPSILON: f32 = 0.01;
 // the short precipitation envelope starts after cloud ramp-in and begins
 // fading at the exact start of cloud fade-out.
 #[derive(Resource, Default)]
-pub struct RainIntensity {
+pub struct WeatherIntensity {
     pub target: f32,
     pub current: f32,
     pub raining: bool,
     precipitation: f32,
 }
 
-impl RainIntensity {
+impl WeatherIntensity {
     #[must_use]
     pub fn cloud_cover(&self) -> f32 {
         self.current.clamp(0.0, 1.0)
@@ -94,7 +94,7 @@ fn step_precipitation(current: f32, raining: bool, delta_secs: f32) -> f32 {
     current + (target - current).clamp(-max_step, max_step)
 }
 
-pub fn rain_smoothing_system(time: Res<Time>, mut rain: ResMut<RainIntensity>) {
+pub fn rain_smoothing_system(time: Res<Time>, mut rain: ResMut<WeatherIntensity>) {
     let target = rain.target;
     if target >= 1.0 {
         // The endpoint is also the rain-on transition, so reach it exactly
@@ -113,7 +113,7 @@ pub fn rain_smoothing_system(time: Res<Time>, mut rain: ResMut<RainIntensity>) {
 // `client.json::weather.rain_drops_per_second` is the only density knob.
 pub fn rain_particles_system(
     time: Res<Time>,
-    rain: Res<RainIntensity>,
+    rain: Res<WeatherIntensity>,
     client_settings: Res<ClientSettings>,
     collision_world: Res<CollisionWorld>,
     mut clouds: ResMut<ParticleClouds>,
@@ -268,7 +268,7 @@ fn spawn_splash(splashes: &mut ParticleCloud, rng: &mut ThreadRng, position: Vec
 // the clouds disperse. Dropping the entity drops the sink and stops the loop.
 pub fn rain_audio_system(
     mut commands: Commands,
-    rain: Res<RainIntensity>,
+    rain: Res<WeatherIntensity>,
     client_settings: Res<ClientSettings>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,

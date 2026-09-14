@@ -116,7 +116,7 @@ pub(super) fn network_broadcast_snapshot_system(
         plates: (*plates).clone(),
         quests,
         locked_switches,
-        cloud_cover: conditions.weather.intensity(),
+        cloud_cover: conditions.weather.cloud_cover(),
         raining: conditions.weather.is_raining(),
         celestial_clock: *conditions.celestial_clock,
         portals: conditions.portals.snapshot_portals(),

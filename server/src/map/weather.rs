@@ -21,7 +21,7 @@ enum WeatherPhase {
 pub struct WeatherState {
     schedule: WeatherCycleConfig,
     phase: WeatherPhase,
-    intensity: f32,
+    cloud_cover: f32,
     auto: bool,
 }
 
@@ -29,7 +29,7 @@ impl WeatherState {
     #[must_use]
     pub fn new(schedule: WeatherCycleConfig, mode: WeatherMode) -> Self {
         let mut rng = rand::rng();
-        let (phase, intensity) = match mode {
+        let (phase, cloud_cover) = match mode {
             WeatherMode::Clear | WeatherMode::Auto => (
                 WeatherPhase::Clear {
                     remaining_secs: rng.random_range(schedule.min_clear_secs..=schedule.max_clear_secs),
@@ -46,14 +46,14 @@ impl WeatherState {
         Self {
             schedule,
             phase,
-            intensity,
+            cloud_cover,
             auto: mode == WeatherMode::Auto,
         }
     }
 
     #[must_use]
-    pub fn intensity(&self) -> f32 {
-        self.intensity
+    pub fn cloud_cover(&self) -> f32 {
+        self.cloud_cover
     }
 
     #[must_use]
@@ -68,7 +68,7 @@ impl WeatherState {
     }
 
     // Admin override: rain now and hold it. Interrupting a fade scales the
-    // ramp by the missing intensity, so the transition stays continuous
+    // ramp by the missing cover, so the transition stays continuous
     // instead of snapping to zero and climbing back.
     pub fn hold_rain(&mut self) -> Result<(), &'static str> {
         match self.phase {
@@ -80,7 +80,7 @@ impl WeatherState {
             }
             WeatherPhase::Clear { .. } | WeatherPhase::FadeOut { .. } => {
                 self.phase = WeatherPhase::RampIn {
-                    remaining_secs: self.schedule.ramp_in_secs * (1.0 - self.intensity),
+                    remaining_secs: self.schedule.ramp_in_secs * (1.0 - self.cloud_cover),
                 };
                 self.auto = false;
                 Ok(())
@@ -89,7 +89,7 @@ impl WeatherState {
     }
 
     // Admin override: clear now and hold it, fading from the current
-    // intensity (a mid-ramp stop fades from wherever the ramp got).
+    // cover (a mid-ramp stop fades from wherever the ramp got).
     pub fn hold_clear(&mut self) -> Result<(), &'static str> {
         match self.phase {
             WeatherPhase::FadeOut { .. } if !self.auto => Err("already clearing"),
@@ -100,7 +100,7 @@ impl WeatherState {
             }
             WeatherPhase::RampIn { .. } | WeatherPhase::Raining { .. } => {
                 self.phase = WeatherPhase::FadeOut {
-                    remaining_secs: self.schedule.fade_out_secs * self.intensity,
+                    remaining_secs: self.schedule.fade_out_secs * self.cloud_cover,
                 };
                 self.auto = false;
                 Ok(())
@@ -124,8 +124,8 @@ impl WeatherState {
         let phase = match self.phase {
             WeatherPhase::Clear { .. } => "clear".to_owned(),
             WeatherPhase::Raining { .. } => "rain".to_owned(),
-            WeatherPhase::RampIn { .. } => format!("rain starting ({:.2})", self.intensity),
-            WeatherPhase::FadeOut { .. } => format!("clearing ({:.2})", self.intensity),
+            WeatherPhase::RampIn { .. } => format!("rain starting ({:.2})", self.cloud_cover),
+            WeatherPhase::FadeOut { .. } => format!("clearing ({:.2})", self.cloud_cover),
         };
         let source = if self.auto { "auto" } else { "held" };
         format!("weather: {phase} ({source})")
@@ -168,7 +168,7 @@ fn tick_weather(state: &mut WeatherState, delta: f32, rng: &mut ThreadRng) {
         };
     }
 
-    state.intensity = match state.phase {
+    state.cloud_cover = match state.phase {
         WeatherPhase::Clear { .. } => 0.0,
         WeatherPhase::Raining { .. } => 1.0,
         WeatherPhase::RampIn { remaining_secs } => 1.0 - remaining_secs / schedule.ramp_in_secs,

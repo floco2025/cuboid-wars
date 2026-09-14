@@ -28,7 +28,7 @@ pub(crate) use laser::beam_target_local;
 pub use laser::{LaserBeam, laser_beam_update_system, laser_beams_sync_system};
 pub use particles::{ParticleCloud, ParticleClouds, particle_clouds_system};
 pub use portal_fizzle::{PortalFizzleAssets, portal_fizzle_system, spawn_portal_fizzle};
-pub use rain::{RainIntensity, rain_audio_system, rain_particles_system, rain_smoothing_system};
+pub use rain::{WeatherIntensity, rain_audio_system, rain_particles_system, rain_smoothing_system};
 pub use spark::{ImpactKind, spawn_impact_sparks};
 
 mod plugin;

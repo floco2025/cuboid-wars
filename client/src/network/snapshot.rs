@@ -49,7 +49,7 @@ pub(super) fn handle_snapshot_message(
         .locked_switches
         .set_if_neq(LockedSwitches(message.locked_switches));
 
-    context.rain_intensity.target = message.cloud_cover;
-    context.rain_intensity.raining = message.raining;
+    context.weather_intensity.target = message.cloud_cover;
+    context.weather_intensity.raining = message.raining;
     context.celestial_clock.set_if_neq(message.celestial_clock);
 }

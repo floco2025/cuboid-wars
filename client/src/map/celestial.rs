@@ -22,7 +22,7 @@ use crate::{
     },
     map::clouds::cumulus_toward,
     materials::ProceduralSkyMaterial,
-    vfx::RainIntensity,
+    vfx::WeatherIntensity,
 };
 
 const SKY_RADIUS: f32 = 500.0;
@@ -226,7 +226,7 @@ pub fn celestial_state_system(
     cycle: Res<CelestialCycleSettings>,
     map: Res<MapSettings>,
     settings: Res<ClientSettings>,
-    rain: Res<RainIntensity>,
+    rain: Res<WeatherIntensity>,
     mut state: ResMut<SkyState>,
     mut sun_casts_shadows: Local<bool>,
 ) {

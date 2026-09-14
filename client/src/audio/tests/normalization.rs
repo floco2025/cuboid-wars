@@ -8,7 +8,7 @@ use crate::{
     audio::sound_playback,
     config::AssetSet,
     test_fixtures,
-    vfx::{RainIntensity, rain_audio_system},
+    vfx::{WeatherIntensity, rain_audio_system},
 };
 
 fn audio_app() -> App {
@@ -107,12 +107,12 @@ fn rain_intensity_updates_keep_normalization_and_config_gain_without_reapplying_
     let mut settings = test_fixtures::client_settings();
     settings.audio.rain_volume = 0.5;
     app.insert_resource(settings)
-        .insert_resource(RainIntensity::default())
+        .insert_resource(WeatherIntensity::default())
         .init_resource::<GlobalVolume>()
         .add_systems(Update, rain_audio_system);
     for intensity in [0.25, 0.5, 1.0, 0.5, 0.0, 1.0] {
         {
-            let mut rain = app.world_mut().resource_mut::<RainIntensity>();
+            let mut rain = app.world_mut().resource_mut::<WeatherIntensity>();
             rain.target = intensity;
             rain.current = intensity;
             rain.raining = intensity >= 1.0;

@@ -22,7 +22,7 @@ fn initial_clear_duration_is_within_bounds() {
         panic!("weather must start clear, got {:?}", state.phase);
     };
     assert!((10.0..=20.0).contains(&remaining_secs));
-    assert_eq!(state.intensity(), 0.0);
+    assert_eq!(state.cloud_cover(), 0.0);
     assert!(!state.is_raining());
 }
 
@@ -33,7 +33,7 @@ fn mode_clear_holds_clear_forever() {
         tick(&mut state, 30.0);
     }
     assert!(matches!(state.phase, WeatherPhase::Clear { .. }));
-    assert_eq!(state.intensity(), 0.0);
+    assert_eq!(state.cloud_cover(), 0.0);
 }
 
 #[test]
@@ -43,14 +43,14 @@ fn mode_rain_starts_raining_and_holds() {
         panic!("rain mode must start raining, got {:?}", state.phase);
     };
     assert!((5.0..=8.0).contains(&remaining_secs));
-    assert_eq!(state.intensity(), 1.0);
+    assert_eq!(state.cloud_cover(), 1.0);
     assert!(state.is_raining());
 
     for _ in 0..100 {
         tick(&mut state, 30.0);
     }
     assert!(matches!(state.phase, WeatherPhase::Raining { .. }));
-    assert_eq!(state.intensity(), 1.0);
+    assert_eq!(state.cloud_cover(), 1.0);
 }
 
 #[test]
@@ -61,31 +61,31 @@ fn mode_auto_cycles_through_all_phases_with_bounded_durations() {
     tick(&mut state, 25.0);
     assert!(matches!(state.phase, WeatherPhase::RampIn { .. }));
 
-    // Mid-ramp the intensity is strictly between the endpoints.
+    // Mid-ramp the cover is strictly between the endpoints.
     tick(&mut state, 1.0);
     assert!(matches!(state.phase, WeatherPhase::RampIn { .. }));
-    assert!(state.intensity() > 0.0 && state.intensity() < 1.0);
+    assert!(state.cloud_cover() > 0.0 && state.cloud_cover() < 1.0);
 
     tick(&mut state, 1.0);
     let WeatherPhase::Raining { remaining_secs } = state.phase else {
         panic!("expected rain after the ramp, got {:?}", state.phase);
     };
     assert!((5.0..=8.0).contains(&remaining_secs));
-    assert_eq!(state.intensity(), 1.0);
+    assert_eq!(state.cloud_cover(), 1.0);
 
     tick(&mut state, 8.0);
     assert!(matches!(state.phase, WeatherPhase::FadeOut { .. }));
-    assert_eq!(state.intensity(), 1.0);
+    assert_eq!(state.cloud_cover(), 1.0);
     assert!(!state.is_raining(), "rain must stop as soon as fade-out begins");
     tick(&mut state, 2.0);
-    assert!(state.intensity() > 0.0 && state.intensity() < 1.0);
+    assert!(state.cloud_cover() > 0.0 && state.cloud_cover() < 1.0);
 
     tick(&mut state, 2.0);
     let WeatherPhase::Clear { remaining_secs } = state.phase else {
         panic!("expected clear after the fade, got {:?}", state.phase);
     };
     assert!((10.0..=20.0).contains(&remaining_secs));
-    assert_eq!(state.intensity(), 0.0);
+    assert_eq!(state.cloud_cover(), 0.0);
 }
 
 #[test]
@@ -101,7 +101,7 @@ fn hold_rain_from_clear_ramps_in_and_holds() {
     );
 
     tick(&mut state, 3.0);
-    assert_eq!(state.intensity(), 1.0);
+    assert_eq!(state.cloud_cover(), 1.0);
     for _ in 0..100 {
         tick(&mut state, 30.0);
     }
@@ -114,13 +114,13 @@ fn hold_rain_mid_fade_keeps_intensity_continuous() {
     let mut state = WeatherState::new(cycle(), WeatherMode::Auto);
     state.phase = WeatherPhase::FadeOut { remaining_secs: 2.0 };
     tick(&mut state, 0.0);
-    let mid_fade = state.intensity();
+    let mid_fade = state.cloud_cover();
     assert!(mid_fade > 0.0 && mid_fade < 1.0);
 
     state.hold_rain().expect("hold_rain mid-fade failed");
     tick(&mut state, 0.0);
 
-    assert!((state.intensity() - mid_fade).abs() < 1e-3, "no intensity jump");
+    assert!((state.cloud_cover() - mid_fade).abs() < 1e-3, "no cover jump");
     assert!(matches!(state.phase, WeatherPhase::RampIn { .. }));
 }
 
@@ -161,7 +161,7 @@ fn hold_pauses_a_running_cycle_in_place() {
         tick(&mut state, 30.0);
     }
     assert!(matches!(state.phase, WeatherPhase::Raining { .. }));
-    assert_eq!(state.intensity(), 1.0);
+    assert_eq!(state.cloud_cover(), 1.0);
 }
 
 #[test]
@@ -191,10 +191,10 @@ fn intensity_rises_monotonically_during_ramp() {
     let mut state = WeatherState::new(cycle(), WeatherMode::Auto);
     tick(&mut state, 25.0);
 
-    let mut last = state.intensity();
+    let mut last = state.cloud_cover();
     for _ in 0..10 {
         tick(&mut state, 0.1);
-        assert!(state.intensity() >= last);
-        last = state.intensity();
+        assert!(state.cloud_cover() >= last);
+        last = state.cloud_cover();
     }
 }
