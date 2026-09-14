@@ -693,12 +693,16 @@ fn contact_actor_reaches_touching_distance_of_a_player_against_a_wall() {
 fn a_target_no_node_can_attack_is_given_up_after_the_search_limit() {
     let geometry = geometry(12, 5);
     let layout = MapLayout {
-        grounds: Some(common::map::Grounds {
-            center: [0.0, 0.0],
-            half_size: [geometry.width() / 2.0, geometry.depth() / 2.0],
-            y: 0.0,
-            settings: common::map::GroundsSettings { level: 0 },
-        }),
+        grounds: Some(common::map::Grounds::new(
+            [(
+                -geometry.width() / 2.0,
+                geometry.width() / 2.0,
+                -geometry.depth() / 2.0,
+                geometry.depth() / 2.0,
+            )],
+            0.0,
+            common::map::GroundsSettings { level: 0 },
+        )),
         ..Default::default()
     };
     let mut fixture = Fixture::with_world(CONTACT, CollisionWorld::from_map_layout(&layout));

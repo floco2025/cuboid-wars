@@ -9,12 +9,7 @@ use crate::{
 };
 
 fn grounds() -> Grounds {
-    Grounds {
-        center: [0.0, 0.0],
-        half_size: [20.0, 30.0],
-        y: 4.4,
-        settings: GroundsSettings { level: 1 },
-    }
+    Grounds::new([(-20.0, 20.0, -30.0, 30.0)], 4.4, GroundsSettings { level: 1 })
 }
 
 #[test]
@@ -49,10 +44,7 @@ fn terrain_joins_the_map_leaves_the_basement_open_and_faces_up() {
 
 #[test]
 fn offset_footprints_keep_terrain_and_decorations_on_all_four_sides() {
-    let grounds = Grounds {
-        center: [1000.0, -800.0],
-        ..grounds()
-    };
+    let grounds = Grounds::new([(980.0, 1020.0, -830.0, -770.0)], 4.4, GroundsSettings { level: 1 });
     let mesh = grounds.mesh();
     for vertex in &mesh.vertices {
         assert!(grounds.distance_outside_footprint(vertex.x, vertex.z) >= -0.001);
@@ -62,7 +54,7 @@ fn offset_footprints_keep_terrain_and_decorations_on_all_four_sides() {
     for direction in [Vec2::X, Vec2::NEG_X, Vec2::Y, Vec2::NEG_Y] {
         assert!(
             decorations.iter().any(|decoration| {
-                let offset = Vec2::new(decoration.position.x, decoration.position.z) - Vec2::from(grounds.center);
+                let offset = Vec2::new(decoration.position.x, decoration.position.z) - Vec2::new(1000.0, -800.0);
                 offset.dot(direction) > 600.0
             }),
             "decorations must reach every side of an offset base"
@@ -76,17 +68,55 @@ fn offset_footprints_keep_terrain_and_decorations_on_all_four_sides() {
 
 #[test]
 fn an_empty_footprint_makes_a_filled_mesh_without_zero_area_triangles() {
-    let grounds = Grounds {
-        center: [-194.0, -34.0],
-        half_size: [0.0, 0.0],
-        ..grounds()
-    };
+    let grounds = Grounds::new([], 4.4, GroundsSettings { level: 1 });
     let mesh = grounds.mesh();
     for &[a, b, c] in &mesh.triangles {
         let [a, b, c] = [a, b, c].map(|i| mesh.vertices[i as usize]);
         assert!((b - a).cross(c - a).y > 0.0);
     }
-    assert!(mesh.vertices.contains(&Vec3::new(-194.0, grounds.y, -34.0)));
+    assert!(mesh.vertices.contains(&Vec3::new(0.0, grounds.y, 0.0)));
+}
+
+#[test]
+fn concave_infill_meets_the_outer_mesh_and_supports_decorations() {
+    let grounds = Grounds::new(
+        [
+            (-40.0, 40.0, -40.0, -30.0),
+            (30.0, 40.0, -30.0, 40.0),
+            (44.0, 54.0, -40.0, 40.0),
+        ],
+        0.0,
+        GroundsSettings { level: 0 },
+    );
+    let mesh = grounds.mesh();
+    for &[a, b, c] in &mesh.triangles {
+        let [a, b, c] = [a, b, c].map(|i| mesh.vertices[i as usize]);
+        assert!((b - a).cross(c - a).y > 0.0);
+        let center = (a + b + c) / 3.0;
+        assert!(!grounds.is_inside_footprint(center.x, center.z));
+    }
+    let decorations = grounds.decorations();
+    assert!(
+        decorations
+            .iter()
+            .any(|d| { grounds.distance_outside_bounds(d.position.x, d.position.z) < 0.0 }),
+        "decorations can grow in the infill inside the old rectangular cutout"
+    );
+    assert!(
+        decorations
+            .iter()
+            .all(|d| !grounds.is_inside_footprint(d.position.x, d.position.z))
+    );
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        grounds: Some(grounds),
+        ..Default::default()
+    });
+    for z in [38.0, 39.999, 40.0, 40.001, 41.0] {
+        let hit = world
+            .ground_surface_below(Vec3::new(42.0, 0.5, z), 1.0)
+            .expect("no gap where infill meets the outer mesh");
+        assert!(hit.point.y.abs() < 0.001);
+    }
 }
 
 #[test]

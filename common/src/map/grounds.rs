@@ -4,7 +4,10 @@ use bevy_math::{EulerRot, IVec2, Quat, Vec2, Vec3};
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
-use super::rocks::{ROCK_VARIANTS, RockClass};
+use super::{
+    ground_footprint::GroundFootprint,
+    rocks::{ROCK_VARIANTS, RockClass},
+};
 
 const HILL_BLEND_START: f32 = 6.0;
 const HILL_BLEND_END: f32 = 50.0;
@@ -34,8 +37,7 @@ pub struct GroundsSettings {
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Grounds {
-    pub center: [f32; 2],
-    pub half_size: [f32; 2],
+    footprint: GroundFootprint,
     pub y: f32,
     pub settings: GroundsSettings,
 }
@@ -136,6 +138,14 @@ fn smoothstep(low: f32, high: f32, value: f32) -> f32 {
 }
 
 impl Grounds {
+    pub fn new(rectangles: impl IntoIterator<Item = (f32, f32, f32, f32)>, y: f32, settings: GroundsSettings) -> Self {
+        Self {
+            footprint: GroundFootprint::new(rectangles),
+            y,
+            settings,
+        }
+    }
+
     pub fn decorations(&self) -> Vec<GroundDecoration> {
         let mut decorations = Vec::new();
         let [low, high] = self.decoration_cells(TREE_CELL, DECORATION_EXTENT);
@@ -217,11 +227,14 @@ impl Grounds {
     }
 
     fn decoration_cells(&self, cell: f32, extent: f32) -> [IVec2; 2] {
-        let center = Vec2::from(self.center);
-        let reach = Vec2::from(self.half_size) + Vec2::splat(extent);
+        let bounds = self.footprint.bounds;
         [
-            ((center - reach) / cell).floor().as_ivec2(),
-            ((center + reach) / cell).ceil().as_ivec2(),
+            ((Vec2::new(bounds.x1, bounds.z1) - Vec2::splat(extent)) / cell)
+                .floor()
+                .as_ivec2(),
+            ((Vec2::new(bounds.x2, bounds.z2) + Vec2::splat(extent)) / cell)
+                .ceil()
+                .as_ivec2(),
         ]
     }
 
@@ -263,7 +276,15 @@ impl Grounds {
     }
 
     pub fn distance_outside_footprint(&self, x: f32, z: f32) -> f32 {
-        ((x - self.center[0]).abs() - self.half_size[0]).max((z - self.center[1]).abs() - self.half_size[1])
+        self.footprint.distance(x, z)
+    }
+
+    pub fn is_inside_footprint(&self, x: f32, z: f32) -> bool {
+        self.footprint.contains(x, z)
+    }
+
+    pub fn distance_outside_bounds(&self, x: f32, z: f32) -> f32 {
+        self.footprint.bounds.distance(x, z)
     }
 
     // How far past the map edge the terrain reaches.
@@ -272,7 +293,9 @@ impl Grounds {
     }
 
     pub fn height(&self, x: f32, z: f32) -> f32 {
-        let distance = self.distance_outside_footprint(x, z).max(0.0);
+        // Keep infill flat inside the outer rings. Its edges can then meet
+        // the rings and each other without height cracks at T-junctions.
+        let distance = self.distance_outside_bounds(x, z).max(0.0);
         // Keep the map seam and its immediate surroundings level, then ease
         // into broad, low-gradient hills. Authored terrain slabs never call
         // this function and therefore remain perfectly flat.
@@ -304,11 +327,14 @@ impl Grounds {
         let segments = 64usize;
         let mut vertices = Vec::new();
         let mut triangles = Vec::new();
+        let bounds = self.footprint.bounds;
+        let center = Vec2::new((bounds.x1 + bounds.x2) * 0.5, (bounds.z1 + bounds.z2) * 0.5);
+        let half_size = Vec2::new((bounds.x2 - bounds.x1) * 0.5, (bounds.z2 - bounds.z1) * 0.5);
         for side in 0..4 {
             let offset = vertices.len() as u32;
             for &distance in &distances {
-                let hx = self.half_size[0] + distance;
-                let hz = self.half_size[1] + distance;
+                let hx = half_size.x + distance;
+                let hz = half_size.y + distance;
                 for step in 0..=segments {
                     let t = step as f32 / segments as f32 * 2.0 - 1.0;
                     let (x, z) = match side {
@@ -317,7 +343,7 @@ impl Grounds {
                         2 => (-hx, -t * hz),
                         _ => (t * hx, -hz),
                     };
-                    let (x, z) = (x + self.center[0], z + self.center[1]);
+                    let (x, z) = (x + center.x, z + center.y);
                     vertices.push(Vec3::new(x, self.height(x, z), z));
                 }
             }
@@ -327,12 +353,22 @@ impl Grounds {
                     let b = a + (segments + 1) as u32;
                     // An empty base level has no cutout: the innermost ring
                     // collapses to a point and needs a fan, not zero-area faces.
-                    if ring != 0 || self.half_size != [0.0, 0.0] {
+                    if ring != 0 || half_size != Vec2::ZERO {
                         triangles.push([a, a + 1, b]);
                     }
                     triangles.push([a + 1, b + 1, b]);
                 }
             }
+        }
+        for rect in &self.footprint.infill {
+            let start = vertices.len() as u32;
+            vertices.extend([
+                Vec3::new(rect.x1, self.y, rect.z1),
+                Vec3::new(rect.x1, self.y, rect.z2),
+                Vec3::new(rect.x2, self.y, rect.z2),
+                Vec3::new(rect.x2, self.y, rect.z1),
+            ]);
+            triangles.extend([[start, start + 1, start + 2], [start, start + 2, start + 3]]);
         }
         GroundsMesh { vertices, triangles }
     }

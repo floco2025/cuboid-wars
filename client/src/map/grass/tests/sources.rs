@@ -15,12 +15,11 @@ fn app() -> App {
         .init_resource::<DebugColors>()
         .init_resource::<Carriers>()
         .insert_resource(MapLayout {
-            grounds: Some(Grounds {
-                center: [0.0, 0.0],
-                half_size: [10.0, 10.0],
-                y: 0.0,
-                settings: GroundsSettings { level: 0 },
-            }),
+            grounds: Some(Grounds::new(
+                [(-10.0, 10.0, -10.0, 10.0)],
+                0.0,
+                GroundsSettings { level: 0 },
+            )),
             ..default()
         })
         .add_systems(
@@ -40,18 +39,35 @@ fn app() -> App {
 #[test]
 fn meadow_chunks_follow_an_offset_base_instead_of_the_grid_origin() {
     let meadow = GroundsGrass {
-        grounds: Grounds {
-            center: [105.0, -85.0],
-            half_size: [12.0, 12.0],
-            y: 0.0,
-            settings: GroundsSettings { level: 0 },
-        },
+        grounds: Grounds::new([(93.0, 117.0, -97.0, -73.0)], 0.0, GroundsSettings { level: 0 }),
         level: 0,
     };
     assert!(!meadow.cell_is_meadow(IVec2::new(10, -9)), "inside the cutout");
     assert!(meadow.cell_is_meadow(IVec2::new(11, -9)), "partly outside the cutout");
     assert!(meadow.cell_is_meadow(IVec2::ZERO), "the old origin is now meadow");
     assert!(!meadow.cell_is_meadow(IVec2::new(200, -9)), "past the terrain edge");
+}
+
+#[test]
+fn meadow_chunks_fill_a_concavity_and_the_gap_between_separate_bases() {
+    let meadow = GroundsGrass {
+        grounds: Grounds::new(
+            [
+                (-40.0, 50.0, -40.0, -20.0),
+                (20.0, 50.0, -20.0, 40.0),
+                (60.0, 80.0, -40.0, 40.0),
+            ],
+            0.0,
+            GroundsSettings { level: 0 },
+        ),
+        level: 0,
+    };
+    assert!(meadow.cell_is_meadow(IVec2::ZERO), "inside the concavity");
+    assert!(meadow.cell_is_meadow(IVec2::new(5, 0)), "between the bases");
+    assert!(
+        !meadow.cell_is_meadow(IVec2::new(3, 0)),
+        "wholly inside the authored base"
+    );
 }
 
 #[test]

@@ -6,7 +6,10 @@ use crate::map::definition::{
         switch_table,
     },
 };
-use common::{physics::CollisionWorld, protocol::Wall};
+use common::{
+    physics::CollisionWorld,
+    protocol::{Position, Wall},
+};
 
 #[test]
 fn grounds_fit_a_small_base_below_an_obby_style_elevated_course() {
@@ -44,10 +47,9 @@ fn grounds_fit_a_small_base_below_an_obby_style_elevated_course() {
     )
     .expect("small base compiles");
     let grounds = layout.grounds.as_ref().expect("grounds missing");
-    assert_eq!(grounds.center, [-194.0, -34.0]);
-    for size in grounds.half_size {
+    for (x, z) in [(-200.2, -34.0), (-187.8, -34.0), (-194.0, -40.2), (-194.0, -27.8)] {
         assert!(
-            (size - 6.2).abs() < 0.0001,
+            grounds.distance_outside_footprint(x, z).abs() < 0.0001,
             "cutout includes the slab trim, not the grid"
         );
     }
@@ -82,6 +84,111 @@ fn grounds_fit_a_small_base_below_an_obby_style_elevated_course() {
     };
     assert!(graph.nearest_node_for_position(&meadow).is_some());
     assert!(graph.engagement_route(&[], &pad, &meadow, 0.15, 0.15).is_some());
+}
+
+#[test]
+fn irregular_bases_compile_walkable_outdoor_gaps_without_filling_enclosed_voids() {
+    let mut base = level(Vec::new());
+    for row in 1..10 {
+        for col in 1..16 {
+            let left = col < 9 && (row < 3 || col >= 7);
+            let right = col >= 12 && !(col == 13 && (4..7).contains(&row));
+            if left || right {
+                base.terrain.push(cell_def(col, row));
+            }
+        }
+    }
+    let mut map = map_with_zones(20, vec![base], Vec::new(), vec![player_zone(0, 1, 1)], Vec::new());
+    map.grid_rows = 14;
+    let kinds = empty_kind_table();
+    let bridges = no_bridges();
+    let mut settings = compile_settings(&kinds, &bridges);
+    settings.grounds = Some(GroundsSettings { level: 0 });
+    let (layout, config) = compile_map(
+        &map,
+        30,
+        &settings,
+        &no_nested(),
+        &kinds,
+        &bridges,
+        &switch_table(&kinds, &bridges),
+    )
+    .expect("irregular base compiles");
+    let geometry = config.root_grid().geometry;
+    let center = |col, row| Position {
+        x: geometry.cell_center_x(col),
+        y: 0.0,
+        z: geometry.cell_center_z(row),
+    };
+    let grounds = layout.grounds.as_ref().expect("grounds");
+    let world = CollisionWorld::from_map_layout(&layout);
+    let mut graphs = crate::actors::navigation::NavGraphs::new(&config);
+    graphs.add_grounds(&layout);
+    let graph = graphs.get(CarrierId::WORLD);
+    let start = center(1, 1);
+    for (col, row) in [(3, 7), (10, 5)] {
+        let point = center(col, row);
+        assert!(!grounds.is_inside_footprint(point.x, point.z));
+        let hit = world
+            .ground_surface_below(bevy::math::Vec3::new(point.x, 0.5, point.z), 1.0)
+            .expect("ground in the outdoor gap");
+        assert!(hit.point.y.abs() < 0.001);
+        let node = graph
+            .nearest_node_for_position(&point)
+            .expect("outdoor navigation cell");
+        assert_eq!((node.col, node.row, node.level), (col, row, 0));
+        assert!(graph.engagement_route(&[], &start, &point, 0.15, 0.15).is_some());
+    }
+    let enclosed = center(13, 5);
+    assert!(grounds.is_inside_footprint(enclosed.x, enclosed.z));
+    assert!(
+        world
+            .ground_surface_below(bevy::math::Vec3::new(enclosed.x, 0.5, enclosed.z), 1.0)
+            .is_none()
+    );
+}
+
+#[test]
+fn an_exterior_basement_ramp_is_not_capped_by_ground_infill() {
+    let geometry = crate::test_geometry::sizes();
+    let mut layout = MapLayout {
+        floors: vec![Floor {
+            x1: -2.0,
+            x2: 8.0,
+            z1: 0.0,
+            z2: 8.0,
+            y: geometry.level_y(1),
+            thickness: geometry.floor_thickness,
+            level: 1,
+            carrier: CarrierId::WORLD,
+        }],
+        ramps: vec![Ramp {
+            x1: -2.0,
+            x2: 2.0,
+            z1: -8.0,
+            z2: 0.0,
+            y1: 0.0,
+            y2: geometry.level_y(1),
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    };
+    let grounds = compile_grounds(&layout, &GroundsSettings { level: 1 }, geometry);
+    assert!(grounds.is_inside_footprint(0.0, -4.0));
+    assert!(!grounds.is_inside_footprint(6.0, -4.0));
+    layout.grounds = Some(grounds);
+    let world = CollisionWorld::from_map_layout(&layout);
+    let ramp = world
+        .ground_surface_below(bevy::math::Vec3::new(0.0, geometry.level_y(1) + 1.0, -4.0), 10.0)
+        .expect("basement ramp");
+    assert!(
+        ramp.point.y < geometry.level_y(1) - 0.5,
+        "no terrain seals the slope at ground level"
+    );
+    let beside = world
+        .ground_surface_below(bevy::math::Vec3::new(6.0, geometry.level_y(1) + 1.0, -4.0), 10.0)
+        .expect("ground beside the ramp");
+    assert!((beside.point.y - geometry.level_y(1)).abs() < 0.001);
 }
 
 #[test]
@@ -144,7 +251,6 @@ fn empty_ground_level_does_not_inherit_an_upper_floor_footprint() {
         ..Default::default()
     };
     let grounds = compile_grounds(&layout, &GroundsSettings { level: 0 }, geometry);
-    assert_eq!(grounds.half_size, [0.0, 0.0]);
     let world = CollisionWorld::from_map_layout(&MapLayout {
         grounds: Some(grounds),
         ..Default::default()

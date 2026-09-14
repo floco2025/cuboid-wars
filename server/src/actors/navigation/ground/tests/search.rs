@@ -421,12 +421,11 @@ fn routes_walk_out_onto_the_grounds() {
             level: 0,
             carrier: CarrierId::WORLD,
         }],
-        grounds: Some(Grounds {
-            center: [0.0, 0.0],
-            half_size: [half_width, half_depth],
-            y: 0.0,
-            settings: GroundsSettings { level: 0 },
-        }),
+        grounds: Some(Grounds::new(
+            [(-half_width, half_width, -half_depth, half_depth)],
+            0.0,
+            GroundsSettings { level: 0 },
+        )),
         ..Default::default()
     };
     let mut graphs = NavGraphs::new(&map);

@@ -5,10 +5,10 @@ use common::{
     protocol::{CarrierId, Floor, LightBridge, MapLayout, Ramp},
 };
 
-// The cutout is one bounding rectangle of the root geometry at the ground
-// level, including slab trim. Upper storeys must not leave a hole beneath
-// an elevated course; gaps within this rectangle still belong to the map
-// (notably basement ramp openings). Carriers cannot cut a static landscape.
+// Only the root geometry at ground level cuts the landscape. Upper storeys
+// must not leave a hole beneath an elevated course, and carriers cannot cut
+// static terrain. Include ramps meeting this plane to keep basement access
+// open even where it reaches the outside of the base.
 pub(super) fn compile_grounds(layout: &MapLayout, settings: &GroundsSettings, geometry: MapGeometryConfig) -> Grounds {
     let y = geometry.level_y(settings.level);
     let floors = layout
@@ -41,19 +41,7 @@ pub(super) fn compile_grounds(layout: &MapLayout, settings: &GroundsSettings, ge
         .iter()
         .filter(|bridge| bridge.carrier == CarrierId::WORLD && bridge.level == settings.level)
         .map(LightBridge::bounds_xz);
-    let bounds = floors
-        .chain(walls)
-        .chain(ramps)
-        .chain(bridges)
-        .map(|(x1, x2, z1, z2)| (Vec2::new(x1, z1), Vec2::new(x2, z2)))
-        .reduce(|(min, max), (next_min, next_max)| (min.min(next_min), max.max(next_max)));
-    let (min, max) = bounds.unwrap_or((Vec2::ZERO, Vec2::ZERO));
-    Grounds {
-        center: ((min + max) * 0.5).to_array(),
-        half_size: ((max - min) * 0.5).to_array(),
-        y,
-        settings: settings.clone(),
-    }
+    Grounds::new(floors.chain(walls).chain(ramps).chain(bridges), y, settings.clone())
 }
 
 #[cfg(test)]

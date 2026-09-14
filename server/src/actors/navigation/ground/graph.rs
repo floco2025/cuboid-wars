@@ -82,13 +82,11 @@ impl NavGraph {
         let Some(grounds) = &self.grounds else {
             return false;
         };
-        let distance = grounds.distance_outside_footprint(
-            self.geometry.cell_center_x(node.col),
-            self.geometry.cell_center_z(node.row),
-        );
+        let x = self.geometry.cell_center_x(node.col);
+        let z = self.geometry.cell_center_z(node.row);
         node.level == grounds.settings.level
-            && distance >= 0.0
-            && distance <= grounds.extent() - self.geometry.cell_size()
+            && !grounds.is_inside_footprint(x, z)
+            && grounds.distance_outside_bounds(x, z) <= grounds.extent() - self.geometry.cell_size()
     }
 
     fn bridge_powered(&self, bridge: BridgeId) -> bool {

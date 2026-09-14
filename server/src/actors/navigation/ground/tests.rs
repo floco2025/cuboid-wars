@@ -639,15 +639,13 @@ fn route_start_stays_direct_when_the_body_fits_past_the_wall_end() {
 }
 
 fn grounds_for(nav: &NavGraph, level: u8) -> Grounds {
-    Grounds {
-        center: [0.0, 0.0],
-        half_size: [
-            nav.geometry.width() / 2.0 + WALL_THICKNESS / 2.0,
-            nav.geometry.depth() / 2.0 + WALL_THICKNESS / 2.0,
-        ],
-        y: nav.geometry.level_y(level),
-        settings: GroundsSettings { level },
-    }
+    let hx = (nav.geometry.width() + WALL_THICKNESS) * 0.5;
+    let hz = (nav.geometry.depth() + WALL_THICKNESS) * 0.5;
+    Grounds::new(
+        [(-hx, hx, -hz, hz)],
+        nav.geometry.level_y(level),
+        GroundsSettings { level },
+    )
 }
 
 #[test]
@@ -706,12 +704,13 @@ fn grounds_inside_the_grid_connect_to_the_base_but_not_the_course_above() {
         vec![level(base, edges), level(upper, EdgeGrid::new(100, 40))],
         geometry,
     ));
-    nav.set_grounds(Grounds {
-        center: [geometry.cell_center_x(1), geometry.cell_center_z(10)],
-        half_size: [(CELL + WALL_THICKNESS) / 2.0; 2],
-        y: 0.0,
-        settings: GroundsSettings { level: 0 },
-    });
+    let (x, z) = (geometry.cell_center_x(1), geometry.cell_center_z(10));
+    let half = (CELL + WALL_THICKNESS) * 0.5;
+    nav.set_grounds(Grounds::new(
+        [(x - half, x + half, z - half, z + half)],
+        0.0,
+        GroundsSettings { level: 0 },
+    ));
     let pad = NavNode {
         level: 0,
         row: 10,
