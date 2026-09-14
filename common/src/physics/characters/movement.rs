@@ -9,16 +9,16 @@ use super::{
     geometry::{character_movement_pose, character_movement_shape},
     ladder::{LadderMode, evaluate_ladder_interaction},
     support::{
-        RiderCarry, character_ground_hit, grounding_diagnostics, position_has_floor_support, rider_carry,
-        snap_character_to_ground,
+        RiderCarry, character_ground_hit, grounding_diagnostics_with_tolerance, position_has_floor_support,
+        rider_carry, snap_character_to_ground,
     },
     types::{CharacterMovementResult, CharacterSupport},
 };
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        CHARACTER_CONTACT_OFFSET, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH,
-        CHARACTER_TERMINAL_VELOCITY,
+        CHARACTER_CARRIER_RIDE_TOLERANCE, CHARACTER_CONTACT_OFFSET, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT,
+        CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY,
     },
     map::Carriers,
     math::from_rapier,
@@ -245,7 +245,6 @@ fn prepare_movement_request(
 
 struct CharacterCollisionResult {
     translation: Vector,
-    grounded: bool,
     saw_side_contact: bool,
     hit_ceiling: bool,
 }
@@ -324,7 +323,6 @@ fn resolve_character_collision(
 
     CharacterCollisionResult {
         translation: carried + movement.as_ref().map_or(Vector::ZERO, |movement| movement.translation),
-        grounded: movement.is_some_and(|movement| movement.grounded),
         saw_side_contact,
         hit_ceiling,
     }
@@ -353,16 +351,14 @@ fn finish_character_movement(
             excluded_colliders,
         );
     }
-    let grounding = grounding_diagnostics(
+    let grounding = grounding_diagnostics_with_tolerance(
         env.collision_world,
         &resolved,
         env.physics,
         env.passable_kinds,
         excluded_colliders,
+        CHARACTER_CARRIER_RIDE_TOLERANCE,
     );
-    let resolved_ground = grounding
-        .hit
-        .filter(|_| request.can_follow_ground && grounding.supported);
     let mut vertical_velocity = request.next_vertical_velocity;
     let side_movement_blocked = collision.saw_side_contact
         && horizontal_shortfall(request.requested_horizontal, collision.translation)
@@ -376,7 +372,9 @@ fn finish_character_movement(
         && collision.translation.y < request.requested_vertical.y - CHARACTER_BLOCKED_MOVEMENT_EPSILON;
     let blocked = side_movement_blocked || climb_rise_blocked;
 
-    let grounded = resolved_ground.is_some() || collision.grounded;
+    // Rapier's grounded flag accepts near-vertical wall seams. Require a standable surface below the feet,
+    // with the carrier ride tolerance so a slow takeoff cannot inherit platform velocity twice.
+    let grounded = grounding.supported;
     let landed_while_falling = grounded && vertical_velocity < 0.0;
     // Only a contact from above ends a rise. A shortfall in the achieved
     // rise cannot: sliding up a wall loses rise in proportion to the push

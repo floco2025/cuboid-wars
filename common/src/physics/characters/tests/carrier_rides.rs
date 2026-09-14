@@ -441,7 +441,7 @@ fn jumping_rider_takes_the_tile_velocity() {
     assert!((momentum.0.x - 2.0).abs() < 1e-3, "momentum {}", momentum.0);
 }
 
-// The ride tolerance and the controller's ground contact prediction cover
+// The ride tolerance and the movement support probe cover
 // the same height, so a body still carried at the start of a tick was on
 // the ground at the end of the last one: a takeoff too slow to clear the
 // tolerance stays grounded, and one that clears it is not carried again,

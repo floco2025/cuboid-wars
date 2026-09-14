@@ -27,8 +27,8 @@
     "gravity": 24.0,
     "low_gravity": 13.2,
     "player": {
-      "walk_speed": 5.0,
-      "run_speed": 5.0,
+      "walk_speed": 5.1,
+      "run_speed": 5.1,
       "speed_power_up": 1.818,
       "jump_speed": 12.0
     },

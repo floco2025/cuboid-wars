@@ -2,8 +2,6 @@
 
 ## Fixes
 
-- **Wall sliding brakes falls at pedestal seams:** Rapier reports ground support at the joins between stacked walls and floor-thickness trim even when the feet probe finds no support. `finish_character_movement` trusts `collision.grounded`, resets downward velocity, and emits a landing, slowing falls and reducing damage while pressing against a pedestal. Reproduced with nine 2 m wall sections on a 2.4 m pitch, flush 0.4 m trim slabs, gravity 24 m/s², and 5 m/s input into the face: 30 false-grounded ticks over four seconds. Require genuine support before treating these contacts as landings; preserve real floor, slope, and edge support.
-
 - **Client memory:** the hotel client sits at ~2.0 GB RSS with mimalloc, while forcing every freed block back to the OS measured the live set at ~1.2 GB; the rest is allocator slack behind the load-time peak, when every texture decodes before the mipmap pass releases it. Lower that peak (decode and release the textures a few at a time) or tune mimalloc's purge if the gap matters.
 
 - **Missing UI characters:** the bundled Fira Mono subset renders dashes, ellipses, arrows, and other unsupported symbols as rectangles. Bundle full Fira Mono with a symbol fallback for consistent rendering across platforms, and check coverage of the characters used in UI text.
@@ -15,6 +13,8 @@
 - **Actors park at the top of the basement ramps:** scuttlers and bruisers heading down a hotel basement ramp stop at the lip, one at a time, sometimes turned into the side wall. It happens with `/peace` on as well, so it is not the pursuit goal, and it predates the terrain query fix. On the hotel map in isolation the route from the landing to the basement, the motor's descent, and `character_ground_route_clear` from every point near the lip all pass; whatever stops them is in the live loop.
 
 ## Enhancements
+
+- **Obby player speed:** Once Obby is debugged, reduce `movement.player.walk_speed` and `run_speed` in `config/server/maps/obby/settings.json` to 5.0 m/s. The temporary 5.1 m/s setting makes testing easier.
 
 - **Actor gameplay definitions:** Group each actor kind's health, damage, scoring, and destruction-feed setting under `gameplay.json::actors.kinds`, alongside its body and behaviour, so adding a kind does not require updating several separate tables.
 

@@ -1,5 +1,97 @@
 use super::*;
-use crate::{constants::CHARACTER_TERMINAL_VELOCITY, protocol::CarrierId};
+use crate::{
+    config::MovementColliderConfig,
+    constants::{CHARACTER_CARRIER_RIDE_TOLERANCE, CHARACTER_TERMINAL_VELOCITY},
+    protocol::CarrierId,
+};
+
+#[test]
+fn falling_against_stacked_wall_seams_preserves_speed_until_the_floor() {
+    let walls: Vec<_> = (0..9)
+        .map(|level| Wall {
+            x1: 0.0,
+            x2: 0.0,
+            z1: -100.0,
+            z2: 100.0,
+            width: 0.4,
+            y: f32::from(level) * 2.4,
+            height: 2.0,
+            level,
+            carrier: CarrierId::WORLD,
+        })
+        .collect();
+    let floors: Vec<_> = (1..=9)
+        .map(|level| Floor {
+            x1: -0.2,
+            x2: 0.2,
+            z1: -100.0,
+            z2: 100.0,
+            y: f32::from(level) * 2.4,
+            thickness: 0.4,
+            level,
+            carrier: CarrierId::WORLD,
+        })
+        .chain([Floor {
+            thickness: 0.4,
+            ..lower_floor()
+        }])
+        .collect();
+    let world = collision_world_with(&walls, &floors, &[]);
+    let carriers = Carriers::default();
+    let mut physics = player_physics();
+    physics.movement_collider = MovementColliderConfig {
+        diameter: 0.6,
+        height: 1.8,
+    };
+    let mut env = test_environment(&world, &carriers, physics, LadderMode::Automatic);
+    env.gravity = 24.0;
+    let delta = 1.0 / 30.0;
+    for speed in [5.0, 9.0] {
+        let mut pos = Position {
+            x: -0.6,
+            y: 20.8,
+            z: 0.0,
+        };
+        let mut velocity = 0.0;
+        let mut landed = false;
+        for tick in 0..120 {
+            let result = step_character_movement(
+                CharacterStep {
+                    start: pos,
+                    vertical_velocity: velocity,
+                    control_velocity: Vec3::X * speed,
+                    external_displacement: Vec3::ZERO,
+                    delta,
+                },
+                &env,
+            );
+            if result.support == CharacterSupport::Ground {
+                assert!(
+                    result.position.y.abs() <= CHARACTER_CARRIER_RIDE_TOLERANCE,
+                    "false landing at tick {tick}: {result:?}"
+                );
+                assert!(
+                    result.impact_speed > 30.0,
+                    "wall contact reduced landing speed: {result:?}"
+                );
+                assert_eq!(result.vertical_velocity, 0.0);
+                let free_fall_time = (2.0 * 20.8 / env.gravity).sqrt();
+                assert!(
+                    (tick + 1) as f32 * delta <= free_fall_time + delta,
+                    "wall contact delayed landing until tick {tick}"
+                );
+                landed = true;
+                break;
+            }
+            let expected_velocity = (velocity - env.gravity * delta).max(-CHARACTER_TERMINAL_VELOCITY);
+            assert_eq!(result.vertical_velocity, expected_velocity, "tick {tick}: {result:?}");
+            assert_eq!(result.impact_speed, 0.0, "tick {tick}: {result:?}");
+            pos = result.position;
+            velocity = result.vertical_velocity;
+        }
+        assert!(landed, "never reached the floor while pushing at {speed} m/s");
+    }
+}
 
 #[test]
 fn player_hits_wall_collider_from_collision_world() {

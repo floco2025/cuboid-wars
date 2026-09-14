@@ -76,6 +76,25 @@ pub fn grounding_diagnostics(
     passable_kinds: &[BarrierId],
     excluded_colliders: &[ColliderHandle],
 ) -> GroundingDiagnostics {
+    grounding_diagnostics_with_tolerance(
+        collision_world,
+        pos,
+        physics,
+        passable_kinds,
+        excluded_colliders,
+        CHARACTER_CONTACT_OFFSET * 2.0,
+    )
+}
+
+pub(super) fn grounding_diagnostics_with_tolerance(
+    collision_world: &CollisionWorld,
+    pos: &Position,
+    physics: CharacterPhysicsConfig,
+    passable_kinds: &[BarrierId],
+    excluded_colliders: &[ColliderHandle],
+    tolerance: f32,
+) -> GroundingDiagnostics {
+    let distance = tolerance + CHARACTER_CONTACT_OFFSET * 3.0;
     let hit = probe_character_ground(
         collision_world,
         &character_movement_shape(physics),
@@ -83,11 +102,11 @@ pub fn grounding_diagnostics(
         passable_kinds,
         excluded_colliders,
         physics,
-        CHARACTER_CONTACT_OFFSET * 5.0,
+        distance,
     );
     GroundingDiagnostics {
         origin: Vec3::from(*pos) + Vec3::Y * CHARACTER_CONTACT_OFFSET * 2.0,
-        distance: CHARACTER_CONTACT_OFFSET * 5.0,
+        distance,
         supported: hit.is_some_and(|hit| hit.normal.y >= CHARACTER_MAX_SLOPE.cos()),
         hit,
     }
@@ -186,7 +205,7 @@ pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shap
 // `CHARACTER_CARRIER_RIDE_TOLERANCE` under its feet, probed in that carrier's previous
 // frame because the body has not received this tick's carry yet. Vertical
 // velocity is ignored so a takeoff tick still receives the carry; the
-// controller's grounded reach ends at the same height as the tolerance, so
+// movement support probe reaches the same height as the tolerance, so
 // a body still carried at a tick's start stood on the tile at the last
 // tick's end and takes its velocity once. A world surface above the lifted
 // probe is what the body stands on and ends the ride; a coincident static
