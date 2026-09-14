@@ -133,7 +133,6 @@ pub fn build_client_app(
     // once placed, since a restored position lands a frame later; a fullscreen
     // start covers the screen and shows at once.
     let start_visible = start_fullscreen;
-    let mipmaps = client_settings.rendering.mipmaps;
     let mut app = App::new();
     let mut plugins = DefaultPlugins.set(asset_plugin()).set(window_plugin(
         windowed_frame.size,
@@ -238,11 +237,10 @@ pub fn build_client_app(
 
     install_bootstrap(&mut app, bootstrap, &asset_set)?;
 
-    if mipmaps {
-        // Materials often reference images that are still loading when their
-        // material event arrives, so this retrying system owns generation.
-        app.add_systems(Update, generate_material_mipmaps_system);
-    }
+    // Materials often reference images that are still loading when their
+    // material event arrives, so this retrying system owns mipmap generation
+    // and, mipmaps or not, releases each texture's main-memory copy.
+    app.add_systems(Update, generate_material_mipmaps_system);
 
     Ok(app)
 }

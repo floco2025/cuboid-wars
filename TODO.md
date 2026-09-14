@@ -2,7 +2,7 @@
 
 ## Fixes
 
-- **Client memory:** the hotel client sits at ~4.9 GB RSS with grass disabled (~5.3 GB with it). Find what keeps main-memory copies after upload — most likely the texture packs, whose images stay in `Assets<Image>` after the mipmap pass — and release them.
+- **Client memory:** the hotel client still sits at ~3.0 GB RSS after texture images were released from main memory (down from 5.3 GB). Find what holds the rest — candidates are the decoded audio loops, the map mesh batches kept in both worlds, and the models' own copies — and release what nothing reads back.
 
 - **Missing UI characters:** the bundled Fira Mono subset renders dashes, ellipses, arrows, and other unsupported symbols as rectangles. Bundle full Fira Mono with a symbol fallback for consistent rendering across platforms, and check coverage of the characters used in UI text.
 

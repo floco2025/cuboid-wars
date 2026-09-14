@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use bevy::{
-    asset::AssetId,
+    asset::{AssetId, RenderAssetUsages},
     image::{ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
     prelude::*,
     render::render_resource::TextureUsages,
@@ -94,6 +94,14 @@ pub fn generate_material_mipmaps_system(
             state.processed.insert(image_id);
             continue;
         }
+        // Without mipmaps there is nothing to generate; the image still
+        // leaves main memory once uploaded.
+        if !client_settings.rendering.mipmaps {
+            release_main_world_copy(&mut images, &candidate.image_handle);
+            state.queued.remove(&image_id);
+            state.processed.insert(image_id);
+            continue;
+        }
         if let Err(error) = check_image_compatible(image) {
             debug!(
                 "skipping mipmap generation for {} ({} of material {}, format {:?}, size {}x{}x{}): {error}",
@@ -105,6 +113,7 @@ pub fn generate_material_mipmaps_system(
                 image.texture_descriptor.size.height,
                 image.texture_descriptor.size.depth_or_array_layers,
             );
+            release_main_world_copy(&mut images, &candidate.image_handle);
             state.queued.remove(&image_id);
             state.processed.insert(image_id);
             continue;
@@ -191,9 +200,12 @@ fn finish_mipmap_tasks(state: &mut MaterialMipmapState, images: &mut Assets<Imag
             continue;
         };
 
-        if let Some(image) = image
+        if let Some(mut image) = image
             && let Some(mut target) = images.get_mut(image_handle)
         {
+            // Nothing reads texels back on the CPU, so the decoded pixels
+            // are dead weight in main memory once the GPU has them.
+            image.asset_usage = RenderAssetUsages::RENDER_WORLD;
             *target = image;
             updated.insert(*image_id);
         }
@@ -206,6 +218,13 @@ fn finish_mipmap_tasks(state: &mut MaterialMipmapState, images: &mut Assets<Imag
     }
 
     updated
+}
+
+// Texture images live on the GPU only once uploaded; see `finish_mipmap_tasks`.
+fn release_main_world_copy(images: &mut Assets<Image>, handle: &Handle<Image>) {
+    if let Some(mut image) = images.get_mut(handle) {
+        image.asset_usage = RenderAssetUsages::RENDER_WORLD;
+    }
 }
 
 fn mark_materials_using_images_changed(
