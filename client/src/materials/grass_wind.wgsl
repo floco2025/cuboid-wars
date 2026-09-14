@@ -49,19 +49,10 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     let rooted = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
     var world_position = rooted;
 
-#ifdef PREPASS_PIPELINE
-    // The depth-only prepass binds an empty material layout, so grass_wind
-    // must stay unreferenced there; the deferred gbuffer pass binds the full
-    // material layout.
-#ifdef DEFERRED_PREPASS
+    // Every pass binds the material, depth-only prepasses included: Bevy
+    // keeps the bind group for any material with its own prepass shader.
 #ifdef VERTEX_UVS_A
     world_position += vec4<f32>(wind_displacement(rooted.xz, vertex.uv.x, vertex.uv.y, globals.time), 0.0);
-#endif
-#endif
-#else
-#ifdef VERTEX_UVS_A
-    world_position += vec4<f32>(wind_displacement(rooted.xz, vertex.uv.x, vertex.uv.y, globals.time), 0.0);
-#endif
 #endif
 
     out.world_position = world_position;
@@ -83,13 +74,11 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     let previous_world_from_local = mesh_functions::get_previous_world_from_local(vertex.instance_index);
     var previous_world_position =
         mesh_functions::mesh_position_local_to_world(previous_world_from_local, vec4<f32>(vertex.position, 1.0));
-#ifdef DEFERRED_PREPASS
 #ifdef VERTEX_UVS_A
     previous_world_position += vec4<f32>(
         wind_displacement(previous_world_position.xz, vertex.uv.x, vertex.uv.y, globals.time - globals.delta_time),
         0.0
     );
-#endif
 #endif
     out.previous_world_position = previous_world_position;
 #endif

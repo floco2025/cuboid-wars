@@ -68,20 +68,9 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     var world_position = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
     let base_xz = world_from_local[3].xz;
 
-    // The wind uniform is bound in the main pass, in the deferred prepass,
-    // and in the prepass of an alpha-masked material (the leaves); the
-    // depth-only prepass of an opaque material binds no material at all.
-#ifdef PREPASS_PIPELINE
-#ifdef DEFERRED_PREPASS
+    // Every pass binds the material, shadow and depth-only prepasses included:
+    // Bevy keeps the bind group for any material with its own prepass shader.
     world_position += vec4<f32>(sway_displacement(vertex.position, base_xz, globals.time), 0.0);
-#else
-#ifdef MAY_DISCARD
-    world_position += vec4<f32>(sway_displacement(vertex.position, base_xz, globals.time), 0.0);
-#endif
-#endif
-#else
-    world_position += vec4<f32>(sway_displacement(vertex.position, base_xz, globals.time), 0.0);
-#endif
 
     out.world_position = world_position;
     out.position = position_world_to_clip(world_position.xyz);
@@ -102,15 +91,8 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     let previous_world_from_local = mesh_functions::get_previous_world_from_local(vertex.instance_index);
     var previous_world_position =
         mesh_functions::mesh_position_local_to_world(previous_world_from_local, vec4<f32>(vertex.position, 1.0));
-#ifdef DEFERRED_PREPASS
     previous_world_position +=
         vec4<f32>(sway_displacement(vertex.position, base_xz, globals.time - globals.delta_time), 0.0);
-#else
-#ifdef MAY_DISCARD
-    previous_world_position +=
-        vec4<f32>(sway_displacement(vertex.position, base_xz, globals.time - globals.delta_time), 0.0);
-#endif
-#endif
     out.previous_world_position = previous_world_position;
 #endif
 #else
