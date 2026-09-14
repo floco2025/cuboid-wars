@@ -2,7 +2,7 @@
 
 ## Fixes
 
-- **Client memory:** the hotel client still sits at ~3.0 GB RSS after texture images were released from main memory (down from 5.3 GB). Find what holds the rest — candidates are the decoded audio loops, the map mesh batches kept in both worlds, and the models' own copies — and release what nothing reads back.
+- **Client memory:** the hotel client sits at ~2.0 GB RSS with mimalloc, while forcing every freed block back to the OS measured the live set at ~1.2 GB; the rest is allocator slack behind the load-time peak, when every texture decodes before the mipmap pass releases it. Lower that peak (decode and release the textures a few at a time) or tune mimalloc's purge if the gap matters.
 
 - **Missing UI characters:** the bundled Fira Mono subset renders dashes, ellipses, arrows, and other unsupported symbols as rectangles. Bundle full Fira Mono with a symbol fallback for consistent rendering across platforms, and check coverage of the characters used in UI text.
 

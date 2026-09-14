@@ -4,6 +4,7 @@ use anyhow::Result;
 use bevy::app::AppExit;
 use clap::{ArgGroup, Args, Parser};
 use crossbeam_channel::Sender;
+use mimalloc::MiMalloc;
 
 use client::{
     app::{ClientAppOptions, InitialViewDirection, build_client_app},
@@ -18,6 +19,13 @@ use server::{
 use crate::host::spawn_embedded_server;
 
 mod host;
+
+// The system allocator keeps the load-time peak resident for good: glibc
+// raises its mmap threshold while the textures decode and the meshes build,
+// then never returns those gigabytes once they are freed. mimalloc gives
+// them back within milliseconds.
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 const DEFAULT_ADDRESS: &str = "127.0.0.1:8080";
 
