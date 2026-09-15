@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 import copy
-import sys
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import (
     QAction,
-    QFont,
     QKeySequence,
     QShortcut,
-    QStandardItem,
-    QStandardItemModel,
     QUndoStack,
 )
 from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
@@ -33,9 +29,6 @@ from .constants import (
     DEFAULT_ACTOR_RESPAWN_SECS,
     ERASE_MODES,
     ITEM_TYPES,
-    MODE_CATEGORIES,
-    MODE_JUMP_REACH,
-    MODE_RUN_TIME,
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
     MODE_SELECT,
@@ -59,6 +52,9 @@ from .select import SelectMixin
 from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
 from .tool_settings import ToolSettings
+from .tool_catalog import ERASE_TOOLS, MODE_TO_TOOL
+from .tool_palette import ToolPalette
+from .tool_search import ToolSearch
 from .types import SpawnZoneDrag, ZoneRef
 from .validation import ValidationErrors, placed_definitions, plated_switches, validate_document, validate_map
 from .window_geometry import WindowGeometry
@@ -154,8 +150,14 @@ class EditorWindow(
         self.map_combo.currentIndexChanged.connect(self.select_map)
         self.level_combo = QComboBox()
         self.level_combo.currentIndexChanged.connect(self.select_level)
-        self.mode_combo = self._build_mode_combo()
-        self.mode_combo.currentTextChanged.connect(self.set_mode)
+        self.tool_palette = ToolPalette(self)
+        self.tool_palette.mode_requested.connect(self.activate_tool)
+        self.tool_palette.search_requested.connect(self.find_tool)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.tool_palette)
+        self.tool_palette.setVisible(self.preferences.value("tools/palette_visible", True, type=bool))
+        self.tool_search = ToolSearch(self)
+        self.tool_search.mode_requested.connect(self.activate_tool)
+        self.tool_search.finished.connect(self.focus_canvas)
         self.issues_panel = IssuesPanel(self)
         self.issues_panel.focused.connect(self.focus_issue)
         self.issues_panel.repair_requested.connect(self.review_repairs)
@@ -291,33 +293,6 @@ class EditorWindow(
 
     # === Menus & toolbar ===
 
-    def _build_mode_combo(self) -> QComboBox:
-        # Each category contributes a disabled header row followed by its
-        # modes. Tool descriptions live in Help → Tool Reference.
-        combo = QComboBox()
-        model = QStandardItemModel(combo)
-        model.appendRow(QStandardItem(MODE_SELECT))
-        model.appendRow(QStandardItem(MODE_JUMP_REACH))
-        model.appendRow(QStandardItem(MODE_RUN_TIME))
-        header_font = QFont()
-        header_font.setBold(True)
-        for label, modes in MODE_CATEGORIES:
-            header = QStandardItem(f"— {label} —")
-            header.setEnabled(False)
-            header.setSelectable(False)
-            header.setFont(header_font)
-            model.appendRow(header)
-            for mode in modes:
-                model.appendRow(QStandardItem(mode))
-        combo.setModel(model)
-        # Linux styles otherwise cap this popup at a small default and force
-        # scrolling through the tool list. macOS already sizes its native
-        # popup appropriately, so leave that platform's behavior alone.
-        if sys.platform.startswith("linux"):
-            combo.setMaxVisibleItems(model.rowCount())
-        combo.setCurrentIndex(0)
-        return combo
-
     # Map each mode to the cursor it should display so a peripheral glance
     # tells the user which tool is active without reading the toolbar.
     def cursor_for_mode(self, mode: str) -> Qt.CursorShape:
@@ -325,7 +300,7 @@ class EditorWindow(
             return Qt.CursorShape.ArrowCursor
         if mode in CLICK_TOOLS:
             return Qt.CursorShape.PointingHandCursor
-        if mode in ERASE_MODES:
+        if mode in ERASE_MODES or mode in ERASE_TOOLS:
             return Qt.CursorShape.ForbiddenCursor
         return Qt.CursorShape.CrossCursor
 
@@ -353,6 +328,7 @@ class EditorWindow(
         edit_menu.addAction(redo_action)
         edit_menu.addSeparator()
         self.build_selection_actions(edit_menu)
+        self.find_tool_action = self.add_menu_action(edit_menu, "Find &Tool...", QKeySequence("Ctrl+K"), self.find_tool)
         self.add_menu_action(edit_menu, "Review &Repairs...", None, self.review_repairs)
         edit_menu.addSeparator()
         self.add_menu_action(edit_menu, "New Nested Map...", None, self.new_nested_map)
@@ -382,6 +358,7 @@ class EditorWindow(
         fit_action = self.add_menu_action(view_menu, "&Fit Map", QKeySequence("F"), self.canvas.fit_map)
         self.canvas_shortcut(fit_action)
         view_menu.addSeparator()
+        view_menu.addAction(self.tool_palette.toggleViewAction())
         view_menu.addAction(self.issues_panel.toggleViewAction())
         self.material_overlay_action = QAction("Show &Material Overlay", self)
         self.material_overlay_action.setCheckable(True)
@@ -410,6 +387,7 @@ class EditorWindow(
 
         self.add_shortcut(Qt.Key.Key_Left, self.previous_tool)
         self.add_shortcut(Qt.Key.Key_Right, self.next_tool)
+        self.add_shortcut(Qt.Key.Key_E, self.tool_palette.toggle_erase)
 
     def add_shortcut(self, key, callback) -> None:
         shortcut = QShortcut(QKeySequence(key), self.canvas)
@@ -438,8 +416,8 @@ class EditorWindow(
         toolbar.addWidget(QLabel("Level "))
         toolbar.addWidget(self.level_combo)
         toolbar.addSeparator()
-        toolbar.addWidget(QLabel("Tool "))
-        toolbar.addWidget(self.mode_combo)
+        toolbar.addAction(self.tool_palette.toggleViewAction())
+        toolbar.addWidget(self.tool_palette.current_button)
         tool_settings_action = toolbar.addWidget(self.tool_settings)
         self.tool_settings.available_changed.connect(tool_settings_action.setVisible)
         tool_settings_action.setVisible(False)
@@ -556,9 +534,23 @@ class EditorWindow(
             self.canvas.update()
             self.refresh_issues(validate=False)
 
+    def find_tool(self) -> None:
+        self.tool_search.show_for(self.mode)
+
+    def focus_canvas(self) -> None:
+        self.activateWindow()
+        self.canvas.setFocus()
+
+    def activate_tool(self, mode: str) -> None:
+        self.set_mode(mode)
+        self.focus_canvas()
+
     def set_mode(self, mode: str) -> None:
+        if mode not in MODE_TO_TOOL:
+            raise ValueError(f"Unknown editor tool: {mode}")
         self.cancel_interaction()
         self.mode = mode
+        self.tool_palette.set_mode(mode)
         self.canvas.setCursor(self.cursor_for_mode(mode))
         self.canvas.update()
         self.update_selection_actions()
@@ -598,26 +590,14 @@ class EditorWindow(
         self._step_tool(1)
 
     def _step_tool(self, direction: int) -> None:
-        # Skip over disabled header rows (the category separators in the
-        # grouped picker) so arrow-key cycling visits every real mode and
-        # never lands on a header.
-        model = self.mode_combo.model()
-        count = self.mode_combo.count()
-        if count == 0:
-            return
-        idx = self.mode_combo.currentIndex()
-        for _ in range(count):
-            idx = (idx + direction) % count
-            item = model.item(idx) if hasattr(model, "item") else None
-            if item is None or item.isSelectable():
-                self.mode_combo.setCurrentIndex(idx)
-                return
+        self.tool_palette.step(direction)
 
     # === Close handler ===
 
     def closeEvent(self, event) -> None:
         if self.confirm_discard_changes():
             self._clear_autosave()
+            self.preferences.setValue("tools/palette_visible", not self.tool_palette.isHidden())
             self.window_geometry.save()
             event.accept()
         else:

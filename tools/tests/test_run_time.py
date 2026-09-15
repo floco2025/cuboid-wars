@@ -34,7 +34,7 @@ class RunTimeTests(unittest.TestCase):
 
 class RunTimeWindowTests(WindowTestCase):
     def select_origin(self, col=2, row=2):
-        self.window.mode_combo.setCurrentText(MODE_RUN_TIME)
+        self.window.set_mode(MODE_RUN_TIME)
         self.app.processEvents()
         self.click(col, row)
 
@@ -57,14 +57,14 @@ class RunTimeWindowTests(WindowTestCase):
         self.assertIsNone(overlay.hover_text(5, 2))
         self.assertTrue(overlay.toolbar.isVisible())
         self.assertFalse(overlay.clear_button.isVisible())
-        self.window.mode_combo.setCurrentText(MODE_FLOOR)
+        self.window.set_mode(MODE_FLOOR)
         self.app.processEvents()
         self.assertFalse(overlay.toolbar.isVisible())
 
     def test_floor_edits_keep_the_origin_while_resizing_and_switching_maps_clear_it(self):
         self.select_origin()
         overlay = self.window.run_time
-        self.window.mode_combo.setCurrentText(MODE_FLOOR)
+        self.window.set_mode(MODE_FLOOR)
         self.app.processEvents()
         self.click(4, 4)
         self.assertEqual(overlay.origin, (0, 2, 2))

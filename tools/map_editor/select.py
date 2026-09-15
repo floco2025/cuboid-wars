@@ -80,7 +80,7 @@ class SelectMixin:
         self.canvas.cancel()
 
     def select_all_tiles(self) -> None:
-        self.mode_combo.setCurrentText(MODE_SELECT)
+        self.set_mode(MODE_SELECT)
         self.set_tile_selection((0, 0, self.map_data["grid_cols"], self.map_data["grid_rows"]))
 
     # `pos` is in grid units.

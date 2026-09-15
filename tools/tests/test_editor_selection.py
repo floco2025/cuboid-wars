@@ -248,7 +248,7 @@ class SelectionWindowTests(WindowTestCase):
             self.window.cut_selection()
         self.assertEqual(self.window.map_data, before)
         self.assertIsNone(self.window.tile_clipboard)
-        self.window.mode_combo.setCurrentText(MODE_FLOOR)
+        self.window.set_mode(MODE_FLOOR)
         self.assertFalse(self.window.copy_action.isEnabled())
         self.assertIsNone(self.window.canvas.hover_target)
 
@@ -296,7 +296,7 @@ class SelectionWindowTests(WindowTestCase):
     def test_escape_cancels_an_erase_drag_before_release(self):
         window = self.window
         window.activateWindow()
-        window.mode_combo.setCurrentText(MODE_ERASE)
+        window.set_mode(MODE_ERASE)
         size = window.canvas.cell_size()
         pos = QPoint(round(1.5 * size), round(1.5 * size))
         QTest.mousePress(window.canvas, Qt.MouseButton.LeftButton, pos=pos)

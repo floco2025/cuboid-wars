@@ -32,7 +32,7 @@ class EditorNavigationTests(WindowTestCase):
     def test_page_keys_change_levels_from_canvas_and_number_controls(self):
         window = self.window
         window.doc.replace_with_new(insert_level_data(window.map_data, 1))
-        window.mode_combo.setCurrentText(MODE_PLAYER_SPAWN_ZONE)
+        window.set_mode(MODE_PLAYER_SPAWN_ZONE)
         count = window.tool_settings.findChild(QSpinBox)
         count.setValue(2)
         for control in (window.canvas, count, count.lineEdit()):
@@ -43,7 +43,7 @@ class EditorNavigationTests(WindowTestCase):
             QTest.keyClick(control, Qt.Key.Key_PageDown)
             self.assertEqual(window.current_level, 0)
             self.assertEqual(count.value(), 2)
-        window.mode_combo.setCurrentText(MODE_JUMP_REACH)
+        window.set_mode(MODE_JUMP_REACH)
         margin = window.jump_reach.margin
         margin.setFocus()
         self.app.processEvents()
@@ -83,7 +83,7 @@ class EditorNavigationTests(WindowTestCase):
         )
 
     def test_pixel_gestures_pan_both_axes_without_zooming_or_editing(self):
-        self.window.mode_combo.setCurrentText(MODE_ERASE)
+        self.window.set_mode(MODE_ERASE)
         canvas = self.window.canvas
         self.zoom_for_panning()
         before = copy.deepcopy(self.window.map_data)
@@ -168,7 +168,7 @@ class EditorNavigationTests(WindowTestCase):
         self.scroll(pixels=QPoint(10000, 10000))
         self.assertEqual(canvas.viewport.offset, QPointF())
 
-        self.window.mode_combo.setCurrentText(MODE_ACTOR_SPAWN_ZONE)
+        self.window.set_mode(MODE_ACTOR_SPAWN_ZONE)
         edit = self.window.tool_settings.findChild(QComboBox).lineEdit()
         edit.setFocus()
         self.scroll(pixels=QPoint(-10000, -10000))

@@ -140,7 +140,7 @@ class SpawnWindowTests(WindowTestCase):
         window = self.window
         window.recent_actor_spawn_count = [0, 2, 3]
         window.recent_actor_spawn_kind = "zapper"
-        window.mode_combo.setCurrentText(MODE_ACTOR_SPAWN_ZONE)
+        window.set_mode(MODE_ACTOR_SPAWN_ZONE)
         window.add_actor_spawn_zone_rect((2, 2), (3, 3))
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [0, 2, 3])
         window.tool_settings.refresh()

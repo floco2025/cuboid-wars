@@ -135,7 +135,7 @@ class JumpReachTests(unittest.TestCase):
 
 class JumpReachWindowTests(WindowTestCase):
     def select_origin(self, col=2, row=2):
-        self.window.mode_combo.setCurrentText(MODE_JUMP_REACH)
+        self.window.set_mode(MODE_JUMP_REACH)
         self.app.processEvents()
         self.click(col, row)
 
@@ -157,7 +157,7 @@ class JumpReachWindowTests(WindowTestCase):
         self.select_origin()
         overlay = self.window.jump_reach
         results = overlay.results
-        self.window.mode_combo.setCurrentText(MODE_FLOOR)
+        self.window.set_mode(MODE_FLOOR)
         self.app.processEvents()
         self.click(4, 4)
         self.window.undo_stack.undo()
@@ -184,7 +184,7 @@ class JumpReachWindowTests(WindowTestCase):
         self.select_origin()
         overlay = self.window.jump_reach
         self.assertTrue(overlay.controls.isVisible())
-        self.assertIs(overlay.controls.parentWidget(), self.window.mode_combo.parentWidget())
+        self.assertIs(overlay.controls.parentWidget(), self.window.tool_palette.current_button.parentWidget())
         results = overlay.results
         overlay.margin.setValue(0.123)
         self.assertAlmostEqual(overlay.margin.value(), 0.123)
@@ -193,10 +193,10 @@ class JumpReachWindowTests(WindowTestCase):
         self.assertIsNot(overlay.results, results)
         overlay.movement.setCurrentText("Walk")
         self.assertEqual(overlay.distance.text(), "0.80 m normal / 1.20 m speed")
-        self.window.mode_combo.setCurrentText(MODE_SELECT)
+        self.window.set_mode(MODE_SELECT)
         self.app.processEvents()
         self.assertFalse(overlay.controls.isVisible())
-        self.window.mode_combo.setCurrentText(MODE_JUMP_REACH)
+        self.window.set_mode(MODE_JUMP_REACH)
         self.app.processEvents()
         self.assertTrue(overlay.controls.isVisible())
         self.assertAlmostEqual(overlay.margin.value(), 0.133)
@@ -257,7 +257,7 @@ class JumpReachWindowTests(WindowTestCase):
         overlay = self.window.jump_reach
         self.assertEqual(overlay.hover_text(2, 2), "Jump Reach origin")
         self.assertEqual(overlay.hover_text(3, 2), "Jump Reach:\n● Normal\n● Speed\n● Anti-gravity\n● Both")
-        self.window.mode_combo.setCurrentText(MODE_FLOOR_MATERIAL)
+        self.window.set_mode(MODE_FLOOR_MATERIAL)
         canvas = self.window.canvas
         canvas._update_material_hover(QPointF(1.5 * canvas.cell_size(), 1.5 * canvas.cell_size()))
         self.assertIn("Floor", canvas._hover_label.text())

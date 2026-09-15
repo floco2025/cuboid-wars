@@ -1,13 +1,11 @@
 import copy
-import sys
-import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent, QWheelEvent
 from PySide6.QtTest import QSignalSpy, QTest
-from PySide6.QtWidgets import QComboBox, QDialog, QDockWidget, QMenu, QMessageBox
+from PySide6.QtWidgets import QComboBox, QDialog, QMenu, QMessageBox
 
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase
 from map_editor.constants import (
@@ -41,10 +39,6 @@ from map_editor.window import EditorWindow
 
 
 class WindowTests(WindowTestCase):
-    @unittest.skipUnless(sys.platform.startswith("linux"), "the scroll cap is lifted on Linux only")
-    def test_linux_tool_picker_shows_every_row_without_its_default_scroll_cap(self):
-        self.assertEqual(self.window.mode_combo.maxVisibleItems(), self.window.mode_combo.count())
-
     def test_paste_beside_an_invalid_item_is_not_refused_for_its_shifted_index(self):
         window = self.window
         data = copy.deepcopy(window.map_data)
@@ -62,7 +56,8 @@ class WindowTests(WindowTestCase):
 
     def test_issues_dock_and_tool_settings_start_hidden(self):
         window = self.window
-        self.assertFalse(any(dock.isVisible() for dock in window.findChildren(QDockWidget)))
+        self.assertFalse(window.issues_panel.isVisible())
+        self.assertTrue(window.tool_palette.isVisible())
         self.assertFalse(window.tool_settings.isVisible())
 
     def test_close_saves_geometry_shared_with_other_maps_but_cancel_keeps_window_open(self):
@@ -142,7 +137,7 @@ class WindowTests(WindowTestCase):
         }
         for mode, method in methods.items():
             with self.subTest(mode=mode), patch.object(window, method) as place:
-                window.mode_combo.setCurrentText(mode)
+                window.set_mode(mode)
                 self.app.processEvents()
                 start = canvas.viewport.from_grid(QPointF(1.5, 1.1)).toPoint()
                 end = canvas.viewport.from_grid(QPointF(4.5, 4.1)).toPoint()
@@ -164,14 +159,14 @@ class WindowTests(WindowTestCase):
         canvas = window.canvas
         for cancel in ("escape", "tool", "outside"):
             with self.subTest(cancel=cancel), patch.object(window, "prompt_and_add_pressure_plate") as place:
-                window.mode_combo.setCurrentText(MODE_PRESSURE_PLATE)
+                window.set_mode(MODE_PRESSURE_PLATE)
                 self.app.processEvents()
                 position = canvas.viewport.from_grid(QPointF(2.5, 2.5)).toPoint()
                 QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=position)
                 if cancel == "escape":
                     QTest.keyClick(canvas, Qt.Key.Key_Escape)
                 elif cancel == "tool":
-                    window.mode_combo.setCurrentText(MODE_SELECT)
+                    window.set_mode(MODE_SELECT)
                 else:
                     position = QPoint(-20, -20)
                 QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=position)
@@ -192,7 +187,7 @@ class WindowTests(WindowTestCase):
         }
         for mode, method in methods.items():
             with self.subTest(mode=mode), patch.object(window, method) as place:
-                window.mode_combo.setCurrentText(mode)
+                window.set_mode(mode)
                 self.app.processEvents()
                 start = canvas.viewport.from_grid(QPointF(1.1, 1.1)).toPoint()
                 end = canvas.viewport.from_grid(QPointF(4.1, 1.1)).toPoint()
@@ -206,21 +201,21 @@ class WindowTests(WindowTestCase):
 
     def test_tool_settings_are_inline_and_hide_for_tools_without_properties(self):
         window = self.window
-        window.mode_combo.setCurrentText(MODE_ACTOR_SPAWN_ZONE)
+        window.set_mode(MODE_ACTOR_SPAWN_ZONE)
         self.app.processEvents()
         self.assertTrue(window.tool_settings.isVisible())
         for mode in (MODE_SELECT, MODE_ERASE):
-            window.mode_combo.setCurrentText(mode)
+            window.set_mode(mode)
             self.app.processEvents()
             self.assertFalse(window.tool_settings.isVisible())
-        window.mode_combo.setCurrentText(MODE_FLOOR)
+        window.set_mode(MODE_FLOOR)
         self.app.processEvents()
         self.assertTrue(window.tool_settings.isVisible())
 
     def test_item_kind_control_only_shows_for_keys_including_recalled_settings(self):
         window = self.window
         window.recent_item_type = "gold"
-        window.mode_combo.setCurrentText(MODE_ITEM)
+        window.set_mode(MODE_ITEM)
         self.app.processEvents()
         item, kind = window.tool_settings.body.findChildren(QComboBox)
         self.assertFalse(kind.isVisible())
@@ -300,7 +295,7 @@ class WindowTests(WindowTestCase):
 
     def test_middle_and_space_drag_pan_without_erasing(self):
         window = self.window
-        window.mode_combo.setCurrentText(MODE_ERASE)
+        window.set_mode(MODE_ERASE)
         canvas = window.canvas
         canvas.zoom_by(3)
         canvas.setFocus()
@@ -522,7 +517,7 @@ class WindowTests(WindowTestCase):
             {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a"]
         ]
         window.switch_ids = ["a"]
-        window.mode_combo.setCurrentText(MODE_PRESSURE_PLATE)
+        window.set_mode(MODE_PRESSURE_PLATE)
         window.tool_settings.refresh()
         combo = window.tool_settings.body.findChildren(QComboBox)[0]
         self.assertEqual([combo.itemText(i) for i in range(combo.count())], ["", "a"])
@@ -557,7 +552,7 @@ class WindowTests(WindowTestCase):
         window.recent_actor_spawn_kind = kind
         window.recent_actor_spawn_count = [7]
         window.recent_actor_spawn_switch = "guards"
-        window.mode_combo.setCurrentText(MODE_ACTOR_SPAWN_ZONE)
+        window.set_mode(MODE_ACTOR_SPAWN_ZONE)
         window.tool_settings.refresh()
         combos = window.tool_settings.findChildren(QComboBox)
         self.assertEqual(combos[0].currentText(), kind)
@@ -574,7 +569,7 @@ class WindowTests(WindowTestCase):
 
     def test_canvas_letter_shortcuts_do_not_steal_actor_search_text(self):
         window = self.window
-        window.mode_combo.setCurrentText(MODE_ACTOR_SPAWN_ZONE)
+        window.set_mode(MODE_ACTOR_SPAWN_ZONE)
         box = window.tool_settings.findChild(QComboBox)
         edit = box.lineEdit()
         edit.setFocus()

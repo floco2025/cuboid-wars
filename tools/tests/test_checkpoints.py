@@ -153,7 +153,7 @@ class CheckpointWindowTests(WindowTestCase):
         data = checkpoint_map()
         data["checkpoints"] = []
         window.apply_change("Set up floors", data)
-        window.mode_combo.setCurrentText(MODE_CHECKPOINT)
+        window.set_mode(MODE_CHECKPOINT)
         self.click(1, 1)
         self.assertEqual(
             window.map_data["checkpoints"], [{"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual"}]
@@ -176,7 +176,7 @@ class CheckpointWindowTests(WindowTestCase):
         data = checkpoint_map()
         data["checkpoints"] = []
         window.apply_change("Set up floors", data)
-        window.mode_combo.setCurrentText(MODE_CHECKPOINT)
+        window.set_mode(MODE_CHECKPOINT)
         box = next(box for box in window.tool_settings.findChildren(QComboBox) if box.accessibleName() == "Type")
         self.assertEqual(box.currentData(), "individual")
         box.setCurrentIndex(box.findData("group_any"))

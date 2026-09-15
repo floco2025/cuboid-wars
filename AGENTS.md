@@ -256,10 +256,18 @@ the default, selects a tile rectangle for copy/cut/delete over a prompted
 level count and paste that replaces the destination; `regions.py` owns the
 volume operations and their boundary rules. Alt/Option selects, moves, and
 resizes spawn zones or moves nested-map ends; right-click edits or erases the element under the
-cursor in every tool. Every element group in
-`MODE_CATEGORIES` is one map list and ends with its own `Erase <group>` mode
-that clears only that element in a dragged rectangle; the Erase group holds
-the two cross-element tools. Only maps registered in `config/server/gameplay.json` can be opened. The Map
+cursor in every tool. `tool_catalog.py` groups the tool palette into Build,
+Zones & Items, Mechanisms, Appearance, and Measure, with Select and general
+Erase pinned above them. `tool_palette.py` shows icons and short labels in
+stable positions; `tool_icons.py` renders vector silhouettes at multiple
+scales. Place/Erase (or `E` with canvas focus) selects the existing element
+and group-erase modes; shared erase scopes retain the selected placement
+variant. Selecting a palette tool starts in Place mode. General Erase has a
+Keep Floors option. The top toolbar and View menu toggle the palette, whose
+visibility is remembered. The active-tool button and Ctrl/Cmd+K open
+`tool_search.py`, which searches every mode, including group erasers. Arrow
+keys cycle the visible palette tools; search and property text fields keep
+normal text input. Only maps registered in `config/server/gameplay.json` can be opened. The Map
 selector switches between the outer map and named nested geometry in the same
 file; every view uses the parent's barrier and bridge kinds, colours, and
 texture aliases with portal permissions. `nested_definitions.py` owns creating,

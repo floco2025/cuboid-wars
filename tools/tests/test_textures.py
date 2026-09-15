@@ -57,7 +57,7 @@ class TextureHostWindowTests(WindowTestCase):
         self.assertIn(self.window.current_material, self.window.materials_catalog)
         self.assertTrue(self.window.validate(data))
         self.assertFalse(self.window.texture_catalog["portal-resistant"])
-        self.window.mode_combo.setCurrentText(MODE_FLOOR)
+        self.window.set_mode(MODE_FLOOR)
         self.window.current_material = "portal-resistant"
         self.window.refresh_ui()
         self.assertEqual(self.window.tool_settings.material_permission.text(), "Portals incompatible")

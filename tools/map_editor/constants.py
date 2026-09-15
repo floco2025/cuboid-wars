@@ -108,34 +108,6 @@ ITEM_TYPE_COLORS = {
     "low_gravity": "#ffffff",
     "gold": "#ffb81f",
 }
-# Modes grouped by category for the mode picker. Each tuple is
-# `(category label, ordered list of modes)`. The label is shown as a
-# disabled separator row in the dropdown so the user sees the taxonomy
-# instead of one flat list. Every element group is one map list and ends
-# with its own `Erase <group>`, which clears only that element inside a
-# dragged rectangle; the Erase group holds the two cross-element tools.
-MODE_CATEGORIES: list[tuple[str, list[str]]] = [
-    ("Floors", [MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_ERASE_FLOORS]),
-    ("Terrain", [MODE_TERRAIN, MODE_ERASE_TERRAIN]),
-    (
-        "Spawn Zones",
-        [MODE_ACTOR_SPAWN_ZONE, MODE_PLAYER_SPAWN_ZONE, MODE_ERASE_SPAWN_ZONES],
-    ),
-    ("Checkpoints", [MODE_CHECKPOINT, MODE_ERASE_CHECKPOINTS]),
-    ("Walls", [MODE_WALL, MODE_ERASE_WALLS]),
-    ("Barriers", [MODE_BARRIER, MODE_ERASE_BARRIERS]),
-    ("Equipment Erasers", [MODE_EQUIPMENT_ERASER, MODE_ERASE_EQUIPMENT_ERASERS]),
-    ("Light Bridges", [MODE_LIGHT_BRIDGE, MODE_ERASE_LIGHT_BRIDGES]),
-    ("Ramps", [MODE_RAMP_UP, MODE_RAMP_DOWN, MODE_ERASE_RAMPS]),
-    ("Nested Maps", [MODE_NESTED_MAP, MODE_ERASE_NESTED_MAPS]),
-    ("Ladders", [MODE_LADDER, MODE_ERASE_LADDERS]),
-    ("Materials", [MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL]),
-    ("Lights", [MODE_LIGHT, MODE_ERASE_LIGHTS]),
-    ("Pressure Plates", [MODE_PRESSURE_PLATE, MODE_ERASE_PRESSURE_PLATES]),
-    ("Items", [MODE_ITEM, MODE_ERASE_ITEMS]),
-    ("Erase", [MODE_ERASE, MODE_ERASE_KEEP_FLOORS]),
-]
-
 # Named lists in map_data so the editor can refer to them generically.
 ACTOR_ZONE_LIST = "actor_spawn_zones"
 PLAYER_ZONE_LIST = "player_spawn_zones"
