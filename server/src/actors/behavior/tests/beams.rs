@@ -1,51 +1,5 @@
 use super::*;
 
-fn actor_app(kind: &str, health: f32) -> (App, Entity, Receiver<ServerMessage>) {
-    let fixture = Fixture::new(kind);
-    let origin = fixture.pos(1, 2);
-    let target = fixture.pos(3, 2);
-    let character = ActorCharacter(fixture.gameplay.expect_actor(kind).clone());
-    let mut app = App::new();
-    app.insert_resource(fixture.graphs)
-        .insert_resource(fixture.territories)
-        .insert_resource(fixture.carriers)
-        .insert_resource(fixture.collision_world)
-        .insert_resource(fixture.gameplay)
-        .insert_resource(fixture.server)
-        .init_resource::<ActorMap>()
-        .init_resource::<PlayerMap>()
-        .init_resource::<MapItems>()
-        .init_resource::<PlateState>()
-        .init_resource::<ServerTick>()
-        .init_resource::<Time>()
-        .init_resource::<PendingExplosions>()
-        .insert_resource(Invincibility(false))
-        .add_systems(Update, (actors_behavior_system, actors_beam_damage_system).chain());
-    let actor = app.world_mut().spawn((ActorId(1), ActorMarker, origin, character)).id();
-    app.world_mut()
-        .resource_mut::<ActorMap>()
-        .insert(ActorId(1), ActorInfo::new(actor, 0, kind.into(), CarrierId::WORLD));
-    let player = app
-        .world_mut()
-        .spawn((PlayerMarker, PlayerId(7), target, Health(health)))
-        .id();
-    let (sender, receiver) = unbounded();
-    let mut player_info = PlayerInfo::new(player, sender);
-    player_info.connection.logged_in = true;
-    app.world_mut()
-        .resource_mut::<PlayerMap>()
-        .insert(PlayerId(7), player_info);
-    (app, player, receiver)
-}
-
-fn step_tick(app: &mut App) {
-    app.world_mut()
-        .resource_mut::<Time>()
-        .advance_by(Duration::from_secs_f32(1.0 / 30.0));
-    app.world_mut().resource_mut::<ServerTick>().0 += 1;
-    app.update();
-}
-
 #[test]
 fn immovable_actor_fires_over_cover_below_its_gun_despite_its_lower_body_center() {
     let (mut app, player, _) = actor_app(IMMOVABLE, 5000.0);

@@ -14,7 +14,7 @@ use common::{
     config::GameplayConfig,
     map::Carriers,
     math::PHYSICS_EPSILON,
-    physics::{CollisionWorld, grounding_diagnostics},
+    physics::{CharacterSupport, CollisionWorld, grounding_diagnostics},
     protocol::{
         ActorId, ActorMarker, ItemType, MapItems, PlateState, PlayerId, PlayerMarker, Position, SActorBeam,
         ServerMessage, ServerTick,
@@ -52,26 +52,36 @@ pub fn actors_behavior_system(
     map_items: Res<MapItems>,
     mut actors: ResMut<ActorMap>,
     player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
-    actor_query: Query<(&ActorId, &Position, &ActorCharacter), (With<ActorMarker>, Without<PlayerMarker>)>,
+    actor_query: Query<
+        (&ActorId, &Position, &ActorCharacter, &CharacterSupport),
+        (With<ActorMarker>, Without<PlayerMarker>),
+    >,
 ) {
     let delta = time.delta_secs();
     let player_states = player_states(&players, actors.peaceful, player_query.iter());
     let mut rng = rng();
     let count = actor_query
         .iter()
-        .filter(|(_, _, c)| !c.0.flies() && !c.0.immovable)
+        .filter(|(_, _, c, support)| !c.0.flies() && !c.0.immovable && **support != CharacterSupport::Airborne)
         .count()
         .max(1);
     let mut index = 0;
-    for (id, pos, character) in actor_query.iter().filter(|(_, _, c)| !c.0.flies()) {
+    for (id, pos, character, support) in actor_query.iter().filter(|(_, _, c, _)| !c.0.flies()) {
         let Some(info) = actors.get_mut(id) else {
             continue;
         };
         let character = &character.0;
+        let airborne = !character.immovable && *support == CharacterSupport::Airborne;
+        let stationary = character.immovable || airborne;
         let share = GROUND_WORK_PER_TICK / count
             + usize::from((index + tick.0 as usize) % count < GROUND_WORK_PER_TICK % count);
-        info.ground.tick(delta, if character.immovable { 0 } else { share });
-        index += usize::from(!character.immovable);
+        info.ground.tick(delta, if stationary { 0 } else { share });
+        index += usize::from(!stationary);
+        // Falling below the home volume must not launch a ground search from the terrain beneath it.
+        if airborne {
+            info.ground.clear();
+            info.set_route(None);
+        }
         let kind_config = server_gameplay_config.expect_actor(&info.spawn_kind);
         if !character.immovable && !carriers.is_static() {
             let grounding =
@@ -164,7 +174,7 @@ pub fn actors_behavior_system(
             if !info.route.as_ref().is_some_and(ActorRoute::traversing_ladder) {
                 if stalled {
                     shake_loose(info, &context, &mut rng);
-                } else if character.immovable {
+                } else if stationary {
                     decide_stationary_actor(info, &context);
                 } else {
                     match kind_config.attack {
