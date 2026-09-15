@@ -1,3 +1,4 @@
+from map_editor.elements import ElementRef
 import json
 import unittest
 
@@ -83,7 +84,7 @@ class LayerEraserTests(unittest.TestCase):
 
     def test_erase_spawn_zones_clears_both_zone_lists_on_the_current_level(self) -> None:
         host = self.host()
-        host.selected_spawn_zone_ref = object()
+        host.inspect_refs([ElementRef("actor_spawn_zones", 0)])
         host.erase_group_rect(MODE_ERASE_SPAWN_ZONES, (1, 1), (3, 3))
         self.assertEqual(host.map_data["actor_spawn_zones"], [actor_zone(1, 0, 0, 2, 2)])
         self.assertEqual(host.map_data["player_spawn_zones"], [])

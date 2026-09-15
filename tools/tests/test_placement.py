@@ -2,14 +2,13 @@ import copy
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from PySide6.QtCore import QPointF
 
 from editor_fixtures import EditorHost, faces, floor, furnished_map, qt_app
 from map_editor.document import MapDocument
 from map_editor.editing import place_plate
-from map_editor.normalization import empty_level, empty_map, pressure_plate_key
+from map_editor.normalization import empty_level, empty_map
 from map_editor.transforms import insert_level_data
 from map_editor.validation import validate_map
 
@@ -53,7 +52,7 @@ class PlacementTests(unittest.TestCase):
         self.assertEqual(len(host.map_data["pressure_plates"]), 1)
         self.assertEqual(len(host.map_data["levels"][0]["lights"]), 1)
 
-    def test_occupied_plate_tiles_reject_every_switch_but_allow_edit_and_undo(self) -> None:
+    def test_occupied_plate_tiles_reject_every_switch_but_allow_another_level(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             doc = MapDocument(None, recovery_dir=Path(directory))
             data = empty_map(8, 8)
@@ -76,11 +75,6 @@ class PlacementTests(unittest.TestCase):
                 self.assertEqual(doc.undo_stack.count(), undo_count)
             host.add_pressure_plate(2, 2, "void")
             self.assertEqual(host.statuses[-1], "Unknown switch 'void'")
-            self.assertEqual(host.map_data, before)
-            with patch("map_editor.placement.KindDialog.prompt", return_value="c"):
-                host.edit_pressure_plate_at(pressure_plate_key(a))
-            self.assertEqual([p["switch"] for p in host.plates_at(1, 1)], ["c"])
-            doc.undo_stack.undo()
             self.assertEqual(host.map_data, before)
             upper = {**a, "level": 1, "switch": "fireworks"}
             upper_data = insert_level_data(host.map_data, 1)

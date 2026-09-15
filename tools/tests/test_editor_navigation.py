@@ -130,7 +130,7 @@ class EditorNavigationTests(WindowTestCase):
         position = canvas.viewport.from_grid(QPointF(7.5, 7.5)).toPoint()
         self.assertTrue(canvas.rect().contains(position))
         QTest.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=position)
-        self.assertEqual(self.window.tile_selection, (7, 7, 8, 8))
+        self.assertEqual(self.window.selection.anchor, (7, 7))
         QTest.keyClick(canvas, Qt.Key.Key_F)
         self.app.processEvents()
         self.assertTrue(canvas.viewport.fitted)
@@ -195,13 +195,13 @@ class SpawnZoneHandleTests(WindowTestCase):
         canvas.pan_by(QPointF(30, 20))
         point = canvas.viewport.from_grid(QPointF(3, 3)).toPoint()
         menu = QMenu(canvas)
-        with patch("map_editor.canvas.QMenu", return_value=menu), patch.object(menu, "exec"):
+        with patch("map_editor.interaction.QMenu", return_value=menu), patch.object(menu, "exec"):
             canvas.contextMenuEvent(QContextMenuEvent(QContextMenuEvent.Reason.Mouse, point, canvas.mapToGlobal(point)))
         self.assertEqual(window.selected_spawn_zone_ref, ZoneRef("actor_spawn_zones", 0))
         start = canvas.viewport.from_grid(QPointF(4, 4)).toPoint()
         end = canvas.viewport.from_grid(QPointF(5, 6)).toPoint()
         QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=start)
-        self.assertEqual(window.spawn_zone_drag.handle, "se")
+        self.assertEqual(window.canvas.input.gesture.handle.name, "se")
         QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=end)
         zone = window.map_data["actor_spawn_zones"][0]
         self.assertEqual((zone["cols"], zone["rows"]), ([2, 5], [2, 6]))
@@ -214,6 +214,7 @@ class SpawnZoneHandleTests(WindowTestCase):
     def test_player_zone_side_handle_and_normal_tile_selection(self):
         window = self.window
         window.add_player_spawn_zone_rect((2, 2), (3, 3))
+        self.click(2, 2)
         canvas = window.canvas
         start = canvas.viewport.from_grid(QPointF(4, 3)).toPoint()
         end = canvas.viewport.from_grid(QPointF(5, 3)).toPoint()
@@ -222,4 +223,5 @@ class SpawnZoneHandleTests(WindowTestCase):
         self.assertEqual(window.map_data["player_spawn_zones"][0]["cols"], [2, 5])
         QTest.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=canvas.viewport.from_grid(QPointF(6.5, 6.5)).toPoint())
         self.assertIsNone(window.selected_spawn_zone_ref)
-        self.assertEqual(window.tile_selection, (6, 6, 7, 7))
+        self.assertTrue(window.selection.empty)
+        self.assertEqual(window.selection.anchor, (6, 6))

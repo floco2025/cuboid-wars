@@ -1,11 +1,8 @@
 from PySide6.QtWidgets import (
     QComboBox,
-    QDialog,
-    QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
     QSpinBox,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -38,21 +35,3 @@ class SpawnVolumeControl(QWidget):
 
     def values(self):
         return self.first.currentIndex(), self.span.value(), self.roam.value() if self.roam is not None else 0.0
-
-
-class SpawnVolumeDialog(QDialog):
-    def __init__(self, parent, names, level, levels):
-        super().__init__(parent)
-        self.setWindowTitle("Player Spawn Zone")
-        self.volume = SpawnVolumeControl(names, level, levels)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.volume)
-        layout.addWidget(buttons)
-
-    @classmethod
-    def prompt(cls, *args):
-        dialog = cls(*args)
-        return dialog.volume.values()[:2] if dialog.exec() == QDialog.DialogCode.Accepted else None

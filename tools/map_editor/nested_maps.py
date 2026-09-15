@@ -29,8 +29,6 @@ class NestedMapsMixin:
     def nested_map_end_at(self, cell: tuple[int, int]) -> tuple[dict, str] | None:
         """The nested map end anchored on `cell` on the current level, as
         `(entry, "from" | "to")`, so a drag that starts on an end moves it."""
-        if NESTED_MAPS_LIST in self.element_filters.excluded:
-            return None
         for entry in self.map_data.get(NESTED_MAPS_LIST, []):
             if entry["level"] == self.current_level and entry["from"] == list(cell):
                 return entry, "from"
@@ -38,37 +36,8 @@ class NestedMapsMixin:
                 return entry, "to"
         return None
 
-    def drag_nested_map(self, start_cell: tuple[int, int], end_cell: tuple[int, int]) -> None:
-        # A drag from an existing end moves that end; a click on an end
-        # edits the entry; a click elsewhere places a map that stays put; any
-        # other drag places one that slides.
-        hit = self.nested_map_end_at(start_cell)
-        if hit is None:
-            self.add_nested_map(start_cell, end_cell)
-            return
-        entry, end = hit
-        if end_cell == start_cell:
-            self.edit_nested_map(nested_map_key(entry))
-        else:
-            self.move_nested_map_end(nested_map_key(entry), end, end_cell)
-
     def edit_nested_map(self, key: tuple) -> None:
-        entry = next((e for e in self.map_data.get(NESTED_MAPS_LIST, []) if nested_map_key(e) == key), None)
-        if entry is None:
-            return
-        result = MotionDialog.prompt_nested(
-            self,
-            len(self.map_data["levels"]),
-            entry["level"],
-            NestedMotion.from_entry(entry),
-            self.nested_map_names(),
-            self.switches,
-            title="Edit Nested Map",
-        )
-        if result is None:
-            return
-        self.recent_nested_map = result
-        self.set_nested_map_properties(key, result)
+        self.open_properties_for("nested_maps", lambda entry: nested_map_key(entry) == key)
 
     def set_nested_map_properties(self, key: tuple, motion: NestedMotion) -> None:
         msg = nested_map_error(motion.map_name, self.edited_map_name())
@@ -100,6 +69,12 @@ class NestedMapsMixin:
         self.apply_change("Move Nested Map End", after)
 
     def add_nested_map(self, start_cell: tuple[int, int], end_cell: tuple[int, int]) -> None:
+        if any(
+            entry["level"] == self.current_level and entry["from"] == list(start_cell)
+            for entry in self.map_data.get(NESTED_MAPS_LIST, [])
+        ):
+            self.notify("A nested map already starts here. Select it to edit or move it.")
+            return
         recent = self.recent_nested_map
         if (
             recent is not None

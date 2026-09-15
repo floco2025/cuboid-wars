@@ -7,10 +7,11 @@ from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPen
 
 from .block_transforms import transform_block
+from .object_selection import copy_objects, selected_data, paste_objects, refs_for_block
 from .constants import MODE_SELECT
-from .elements import restore_excluded
 from .regions import copy_region, delete_region, paste_region
-from .transforms import record_levels, record_lists, record_rect
+from .transforms import record_levels, record_lists
+from .selection_painting import paint_outline, paint_caption
 
 
 @dataclass
@@ -19,7 +20,8 @@ class BlockTransfer:
     source: object
     duplicate: bool
     destination: tuple[int, int]
-    grab_offset: tuple[int, int] = (0, 0)
+    refs: tuple | None = None
+    drag_origin: tuple[float, float] | None = None
     dragging: bool = False
     additions: dict = field(default_factory=dict)
 
@@ -30,19 +32,23 @@ class SelectionTransferMixin:
         if region is None:
             return False
         try:
-            block = copy_region(self.editable_map_data(), region)
-            if not duplicate:
-                delete_region(self.editable_map_data(), region)
+            refs = tuple(self.selection_refs()) if self.selection.area is None else None
+            if refs is not None:
+                if not refs:
+                    self.notify("No objects selected.")
+                    return False
+                block, region = copy_objects(self.map_data, refs, self.doc.nested_geometry)
+            else:
+                block = copy_region(self.map_data, region)
+                if not duplicate:
+                    delete_region(self.map_data, region)
         except ValueError as error:
             self.notify(str(error))
             return False
-        self.pending_block = BlockTransfer(block, region, duplicate, region.rect[:2])
+        self.pending_block = BlockTransfer(block, region, duplicate, region.rect[:2], refs)
         if point is not None:
             self.pending_block.dragging = True
-            self.pending_block.grab_offset = (
-                int(point.x() // 1) - region.rect[0],
-                int(point.y() // 1) - region.rect[1],
-            )
+            self.pending_block.drag_origin = (point.x(), point.y())
         self.canvas.update()
         return True
 
@@ -64,7 +70,7 @@ class SelectionTransferMixin:
             pending.block, additions = transform_block(pending.block, operation, definitions)
             pending.additions.update(additions)
             pending.dragging = False
-            pending.grab_offset = (0, 0)
+            pending.drag_origin = None
         except ValueError as error:
             if not had_pending:
                 self.pending_block = None
@@ -77,8 +83,13 @@ class SelectionTransferMixin:
     def move_pending_block(self, point):
         if self.pending_block is None:
             return
-        ox, oy = self.pending_block.grab_offset
-        self.pending_block.destination = (int(point.x() // 1) - ox, int(point.y() // 1) - oy)
+        pending = self.pending_block
+        if pending.drag_origin is not None:
+            ox, oy = pending.drag_origin
+            col, row = pending.source.rect[:2]
+            pending.destination = (col + round(point.x() - ox), row + round(point.y() - oy))
+        else:
+            pending.destination = (int(point.x() // 1), int(point.y() // 1))
         self.canvas.update()
 
     def commit_pending_block(self):
@@ -87,13 +98,38 @@ class SelectionTransferMixin:
             return
         region = pending.source
         try:
-            data = self.editable_map_data()
-            if not pending.duplicate:
-                data = delete_region(data, region)
-            after = paste_region(data, pending.block, pending.destination, region.level)
-            after = restore_excluded(self.map_data, after, self.element_filters.excluded)
-            # Generated definitions are validated with the completed root below.
-            after = self.protect_change(after, validate_dependencies=False)
+            if pending.refs is not None:
+                data = self.map_data if pending.duplicate else selected_data(self.map_data, pending.refs, remove=True)
+                after = paste_objects(data, pending.block, pending.destination, region.level)
+                if not pending.additions:
+                    before_issues = {issue.identity() for issue in self.validate(self.map_data).issues}
+                    errors = [
+                        issue.message for issue in self.validate(after).issues if issue.identity() not in before_issues
+                    ]
+                    if errors:
+                        raise ValueError(errors[0])
+                else:
+                    # Validate before maintenance can remove an unselected
+                    # dependent, using the transformed geometry definitions.
+                    candidate = copy.deepcopy(self.doc.root_data)
+                    if self.doc.active_map is None:
+                        candidate = copy.deepcopy(after)
+                    else:
+                        candidate["nested_geometry"][self.doc.active_map] = after
+                    candidate.setdefault("nested_geometry", {}).update(pending.additions)
+                    before_issues = {issue.identity() for issue in self.validate_document(self.doc.root_data).issues}
+                    errors = [
+                        issue.message
+                        for issue in self.validate_document(candidate).issues
+                        if issue.identity() not in before_issues
+                    ]
+                    if errors:
+                        raise ValueError(errors[0])
+            else:
+                data = self.map_data
+                if not pending.duplicate:
+                    data = delete_region(data, region)
+                after = paste_region(data, pending.block, pending.destination, region.level)
             after = self.doc.maintain(after)
             if self.doc.active_map is None:
                 root = after
@@ -118,6 +154,7 @@ class SelectionTransferMixin:
             errors = [issue.message for issue in self.validate_document(root).issues if issue.identity() not in before]
             if errors:
                 raise ValueError(errors[0])
+            self.pending_block = None
             self.doc.apply_root_change(
                 "Duplicate Selection" if pending.duplicate else "Transform Selection", root, self.doc.active_map
             )
@@ -126,9 +163,11 @@ class SelectionTransferMixin:
             return
         col, row = pending.destination
         self.pending_block = None
-        self.set_tile_selection((col, row, col + pending.block["grid_cols"], row + pending.block["grid_rows"]))
         self.selection_levels = len(pending.block["levels"])
-        self.refresh_inspection()
+        if pending.refs is not None:
+            self.inspect_refs(refs_for_block(self.map_data, pending.block, pending.destination, region.level))
+        else:
+            self.set_tile_selection((col, row, col + pending.block["grid_cols"], row + pending.block["grid_rows"]))
 
     def paint_transfer(self, painter, cell):
         pending = self.pending_block
@@ -146,22 +185,18 @@ class SelectionTransferMixin:
         painter.save()
         painter.setPen(QPen(color, 2, Qt.PenStyle.DashLine))
         painter.setBrush(QColor(color.red(), color.green(), color.blue(), 40))
-        painter.drawRect(QRectF(col * cell, row * cell, width * cell, height * cell))
+        if pending.refs is None:
+            painter.drawRect(QRectF(col * cell, row * cell, width * cell, height * cell))
+        else:
+            painter.setBrush(Qt.BrushStyle.NoBrush)
         for (level, name), entries in record_lists(pending.block):
             for entry in entries:
                 lower, upper = record_levels(entry, level)
                 if not lower <= self.current_level - pending.source.level <= upper:
                     continue
-                c0, r0, c1, r1 = record_rect(name, entry)
-                painter.drawRect(
-                    QRectF((col + c0) * cell, (row + r0) * cell, max(2, (c1 - c0) * cell), max(2, (r1 - r0) * cell))
-                )
-        text = "Duplicate replaces" if pending.duplicate else "Move / transform replaces"
+                paint_outline(painter, name, entry, cell, (col, row))
+        text = "Duplicate" if pending.duplicate else "Move / transform"
+        text += " objects" if pending.refs is not None else " replaces tiles"
         text += f" · {len(pending.block['levels'])} level(s)" + (" · outside map" if not fits else "")
-        canvas = self.canvas
-        x = max(-canvas.viewport.offset.x(), col * cell)
-        y = max(-canvas.viewport.offset.y(), row * cell - 24)
-        rect = QRectF(x, y, painter.fontMetrics().horizontalAdvance(text) + 12, 24)
-        painter.fillRect(rect, QColor("#111418"))
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
+        paint_caption(self.canvas, painter, text)
         painter.restore()

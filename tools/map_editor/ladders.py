@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtWidgets import QInputDialog
 
 from .constants import LADDER_SIDES
-from .editing import update_records
 from .geometry import cell_side_from_click, ladder_anchor_from_click, wall_endpoints_for_cell_side
 from .normalization import ladder_edge_key, ladder_key, ladder_spans_level, ladders_overlap
 
@@ -16,31 +14,9 @@ class LaddersMixin:
     # === Ladders ===
 
     def edit_ladder_at(self, key: tuple) -> None:
-        ladder = next((ladder for ladder in self.map_data["ladders"] if ladder_key(ladder) == key), None)
-        if ladder is None:
-            return
-        max_levels = len(self.map_data["levels"]) - 1 - ladder["lower_level"]
-        if max_levels < 1:
-            self.notify("A ladder needs a level above its base to climb to.")
-            return
-        levels, accepted = QInputDialog.getInt(
-            self,
-            "Edit Ladder",
-            "Storeys:",
-            min(max_levels, max(1, ladder["levels"])),
-            1,
-            max_levels,
-        )
-        if not accepted or levels == ladder["levels"]:
-            return
-        candidate = {**ladder, "levels": levels}
-        if any(ladder_key(other) != key and ladders_overlap(candidate, other) for other in self.map_data["ladders"]):
-            self.notify("A ladder already spans part of that edge.")
-            return
-        after = update_records(self.map_data, "ladders", lambda ladder: ladder_key(ladder) == key, {"levels": levels})
-        self.apply_change("Edit Ladder", after)
+        self.open_properties_for("ladders", lambda entry: ladder_key(entry) == key)
 
-    def toggle_ladder_at(self, pos) -> None:
+    def add_ladder_at(self, pos) -> None:
         px = pos.x()
         py = pos.y()
         cols = self.map_data["grid_cols"]
@@ -55,9 +31,6 @@ class LaddersMixin:
         anchor_col, anchor_row, anchor_side = ladder_anchor_from_click(col, row, side)
         level_idx = self.current_level
 
-        # Clicking an edge that already holds a ladder touching this level
-        # removes it (toggle, like lights). Matched by the undirected edge so
-        # a click from either side of the line toggles the same ladder.
         edge = wall_endpoints_for_cell_side(col, row, side)
         existing = next(
             (
@@ -68,9 +41,7 @@ class LaddersMixin:
             None,
         )
         if existing is not None:
-            after = copy.deepcopy(self.map_data)
-            after["ladders"] = [l for l in after["ladders"] if ladder_key(l) != ladder_key(existing)]
-            self.apply_change("Remove Ladder", after)
+            self.notify("A ladder already spans that edge. Select it to edit its properties.")
             return
 
         if not (0 <= anchor_col < cols and 0 <= anchor_row < rows):

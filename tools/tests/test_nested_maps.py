@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 from editor_fixtures import EditorHost, NESTED_SHAPES, floor, nested
 from map_editor.nesting import NestedMapShape, NestedMotion, nested_map_cycle, nested_map_label, nested_map_rest_points
-from map_editor.normalization import empty_level, empty_map
+from map_editor.normalization import empty_level, empty_map, nested_map_key
 
 
 class NestedMapTests(unittest.TestCase):
@@ -34,11 +34,11 @@ class NestedMapTests(unittest.TestCase):
         data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1]), nested("cabin", 0, [2, 5], [2, 5])]
         host = EditorHost(data, [])
 
-        host.drag_nested_map((5, 1), (5, 4))
+        host.move_nested_map_end(nested_map_key(host.map_data["nested_maps"][0]), "to", (5, 4))
         self.assertEqual(
             (host.map_data["nested_maps"][0]["from"], host.map_data["nested_maps"][0]["to"]), ([1, 1], [5, 4])
         )
-        host.drag_nested_map((1, 1), (2, 5))
+        host.move_nested_map_end(nested_map_key(host.map_data["nested_maps"][0]), "from", (2, 5))
         self.assertTrue(host.statuses[-1].startswith("Nested map end not moved"))
         self.assertEqual(host.map_data["nested_maps"][0]["from"], [1, 1])
 

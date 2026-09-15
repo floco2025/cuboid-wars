@@ -16,20 +16,12 @@ class ToolPaletteTests(WindowTestCase):
     def choose(self, mode):
         QTest.mouseClick(self.button(mode), Qt.MouseButton.LeftButton)
 
-    def open_search(self):
-        self.window.canvas.setFocus()
-        QTest.keyClick(self.window.canvas, Qt.Key.Key_K, Qt.KeyboardModifier.ControlModifier)
-        self.app.processEvents()
-        self.assertTrue(self.window.tool_search.isVisible())
-        return self.window.tool_search
-
     def test_palette_click_selects_tool_and_returns_keyboard_to_canvas(self):
         self.choose(c.MODE_LIGHT_BRIDGE)
         palette = self.window.tool_palette
         self.assertEqual(self.window.mode, c.MODE_LIGHT_BRIDGE)
         self.assertTrue(self.button(c.MODE_LIGHT_BRIDGE).isChecked())
         self.assertTrue(palette.place_button.isChecked())
-        self.assertEqual(palette.current_button.text(), c.MODE_LIGHT_BRIDGE)
         self.assertTrue(self.window.canvas.hasFocus())
         QTest.keyClick(self.window.canvas, Qt.Key.Key_Right)
         self.assertEqual(self.window.mode, c.MODE_PRESSURE_PLATE)
@@ -44,7 +36,7 @@ class ToolPaletteTests(WindowTestCase):
         self.assertEqual(window.mode, c.MODE_ERASE_WALLS)
         self.assertTrue(window.tool_palette.erase_button.isChecked())
         self.assertTrue(self.button(c.MODE_WALL).isChecked())
-        self.assertEqual(window.canvas.cursor().shape(), Qt.CursorShape.ForbiddenCursor)
+        self.assertEqual(window.canvas.cursor().shape(), Qt.CursorShape.CrossCursor)
         self.click(1, 1)
         self.assertEqual(window.map_data["levels"][0]["walls"], [])
         self.assertEqual(window.map_data["levels"][0]["lights"], [])
@@ -98,57 +90,7 @@ class ToolPaletteTests(WindowTestCase):
         QTest.mouseClick(keep, Qt.MouseButton.LeftButton, pos=QPoint(8, keep.height() // 2))
         self.assertEqual(window.mode, c.MODE_ERASE)
 
-    def test_search_reaches_every_existing_canvas_mode(self):
-        search = self.open_search()
-        expected = {value for name, value in vars(c).items() if name.startswith("MODE_")}
-        modes = [search.results.item(row).data(Qt.ItemDataRole.UserRole) for row in range(search.results.count())]
-        self.assertEqual(set(modes), expected)
-        self.assertEqual(len(modes), len(expected))
-        for mode in modes:
-            with self.subTest(mode=mode):
-                search.show_for(mode)
-                QTest.keyClick(search.query, Qt.Key.Key_Return)
-                self.app.processEvents()
-                self.assertFalse(search.isVisible())
-                self.assertEqual(self.window.mode, mode)
-                self.assertTrue(self.window.canvas.hasFocus())
-                self.assertTrue(self.window.tool_palette.current_button.icon().availableSizes())
-        self.assertFalse(self.window.dirty)
-
-    def test_search_filters_words_in_any_order_and_enter_selects_erase_directly(self):
-        self.choose(c.MODE_RAMP_DOWN)
-        search = self.open_search()
-        QTest.keyClicks(search.query, "ramps erase")
-        self.assertEqual(search.results.count(), 1)
-        QTest.keyClick(search.query, Qt.Key.Key_Return)
-        self.app.processEvents()
-        self.assertEqual(self.window.mode, c.MODE_ERASE_RAMPS)
-        QTest.keyClick(self.window.canvas, Qt.Key.Key_E)
-        self.assertEqual(self.window.mode, c.MODE_RAMP_DOWN)
-
-    def test_search_arrows_choose_a_match_and_escape_or_empty_results_do_not_change_tool(self):
-        search = self.open_search()
-        QTest.keyClicks(search.query, "bridge")
-        self.assertEqual(search.results.count(), 2)
-        QTest.keyClick(search.query, Qt.Key.Key_Down)
-        self.assertEqual(search.query.text(), "bridge")
-        self.assertEqual(search.results.currentItem().data(Qt.ItemDataRole.UserRole), c.MODE_ERASE_LIGHT_BRIDGES)
-        QTest.keyClick(search.query, Qt.Key.Key_Up)
-        QTest.keyClick(search.query, Qt.Key.Key_Return)
-        self.app.processEvents()
-        self.assertEqual(self.window.mode, c.MODE_LIGHT_BRIDGE)
-        search = self.open_search()
-        QTest.keyClicks(search.query, "not-a-tool")
-        self.assertTrue(search.empty.isVisible())
-        QTest.keyClick(search.query, Qt.Key.Key_Return)
-        self.app.processEvents()
-        self.assertTrue(search.isVisible())
-        self.assertEqual(self.window.mode, c.MODE_LIGHT_BRIDGE)
-        QTest.keyClick(search.query, Qt.Key.Key_Escape)
-        self.assertFalse(search.isVisible())
-        self.assertEqual(self.window.mode, c.MODE_LIGHT_BRIDGE)
-
-    def test_search_typing_and_property_typing_do_not_trigger_canvas_shortcuts(self):
+    def test_property_typing_does_not_trigger_canvas_shortcuts(self):
         self.choose(c.MODE_ACTOR_SPAWN_ZONE)
         edit = self.window.tool_settings.findChild(QComboBox).lineEdit()
         edit.setFocus()
@@ -156,31 +98,21 @@ class ToolPaletteTests(WindowTestCase):
         QTest.keyClicks(edit, "erase")
         self.assertEqual(edit.text(), "erase")
         self.assertEqual(self.window.mode, c.MODE_ACTOR_SPAWN_ZONE)
-        search = self.open_search()
-        QTest.keyClicks(search.query, "fmlre")
-        self.assertEqual(search.query.text(), "fmlre")
-        self.assertEqual(self.window.mode, c.MODE_ACTOR_SPAWN_ZONE)
-        self.assertFalse(self.window.show_material_overlay)
-        self.assertFalse(self.window.show_adjacent_levels)
-        self.assertFalse(self.window.show_roam_extensions)
-        search.reject()
 
-    def test_collapsed_palette_still_has_search_and_remembers_visibility(self):
+    def test_icon_palette_ignores_old_hidden_panel_preferences(self):
         window = self.window
-        window.tool_palette.toggleViewAction().trigger()
-        self.assertTrue(window.tool_palette.isHidden())
-        QTest.mouseClick(window.tool_palette.current_button, Qt.MouseButton.LeftButton)
-        self.assertTrue(window.tool_search.isVisible())
-        window.tool_search.reject()
+        window.tool_icons_action.trigger()
+        window.preferences.setValue("tools/palette_visible", False)
         window.close()
         self.window = EditorWindow(self.path, preferences=window.preferences)
         window.deleteLater()
         self.window._autosave_timer.stop()
         self.window.show()
         self.app.processEvents()
-        self.assertTrue(self.window.tool_palette.isHidden())
-        self.window.tool_palette.toggleViewAction().trigger()
-        self.assertTrue(self.window.tool_palette.isVisible())
+        for panel in self.window.panel_layout.docks:
+            self.assertFalse(panel.isHidden())
+            self.assertFalse(panel.toggleViewAction().isEnabled())
+        self.assertTrue(self.window.tool_palette.icon_only)
 
     def test_switching_tool_cancels_a_pending_canvas_drag(self):
         self.choose(c.MODE_FLOOR)

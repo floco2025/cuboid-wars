@@ -1,6 +1,6 @@
+from map_editor.constants import MODE_SELECT
 import copy
 import unittest
-from unittest.mock import patch
 
 from PySide6.QtWidgets import QDialogButtonBox
 
@@ -145,9 +145,10 @@ class SpawnWindowTests(WindowTestCase):
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [0, 2, 3])
         window.tool_settings.refresh()
         self.assertIn("3+ players → 3 actors", window.tool_settings.actor_count.toolTip())
-        edited = ("zapper", [1, 2, 4, 6], None, None, False, 0, 1, 0.0)
-        with patch.object(ActorSpawnFieldsDialog, "prompt", return_value=edited):
-            window.edit_selected_spawn_zone_fields()
+        window.set_mode(MODE_SELECT)
+        self.click(2, 2)
+        self.set_property("count", "1, 2, 4, 6")
+        window.properties_panel.apply_button.click()
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [1, 2, 4, 6])
         window.undo_stack.undo()
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [0, 2, 3])

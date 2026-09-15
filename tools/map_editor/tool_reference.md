@@ -1,43 +1,42 @@
 # Tool Reference
 
-Choose a tool in the left palette. **Place / Erase** switches between placing the selected element and erasing its group inside a dragged rectangle on the current level. The general **Erase** tool at the top clears across element types, with an optional **Keep floors** setting. The erase names below also work in tool search.
+Choose a tool in the left palette. **Place / Erase** switches between placing the selected element and erasing its group inside a dragged rectangle on the current level. The general **Erase** tool is at the top of the palette, with an optional **Keep floors** setting.
 
 ## Navigation and Tool Settings
 
-- **Tool Palette** — Icons and short labels stay in fixed positions under Build, Zones & Items, Mechanisms, Appearance, and Measure. Select, general Erase, and Sample stay at the top. Selecting an element starts in Place mode; click Erase or press `E` with canvas focus to switch its operation. Floors and Blocked Floor share Erase Floors, both ramp directions share Erase Ramps, and actor/player zones share Erase Spawn Zones. The highlighted button and current-tool name show what is active. **Tools** in the toolbar or View → Tools hides or restores the palette; visibility is remembered.
-- **Find Tool** — Press `Ctrl/Cmd+K`, click the active-tool button in the top toolbar, or use Edit → Find Tool. Type any part of a name, use Up/Down to choose a match, and press Enter. Search includes every erase operation and accepts words in any order, such as `walls erase`. Escape cancels. Search remains available with the palette hidden.
+- **Tool Palette** — Icons and short labels stay in fixed positions under Build, Zones & Items, Mechanisms, Appearance, and Measure. Select, Sample, and Erase stay at the top. View → **Tool Icons Only** collapses the palette to a narrow icon strip; tooltips identify each tool. Selecting an element starts in Place mode; click Erase or press `E` with canvas focus to switch its operation. Floors and Blocked Floor share Erase Floors, both ramp directions share Erase Ramps, and actor/player zones share Erase Spawn Zones. The highlighted tool and operation buttons show what is active.
 - **Map** — Open a map registered by name in `gameplay.json`. Its folder contains `layout.json` for placement and controls and `settings.json` for appearance catalogs and tuning. The Map picker switches between the outer map and its named nested geometry; all views use the parent's kinds and texture catalog. Save, autosave, and undo cover the whole document. Undo switches to the affected map.
 
 - **Zoom / Pan / Fit Map** — `Cmd+Plus` / `Cmd+Minus` on macOS, or `Ctrl+Plus` / `Ctrl+Minus` elsewhere, zoom in and out. Scroll with a wheel, Magic Mouse, or touchpad to pan; Shift-wheel pans horizontally. Scroll bars appear when the map extends outside the view, and panning stops at the map edges. Space-drag and middle-drag also pan. View → Fit Map (`F`) shows the whole map.
 - **Window** — Size, position, and maximized state are remembered across launches, shared by every map. Off-screen positions are brought back onto an available screen. New, Open, and Resize Map fit the canvas without changing the window size.
-- **Tool Settings** — Properties appear beside the active-tool button in the top toolbar, only for tools that need them. Placement always uses the previous values; a dialog is needed only when no usable choice has been made yet. Change values in the toolbar, use **Controls…** for pressure plate assignments, or open nested-map motion through **Settings…**. These controls set defaults for new placements. **Selection properties** edits existing objects; right-click also retains the specialized edit dialogs.
+- **Tool Settings** — Controls appear in the top toolbar for tools that need placement defaults. Placement reuses the previous values; a dialog is needed only when no usable choice has been made yet. Use **Controls…** for pressure plate assignments or **Settings…** for nested-map motion. The always-visible **Properties** panel edits existing objects as soon as they are selected, keeping placement defaults unchanged.
 - **Single-tile tools** — Ladders, lights, plates, and items preview one tile or edge, never a range. Holding the mouse button lets you adjust the target; releasing places once. Escape or releasing off-grid cancels.
 - **Feedback** — Placement warnings and copy confirmations appear briefly over the canvas without taking focus or blocking clicks. Undo and Redo menus name the available actions.
 - **Hover details** — Hover any element to see its type and relevant properties, including materials, kind, actor count, or nested-map motion. Overlapping elements follow the same priority as right-click; material tools show their target's materials.
-- **Map Issues / Review Repairs** — The toolbar's **Issues** button appears only when problems exist; it and View → Map Issues open the issues list. Click a result to select its map and level and highlight the object. Loading preserves invalid records; Edit → Review Repairs lists automatic changes for approval. Accepted repairs undo in one step. While repairs are pending, edits preserve records for manual correction; saving remains blocked by validation errors.
+- **Check Map / Review Repairs** — Map → **Check Map…** opens a separate issues window when needed. Click a result to select its map and level and highlight the object. Loading preserves invalid records and warns about errors; **Review Repairs** lists automatic changes for approval. Accepted repairs undo in one step. While repairs are pending, edits preserve records for manual correction; saving remains blocked by validation errors.
 - **Recovery / Dependencies** — Unsaved maps receive recovery copies every 15 seconds, including untitled maps. Use File → Recover Unsaved Map to restore an untitled session after a crash; active sessions cannot be recovered by a second editor. Named maps offer newer autosaves when opened. Changes to the parent's gameplay catalogs refresh the editor automatically.
 
 ## Sample
 
 - **Sample** — Choose the eyedropper and click an element, press `I` while pointing at it with canvas focus, or right-click → **Use This Tool**. This selects its placement tool and reuses its applicable face materials, kind, count, span, and pressure plate controls. Choosing a new material clears the sampled face recipe.
 
-## Selection properties and connections
+## Properties and connections
 
-- **Properties** — Click an object with Select or choose **Properties** from its right-click menu. Drag a selection to inspect several objects. For mixed element types, choose a type or edit the properties they share. **Mixed / unchanged** keeps individual values until you change that field. **Apply** makes one undoable edit; **Revert** discards unapplied changes.
-- **Connections** — Select a plate or controlled bridge, barrier, actor zone, or nested map to highlight matching plates and targets. **Connections** in the inspector, or View → Connections, lists linked objects throughout the document. Click a result to jump to its geometry and level.
+- **Properties** — Selecting an object or group immediately shows its properties. Right-click selects an object from any tool; Enter with canvas focus moves keyboard focus into Properties. For mixed element types, choose a type or edit their shared properties. **Mixed / unchanged** preserves individual values until that field changes. Material helpers, actor counts and search, spawn-zone first level and span, and full nested-map motion controls live here. **Apply** makes one undoable edit; **Revert** discards unapplied changes. Invalid values remain in the form for correction.
+- **Connections** — View → **Show Connections** toggles canvas highlights and lines between the selected pressure plate and its controlled objects, or between a selected controlled object and matching plates. It starts off each time the editor opens. Highlights update immediately when toggled or when selection changes and show connections in the current geometry and level.
+- **Panel space** — Tools and Properties stay visible. Drag their dividers to resize them; widths are remembered, including separate labeled and icon-only palette widths. Closed dropdowns stay compact; opened lists and tooltips show full names, including material portal permissions.
 
-## Elements
+## Select
 
-- **Show / Lock** — Open **Elements** from the toolbar or View menu. Hidden types disappear from the canvas and picking. Hidden and locked types are excluded from placement, erasing, and clipboard operations; locked types remain visible and inspectable. Selection properties leaves them read-only and batch edits skip them. An edit that would remove support needed by a protected object is refused.
-- **Scope** — Filters apply to all levels and named geometry for this editor session. The toolbar shows how many types are hidden or locked. **Show and unlock all** resets them. Resize and level changes require all types shown and unlocked; undo and redo still restore complete edits.
+- **Objects / Tiles** — Select starts with **Scope: Objects**. The tool activates selection; Scope chooses individual objects or whole tile areas. Click to select the specific object under the pointer. Drag from an unselected object to select that type within the rectangle: start on a wall for walls only, or on an equipment eraser for erasers only. The same rule applies to other object types, so their underlying floors stay unselected. A rectangle started in empty space includes all types. Shift-click adds or removes an object; Shift-drag adds a group using the same starting-type rule. The canvas shows the type during the drag. The canvas outlines the selection, and Properties shows its object count. **Levels** sets the upward span for group selection. Intersected spawn zones, ramps, ladders, and nested-map motion are selected as complete objects. Switch the toolbar selector to **Tiles** for whole-area operations, including empty cells.
+- **Wall / eraser lines** — Drag along a grid edge to select a single line of walls, equipment erasers, or barriers. You can start before the first segment; the first edge encountered chooses the type. The preview follows the line and highlights the selected segments immediately. Floors, adjacent parallel lines, and crossing edges stay unselected.
+- **Delete** — `Delete` or `Backspace` removes only the selected objects in Objects mode; undo restores them. Removing support needed by an unselected object is refused. Tool-specific Place / Erase and `E` remain available for quick erasing by type.
+- **Copy / Cut / Paste** — Object copies contain only the selected objects. Select a destination and paste to add them while preserving surrounding content; conflicts are refused. Cut removes those objects only after validation succeeds. Copies made in **Tiles** mode replace the destination area, including empty cells, over the chosen level span. Tile operations require whole objects, both ends of nested motion, and any dependent wall lights to be included. Click the destination before pasting. The copied content determines whether paste adds objects or replaces tiles, and the pasted content becomes the selection. Missing upper levels are added. Operations work across open maps and undo in one step; Delete leaves the clipboard unchanged.
+- **Context menu** — Right-clicking an object outside the current selection switches to Select and selects that object. Right-clicking within a selected object group or Tiles area keeps the group or area. Every menu action applies to that highlighted selection. Right-clicking empty space outside the selection clears it and offers Paste at that location when the clipboard contains a map block. Properties updates immediately; there is no separate Edit command. **Use This Tool** samples a single selected object. Conflicting loaded plates at one location can be selected individually through **Select plate**.
+- **Move / Duplicate** — Drag an already-selected object or inside a selected Tiles area to move the selection. **Duplicate** (`Ctrl/Cmd+D`) keeps the source and starts a preview. Click to place; Escape cancels. Object operations preserve other destination content, while Tiles mode replaces the destination area. Both leave the clipboard unchanged.
+- **Handles** — Selecting one spawn or checkpoint zone shows its resize handles immediately. Drag a handle to resize; drag the body to move the zone. Selecting one nested map shows its endpoint handles; drag one to move just that end. Left-click and right-click produce the same selection, Properties, and handles. Alt/Option helps pick a zone or nested endpoint through overlapping objects.
+- **Cancel** — Escape cancels an active drag or placement preview; press it again to clear the selection. Changing tool, level, map geometry, or selection scope clears selection. Copy, Delete, and other selection shortcuts act on the map only while the canvas has focus; property fields keep their normal text shortcuts.
 
-## Select Tiles
-
-- **Select Tiles** — Where the editor starts. Click one tile or drag a rectangle to select tiles and their contents; empty tiles are selectable too. The blue outline marks the selection. **Levels** beside the active tool sets its upward span, starting at 1; the canvas shows the affected level count. Alt/Option-click a spawn zone to select it, then drag its handles normally to resize it or Alt/Option-drag its body to move it. Right-clicking a spawn zone also selects it. Alt/Option-drag a nested map's end square to move that end. In every tool, right-click an element to edit its properties or erase it.
-- **Copy / Cut / Delete** — Available in Edit and the selection's right-click menu. They immediately use the Select tool’s visible **Levels** value, starting at the current level and going upward. Copy and Cut put the entire block on the clipboard. Cut and Delete remove it. Walls, barriers, and equipment erasers on the rectangle's border are included. Include whole spawn zones, ramp footprints, ladder anchors and spans, and both ends of nested-map motion; a partial object prompts you to enlarge the selection. Removing a boundary wall with a light on its other side also needs that tile selected.
-- **Paste** — Select the destination tile (or a rectangle whose top-left tile is the destination), then paste. The dashed outline previews the footprint to replace; its label shows the tile dimensions and level count. Paste replaces visible, unlocked contents, including empty cells in the copied block, starting on the current level. Missing levels are added at the top. A block outside the grid is refused, and incompatible map kinds are reported. The clipboard works across open maps and editor windows. Cut, Delete, and Paste each undo in one step; Delete leaves the clipboard unchanged.
-
-- **Move / Duplicate** — Drag inside the selected rectangle to move its contents. **Duplicate** (`Ctrl/Cmd+D`) keeps the source and starts a placement preview. Position the preview and click to place; Escape cancels. These operations replace the destination’s visible, unlocked contents and leave the clipboard unchanged.
 - **Rotate / Mirror** — Use the Select toolbar, Edit menu, or selection’s right-click menu. Rotate turns clockwise by 90°; horizontal and vertical mirrors flip left/right and top/bottom. Place the preview to commit one undoable edit. Directional materials, ramps, lights, ladders, and nested motion transform together; a square ramp cannot turn, since its slope always runs north-south, so rotating a block that holds one is refused. Nested geometry receives a transformed copy so other placements keep their original definition; include each nested footprint at both motion ends.
 
 ## Jump Reach
@@ -71,9 +70,9 @@ Choose a tool in the left palette. **Place / Erase** switches between placing th
 
 ## Checkpoints
 
-A checkpoint is a rectangle of flat accessible floor that players respawn in once they have landed in it. Checkpoints may overlap spawn zones but not each other; Map Issues reports overlaps and cells without flat floor.
+A checkpoint is a rectangle of flat accessible floor that players respawn in once they have landed in it. Checkpoints may overlap spawn zones but not each other; Map → Check Map reports overlaps and cells without flat floor.
 
-- **Checkpoint** — Choose Type in the toolbar, then drag a rectangle. Individual saves the entrant's own respawn point, Group — any saves everyone's when one player enters, and Group — all waits until every player has visited. Alt-drag moves or resizes a checkpoint like a spawn zone; right-click it to change its type or erase it.
+- **Checkpoint** — Choose Type in the toolbar, then drag a rectangle. Individual saves the entrant's own respawn point, Group — any saves everyone's when one player enters, and Group — all waits until every player has visited. Select it to move it, resize with its handles, or change its type in Properties; Delete removes it.
 - **Erase Checkpoints** — Drag a rectangle to remove every checkpoint it touches on the current level.
 
 ## Walls
@@ -88,12 +87,12 @@ A checkpoint is a rectangle of flat accessible floor that players respawn in onc
 
 ## Barriers
 
-- **Barrier** — Choose Kind and **Controls…** in the toolbar, then drag along grid lines. Controls choose a pressure plate kind and whether to open when it is On or Off. Every barrier also accepts its matching key automatically. Right-click to edit a barrier; **Edit → Edit Selected Barriers** applies chosen properties to the selected tiles on this level.
+- **Barrier** — Choose Kind and **Controls…** in the toolbar, then drag along grid lines. Controls choose a pressure plate kind and whether to open when it is On or Off. Every barrier also accepts its matching key automatically. Select one or more barriers to edit their shared Properties.
 - **Erase Barriers** — Drag a rectangle to remove every barrier edge inside or on its border.
 
 ## Light Bridges
 
-- **Light Bridge** — Choose Kind and **Controls…** in the toolbar, then drag cells. Controls choose a pressure plate kind and whether the walkway is powered when it is On or Off; without an assignment it is unpowered. Right-click to edit a bridge; **Edit → Edit Selected Light Bridges** applies chosen properties to the selected tiles on this level. Bridges cannot share cells with floors or ramps.
+- **Light Bridge** — Choose Kind and **Controls…** in the toolbar, then drag cells. Controls choose a pressure plate kind and whether the walkway is powered when it is On or Off; without an assignment it is unpowered. Select one or more bridges to edit their shared Properties. Bridges cannot share cells with floors or ramps.
 - **Erase Light Bridges** — Drag a rectangle to remove every light bridge inside it on the current level.
 
 ## Ramps
@@ -107,24 +106,26 @@ A checkpoint is a rectangle of flat accessible floor that players respawn in onc
 
 - **Create / Rename / Delete** — Edit → New Nested Map creates named geometry in the parent file and selects it for editing. Rename Nested Map updates every placement of that name. Delete Nested Map removes an unused definition; erase its placements first if it is in use. All three actions can be undone.
 
-- **Nested Map** — Click a cell to place named nested geometry with its cell (0, 0) on it, standing still; drag to a second cell to make it slide there and back. A moving tile is a nested one-cell map (`tile`), and a lift is one whose far end is on another level. Placement reuses the motion configured under the toolbar's **Settings…** (the first placement opens it): which map (any other file in `config/server/maps`), the level of the far end, how long one leg takes, the pause at each end, a phase offset, a nudge for each end, its (x, y, z) displacement from the anchor, x and z in wall widths (across columns and rows) and y in floor widths (up), zero by default, and optionally a pressure plate kind and On/Off response that runs the motion; it freezes otherwise; two floors meeting at a grid line overlap by one wall width, so a nudge of 1.01 back along the travel leaves them just clear. Everything in the nested map rides along: floors, walls, ladders, plates, items, and its own nested maps. On the canvas the ends are numbered squares 1 and 2 with a band between them, and the nested map's footprint is outlined and named where it rests at each end, its nudge applied, solid where it starts and dashed where it arrives (a y nudge cannot be drawn on the plan, so it is written after the name); a red `name?` is a missing geometry definition. Nothing checks for overlap with the map around it. Dragging from an end moves that end, clicking an end opens the entry's properties, and right-clicking an end offers the same in any tool, beside Erase.
+- **Nested Map** — Click a cell to place named nested geometry with its cell (0, 0) on it, standing still; drag to a second cell to make it slide there and back. A moving tile is a nested one-cell map (`tile`), and a lift is one whose far end is on another level. Placement reuses the motion configured under the toolbar's **Settings…** (the first placement opens it): which map (any other file in `config/server/maps`), the level of the far end, how long one leg takes, the pause at each end, a phase offset, a nudge for each end, its (x, y, z) displacement from the anchor, x and z in wall widths (across columns and rows) and y in floor widths (up), zero by default, and optionally a pressure plate kind and On/Off response that runs the motion; it freezes otherwise; two floors meeting at a grid line overlap by one wall width, so a nudge of 1.01 back along the travel leaves them just clear. Everything in the nested map rides along: floors, walls, ladders, plates, items, and its own nested maps. On the canvas the ends are numbered squares 1 and 2 with a band between them, and the nested map's footprint is outlined and named where it rests at each end, its nudge applied, solid where it starts and dashed where it arrives (a y nudge cannot be drawn on the plan, so it is written after the name); a red `name?` is a missing geometry definition. Nothing checks for overlap with the map around it. Use Select to move a whole nested map or drag one of its endpoint handles to move just that end. Clicking and right-clicking use the same selection and Properties. The Nested Map placement tool creates a new placement; an occupied starting anchor is refused.
 - **Erase Nested Maps** — Drag a rectangle to remove every nested map whose start or end cell on the current level is inside it.
 
 ## Ladders
 
-- **Ladder** — Set Storeys in the toolbar, then click the cell where the ladder's rails should stand, near the edge it climbs; the hover ghost previews it under the cursor. The span starts at the current level and is capped at the map's top level. Ladders are climbable from both sides and block walking through below their top; no wall or floor is required — a ladder can stand at an open balcony front. Right-click a ladder on any level it spans to change its Storeys while keeping its base; overlapping another ladder is refused. Click an existing ladder (from either side of its edge) to remove it.
+- **Ladder** — Set Storeys in the toolbar, then click the cell where the ladder's rails should stand, near the edge it climbs; the hover ghost previews it under the cursor. The span starts at the current level and is capped at the map's top level. Ladders are climbable from both sides and block walking through below their top; no wall or floor is required — a ladder can stand at an open balcony front. Right-click a ladder on any level it spans to change its Storeys while keeping its base; overlapping another ladder is refused. Placing on an existing ladder leaves it unchanged. Select it and press Delete, or use Erase Ladders, to remove it.
+Selecting a ladder highlights its rails and rungs on the climbing side of the edge. Move and duplicate previews follow that same shape.
+
 - **Erase Ladders** — Drag a rectangle to remove every ladder whose anchor edge is inside it and whose span touches the current level.
 
 ## Materials
 
 Right-click a floor, blocked floor, wall, or ramp to edit that element's materials. A ramp can be edited from either level it connects.
 
-Faces with different materials across the selection start at **Mixed / leave unchanged**. Those faces keep their individual values unless you choose a material; **Apply Top to all faces** uses the Top choice for every face.
-**Use top-left materials** fills all six fields from the topmost, then leftmost selected floor, wall, or ramp, independently of file order or drag direction. You can adjust the fields before pressing OK; Cancel leaves the map unchanged.
+Faces with different materials across the selection start at **Mixed / unchanged**. Those faces keep their individual values unless you choose a material; **Apply Top to all faces** uses the Top choice for every face.
+**Use top-left materials** fills all six fields from the topmost, then leftmost selected floor, wall, or ramp, independently of file order or drag direction. Adjust the fields before pressing **Apply**; **Revert** discards unapplied changes.
 
-- **Floor Material** — Click a single floor cell, or drag a rectangle to cover many; the dialog assigns materials to every face.
-- **Wall Material** — Click a single wall to select it, or drag along grid lines to span many; the dialog assigns materials to every face.
-- **Ramp Material** — Click any cell of a ramp, or drag a rectangle covering one or more ramps; the dialog assigns materials to every face.
+- **Floor Material** — Click a single floor cell, or drag a rectangle to cover many; Properties edits the selected faces.
+- **Wall Material** — Click a single wall to select it, or drag along grid lines to span many; Properties edits the selected faces.
+- **Ramp Material** — Click any cell of a ramp, or drag a rectangle covering one or more ramps; Properties edits the selected faces.
 
 ## Lights
 
@@ -160,7 +161,6 @@ Barriers, bridges, actor zones, and moving nested maps choose one pressure plate
 | `Page Up` / `Page Down` | Next / previous level, including while editing number boxes |
 | `←` / `→` | Previous / next palette tool, with canvas focus |
 | `E` | Toggle Place / Erase for the selected element, with canvas focus |
-| `Ctrl/Cmd+K` | Find tool, including erase operations |
 | `I` | Sample the element under the cursor, with canvas focus |
 | `Ctrl/Cmd+D` | Preview a duplicate of the selection |
 | `M` | Toggle Show Material Overlay |
@@ -170,16 +170,19 @@ Barriers, bridges, actor zones, and moving nested maps choose one pressure plate
 | Wheel / touch surface / Space-drag / middle-drag | Pan |
 | Shift-wheel | Pan horizontally |
 | `F` | Fit the whole map |
+| `Enter` | Focus Properties for the selection, with canvas focus |
 | `Ctrl/Cmd+Z` | Undo |
 | `Ctrl/Cmd+Shift+Z` | Redo |
-| `Ctrl/Cmd+C` | Copy selected tiles across the chosen level span |
-| `Ctrl/Cmd+X` | Cut selected tiles across the chosen level span |
-| `Ctrl/Cmd+V` | Replace destination with copied block |
-| `Delete` / `Backspace` | Delete selected tiles across the chosen level span |
-| `Ctrl/Cmd+A` | Select all tiles |
-| `Esc` | Clear selection / cancel the current drag |
-| `Alt/Option` + click/drag | Select or move a spawn zone; move a nested-map end |
-| Drag a selected spawn zone's handle | Resize the zone |
+| `Ctrl/Cmd+C` | Copy selected objects or tiles |
+| `Ctrl/Cmd+X` | Cut selected objects or tiles |
+| `Ctrl/Cmd+V` | Paste objects or replace copied tile area |
+| `Delete` / `Backspace` | Delete selected objects or tiles |
+| `Ctrl/Cmd+A` | Select all objects or tiles |
+| `Esc` | Cancel an active drag or preview; otherwise clear selection |
+| `Shift` + click/drag | Toggle one object / add a rectangle of objects |
+| `Alt/Option` + click/drag | Pick a zone or nested endpoint through overlapping objects |
+| Drag a selected zone's handle | Resize the zone |
+| Drag a selected nested map's endpoint handle | Move that endpoint |
 | `Ctrl/Cmd+N` | New map |
 | `Ctrl/Cmd+O` | Open |
 | `Ctrl/Cmd+S` | Save |

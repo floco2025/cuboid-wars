@@ -2,9 +2,9 @@ import copy
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
-from PySide6.QtCore import QPointF
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QComboBox
 
 from editor_fixtures import EditorHost, WindowTestCase, floor
@@ -14,6 +14,7 @@ from map_editor.constants import (
     HIT_CHECKPOINT,
     HIT_SPAWN_ZONE,
     MODE_CHECKPOINT,
+    MODE_SELECT,
     MODE_ERASE_CHECKPOINTS,
     MODE_ERASE_SPAWN_ZONES,
 )
@@ -158,10 +159,13 @@ class CheckpointWindowTests(WindowTestCase):
         self.assertEqual(
             window.map_data["checkpoints"], [{"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual"}]
         )
-        window.set_selected_spawn_zone(ZoneRef("checkpoints", 0))
-        self.assertTrue(window.begin_spawn_zone_drag(QPointF(2, 2)))
-        window.update_spawn_zone_edit_drag(QPointF(3, 3))
-        window.commit_spawn_zone_edit_drag()
+        window.set_mode(MODE_SELECT)
+        self.click(1, 1)
+        canvas = window.canvas
+        start = canvas.viewport.from_grid(QPointF(2, 2)).toPoint()
+        end = canvas.viewport.from_grid(QPointF(3, 3)).toPoint()
+        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=start)
+        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=end)
         self.assertEqual(window.map_data["checkpoints"][0]["cols"], [1, 3])
         window.undo_stack.undo()
         self.assertEqual(window.map_data["checkpoints"][0]["cols"], [1, 2])
@@ -184,14 +188,17 @@ class CheckpointWindowTests(WindowTestCase):
         self.assertEqual(window.map_data["checkpoints"][0]["type"], "group_any")
         window.set_selected_spawn_zone(ZoneRef("checkpoints", 0))
         self.assertTrue(window.selected_spawn_zone_has_fields())
-        with patch("map_editor.spawn_zones.QInputDialog.getItem", return_value=("Group — all", True)):
-            window.edit_selected_spawn_zone_fields()
+        window.edit_selected_spawn_zone_fields()
+        self.set_property("type", "group_all")
+        window.properties_panel.apply_button.click()
         self.assertEqual(window.map_data["checkpoints"][0]["type"], "group_all")
-        self.assertEqual(box.currentData(), "group_all")
+        self.assertEqual(window.recent_checkpoint_type, "group_any")
         window.undo_stack.undo()
         self.assertEqual(window.map_data["checkpoints"][0]["type"], "group_any")
         window.undo_stack.redo()
         self.assertEqual(window.map_data["checkpoints"][0]["type"], "group_all")
-        with patch("map_editor.spawn_zones.QInputDialog.getItem", return_value=("Individual", False)):
-            window.edit_selected_spawn_zone_fields()
+        window.set_selected_spawn_zone(ZoneRef("checkpoints", 0))
+        window.edit_selected_spawn_zone_fields()
+        self.set_property("type", "individual")
+        window.properties_panel.rebuild()
         self.assertEqual(window.map_data["checkpoints"][0]["type"], "group_all")

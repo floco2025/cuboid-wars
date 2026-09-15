@@ -33,6 +33,7 @@ from .constants import (
 )
 from .dialogs import ActorSpawnFieldsDialog, MotionDialog
 from .display import portal_label
+from .compact_widgets import CompactComboBox
 from .spawn_counts import actor_count_preview, actor_count_summary
 
 
@@ -122,7 +123,7 @@ class ToolSettings(QWidget):
             return caption
 
         def combo(label, attribute, values, editable=False, required=False):
-            box = QComboBox()
+            box = CompactComboBox()
             if not required:
                 box.addItem("")
             box.addItems(values)
@@ -162,7 +163,7 @@ class ToolSettings(QWidget):
             field(label, box)
 
         def checkpoint_controls():
-            box = QComboBox()
+            box = CompactComboBox()
             for kind, label in CHECKPOINT_TYPE_LABELS.items():
                 box.addItem(label, kind)
             box.setCurrentIndex(box.findData(window.recent_checkpoint_type))
@@ -218,6 +219,14 @@ class ToolSettings(QWidget):
             form.addWidget(button)
 
         def selection_controls():
+            scope = CompactComboBox()
+            scope.setMinimumContentsLength(7)
+            scope.addItems(["Objects", "Tiles"])
+            scope.setCurrentText(window.selection_kind)
+            scope.setToolTip("Objects edits only selected objects; Tiles replaces whole areas.")
+            scope.currentTextChanged.connect(window.selection_kind_changed)
+            field("Scope", scope)
+            self.bindings.append((scope, "selection_kind"))
             levels = QSpinBox()
             levels.setRange(1, max(1, len(window.map_data["levels"]) - window.current_level))
             levels.setValue(min(window.selection_levels, levels.maximum()))
@@ -266,6 +275,7 @@ class ToolSettings(QWidget):
         if previous is not None:
             self.row.removeWidget(previous)
             previous.hide()
+            previous.setParent(None)
             previous.deleteLater()
         self.available_changed.emit(has_settings)
 

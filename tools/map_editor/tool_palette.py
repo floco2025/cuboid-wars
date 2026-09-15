@@ -23,23 +23,25 @@ from .tool_icons import tool_icon
 
 class ToolPalette(QDockWidget):
     mode_requested = Signal(str)
-    search_requested = Signal()
 
     def __init__(self, parent):
         super().__init__("Tools", parent)
         self.setObjectName("tool_palette")
         self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea)
-        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         self.tool = TOOLS[c.MODE_SELECT]
         self.mode = c.MODE_SELECT
         self.buttons = {}
+        self.grids = []
+        self.headings = []
+        self.icon_only = parent.preferences.value("tools/icons_only", False, type=bool)
         self.button_group = QButtonGroup(self)
         body = QWidget()
         layout = QVBoxLayout(body)
         layout.setContentsMargins(6, 4, 6, 6)
         layout.setSpacing(4)
         body.setStyleSheet(
-            "QToolButton[paletteTool=true] { text-align: left; padding: 4px; border: 1px solid transparent; border-radius: 4px; }"
+            "QToolButton[paletteTool=true] { text-align: left; padding: 2px; border: 1px solid transparent; border-radius: 4px; }"
             "QToolButton[paletteTool=true]:hover { background: palette(alternate-base); border-color: palette(mid); }"
             "QToolButton[paletteTool=true]:checked { background: palette(highlight); color: palette(highlighted-text); }"
             "QToolButton[paletteTool=true]:focus { border-color: palette(text); }"
@@ -53,6 +55,7 @@ class ToolPalette(QDockWidget):
         pair = QWidget()
         row = QHBoxLayout(pair)
         row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(2)
         self.place_button = QToolButton()
         self.place_button.setText("Place")
         self.erase_button = QToolButton()
@@ -88,23 +91,16 @@ class ToolPalette(QDockWidget):
             font = heading.font()
             font.setBold(True)
             heading.setFont(font)
-            heading.setContentsMargins(4, 8, 0, 0)
+            heading.setContentsMargins(4, 4, 0, 0)
+            self.headings.append(heading)
             groups_layout.addWidget(heading)
             groups_layout.addWidget(self._grid(tools))
         groups_layout.addStretch()
         scroll.setWidget(groups)
         layout.addWidget(scroll, 1)
         self.setWidget(body)
-        # Include the scroll bar width so labels still fit on small screens.
-        self.setMinimumWidth(groups.minimumSizeHint().width() + 32)
+        self.reflow()
 
-        # This button lives in the top toolbar, so tool search and the active
-        # mode remain accessible when the palette is closed.
-        self.current_button = QToolButton(parent)
-        self.current_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.current_button.setIconSize(QSize(24, 24))
-        self.current_button.setAccessibleName("Current tool; search tools")
-        self.current_button.clicked.connect(self.search_requested.emit)
         self.set_mode(c.MODE_SELECT)
 
     def _grid(self, tools) -> QWidget:
@@ -120,7 +116,7 @@ class ToolPalette(QDockWidget):
             button.setAccessibleName(tool.mode)
             button.setToolTip(tool.mode)
             button.setIcon(tool_icon(tool.mode))
-            button.setIconSize(QSize(24, 24))
+            button.setIconSize(QSize(20, 20))
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             button.setCheckable(True)
             button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -128,18 +124,16 @@ class ToolPalette(QDockWidget):
             self.button_group.addButton(button)
             self.buttons[tool.mode] = button
             grid.addWidget(button, index // 2, index % 2)
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 1)
+        self.grids.append((grid, list(tools)))
         return widget
 
     def set_mode(self, mode: str) -> None:
         self.tool = tool_for_mode(mode, self.tool.mode)
         self.mode = mode
-        button = self.buttons[self.tool.mode]
-        button.setChecked(True)
-        self.current_button.setText(mode)
-        self.current_button.setIcon(tool_icon(mode))
-        self.current_button.setToolTip(f"{mode} — Search tools")
+        self.button_group.setExclusive(False)
+        for button_mode, button in self.buttons.items():
+            button.setChecked(button_mode == self.tool.mode)
+        self.button_group.setExclusive(True)
         self.operations.setCurrentIndex(1 if self.tool.mode == c.MODE_ERASE else 0)
         self.keep_floors.setChecked(mode == c.MODE_ERASE_KEEP_FLOORS)
         for operation in (self.place_button, self.erase_button):
@@ -159,6 +153,37 @@ class ToolPalette(QDockWidget):
             self.mode_requested.emit(self.tool.mode if self.mode == self.tool.erase else self.tool.erase)
 
     def step(self, direction: int) -> None:
-        modes = tuple(TOOLS)
-        index = (modes.index(self.tool.mode) + direction) % len(modes)
+        modes = tuple(self.buttons)
+        current = modes.index(self.tool.mode) if self.tool.mode in modes else 0
+        index = (current + direction) % len(modes)
         self.mode_requested.emit(modes[index])
+
+    def set_icon_only(self, enabled):
+        self.icon_only = enabled
+        self.parent().preferences.setValue("tools/icons_only", enabled)
+        self.reflow()
+        self.parent().panel_layout.resize(self)
+
+    def reflow(self):
+        columns = 2 if self.icon_only else 1
+        self.keep_floors.setText("" if self.icon_only else "Keep floors")
+        self.place_button.setText("+" if self.icon_only else "Place")
+        self.place_button.setToolTip("Place")
+        self.erase_button.setText("−" if self.icon_only else "Erase")
+        for heading in self.headings:
+            heading.setVisible(not self.icon_only)
+        for grid, tools in self.grids:
+            for tool in tools:
+                grid.removeWidget(self.buttons[tool.mode])
+            for index, tool in enumerate(tools):
+                button = self.buttons[tool.mode]
+                button.setToolButtonStyle(
+                    Qt.ToolButtonStyle.ToolButtonIconOnly
+                    if self.icon_only
+                    else Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+                )
+                grid.addWidget(button, index // columns, index % columns)
+            grid.setColumnStretch(0, 1)
+            grid.setColumnStretch(1, int(self.icon_only))
+
+        self.setMinimumWidth(80 if self.icon_only else 180)

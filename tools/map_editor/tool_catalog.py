@@ -12,7 +12,7 @@ class Tool:
     erase: str | None = None
 
 
-PINNED_TOOLS = (Tool(c.MODE_SELECT, "Select"), Tool(c.MODE_ERASE, "Erase"), Tool(c.MODE_SAMPLE, "Sample"))
+PINNED_TOOLS = (Tool(c.MODE_SELECT, "Select"), Tool(c.MODE_SAMPLE, "Sample"), Tool(c.MODE_ERASE, "Erase"))
 TOOL_GROUPS = (
     (
         "Build",
@@ -58,19 +58,13 @@ TOOL_GROUPS = (
 )
 TOOLS = {tool.mode: tool for tool in (*PINNED_TOOLS, *(tool for _, group in TOOL_GROUPS for tool in group))}
 # Shared erase modes retain the selected variant (blocked floor, ramp down,
-# player zone). Search uses the first variant when there is no such selection.
+# player zone). Use the first variant when there is no such selection.
 ERASE_TOOLS = {}
 for tool in TOOLS.values():
     if tool.erase:
         ERASE_TOOLS.setdefault(tool.erase, tool.mode)
 
 MODE_TO_TOOL = {mode: mode for mode in TOOLS} | ERASE_TOOLS | {c.MODE_ERASE_KEEP_FLOORS: c.MODE_ERASE}
-MODE_GROUPS = {mode: "" for mode in MODE_TO_TOOL}
-for name, group in TOOL_GROUPS:
-    for tool in group:
-        MODE_GROUPS[tool.mode] = name
-        if tool.erase:
-            MODE_GROUPS[tool.erase] = name
 
 
 def tool_for_mode(mode: str, previous: str = c.MODE_SELECT) -> Tool:

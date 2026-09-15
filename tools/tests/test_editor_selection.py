@@ -8,12 +8,12 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMessageBox
 
-from editor_fixtures import DEFAULT_ALIAS, EditorHost, WindowTestCase, nested
+from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, nested
 from map_editor.constants import MODE_ERASE, MODE_FLOOR, MODE_SELECT
 from map_editor.io import write_map
 from map_editor.normalization import canonicalize_map, empty_map
 from map_editor.regions import GLOBAL_LISTS, LEVEL_LISTS, TileRegion, copy_region, delete_region, paste_region
-from map_editor.select import CLIPBOARD_MIME
+from map_editor.selection_actions import CLIPBOARD_MIME
 from map_editor.types import ZoneRef
 
 
@@ -33,7 +33,7 @@ def furnished_block() -> dict:
         }
     )
     data["actor_spawn_zones"] = [
-        {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "beetle", "count": [2], "respawn_secs": 90}
+        {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "scuttler", "count": [2], "respawn_secs": 90}
     ]
     data["player_spawn_zones"] = [{"level": 1, "cols": [0, 1], "rows": [0, 1]}]
     data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "gold"}]
@@ -157,50 +157,78 @@ class RegionTests(unittest.TestCase):
             copy_region(data, TileRegion((0, 0, 1, 1), 0))
 
 
-class SelectHostTests(unittest.TestCase):
+class SelectHostTests(WindowTestCase):
+    def pointer(self, action, point, alternate=False):
+        position = self.window.canvas.viewport.from_grid(point).toPoint()
+        modifiers = Qt.KeyboardModifier.AltModifier if alternate else Qt.KeyboardModifier.NoModifier
+        if action == "move":
+            QTest.mouseMove(self.window.canvas, position)
+        else:
+            getattr(QTest, action)(self.window.canvas, Qt.MouseButton.LeftButton, modifiers, pos=position)
+
     def test_a_press_selects_a_spawn_zone_before_a_drag_can_move_it(self) -> None:
         data = empty_map(8, 8)
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "beetle", "count": [2], "respawn_secs": 90}
+            {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "scuttler", "count": [2], "respawn_secs": 90}
         ]
-        host = EditorHost(data, [])
+        data["player_spawn_zones"] = []
+        self.window.doc.replace_with_new(data)
+        host = self.window
         inside = QPointF(2.5, 2.5)
 
-        self.assertFalse(host.begin_select_press(inside, edit_objects=True))
+        self.pointer("mousePress", inside, alternate=True)
         self.assertEqual(host.selected_spawn_zone_ref, ZoneRef("actor_spawn_zones", 0))
-        self.assertIsNone(host.spawn_zone_drag)
+        self.assertIsNone(host.pending_block)
+        self.assertEqual(host.map_data["actor_spawn_zones"][0]["cols"], [1, 3])
+        self.pointer("mouseRelease", inside, alternate=True)
 
-        self.assertFalse(host.begin_select_press(inside, edit_objects=True))
-        self.assertEqual(host.spawn_zone_drag.handle, "move")
-        host.update_select_drag(QPointF(4.5, 2.5))
-        host.end_select_drag(None, None)
+        self.pointer("mousePress", inside, alternate=True)
+        self.assertEqual(host.canvas.input.gesture.kind, "move")
+        self.pointer("move", QPointF(4.5, 2.5))
+        self.pointer("mouseRelease", QPointF(4.5, 2.5), alternate=True)
         zone = host.map_data["actor_spawn_zones"][0]
         self.assertEqual((zone["cols"], zone["rows"]), ([3, 5], [1, 3]))
 
-        self.assertTrue(host.begin_select_press(QPointF(6.5, 6.5)))
+        self.pointer("mousePress", QPointF(6.5, 6.5))
+        self.assertEqual(host.canvas.input.gesture.kind, "box")
         self.assertIsNone(host.selected_spawn_zone_ref)
 
     def test_object_drag_moves_only_the_chosen_nested_map_end(self) -> None:
         data = empty_map(8, 8)
         data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1])]
-        host = EditorHost(data, [])
+        child = empty_map(3, 2)
+        child["player_spawn_zones"] = []
+        data["nested_geometry"] = {"cabin": child}
+        data["player_spawn_zones"] = []
+        self.window.doc.replace_with_new(data)
+        host = self.window
 
-        self.assertTrue(host.begin_select_press(QPointF(5.5, 1.5), edit_objects=True))
-        host.end_select_drag((5, 1), (5, 4))
+        self.pointer("mousePress", QPointF(5.5, 1.5), alternate=True)
+        self.assertEqual(host.canvas.input.gesture.kind, "box")
+        self.pointer("mouseRelease", QPointF(5.5, 4.5), alternate=True)
+        self.assertEqual(host.map_data["nested_maps"][0]["to"], [5, 1])
+        self.pointer("mousePress", QPointF(5.5, 1.5), alternate=True)
+        self.assertEqual(host.canvas.input.gesture.kind, "handle")
+        self.pointer("mouseRelease", QPointF(5.5, 4.5), alternate=True)
         entry = host.map_data["nested_maps"][0]
         self.assertEqual((entry["from"], entry["to"]), ([1, 1], [5, 4]))
-        host.end_select_drag((5, 4), (5, 4))
+        self.pointer("mouseRelease", QPointF(5.5, 4.5), alternate=True)
         self.assertEqual(host.map_data["nested_maps"][0]["to"], [5, 4])
-        self.assertTrue(host.begin_select_press(QPointF(3.5, 3.5)))
+        self.pointer("mousePress", QPointF(3.5, 3.5))
+        self.assertEqual(host.canvas.input.gesture.kind, "box")
 
 
 class SelectionWindowTests(WindowTestCase):
+    def setUp(self):
+        super().setUp()
+        self.window.selection_kind_changed("Tiles")
+
     def test_click_and_reverse_drag_select_tiles_and_enable_menus(self):
         window = self.window
         self.assertEqual(window.mode, MODE_SELECT)
         self.assertFalse(window.copy_action.isEnabled())
         self.click(1, 1)
-        self.assertEqual(window.tile_selection, (1, 1, 2, 2))
+        self.assertEqual(window.selection.area.rect, (1, 1, 2, 2))
         self.assertTrue(window.copy_action.isEnabled())
         self.assertTrue(window.cut_action.isEnabled())
         self.assertTrue(window.delete_action.isEnabled())
@@ -208,7 +236,7 @@ class SelectionWindowTests(WindowTestCase):
         size = window.canvas.cell_size()
         QTest.mousePress(window.canvas, Qt.MouseButton.LeftButton, pos=QPoint(round(4.5 * size), round(3.5 * size)))
         QTest.mouseRelease(window.canvas, Qt.MouseButton.LeftButton, pos=QPoint(round(2.5 * size), round(1.5 * size)))
-        self.assertEqual(window.tile_selection, (2, 1, 5, 4))
+        self.assertEqual(window.selection.area.rect, (2, 1, 5, 4))
         self.assertFalse(window.dirty)
 
     def test_copy_cut_paste_delete_and_undo_keep_clipboard_and_saved_state_correct(self):
@@ -296,9 +324,9 @@ class SelectionWindowTests(WindowTestCase):
             QTest.keyClick(self.window.canvas, Qt.Key.Key_Backspace)
             prompt.assert_not_called()
         QTest.keySequence(self.window.canvas, QKeySequence(QKeySequence.StandardKey.SelectAll))
-        self.assertEqual(self.window.tile_selection, (0, 0, 8, 8))
+        self.assertEqual(self.window.selection.area.rect, (0, 0, 8, 8))
         QTest.keyClick(self.window.canvas, Qt.Key.Key_Escape)
-        self.assertIsNone(self.window.tile_selection)
+        self.assertTrue(self.window.selection.empty)
         self.assertFalse(self.window.delete_action.isEnabled())
 
     def test_escape_cancels_an_erase_drag_before_release(self):
@@ -339,7 +367,7 @@ class SelectionWindowTests(WindowTestCase):
         other = Path(self.temp.name) / "obby" / "layout.json"
         write_map(other, empty_map(8, 8))
         self.window.load_path(other)
-        self.assertIsNone(self.window.tile_selection)
+        self.assertTrue(self.window.selection.empty)
         self.assertEqual(self.window.tile_clipboard, block)
         self.assertFalse(self.window.paste_action.isEnabled())
         self.click(4, 4)

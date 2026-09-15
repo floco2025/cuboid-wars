@@ -1,4 +1,4 @@
-"""Selection inspection, sampling, and protected edits for the editor window."""
+"""Selection inspection and sampling for the editor window."""
 
 import copy
 
@@ -6,81 +6,11 @@ from PySide6.QtCore import QPointF
 from PySide6.QtGui import QCursor
 
 from . import constants as c
-from .elements import ELEMENT_MODES, filtered_map, refs_for_hit, refs_in_region, restore_excluded
+from .elements import ELEMENT_MODES, refs_for_hit
 from .nesting import NestedMotion
-from .regions import TileRegion
-from .transforms import record_lists
 
 
 class WorkflowMixin:
-    def editable_map_data(self):
-        return filtered_map(self.map_data, self.element_filters.excluded)
-
-    def visible_map_data(self):
-        return filtered_map(self.map_data, self.element_filters.hidden)
-
-    def element_filters_changed(self):
-        self.cancel_interaction()
-        self.selected_spawn_zone_ref = None
-        self.inspected_refs = []
-        self.refresh_inspection()
-        self.canvas._clear_hover()
-        self.canvas.update()
-        count = len(self.element_filters.excluded)
-        label = f"Elements ({count})" if count else "Elements"
-        self.element_filters.toggleViewAction().setText(label)
-        self.elements_action.setText(label)
-
-    def protect_change(self, after, *, validate_dependencies=True):
-        excluded = self.element_filters.excluded
-        if not excluded:
-            return after
-        if (after["grid_cols"], after["grid_rows"]) != (self.map_data["grid_cols"], self.map_data["grid_rows"]):
-            raise ValueError("Show and unlock all element types before resizing the map.")
-        protected = restore_excluded(self.map_data, after, excluded)
-        if protected != self.map_data and validate_dependencies:
-            before = {issue.identity() for issue in self.validate(self.map_data).issues}
-            errors = [issue.message for issue in self.validate(protected).issues if issue.identity() not in before]
-            if errors:
-                raise ValueError("This edit would affect hidden or locked elements. Show and unlock them first.")
-        elif protected == self.map_data and after != self.map_data:
-            self.notify("The affected element types are hidden or locked.")
-        # Both sides canonical: the loaded lists keep their authored order.
-        final_lists = dict(record_lists(self.doc.maintain(protected)))
-        current_lists = record_lists(self.doc.maintain(self.map_data))
-        if any(entries != final_lists.get(key, []) for key, entries in current_lists if key[1] in excluded):
-            raise ValueError("This edit would affect hidden or locked elements. Show and unlock them first.")
-        return protected
-
-    def selection_region(self):
-        if self.tile_selection is None:
-            return None
-        return TileRegion(self.tile_selection, self.current_level, self.selection_levels)
-
-    def selection_scope_changed(self, levels):
-        self.cancel_interaction()
-        self.selection_levels = levels
-        self.inspected_refs = []
-        self.refresh_inspection()
-        self.canvas.update()
-
-    def inspect_hit(self, hit):
-        self.inspected_refs = refs_for_hit(self.map_data, self.current_level, hit)
-        self.refresh_inspection(show=True)
-
-    def refresh_inspection(self, *, show=False):
-        if not hasattr(self, "properties_panel"):
-            return
-        region = self.selection_region()
-        refs = self.inspected_refs
-        if not refs and region is not None and self.mode == c.MODE_SELECT:
-            refs = refs_in_region(self.map_data, region, self.element_filters.hidden)
-        self.properties_panel.set_selection(refs)
-        self.connections_panel.set_selection(refs)
-        if show and refs:
-            self.properties_panel.show()
-            self.properties_panel.raise_()
-
     def sample_under_cursor(self):
         point = self.canvas.mapFromGlobal(QCursor.pos())
         if self.canvas.rect().contains(point):
@@ -92,7 +22,9 @@ class WorkflowMixin:
         if not refs:
             self.notify("Nothing to sample here.")
             return
-        ref = refs[0]
+        self.sample_ref(refs[0])
+
+    def sample_ref(self, ref):
         entry = ref.get(self.map_data)
         name = ref.name
         mode = ELEMENT_MODES[name]

@@ -42,14 +42,9 @@ class ItemsMixin:
         self.add_item(col, row, item_type, kind)
 
     def edit_item_at(self, col: int, row: int) -> None:
-        item = self.item_at(col, row)
-        if item is None:
-            return
-        result = ItemTypeDialog.prompt(self, "Edit Item", self.key_kinds, item["type"], item.get("kind"))
-        if result is None:
-            return
-        item_type, kind = result
-        self.add_item(col, row, item_type, kind, label="Edit Item")
+        self.open_properties_for(
+            "items", lambda entry: entry["level"] == self.current_level and (entry["col"], entry["row"]) == (col, row)
+        )
 
     def add_item(self, col: int, row: int, item_type: str, kind: str | None, label: str | None = None) -> None:
         error = item_cell_error(self.map_data, self.current_level, col, row)

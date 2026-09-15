@@ -118,10 +118,10 @@ class NestedWindowTests(WindowTestCase):
             window.texture_catalog.copy(),
             window.wall_width_cells,
         )
-        window.tile_selection = (4, 4, 5, 5)
+        window.set_tile_selection((4, 4, 5, 5))
         self.select("room")
         self.assertEqual(window.map_data["grid_cols"], 3)
-        self.assertIsNone(window.tile_selection)
+        self.assertTrue(window.selection.empty)
         self.assertFalse(window.dirty)
         self.assertEqual(
             (window.barrier_kind_colors, window.bridge_kind_colors, window.texture_catalog, window.wall_width_cells),

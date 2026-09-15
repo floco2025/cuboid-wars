@@ -3,7 +3,6 @@ for the editing mixins, and a shown editor window on a small map."""
 
 import tempfile
 import unittest
-from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -21,7 +20,9 @@ from map_editor.nested_maps import NestedMapsMixin
 from map_editor.nesting import NestedMapShape
 from map_editor.normalization import empty_map
 from map_editor.placement import PlacementMixin
-from map_editor.select import SelectMixin
+from map_editor.selection_actions import SelectionActionsMixin
+from map_editor.selection_state import SelectionMixin
+from map_editor.selection import Selection
 from map_editor.spawn_zones import SpawnZoneEditMixin
 from map_editor.window import EditorWindow
 
@@ -90,16 +91,26 @@ class StubCanvas:
         return self.cells_per_pixel(6.0)
 
 
-class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, EraseMixin, SelectMixin, SpawnZoneEditMixin):
+class EditorHost(
+    PlacementMixin,
+    ItemsMixin,
+    LightsMixin,
+    NestedMapsMixin,
+    EraseMixin,
+    SelectionMixin,
+    SelectionActionsMixin,
+    SpawnZoneEditMixin,
+):
     """The editing mixins over a plain map, or over a `MapDocument` when a
     test needs the undo history of its edits."""
 
     def __init__(self, map_data: dict | None, bridge_kinds: list[str], doc=None) -> None:
         self.doc = doc
-        self.element_filters = SimpleNamespace(hidden=set(), locked=set(), excluded=set())
+        self.selection = Selection()
         self.selection_levels = 1
+        self.selection_kind = "Objects"
+        self.clipboard_objects = False
         self.pending_block = None
-        self.inspected_refs = []
         self.sampled_materials = None
         self._map_data = map_data
         self.current_level = 0
@@ -116,11 +127,7 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
         self.recent_bridge_controls = {}
         self.key_kinds = self.barrier_kinds
         self.canvas = StubCanvas()
-        self.spawn_zone_drag = None
         self.current_material = DEFAULT_ALIAS
-        self.selected_spawn_zone_ref = None
-        self.tile_selection = None
-        self.select_drag_kind = None
         self.statuses: list[str] = []
         self.path = None
         self.recent_nested_map = None
@@ -137,10 +144,12 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
         return NESTED_SHAPES.get(name)
 
     def apply_change(self, label: str, after: dict) -> None:
+        before = self.map_data
         if self.doc is None:
             self._map_data = after
         else:
             self.doc.apply_change(label, after)
+        self.selection = self.selection.refreshed(before, self.map_data)
 
     def notify(self, message: str) -> None:
         self.statuses.append(message)
@@ -150,12 +159,6 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
 
     def refresh_inspection(self, **kwargs):
         pass
-
-    def visible_map_data(self):
-        return self.map_data
-
-    def editable_map_data(self):
-        return self.map_data
 
 
 class WindowTestCase(unittest.TestCase):
@@ -199,6 +202,19 @@ class WindowTestCase(unittest.TestCase):
         # the process on exit.
         self.app.clipboard().clear()
         self.recents.stop()
+
+    def set_property(self, key, value):
+        from PySide6.QtWidgets import QComboBox
+
+        panel = self.window.properties_panel
+        widget = panel.widgets[(key,) if isinstance(key, str) else key]
+        if isinstance(widget, QComboBox):
+            index = widget.findData(value)
+            self.assertGreaterEqual(index, 0, (key, value))
+            widget.setCurrentIndex(index)
+        else:
+            widget.setText(str(value))
+            widget.textEdited.emit(str(value))
 
     def click(self, col, row):
         size = self.window.canvas.cell_size()

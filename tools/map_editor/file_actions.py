@@ -207,7 +207,7 @@ class FileActionsMixin:
         if not summary:
             if not quiet:
                 QMessageBox.information(
-                    self, "Map Repairs", "No automatic repairs are needed. Other issues can be edited from Map Issues."
+                    self, "Map Repairs", "No automatic repairs are needed. Use Map → Check Map for other issues."
                 )
             return
         box = QMessageBox(self)

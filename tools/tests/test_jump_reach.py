@@ -184,7 +184,7 @@ class JumpReachWindowTests(WindowTestCase):
         self.select_origin()
         overlay = self.window.jump_reach
         self.assertTrue(overlay.controls.isVisible())
-        self.assertIs(overlay.controls.parentWidget(), self.window.tool_palette.current_button.parentWidget())
+        self.assertIs(overlay.controls.parentWidget(), self.window.map_combo.parentWidget())
         results = overlay.results
         overlay.margin.setValue(0.123)
         self.assertAlmostEqual(overlay.margin.value(), 0.123)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QTimer
@@ -12,7 +11,7 @@ from PySide6.QtGui import (
     QShortcut,
     QUndoStack,
 )
-from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
+from PySide6.QtWidgets import QLabel, QMainWindow, QMenu, QToolBar
 
 from .canvas import CLICK_TOOLS, Canvas
 from .canvas_scroll import CanvasScrollArea
@@ -27,7 +26,6 @@ from .control_actions import ControlActionsMixin
 from .constants import (
     DEFAULT_ACTOR_COUNT,
     DEFAULT_ACTOR_RESPAWN_SECS,
-    ERASE_MODES,
     ITEM_TYPES,
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
@@ -37,7 +35,7 @@ from .dependencies import MapDependencies
 from .document import MapDocument
 from .erase_tools import EraseMixin
 from .file_actions import FileActionsMixin
-from .issues import IssuesPanel
+from .issues import IssuesDialog
 from .items import ItemsMixin
 from .jump_reach_overlay import JumpReachOverlay
 from .ladders import LaddersMixin
@@ -48,21 +46,22 @@ from .nesting import NestedMotion
 from .normalization import level_label
 from .placement import PlacementMixin
 from .run_time_overlay import RunTimeOverlay
-from .select import SelectMixin
+from .selection_actions import SelectionActionsMixin
+from .selection_state import SelectionMixin
+from .selection import Selection
 from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
 from .tool_settings import ToolSettings
-from .element_filters import ElementFilters
 from .workflow import WorkflowMixin
 from .selection_transfer import SelectionTransferMixin
 from .selection_properties import SelectionProperties
-from .plate_connections import PlateConnections
-from .tool_catalog import ERASE_TOOLS, MODE_TO_TOOL
+from .plate_connections import ConnectionOverlay
+from .tool_catalog import MODE_TO_TOOL
 from .tool_palette import ToolPalette
-from .tool_search import ToolSearch
-from .types import SpawnZoneDrag, ZoneRef
 from .validation import ValidationErrors, placed_definitions, plated_switches, validate_document, validate_map
 from .window_geometry import WindowGeometry
+from .panel_layout import PanelLayout
+from .compact_widgets import CompactComboBox
 
 
 class EditorWindow(
@@ -78,7 +77,8 @@ class EditorWindow(
     NestedMapsMixin,
     EraseMixin,
     StructureMixin,
-    SelectMixin,
+    SelectionMixin,
+    SelectionActionsMixin,
     SpawnZoneEditMixin,
     QMainWindow,
 ):
@@ -96,8 +96,9 @@ class EditorWindow(
         self.current_material = ""
         self.sampled_materials = None
         self.selection_levels = 1
+        self.selection_kind = "Objects"
+        self.clipboard_objects = False
         self.pending_block = None
-        self.inspected_refs = []
         self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
         self.actor_kinds = load_actor_kinds()
         self.wall_light_kinds = load_wall_light_kinds()
@@ -139,11 +140,8 @@ class EditorWindow(
         # is pending; canvas paints these as ghosts. `None` outside the
         # preview window.
         self.pending_auto_lights: tuple[int, list[dict]] | None = None
-        self.selected_spawn_zone_ref: ZoneRef | None = None
-        self.spawn_zone_drag: SpawnZoneDrag | None = None
-        self.tile_selection: tuple[int, int, int, int] | None = None
+        self.selection = Selection()
         self.tile_clipboard: dict | None = None
-        self.select_drag_kind: str | None = None
         self.show_material_overlay = False
         self.show_roam_extensions = False
         # Show prev/next level geometry as ghosted overlays — helps when
@@ -156,40 +154,22 @@ class EditorWindow(
         self.setCentralWidget(self.canvas_scroll)
         self.setWindowTitle("Cuboid Wars Editor")
 
-        self.map_combo = QComboBox()
+        self.map_combo = CompactComboBox()
         self.map_combo.setAccessibleName("Map geometry")
         self.map_combo.currentIndexChanged.connect(self.select_map)
-        self.level_combo = QComboBox()
+        self.level_combo = CompactComboBox()
         self.level_combo.currentIndexChanged.connect(self.select_level)
         self.tool_palette = ToolPalette(self)
         self.tool_palette.mode_requested.connect(self.activate_tool)
-        self.tool_palette.search_requested.connect(self.find_tool)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.tool_palette)
-        self.tool_palette.setVisible(self.preferences.value("tools/palette_visible", True, type=bool))
-        self.tool_search = ToolSearch(self)
-        self.tool_search.mode_requested.connect(self.activate_tool)
-        self.tool_search.finished.connect(self.focus_canvas)
-        self.issues_panel = IssuesPanel(self)
-        self.issues_panel.focused.connect(self.focus_issue)
-        self.issues_panel.repair_requested.connect(self.review_repairs)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.issues_panel)
-        self.issues_panel.hide()
-        self.element_filters = ElementFilters(self)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.element_filters)
-        self.tabifyDockWidget(self.tool_palette, self.element_filters)
-        self.element_filters.hide()
-        self.element_filters.changed.connect(self.element_filters_changed)
+        self.issues_dialog = IssuesDialog(self)
+        self.issues_dialog.focused.connect(self.focus_issue)
+        self.issues_dialog.repair_requested.connect(self.review_repairs)
         self.properties_panel = SelectionProperties(self)
-        self.connections_panel = PlateConnections(self)
-        for panel in (self.properties_panel, self.connections_panel):
-            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, panel)
-        self.tabifyDockWidget(self.properties_panel, self.connections_panel)
-        self.properties_panel.hide()
-        self.connections_panel.hide()
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.properties_panel)
+        self.connection_overlay = ConnectionOverlay(self)
+        self.tool_palette.raise_()
         self.tool_settings = ToolSettings(self)
-        self.issues_action = QAction("Issues", self)
-        self.issues_action.triggered.connect(self.issues_panel.show)
-        self.issues_action.setVisible(False)
 
         self.jump_reach = JumpReachOverlay(self)
         self.run_time = RunTimeOverlay(self)
@@ -202,6 +182,7 @@ class EditorWindow(
         self.refresh_ui()
         self.layout().activate()
         self.window_geometry = WindowGeometry(self, self.preferences)
+        self.panel_layout = PanelLayout(self)
         self.canvas.fit_map()
 
         # Writes the recovery copy while the map is dirty, so a crash loses
@@ -326,8 +307,6 @@ class EditorWindow(
             return Qt.CursorShape.ArrowCursor
         if mode in CLICK_TOOLS:
             return Qt.CursorShape.PointingHandCursor
-        if mode in ERASE_MODES or mode in ERASE_TOOLS:
-            return Qt.CursorShape.ForbiddenCursor
         return Qt.CursorShape.CrossCursor
 
     def build_menus(self) -> None:
@@ -354,7 +333,6 @@ class EditorWindow(
         edit_menu.addAction(redo_action)
         edit_menu.addSeparator()
         self.build_selection_actions(edit_menu)
-        self.find_tool_action = self.add_menu_action(edit_menu, "Find &Tool...", QKeySequence("Ctrl+K"), self.find_tool)
         self.add_menu_action(edit_menu, "Review &Repairs...", None, self.review_repairs)
         edit_menu.addSeparator()
         self.add_menu_action(edit_menu, "New Nested Map...", None, self.new_nested_map)
@@ -384,11 +362,15 @@ class EditorWindow(
         fit_action = self.add_menu_action(view_menu, "&Fit Map", QKeySequence("F"), self.canvas.fit_map)
         self.canvas_shortcut(fit_action)
         view_menu.addSeparator()
-        view_menu.addAction(self.tool_palette.toggleViewAction())
-        view_menu.addAction(self.element_filters.toggleViewAction())
-        view_menu.addAction(self.properties_panel.toggleViewAction())
-        view_menu.addAction(self.connections_panel.toggleViewAction())
-        view_menu.addAction(self.issues_panel.toggleViewAction())
+        self.tool_icons_action = QAction("Tool Icons Only", self)
+        self.tool_icons_action.setCheckable(True)
+        self.tool_icons_action.setChecked(self.tool_palette.icon_only)
+        self.tool_icons_action.toggled.connect(self.tool_palette.set_icon_only)
+        view_menu.addAction(self.tool_icons_action)
+        self.connections_action = QAction("Show &Connections", self)
+        self.connections_action.setCheckable(True)
+        self.connections_action.toggled.connect(self.connection_overlay.set_enabled)
+        view_menu.addAction(self.connections_action)
         self.material_overlay_action = QAction("Show &Material Overlay", self)
         self.material_overlay_action.setCheckable(True)
         self.material_overlay_action.setShortcut(QKeySequence("M"))
@@ -418,6 +400,7 @@ class EditorWindow(
         self.add_shortcut(Qt.Key.Key_Right, self.next_tool)
         self.add_shortcut(Qt.Key.Key_E, self.tool_palette.toggle_erase)
         self.add_shortcut(Qt.Key.Key_I, self.sample_under_cursor)
+        self.add_shortcut(Qt.Key.Key_Return, lambda: self.refresh_inspection(show=True))
 
     def add_shortcut(self, key, callback) -> None:
         shortcut = QShortcut(QKeySequence(key), self.canvas)
@@ -437,6 +420,9 @@ class EditorWindow(
         menu.addAction(action)
         return action
 
+    def createPopupMenu(self):
+        return None
+
     def build_toolbar(self) -> None:
         toolbar = QToolBar("Tools", self)
         toolbar.setMovable(False)
@@ -446,9 +432,6 @@ class EditorWindow(
         toolbar.addWidget(QLabel("Level "))
         toolbar.addWidget(self.level_combo)
         toolbar.addSeparator()
-        self.tools_action = toolbar.addAction("Tools", lambda: self.toggle_dock(self.tool_palette))
-        self.elements_action = toolbar.addAction("Elements", lambda: self.toggle_dock(self.element_filters))
-        toolbar.addWidget(self.tool_palette.current_button)
         tool_settings_action = toolbar.addWidget(self.tool_settings)
         self.tool_settings.available_changed.connect(tool_settings_action.setVisible)
         tool_settings_action.setVisible(False)
@@ -459,19 +442,11 @@ class EditorWindow(
         self.ramp_direction_label = QLabel()
         self.ramp_direction_label.setStyleSheet("color: #fbbf24; padding: 0 8px;")
         toolbar.addWidget(self.ramp_direction_label)
-        toolbar.addAction(self.issues_action)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
         self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.jump_reach.toolbar)
         self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.run_time.toolbar)
-
-    def toggle_dock(self, dock):
-        if dock.isVisible() and not dock.visibleRegion().isEmpty():
-            dock.hide()
-        else:
-            dock.show()
-            dock.raise_()
 
     # === State updates & UI refresh ===
 
@@ -481,36 +456,16 @@ class EditorWindow(
             self.clear_selection()
             self.current_level = 0
         self.displayed_map = self.doc.active_map
-        self.inspected_refs = []
+        self.selection = self.selection.refreshed(before, self.map_data)
         self.cancel_interaction()
         self.canvas.issue_rects = []
-        prior_selection: tuple[str, dict] | None = None
-        if self.selected_spawn_zone_ref is not None:
-            ref = self.selected_spawn_zone_ref
-            if 0 <= ref.index < len(before[ref.list_name]):
-                prior_selection = (ref.list_name, copy.deepcopy(before[ref.list_name][ref.index]))
-        if self.tile_selection is not None:
-            c0, r0, c1, r1 = self.tile_selection
-            c1 = min(c1, self.map_data["grid_cols"])
-            r1 = min(r1, self.map_data["grid_rows"])
-            self.tile_selection = (c0, r0, c1, r1) if c0 < c1 and r0 < r1 else None
         self.current_level = max(0, min(self.current_level, len(self.map_data["levels"]) - 1))
         self.selection_levels = max(1, min(self.selection_levels, len(self.map_data["levels"]) - self.current_level))
-        if prior_selection is not None:
-            list_name, snapshot = prior_selection
-            self.selected_spawn_zone_ref = self._zone_ref_after_change(list_name, snapshot)
-        else:
-            self.selected_spawn_zone_ref = None
         self.refresh_ui()
         if switched:
             self.canvas.fit_map()
 
     def apply_change(self, label: str, after: dict) -> bool:
-        try:
-            after = self.protect_change(after)
-        except ValueError as error:
-            self.notify(str(error))
-            return False
         return self.doc.apply_change(label, after)
 
     def refresh_ui(self) -> None:
@@ -542,13 +497,16 @@ class EditorWindow(
         self.run_time.refresh()
         self.refresh_inspection()
 
+    def show_map_issues(self):
+        self.refresh_issues()
+        self.issues_dialog.show()
+        self.issues_dialog.raise_()
+        self.issues_dialog.activateWindow()
+
     def refresh_issues(self, *, validate: bool = True) -> None:
         if validate:
             errors = self.validate_document(self.doc.root_data)
-            self.issues_panel.set_issues(errors.issues)
-            self.issues_action.setText(f"Issues ({len(errors)})")
-            self.issues_action.setToolTip("\n".join(errors[:20]))
-            self.issues_action.setVisible(bool(errors))
+            self.issues_dialog.set_issues(errors.issues)
         if self.mode == MODE_RAMP_UP:
             target = self.current_level + 1
             self.ramp_direction_label.setText(f"↑ Building UP to Level {target}")
@@ -577,14 +535,12 @@ class EditorWindow(
             self.cancel_interaction()
             self.current_level = index
             self.selection_levels = min(self.selection_levels, len(self.map_data["levels"]) - index)
-            self.inspected_refs = []
+            self.selection = Selection()
             self.refresh_inspection()
+            self.update_selection_actions()
             self.tool_settings.refresh()
             self.canvas.update()
             self.refresh_issues(validate=False)
-
-    def find_tool(self) -> None:
-        self.tool_search.show_for(self.mode)
 
     def focus_canvas(self) -> None:
         self.activateWindow()
@@ -599,7 +555,7 @@ class EditorWindow(
             raise ValueError(f"Unknown editor tool: {mode}")
         self.cancel_interaction()
         self.mode = mode
-        self.inspected_refs = []
+        self.selection = Selection()
         self.refresh_inspection()
         self.tool_palette.set_mode(mode)
         self.canvas.setCursor(self.cursor_for_mode(mode))
@@ -648,7 +604,6 @@ class EditorWindow(
     def closeEvent(self, event) -> None:
         if self.confirm_discard_changes():
             self._clear_autosave()
-            self.preferences.setValue("tools/palette_visible", not self.tool_palette.isHidden())
             self.window_geometry.save()
             event.accept()
         else:

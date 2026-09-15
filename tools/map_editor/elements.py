@@ -89,11 +89,9 @@ def refs_for_hit(data, level, hit):
     return result
 
 
-def refs_in_region(data, region, excluded=()):
+def refs_in_region(data, region):
     selected = []
     for ref, entry in element_refs(data):
-        if ref.name in excluded:
-            continue
         low, high = record_levels(entry, ref.level)
         if low >= region.top or high < region.level:
             continue
@@ -106,25 +104,17 @@ def refs_in_region(data, region, excluded=()):
     return selected
 
 
-def filtered_map(data, excluded):
-    result = dict(data)
-    result["levels"] = [dict(level) for level in data["levels"]]
-    for (level, name), _ in record_lists(data):
-        if name in excluded:
-            (result if level is None else result["levels"][level])[name] = []
-    return result
-
-
-def restore_excluded(before, after, excluded):
-    # Structural edits can move protected records between levels; refusing
-    # those is safer than treating a new level index as the same layer. Level
-    # insertion and removal are refused before reaching here, so extra levels
-    # are a paste's trailing storeys, which shift nothing.
-    if excluded and len(before["levels"]) > len(after["levels"]):
-        raise ValueError("Show and unlock all element types before changing the level count.")
-    result = dict(after)
-    result["levels"] = [dict(level) for level in after["levels"]]
-    for (level, name), entries in record_lists(before):
-        if name in excluded:
-            (result if level is None else result["levels"][level])[name] = entries
-    return result
+def refs_on_grid_line(data, line, level, levels):
+    x0, y0, x1, y1 = line
+    selected = []
+    for ref, entry in element_refs(data):
+        if ref.name not in EDGE_LISTS or not level <= ref.level < level + levels:
+            continue
+        c0, r0, c1, r1 = edge_key(entry)
+        if x0 == x1:
+            touches = c0 == c1 == x0 and max(min(y0, y1), min(r0, r1)) < min(max(y0, y1), max(r0, r1))
+        else:
+            touches = r0 == r1 == y0 and max(min(x0, x1), min(c0, c1)) < min(max(x0, x1), max(c0, c1))
+        if touches:
+            selected.append(ref)
+    return selected

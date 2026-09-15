@@ -29,8 +29,8 @@ from map_editor.constants import (
     MODE_WALL,
 )
 from map_editor.dependencies import MapDependencies
-from map_editor.dialogs import ActorSpawnFieldsDialog, MaterialAssignmentDialog
-from map_editor.editing import material_values, paint_floors, update_records
+from map_editor.dialogs import ActorSpawnFieldsDialog
+from map_editor.editing import paint_floors, update_records
 from map_editor.io import write_map
 from map_editor.nesting import NestedMotion
 from map_editor.normalization import empty_map
@@ -54,9 +54,9 @@ class WindowTests(WindowTestCase):
         refused.assert_not_called()
         self.assertEqual(len(window.map_data["levels"][0]["floors"]), 3)
 
-    def test_issues_dock_starts_hidden_and_selection_scope_is_visible(self):
+    def test_panels_and_selection_scope_are_available_on_startup(self):
         window = self.window
-        self.assertFalse(window.issues_panel.isVisible())
+        self.assertFalse(window.issues_dialog.isVisible())
         self.assertTrue(window.tool_palette.isVisible())
         self.assertTrue(window.tool_settings.isVisible())
 
@@ -130,7 +130,7 @@ class WindowTests(WindowTestCase):
         window = self.window
         canvas = window.canvas
         methods = {
-            MODE_LADDER: "toggle_ladder_at",
+            MODE_LADDER: "add_ladder_at",
             MODE_LIGHT: "add_light_at",
             MODE_PRESSURE_PLATE: "prompt_and_add_pressure_plate",
             MODE_ITEM: "prompt_and_add_item",
@@ -152,7 +152,7 @@ class WindowTests(WindowTestCase):
                     place.assert_called_once_with(canvas.grid_position(end))
                 else:
                     place.assert_called_once_with(4, 4)
-                self.assertFalse(canvas.click_pending)
+                self.assertIsNone(canvas.input.gesture)
 
     def test_single_tile_placement_cancels_on_escape_tool_change_or_off_grid_release(self):
         window = self.window
@@ -171,8 +171,8 @@ class WindowTests(WindowTestCase):
                     position = QPoint(-20, -20)
                 QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=position)
                 place.assert_not_called()
-                self.assertFalse(canvas.click_pending)
-        self.assertIsNone(window.tile_selection)
+                self.assertIsNone(canvas.input.gesture)
+        self.assertTrue(window.selection.empty)
 
     def test_range_tools_still_receive_both_drag_endpoints(self):
         window = self.window
@@ -183,7 +183,7 @@ class WindowTests(WindowTestCase):
             MODE_FLOOR_MATERIAL: "assign_floor_materials_rect",
             MODE_WALL: "add_wall_line",
             MODE_RAMP_UP: "add_ramp",
-            MODE_NESTED_MAP: "drag_nested_map",
+            MODE_NESTED_MAP: "add_nested_map",
         }
         for mode, method in methods.items():
             with self.subTest(mode=mode), patch.object(window, method) as place:
@@ -255,18 +255,20 @@ class WindowTests(WindowTestCase):
         self.assertGreater(notice.height(), notice.fontMetrics().height() * 2)
         self.assertEqual(notice.text(), "Cannot place the item here. " * 12)
 
-    def test_toolbar_issues_action_only_appears_for_errors_and_opens_the_panel(self):
+    def test_issues_popup_is_available_on_request_and_updates_after_edit_and_undo(self):
         window = self.window
-        self.assertFalse(window.issues_action.isVisible())
+        panel = window.issues_dialog
+        self.assertEqual(panel.list.count(), 0)
         data = paint_floors(window.map_data, 0, (6, 5, 7, 6), "not_an_alias")
         window.apply_change("Invalid material", data)
-        self.assertTrue(window.issues_action.isVisible())
-        self.assertIn(str(window.issues_panel.list.count()), window.issues_action.text())
-        self.assertFalse(window.issues_panel.isVisible())
-        window.issues_action.trigger()
-        self.assertTrue(window.issues_panel.isVisible())
+        self.assertGreater(panel.list.count(), 0)
+        self.assertIn(str(panel.list.count()), panel.windowTitle())
+        self.assertFalse(panel.isVisible())
+        window.show_map_issues()
+        self.assertTrue(panel.isVisible())
         window.undo_stack.undo()
-        self.assertFalse(window.issues_action.isVisible())
+        self.assertEqual(panel.list.count(), 0)
+        self.assertEqual(panel.summary.text(), "No issues")
 
     def test_wheel_pan_and_selection_use_the_same_transform(self):
         canvas = self.window.canvas
@@ -291,7 +293,7 @@ class WindowTests(WindowTestCase):
         position = canvas.viewport.from_grid(QPointF(1.5, 1.5)).toPoint()
         self.assertEqual(canvas.point_to_cell(position), (1, 1))
         QTest.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=position)
-        self.assertEqual(self.window.tile_selection, (1, 1, 2, 2))
+        self.assertEqual(self.window.selection.anchor, (1, 1))
 
     def test_middle_and_space_drag_pan_without_erasing(self):
         window = self.window
@@ -348,12 +350,14 @@ class WindowTests(WindowTestCase):
         position = canvas.viewport.from_grid(QPointF(1.5, 1.5)).toPoint()
 
         def choose_erase(menu, *_):
-            action = next(a for a in menu.actions() if a.text() == "Erase Pressure Plate (a)")
+            submenu = next(a.menu() for a in menu.actions() if a.text() == "Select plate")
+            action = next(a for a in submenu.actions() if a.text() == "Pressure Plate (a)")
             action.trigger()
+            window.delete_action.trigger()
 
         menu = QMenu(canvas)
         menu.exec = lambda *_: choose_erase(menu)
-        with patch("map_editor.canvas.QMenu", return_value=menu):
+        with patch("map_editor.interaction.QMenu", return_value=menu):
             canvas.contextMenuEvent(
                 QContextMenuEvent(QContextMenuEvent.Reason.Mouse, position, canvas.mapToGlobal(position))
             )
@@ -379,63 +383,55 @@ class WindowTests(WindowTestCase):
         data = paint_floors(window.map_data, 0, (2, 1, 3, 2), second)
         data = update_records(data, "floors", lambda f: f["col"] == 1, {"top": first}, 0)
         window.apply_change("Materials", data)
-        floors = window.map_data["levels"][0]["floors"]
-        initial = material_values(floors)
-        self.assertIsNone(initial["top"])
-        dialog = MaterialAssignmentDialog(window, "Materials", "2 tiles", window.materials_catalog, initial)
-        self.assertNotIn("top", dialog.values())
-        dialog._dropdowns["north"].setCurrentText(first)
-        with patch("map_editor.placement.MaterialAssignmentDialog.prompt", return_value=dialog.values()):
-            window.assign_floor_materials_rect((1, 1), (2, 1))
+        window.assign_floor_materials_rect((1, 1), (2, 1))
+        panel = window.properties_panel
+        self.assertEqual(panel.widgets[("top",)].currentText(), "Mixed / unchanged")
+        self.set_property("north", first)
+        panel.apply_button.click()
         self.assertEqual([f["top"] for f in window.map_data["levels"][0]["floors"]], [first, second])
         self.assertTrue(all(f["north"] == first for f in window.map_data["levels"][0]["floors"]))
-        dialog.deleteLater()
 
     def test_terrain_material_editor_exposes_only_sides_and_bottom(self):
         window = self.window
-        level = copy.deepcopy(window.map_data["levels"][0])
-        level["floors"] = [floor for floor in level["floors"] if (floor["col"], floor["row"]) != (1, 1)]
-        level["terrain"] = [{"col": 1, "row": 1, **dict.fromkeys(TERRAIN_FACES, DEFAULT_ALIAS)}]
         data = copy.deepcopy(window.map_data)
-        data["levels"][0] = level
+        level = data["levels"][0]
+        level["floors"] = []
+        level["terrain"] = [{"col": 1, "row": 1, **dict.fromkeys(TERRAIN_FACES, DEFAULT_ALIAS)}]
         window.apply_change("Terrain", data)
         replacement = window.materials_catalog[1]
-
-        with patch(
-            "map_editor.placement.MaterialAssignmentDialog.prompt", return_value={"bottom": replacement}
-        ) as prompt:
-            window.edit_materials_at((HIT_TERRAIN, (1, 1)))
-
-        self.assertEqual(prompt.call_args.kwargs["faces"], TERRAIN_FACES)
+        window.edit_materials_at((HIT_TERRAIN, (1, 1)))
+        self.assertEqual(set(window.properties_panel.widgets), {(face,) for face in TERRAIN_FACES})
+        self.set_property("bottom", replacement)
+        window.properties_panel.apply_button.click()
         terrain = window.map_data["levels"][0]["terrain"][0]
         self.assertEqual(terrain["bottom"], replacement)
         self.assertNotIn("top", terrain)
 
-    def test_material_source_button_fills_each_face_without_changing_the_map(self):
+    def test_material_helpers_fill_faces_without_changing_the_map_until_apply(self):
         window = self.window
-        before = copy.deepcopy(window.map_data)
         pattern = dict(zip(FACES, window.materials_catalog[:6]))
-        dialog = MaterialAssignmentDialog(window, "Materials", "2 tiles", window.materials_catalog, {}, source=pattern)
-        self.assertEqual(dialog.values(), {})
-        dialog.source_button.click()
-        self.assertEqual(dialog.values(), pattern)
-        dialog.reject()
+        data = copy.deepcopy(window.map_data)
+        data["levels"][0]["floors"] = [
+            {"col": 1, "row": 1, **pattern},
+            {"col": 2, "row": 1, "all": DEFAULT_ALIAS},
+        ]
+        window.doc.replace_with_new(data)
+        before = copy.deepcopy(window.map_data)
+        window.assign_floor_materials_rect((1, 1), (2, 1))
+        panel = window.properties_panel
+        panel.source_button.click()
+        self.assertEqual({face: panel.widgets[(face,)].currentData() for face in FACES}, pattern)
         self.assertEqual(window.map_data, before)
-        self.assertEqual(dialog.result(), QDialog.DialogCode.Rejected)
-        dialog.deleteLater()
+        panel.apply_all_button.click()
+        self.assertTrue(all(panel.widgets[(face,)].currentData() == pattern["top"] for face in FACES))
+        self.assertEqual(window.map_data, before)
+        panel.rebuild()
+        self.assertFalse(panel.changed_keys)
+        self.assertEqual(window.undo_stack.count(), 0)
 
     def test_top_left_material_pattern_applies_to_selected_floors_and_walls_and_undoes(self):
         window = self.window
         pattern = dict(zip(FACES, window.materials_catalog[:6]))
-
-        def use_source(*args, **kwargs):
-            self.assertEqual(kwargs["source"], pattern)
-            self.assertIsNone(args[4]["bottom"])
-            dialog = MaterialAssignmentDialog(*args, **kwargs)
-            dialog.source_button.click()
-            values = dialog.values()
-            dialog.deleteLater()
-            return values
 
         for walls in (False, True):
             with self.subTest(walls=walls):
@@ -450,11 +446,12 @@ class WindowTests(WindowTestCase):
                     data["levels"][0]["inaccessible_floors"] = [{"col": 2, "row": 2, **pattern}]
                 window.doc.replace_with_new(data)
                 before = copy.deepcopy(window.map_data)
-                with patch("map_editor.placement.MaterialAssignmentDialog.prompt", side_effect=use_source):
-                    if walls:
-                        window.assign_wall_materials_rect((0, 0), (5, 5))
-                    else:
-                        window.assign_floor_materials_rect((0, 0), (5, 5))
+                if walls:
+                    window.assign_wall_materials_rect((0, 0), (5, 5))
+                else:
+                    window.assign_floor_materials_rect((0, 0), (5, 5))
+                window.properties_panel.source_button.click()
+                window.properties_panel.apply_button.click()
                 level = window.map_data["levels"][0]
                 entries = level["walls"] if walls else level["floors"] + level["inaccessible_floors"]
                 self.assertTrue(all({face: entry[face] for face in FACES} == pattern for entry in entries))
@@ -469,7 +466,7 @@ class WindowTests(WindowTestCase):
         window.recent_ladder_levels = 2
         with patch.object(QDialog, "exec", side_effect=AssertionError("Unexpected placement dialog")):
             for col in (3, 5):
-                window.toggle_ladder_at(QPointF(col + 0.5, 3.05))
+                window.add_ladder_at(QPointF(col + 0.5, 3.05))
         self.assertEqual([ladder["levels"] for ladder in window.map_data["ladders"]], [2, 2])
 
     def test_item_and_kind_placement_uses_previous_values_without_dialogs(self):
@@ -603,10 +600,11 @@ class WindowTests(WindowTestCase):
         data = insert_level_data(window.map_data, 1)
         data["levels"][1]["floors"] = [{"col": 6, "row": 5, "all": "unknown_alias"}]
         window.apply_change("Bad material", data)
-        item = window.issues_panel.list.item(0)
+        window.show_map_issues()
+        item = window.issues_dialog.list.item(0)
         issue = item.data(Qt.ItemDataRole.UserRole)
         self.assertEqual((issue.level, issue.rect), (1, (6, 5, 7, 6)))
-        window.issues_panel.list.itemClicked.emit(item)
+        window.issues_dialog.list.itemClicked.emit(item)
         self.assertEqual(window.current_level, 1)
         self.assertEqual(window.canvas.issue_rects, [(6, 5, 7, 6)])
         center = window.canvas.viewport.from_grid(QPointF(6.5, 5.5))

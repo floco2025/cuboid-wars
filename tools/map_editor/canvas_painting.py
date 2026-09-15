@@ -29,7 +29,6 @@ from .constants import (
     CHECKPOINT_LIST,
     RAMP_MODES,
     ZONE_MODES,
-    SPAWN_ZONE_HANDLE_PIXELS,
 )
 from .symbols import ITEM_SYMBOLS, paint_item_symbol
 from .nesting import nested_map_label, nested_map_rest_points
@@ -47,7 +46,8 @@ from .display import (
     tag_color,
     zone_color,
 )
-from .types import DRAG_NESTED_END, DRAG_TILES
+from .selection_painting import paint_selection
+from .ladder_glyph import ladder_marker_lines
 from .geometry import (
     draw_direction,
     ladder_anchor_from_click,
@@ -58,7 +58,6 @@ from .geometry import (
     ramp_rect,
     rect_from_cells,
     snapped_wall_end,
-    zone_handle_centers,
     zone_rect,
     zone_spans_level,
     roam_slice_radius,
@@ -90,43 +89,6 @@ def light_marker_polygon(light: dict, cell: float) -> list[QPoint]:
     else:  # "E"
         pts = [(1 - tip, 0.5), (1 - base, 0.5 - half), (1 - base, 0.5 + half)]
     return [QPoint(round((col + dx) * cell), round((row + dy) * cell)) for dx, dy in pts]
-
-
-# Ladder glyph proportions, in cell units. The glyph hugs the anchor edge
-# on the ladder's rail side: two rails parallel to the edge plus rungs
-# between them — a ladder seen face-on.
-_LADDER_SPAN = (0.15, 0.85)  # extent along the edge
-_LADDER_NEAR = 0.04  # rail offsets from the edge
-_LADDER_FAR = 0.26
-_LADDER_RUNG_COUNT = 4
-
-
-def ladder_marker_lines(ladder: dict, cell: float) -> list[tuple[float, float, float, float]]:
-    """Line segments (x0, y0, x1, y1) in pixels for a ladder's canvas glyph."""
-    col, row, side = ladder["col"], ladder["row"], ladder["side"]
-    if side == "N":
-        origin, edge, normal = (col, row), (1, 0), (0, -1)
-    elif side == "S":
-        origin, edge, normal = (col, row + 1), (1, 0), (0, 1)
-    elif side == "W":
-        origin, edge, normal = (col, row), (0, 1), (-1, 0)
-    else:  # "E"
-        origin, edge, normal = (col + 1, row), (0, 1), (1, 0)
-    ox, oy = origin
-    ex, ey = edge
-    nx, ny = normal
-    t0, t1 = _LADDER_SPAN
-
-    def point(t: float, off: float) -> tuple[float, float]:
-        return ((ox + ex * t + nx * off) * cell, (oy + ey * t + ny * off) * cell)
-
-    lines = []
-    for off in (_LADDER_NEAR, _LADDER_FAR):
-        lines.append((*point(t0, off), *point(t1, off)))
-    for idx in range(_LADDER_RUNG_COUNT):
-        t = t0 + (t1 - t0) * (idx + 0.5) / _LADDER_RUNG_COUNT
-        lines.append((*point(t, _LADDER_NEAR), *point(t, _LADDER_FAR)))
-    return lines
 
 
 def orthogonal_arrow_points(
@@ -180,11 +142,7 @@ class CanvasPaintingMixin:
         self._paint_items(painter, cell, level_idx)
         self._paint_ramps(painter, cell, level_idx)
         self.paint_spawn_zones(painter, cell, level_idx)
-        if self.window.mode == MODE_SELECT:
-            self.paint_spawn_zone_selection(painter, cell, level_idx)
         self._paint_drag_preview_rect(painter, cell)
-        if self.window.mode == MODE_SELECT and self.window.spawn_zone_drag is not None:
-            self.paint_spawn_zone_drag_preview(painter, cell)
         self._paint_wall_and_ramp_drag_previews(painter, cell)
         self._paint_grid_lines(painter, cell, cols, rows)
         self._paint_walls(painter, level, cell)
@@ -203,71 +161,13 @@ class CanvasPaintingMixin:
         # overlap.
         self.paint_hover_highlight(painter, cell, level_idx)
         self._paint_hover_ghost(painter, cell)
-        self._paint_tile_selection(painter, cell)
+        paint_selection(self, painter, cell)
         self.window.paint_transfer(painter, cell)
-        self.window.connections_panel.paint(painter, cell)
+        self.window.connection_overlay.paint(painter, cell)
         painter.setPen(QPen(QColor("#fb7185"), 3, Qt.PenStyle.DashLine))
         painter.setBrush(QColor(251, 113, 133, 45))
         for c0, r0, c1, r1 in self.issue_rects:
             painter.drawRect(QRectF(c0 * cell, r0 * cell, max(4, (c1 - c0) * cell), max(4, (r1 - r0) * cell)))
-
-    def _paint_tile_selection(self, painter: QPainter, cell: float) -> None:
-        window = self.window
-        if window.mode != MODE_SELECT:
-            return
-        rect = window.tile_selection
-        if (
-            window.select_drag_kind == DRAG_TILES
-            and self.drag_start_cell is not None
-            and self.drag_current_cell is not None
-        ):
-            rect = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
-        if rect is None:
-            return
-        c0, r0, c1, r1 = rect
-        painter.setPen(QPen(QColor("#38bdf8"), 2))
-        painter.setBrush(QColor(56, 189, 248, 55))
-        inset = min(1, cell * 0.1)
-        painter.drawRect(
-            QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset)
-        )
-        scope = f"{window.selection_levels} level(s)"
-        if window.element_filters.excluded:
-            scope += " · visible, unlocked types"
-        painter.setPen(QColor("#b9e5ff"))
-        scope_rect = QRectF(
-            max(-self.viewport.offset.x(), c0 * cell),
-            max(-self.viewport.offset.y(), r1 * cell),
-            painter.fontMetrics().horizontalAdvance(scope) + 12,
-            24,
-        )
-        painter.fillRect(scope_rect, QColor("#111418"))
-        painter.drawText(scope_rect, Qt.AlignmentFlag.AlignCenter, scope)
-        if window.pending_block is not None:
-            return
-        block = window.tile_clipboard
-        if block is None or window.select_drag_kind is not None:
-            return
-        width, height, levels = block["grid_cols"], block["grid_rows"], len(block["levels"])
-        fits = c0 + width <= window.map_data["grid_cols"] and r0 + height <= window.map_data["grid_rows"]
-        color = QColor("#86efac" if fits else "#f87171")
-        painter.setPen(QPen(color, 2, Qt.PenStyle.DashLine))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        inset = min(3, cell * 0.15)
-        painter.drawRect(
-            QRectF(c0 * cell, r0 * cell, width * cell, height * cell).adjusted(inset, inset, -inset, -inset)
-        )
-        text = f"Paste replaces {levels} level(s)"
-        if not fits:
-            text += " · outside map"
-        label_width = painter.fontMetrics().horizontalAdvance(text) + 16
-        label_height = painter.fontMetrics().height() + 8
-        ox, oy = self.viewport.offset.x(), self.viewport.offset.y()
-        x = max(-ox, min(c0 * cell, self.width() - ox - label_width))
-        y = max(-oy, min(r0 * cell - label_height, self.height() - oy - label_height))
-        label = QRectF(x, y, label_width, label_height)
-        painter.fillRect(label, QColor("#111418"))
-        painter.drawText(label, Qt.AlignmentFlag.AlignCenter, text)
 
     def _paint_hover_ghost(self, painter: QPainter, cell: float) -> None:
         # Show a ghost of what the click/drag would affect at the cursor. The
@@ -542,11 +442,7 @@ class CanvasPaintingMixin:
             self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(EQUIPMENT_ERASER_COLOR))
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
-        elif (
-            self.drag_start_cell
-            and self.drag_current_cell
-            and (self.window.mode == MODE_NESTED_MAP or self.window.select_drag_kind == DRAG_NESTED_END)
-        ):
+        elif self.drag_start_cell and self.drag_current_cell and self.window.mode == MODE_NESTED_MAP:
             self._paint_nested_map_drag(painter, cell)
 
     def _paint_grid_lines(self, painter: QPainter, cell: float, cols: int, rows: int) -> None:
@@ -677,8 +573,6 @@ class CanvasPaintingMixin:
         # A nested map paints on every storey it reaches: the storeys its
         # ends rest on plus its own, so the whole building is visible from
         # each floor it passes.
-        if "nested_maps" in self.window.element_filters.hidden:
-            return
         for entry in self.window.map_data.get("nested_maps", []):
             shape = self.window.nested_map_shape(entry["map"])
             storeys = shape.level_count if shape else 1
@@ -851,7 +745,7 @@ class CanvasPaintingMixin:
         for zone in self.visible_entries(PLAYER_ZONE_LIST, self.window.map_data[PLAYER_ZONE_LIST]):
             if zone_spans_level(zone, level_idx):
                 self.paint_player_spawn_zone(painter, zone, cell)
-        if self.window.show_roam_extensions and ACTOR_ZONE_LIST not in self.window.element_filters.hidden:
+        if self.window.show_roam_extensions:
             for zone in self.window.map_data[ACTOR_ZONE_LIST]:
                 self.paint_roam_range(painter, zone, cell, level_idx)
         for zone in self.visible_entries(ACTOR_ZONE_LIST, self.window.map_data[ACTOR_ZONE_LIST]):
@@ -930,38 +824,6 @@ class CanvasPaintingMixin:
         painter.setPen(QColor("#f8fafc"))
         if cell >= 8:
             painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "player")
-
-    def paint_spawn_zone_selection(self, painter: QPainter, cell: float, level_idx: int) -> None:
-        zone = self.window.selected_spawn_zone()
-        if zone is None or not zone_spans_level(zone, level_idx):
-            return
-        c0, r0, c1, r1 = zone_rect(zone)
-        rect = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(QColor("#f1f5f9"), 2, Qt.PenStyle.SolidLine))
-        painter.drawRect(rect.adjusted(1, 1, -1, -1))
-
-        handle = SPAWN_ZONE_HANDLE_PIXELS
-        painter.setBrush(QColor("#f1f5f9"))
-        painter.setPen(QPen(QColor("#0f172a"), 1))
-        for cx, cy in zone_handle_centers(zone):
-            painter.drawRect(QRectF(cx * cell - handle / 2, cy * cell - handle / 2, handle, handle))
-
-    def paint_spawn_zone_drag_preview(self, painter: QPainter, cell: float) -> None:
-        drag = self.window.spawn_zone_drag
-        if drag is None:
-            return
-        candidate = self.window.spawn_zone_candidate_rect()
-        if candidate is None:
-            return
-        c0, r0, c1, r1 = candidate
-        if "kind" in drag.original_zone:
-            preview = {**drag.original_zone, "cols": [c0, c1], "rows": [r0, r1]}
-            self.paint_roam_range(painter, preview, cell, self.window.current_level)
-        rect = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell)
-        painter.setBrush(QColor(248, 250, 252, 70))
-        painter.setPen(QPen(QColor("#f8fafc"), 2, Qt.PenStyle.DashLine))
-        painter.drawRect(rect.adjusted(1, 1, -1, -1))
 
     def paint_ramp(self, painter: QPainter, ramp: dict, cell: float, is_lower_level: bool) -> None:
         c0, r0, c1, r1 = ramp_rect(ramp)

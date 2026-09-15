@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QSpinBox
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, floor, furnished_map, nested
 from map_editor import constants as c
 from map_editor.elements import ElementRef, refs_for_hit
-from map_editor.normalization import canonicalize_map, empty_level, empty_map
+from map_editor.normalization import empty_level, empty_map
 
 
 class EditorWorkflowTests(WindowTestCase):
@@ -25,16 +25,6 @@ class EditorWorkflowTests(WindowTestCase):
         QTest.mouseMove(canvas, b)
         QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=b)
         self.app.processEvents()
-
-    def lock(self, name, locked=True):
-        self.window.element_filters.rows[name].setCheckState(
-            2, Qt.CheckState.Checked if locked else Qt.CheckState.Unchecked
-        )
-
-    def hide(self, name, hidden=True):
-        self.window.element_filters.rows[name].setCheckState(
-            1, Qt.CheckState.Unchecked if hidden else Qt.CheckState.Checked
-        )
 
     def edit_text(self, widget, text):
         widget.setFocus()
@@ -207,69 +197,7 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [4, 6])
         self.assertTrue(window.properties_panel.error.isHidden())
 
-    def test_hidden_types_are_not_drawn_or_picked_and_locked_types_are_not_copied_or_deleted(self):
-        self.set_data(furnished_map())
-        window = self.window
-        self.hide("items")
-        self.hide("pressure_plates")
-        self.hide("lights")
-        self.assertEqual(list(window.canvas.visible_entries("items", window.map_data["items"])), [])
-        self.assertEqual(window.hit_at(QPointF(1.5, 1.5))[0], c.HIT_FLOOR)
-        self.lock("floors")
-        window.set_tile_selection((1, 1, 2, 2))
-        window.copy_selection()
-        self.assertEqual(window.tile_clipboard["levels"][0]["floors"], [])
-        self.assertEqual(window.tile_clipboard["items"], [])
-        before = copy.deepcopy(window.map_data)
-        window.delete_selection()
-        # The hidden light requires the selected wall, so this is refused atomically.
-        self.assertEqual(window.map_data, before)
-        self.hide("lights", False)
-        window.delete_selection()
-        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 2)
-        self.assertEqual(window.map_data["levels"][0]["walls"], [])
-        self.assertEqual(len(window.map_data["items"]), 1)
-
-    def test_erase_skips_locked_floors_and_locking_a_supported_item_protects_its_floor(self):
-        self.set_data(furnished_map())
-        window = self.window
-        self.lock("floors")
-        window.erase_cell_rect((1, 1), (2, 2), False)
-        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 2)
-        self.assertEqual(window.map_data["levels"][0]["walls"], [])
-        window.undo_stack.undo()
-        self.lock("floors", False)
-        self.lock("items")
-        before = copy.deepcopy(window.map_data)
-        window.erase_group_rect(c.MODE_ERASE_FLOORS, (1, 1), (1, 1))
-        self.assertEqual(window.map_data, before)
-
-    def test_paste_preserves_locked_types_at_the_destination(self):
-        data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
-        data["levels"][0]["floors"] = [floor(1, 1), floor(4, 4)]
-        data["levels"][0]["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": DEFAULT_ALIAS}]
-        self.set_data(data)
-        window = self.window
-        self.lock("floors")
-        window.set_tile_selection((1, 1, 2, 2))
-        window.copy_selection()
-        window.set_tile_selection((4, 4, 5, 5))
-        window.paste_selection()
-        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 2)
-        self.assertEqual(len(window.map_data["levels"][0]["walls"]), 2)
-
-    def test_locked_properties_are_read_only_and_structural_changes_do_not_escape_the_lock(self):
-        window = self.window
-        self.lock("floors")
-        window.inspect_hit((c.HIT_FLOOR, (1, 1)))
-        self.assertFalse(window.properties_panel.widgets[("top",)].isEnabled())
-        before = copy.deepcopy(window.map_data)
-        window.add_level()
-        self.assertEqual(window.map_data, before)
-        self.assertEqual(window.current_level, 0)
-
-    def test_plate_links_include_other_levels_and_nested_geometry_and_can_be_navigated(self):
+    def test_plate_links_include_other_levels_and_nested_geometry(self):
         data = empty_map(8, 8)
         data["player_spawn_zones"] = []
         data["levels"].append(empty_level(1))
@@ -295,33 +223,11 @@ class EditorWorkflowTests(WindowTestCase):
         self.set_data(data)
         window = self.window
         window.inspect_hit((c.HIT_PRESSURE_PLATE, (1, 1)))
-        links = window.connections_panel
+        links = window.connection_overlay
         self.assertEqual(
             {(link.map_name, link.ref.name) for link in links.connections},
             {(None, "pressure_plates"), (None, "barriers"), ("room", "actor_spawn_zones")},
         )
-        for index in range(links.list.count()):
-            item = links.list.item(index)
-            if item.data(Qt.ItemDataRole.UserRole).map_name == "room":
-                links.navigate(item)
-                break
-        self.assertEqual(window.doc.active_map, "room")
-        self.assertEqual(window.inspected_refs, [ElementRef("actor_spawn_zones", 0)])
-        self.assertEqual(len(links.connections), 3)
-
-    def test_tabbed_toolbar_actions_reveal_the_requested_panel_before_hiding_it(self):
-        window = self.window
-        window.elements_action.trigger()
-        self.app.processEvents()
-        self.assertFalse(window.element_filters.visibleRegion().isEmpty())
-        window.tools_action.trigger()
-        self.app.processEvents()
-        self.assertFalse(window.tool_palette.visibleRegion().isEmpty())
-        window.tools_action.trigger()
-        self.assertTrue(window.tool_palette.isHidden())
-        window.tools_action.trigger()
-        self.app.processEvents()
-        self.assertFalse(window.tool_palette.visibleRegion().isEmpty())
 
     def test_rotating_nested_geometry_creates_a_copy_and_undo_restores_the_whole_document(self):
         data = empty_map(8, 8)
@@ -332,7 +238,6 @@ class EditorWorkflowTests(WindowTestCase):
         data["nested_geometry"] = {"room": child}
         data["nested_maps"] = [nested("room", 0, [1, 1], [1, 1])]
         self.set_data(data)
-        self.lock("items")
         window = self.window
         before = copy.deepcopy(window.doc.root_data)
         window.set_tile_selection((1, 1, 3, 2))
@@ -354,12 +259,6 @@ class EditorWorkflowTests(WindowTestCase):
         window.undo_stack.redo()
         self.assertEqual(window.map_data["nested_maps"][0], entry)
 
-    def test_a_different_floor_type_cannot_replace_a_locked_floor_during_normalization(self):
-        self.lock("floors")
-        before = copy.deepcopy(self.window.map_data)
-        self.window.add_terrain_rect((1, 1), (1, 1))
-        self.assertEqual(self.window.map_data, before)
-
     def test_malformed_authored_count_can_be_selected_and_corrected_in_the_inspector(self):
         data = empty_map(8, 8)
         data["player_spawn_zones"] = []
@@ -374,36 +273,6 @@ class EditorWorkflowTests(WindowTestCase):
         self.edit_text(field, "2, 3")
         inspector.apply_button.click()
         self.assertEqual(self.window.map_data["actor_spawn_zones"][0]["count"], [2, 3])
-
-    def test_erasing_protected_support_keeps_its_dependents_and_placing_a_locked_type_has_no_side_effects(self):
-        self.set_data(furnished_map())
-        window = self.window
-        self.lock("floors")
-        self.lock("walls")
-        before = copy.deepcopy(window.map_data)
-        window.erase_group_rect(c.MODE_ERASE_FLOORS, (1, 1), (1, 1))
-        window.erase_group_rect(c.MODE_ERASE_WALLS, (1, 1), (1, 1))
-        window.erase_hit((c.HIT_FLOOR, (1, 1)))
-        self.assertEqual(window.map_data, before)
-        self.lock("inaccessible_floors")
-        window.activate_tool(c.MODE_INACCESSIBLE_FLOOR)
-        self.drag((1.5, 1.5), (1.5, 1.5))
-        self.assertEqual(window.map_data, before)
-
-    def test_locked_types_in_authored_order_do_not_block_other_edits(self):
-        data = furnished_map()
-        data["items"] = []
-        data["pressure_plates"] = [
-            {"level": 0, "col": 2, "row": 2, "switch": "barrier_1"},
-            {"level": 0, "col": 1, "row": 1, "switch": "barrier_1"},
-        ]
-        self.set_data(data)
-        window = self.window
-        self.assertNotEqual(canonicalize_map(window.map_data)["pressure_plates"], window.map_data["pressure_plates"])
-        self.lock("pressure_plates")
-        window.add_floor_rect((3, 3), (3, 3))
-        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 3)
-        self.assertEqual(len(window.map_data["pressure_plates"]), 2)
 
     def test_reversed_wall_endpoints_are_picked_like_any_wall(self):
         data = empty_map(8, 8)
@@ -453,10 +322,10 @@ class EditorWorkflowTests(WindowTestCase):
         self.edit_text(inspector.widgets[("levels",)], "1")
         inspector.apply_button.click()
         self.assertNotIn("levels", window.map_data["actor_spawn_zones"][0])
-        self.assertEqual(window.inspected_refs, [ElementRef("actor_spawn_zones", 0)])
+        self.assertEqual(window.selection_refs(), [ElementRef("actor_spawn_zones", 0)])
         self.edit_text(inspector.widgets[("levels",)], "1")
         inspector.apply_button.click()
-        self.assertEqual(window.inspected_refs, [ElementRef("actor_spawn_zones", 0)])
+        self.assertEqual(window.selection_refs(), [ElementRef("actor_spawn_zones", 0)])
         self.assertEqual(window.undo_stack.count(), 1)
 
     def test_a_click_inside_the_selection_inspects_and_only_a_drag_lifts_the_block(self):
@@ -469,17 +338,18 @@ class EditorWorkflowTests(WindowTestCase):
         self.set_data(data)
         window = self.window
         before = copy.deepcopy(window.map_data)
+        window.selection_kind_changed("Tiles")
         window.set_tile_selection((0, 0, 4, 4))
         with patch.object(window, "notify") as notify:
             self.click(1, 1)
         notify.assert_not_called()
-        self.assertEqual(window.tile_selection, (0, 0, 4, 4))
+        self.assertEqual(window.selection.area.rect, (0, 0, 4, 4))
         self.assertIsNone(window.pending_block)
-        self.assertEqual(window.inspected_refs, [ElementRef("floors", 0, 0)])
+        self.assertEqual(window.selection_refs(), [ElementRef("floors", 0, 0), ElementRef("actor_spawn_zones", 0)])
         with patch.object(window, "notify") as notify:
             self.drag((1.5, 1.5), (3.5, 3.5))
         self.assertIn("crosses a spawn zone", notify.call_args.args[0])
-        self.assertEqual(window.tile_selection, (0, 0, 4, 4))
+        self.assertEqual(window.selection.area.rect, (0, 0, 4, 4))
         self.assertEqual(window.map_data, before)
 
     def test_duplicate_keeps_a_pending_transform_and_cancelling_it_notifies(self):
@@ -500,43 +370,7 @@ class EditorWorkflowTests(WindowTestCase):
         notify.assert_called_once_with("Pending selection cancelled")
         self.assertIsNone(window.pending_block)
 
-    def test_a_refused_cut_leaves_the_clipboard_alone(self):
-        self.set_data(furnished_map())
-        window = self.window
-        self.hide("lights")
-        self.lock("floors")
-        window.set_tile_selection((1, 1, 2, 2))
-        before = copy.deepcopy(window.map_data)
-        window.cut_selection()
-        self.assertEqual(window.map_data, before)
-        self.assertIsNone(window.tile_clipboard)
-
-    def test_kind_and_nested_map_renames_are_refused_while_element_types_are_locked(self):
-        data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
-        data["nested_geometry"] = {"cabin": empty_map(3, 2)}
-        self.set_data(data)
-        window = self.window
-        self.lock("barriers")
-        with (
-            patch(
-                "map_editor.control_actions.ControlCatalogDialog.prompt",
-                side_effect=AssertionError("Unexpected dialog"),
-            ),
-            patch.object(window, "notify") as notify,
-        ):
-            window.edit_control_catalog("barrier_kinds", "Barrier Kinds")
-        notify.assert_called_once()
-        window.doc.select_map("cabin")
-        with (
-            patch.object(window, "prompt_nested_name", side_effect=AssertionError("Unexpected dialog")),
-            patch.object(window, "notify") as notify,
-        ):
-            window.rename_nested_map()
-        notify.assert_called_once()
-        self.assertIn("cabin", window.doc.nested_geometry)
-
-    def test_filtered_multilevel_paste_onto_the_top_storey_appends_levels(self):
+    def test_multilevel_paste_onto_the_top_storey_appends_levels(self):
         data = empty_map(8, 8)
         data["player_spawn_zones"] = []
         data["levels"].append(empty_level(1))
@@ -547,7 +381,6 @@ class EditorWorkflowTests(WindowTestCase):
         window.set_tile_selection((1, 1, 2, 2))
         window.tool_settings.findChild(QSpinBox).setValue(2)
         window.copy_selection()
-        self.lock("lights")
         window.set_level_index(1)
         window.set_tile_selection((4, 4, 5, 5))
         window.paste_selection()
@@ -562,9 +395,6 @@ class EditorWorkflowTests(WindowTestCase):
         self.set_data(data)
         window = self.window
         window.inspect_hit((c.HIT_PRESSURE_PLATE, (1, 1)))
-        panel = window.connections_panel
-        texts = [panel.list.item(index).text() for index in range(panel.list.count())]
-        self.assertEqual(len(texts), 2)
-        self.assertIn("Fireworks · Outer map", texts)
-        panel.navigate(panel.list.item(texts.index("Fireworks · Outer map")))
-        self.assertIsNone(window.doc.active_map)
+        connections = window.connection_overlay.connections
+        self.assertEqual(len(connections), 2)
+        self.assertTrue(any(link.role == "Fireworks" and link.ref is None for link in connections))

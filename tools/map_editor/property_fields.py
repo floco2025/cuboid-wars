@@ -25,12 +25,19 @@ def fields_for(window, name):
     if name in ("floors", "inaccessible_floors", "walls", "ramps", "terrain"):
         for face in TERRAIN_FACES if name == "terrain" else FACES:
             choice(face, face.capitalize(), window.materials_catalog)
+    if name in ("actor_spawn_zones", "player_spawn_zones"):
+        add(
+            "level",
+            "First level",
+            "choice",
+            [(i, level.get("name") or f"Level {i}") for i, level in enumerate(window.map_data["levels"])],
+        )
     if name == "actor_spawn_zones":
         choice("kind", "Actor", window.actor_kinds)
         add("count", "Count", "counts")
-        add("respawn_secs", "Respawn (s / Never)", "respawn")
+        add("respawn_secs", "Respawn (s)", "respawn")
         add("levels", "Levels", "positive_int")
-        add("roam_distance", "Roam extension (m)", "nonnegative")
+        add("roam_distance", "Roam (m)", "nonnegative")
     elif name == "player_spawn_zones":
         add("levels", "Levels", "positive_int")
     elif name == "checkpoints":
@@ -61,11 +68,10 @@ def fields_for(window, name):
         add("phase_secs", "Phase (s)", "nonnegative")
         for end, label in (("from_nudge", "Start"), ("to_nudge", "End")):
             for axis, letter in enumerate(("X", "Y", "Z")):
-                units = "floor widths" if axis == 1 else "wall widths"
-                add((end, axis), f"{label} {letter} ({units})", "number")
+                add((end, axis), f"{label} {letter}", "number")
     if name in ("barriers", "light_bridges", "actor_spawn_zones", "nested_maps", "pressure_plates"):
         values = window.switches if name == "pressure_plates" else [None, *window.switches]
-        choice("switch", "Pressure plate", values)
+        choice("switch", "Plate kind", values)
         if name != "pressure_plates":
             add("switch_inverted", "Respond when", "choice", [(False, "On"), (True, "Off")])
     return fields
