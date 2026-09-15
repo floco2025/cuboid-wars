@@ -82,10 +82,19 @@ impl NavGraph {
         let Some(grounds) = &self.grounds else {
             return false;
         };
+        if node.level != grounds.settings.level {
+            return false;
+        }
+        // Authored surfaces cut the footprint, so their cells skip the rectangle scan.
+        let authored = self
+            .cell(node)
+            .is_some_and(|cell| cell.has_floor || cell.has_ramp || cell.has_ramp_from_below || cell.bridge.is_some());
+        if authored {
+            return false;
+        }
         let x = self.geometry.cell_center_x(node.col);
         let z = self.geometry.cell_center_z(node.row);
-        node.level == grounds.settings.level
-            && !grounds.is_inside_footprint(x, z)
+        !grounds.is_inside_footprint(x, z)
             && grounds.distance_outside_bounds(x, z) <= grounds.extent() - self.geometry.cell_size()
     }
 

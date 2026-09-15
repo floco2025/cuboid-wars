@@ -18,6 +18,11 @@ use crate::{
     protocol::{BarrierId, CarrierId, Position},
 };
 
+// The support probe's reach. It matches the carrier ride tolerance so a body
+// still carried at a tick's start stood on the tile at the last tick's end and
+// takes its velocity once; `rider_carry` says why the two must agree.
+const GROUND_PROBE_DISTANCE: f32 = CHARACTER_CARRIER_RIDE_TOLERANCE + CHARACTER_CONTACT_OFFSET * 3.0;
+
 #[must_use]
 pub fn position_has_floor_support(
     collision_world: &CollisionWorld,
@@ -43,7 +48,7 @@ pub(super) fn character_ground_hit(
         passable_kinds,
         excluded_colliders,
         physics,
-        CHARACTER_CONTACT_OFFSET * 5.0,
+        GROUND_PROBE_DISTANCE,
     )
     .filter(|hit| hit.normal.y >= CHARACTER_MAX_SLOPE.cos())
 }
@@ -76,25 +81,6 @@ pub fn grounding_diagnostics(
     passable_kinds: &[BarrierId],
     excluded_colliders: &[ColliderHandle],
 ) -> GroundingDiagnostics {
-    grounding_diagnostics_with_tolerance(
-        collision_world,
-        pos,
-        physics,
-        passable_kinds,
-        excluded_colliders,
-        CHARACTER_CONTACT_OFFSET * 2.0,
-    )
-}
-
-pub(super) fn grounding_diagnostics_with_tolerance(
-    collision_world: &CollisionWorld,
-    pos: &Position,
-    physics: CharacterPhysicsConfig,
-    passable_kinds: &[BarrierId],
-    excluded_colliders: &[ColliderHandle],
-    tolerance: f32,
-) -> GroundingDiagnostics {
-    let distance = tolerance + CHARACTER_CONTACT_OFFSET * 3.0;
     let hit = probe_character_ground(
         collision_world,
         &character_movement_shape(physics),
@@ -102,11 +88,11 @@ pub(super) fn grounding_diagnostics_with_tolerance(
         passable_kinds,
         excluded_colliders,
         physics,
-        distance,
+        GROUND_PROBE_DISTANCE,
     );
     GroundingDiagnostics {
         origin: Vec3::from(*pos) + Vec3::Y * CHARACTER_CONTACT_OFFSET * 2.0,
-        distance,
+        distance: GROUND_PROBE_DISTANCE,
         supported: hit.is_some_and(|hit| hit.normal.y >= CHARACTER_MAX_SLOPE.cos()),
         hit,
     }

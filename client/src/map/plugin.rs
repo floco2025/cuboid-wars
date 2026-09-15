@@ -25,11 +25,12 @@ pub fn map_plugin(app: &mut App) {
         .init_resource::<EraserAssets>()
         .init_resource::<CheckpointAssets>()
         .init_resource::<PressurePlateModel>();
+    app.add_systems(Startup, setup_grass_materials_system);
     app.add_systems(
         Update,
         (
             map_spawn_geometry_system,
-            (setup_grass_materials_system, grass_sources_reset_system).chain(),
+            grass_sources_reset_system,
             grounds::grounds_spawn_system.after(grass_sources_reset_system),
             erasers_spawn_system,
             checkpoints_spawn_system,

@@ -1,10 +1,6 @@
 {
   "textures": {
     "pedestal": { "material": "stucco1", "portalable": true },
-    "portal-resistant": {
-      "material": "used-stainless-steel",
-      "portalable": false
-    },
     "walkway": { "material": "steelplate1", "portalable": true }
   },
   "celestial": {

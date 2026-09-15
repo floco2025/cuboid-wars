@@ -18,7 +18,6 @@
       "material": "art-deco-scales-wallpaper",
       "portalable": true
     },
-    "grounds-path": { "material": "smooth-temple-blocks", "portalable": false },
     "perimeter-wall": { "material": "patched-brickwork", "portalable": true },
     "rooftop-floor": {
       "material": "rectangle-polished-tile",

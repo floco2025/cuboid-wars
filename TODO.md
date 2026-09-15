@@ -30,6 +30,8 @@
 
 ## Testing
 
+- **Ground support without Rapier's grounded flag:** the motor now grounds only on the support probe under the feet. Run down the hotel basement ramps at speed, step onto and off the moving cabin, and drop onto the obby pads, checking the Grounding view and the animation for one-tick airborne flickers.
+
 - **Shadows with active portal views:** the removed mirror previously made shadows flicker during camera motion. Recheck with portals placed and in view; Bevy shares directional-shadow layers between 3D views. This is separate from the fixed pale leaf flashes caused by inconsistent wind vertex positions between depth and color passes.
 
 - **Outdoors after the terrain query fix:** run fast far out on the hotel's grounds and check that movement stays smooth and the frame rate holds, that chasing actors no longer stop and go, and that grass chunks appearing beside a sprint no longer stutter the frame.

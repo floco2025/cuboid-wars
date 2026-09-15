@@ -9,16 +9,16 @@ use super::{
     geometry::{character_movement_pose, character_movement_shape},
     ladder::{LadderMode, evaluate_ladder_interaction},
     support::{
-        RiderCarry, character_ground_hit, grounding_diagnostics_with_tolerance, position_has_floor_support,
-        rider_carry, snap_character_to_ground,
+        RiderCarry, character_ground_hit, grounding_diagnostics, position_has_floor_support, rider_carry,
+        snap_character_to_ground,
     },
     types::{CharacterMovementResult, CharacterSupport},
 };
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        CHARACTER_CARRIER_RIDE_TOLERANCE, CHARACTER_CONTACT_OFFSET, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT,
-        CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY,
+        CHARACTER_CONTACT_OFFSET, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH,
+        CHARACTER_TERMINAL_VELOCITY,
     },
     map::Carriers,
     math::from_rapier,
@@ -351,13 +351,12 @@ fn finish_character_movement(
             excluded_colliders,
         );
     }
-    let grounding = grounding_diagnostics_with_tolerance(
+    let grounding = grounding_diagnostics(
         env.collision_world,
         &resolved,
         env.physics,
         env.passable_kinds,
         excluded_colliders,
-        CHARACTER_CARRIER_RIDE_TOLERANCE,
     );
     let mut vertical_velocity = request.next_vertical_velocity;
     let side_movement_blocked = collision.saw_side_contact

@@ -22,12 +22,7 @@ fn app() -> App {
             )),
             ..default()
         })
-        .add_systems(
-            Update,
-            (grass_sources_reset_system, grass_streaming_system)
-                .chain()
-                .after(super::super::material::setup_grass_materials_system),
-        );
+        .add_systems(Update, (grass_sources_reset_system, grass_streaming_system).chain());
     app.world_mut().spawn((
         MainCameraMarker,
         GlobalTransform::from_translation(Vec3::new(25.0, 2.0, 0.0)),

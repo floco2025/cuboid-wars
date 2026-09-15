@@ -37,16 +37,12 @@ pub struct GrassMaterials {
 
 pub fn setup_grass_materials_system(
     mut commands: Commands,
-    existing: Option<Res<GrassMaterials>>,
     settings: Res<ClientSettings>,
     asset_set: Res<AssetSet>,
     server: Res<AssetServer>,
     mut grass: ResMut<Assets<GrassMaterial>>,
     mut terrain: ResMut<Assets<TerrainMaterial>>,
 ) {
-    if existing.is_some() {
-        return;
-    }
     commands.insert_resource(GrassMaterials {
         grass: grass.add(grass_material()),
         terrain: terrain.add(terrain_material(

@@ -16,6 +16,6 @@ pub fn app() -> App {
     .init_asset::<TerrainMaterial>()
     .insert_resource(test_fixtures::client_settings())
     .insert_resource(test_fixtures::asset_set())
-    .add_systems(Update, setup_grass_materials_system);
+    .add_systems(Startup, setup_grass_materials_system);
     app
 }

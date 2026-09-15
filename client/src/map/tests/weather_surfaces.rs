@@ -6,12 +6,7 @@ fn app() -> App {
     let mut app = fixtures::app();
     app.init_resource::<Time>()
         .init_resource::<WeatherIntensity>()
-        .add_systems(
-            Update,
-            (rain_smoothing_system, weather_surfaces_system)
-                .chain()
-                .after(crate::map::grass::setup_grass_materials_system),
-        );
+        .add_systems(Update, (rain_smoothing_system, weather_surfaces_system).chain());
     app
 }
 
