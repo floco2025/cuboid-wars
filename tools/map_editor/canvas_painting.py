@@ -204,6 +204,8 @@ class CanvasPaintingMixin:
         self.paint_hover_highlight(painter, cell, level_idx)
         self._paint_hover_ghost(painter, cell)
         self._paint_tile_selection(painter, cell)
+        self.window.paint_transfer(painter, cell)
+        self.window.connections_panel.paint(painter, cell)
         painter.setPen(QPen(QColor("#fb7185"), 3, Qt.PenStyle.DashLine))
         painter.setBrush(QColor(251, 113, 133, 45))
         for c0, r0, c1, r1 in self.issue_rects:
@@ -229,6 +231,20 @@ class CanvasPaintingMixin:
         painter.drawRect(
             QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset)
         )
+        scope = f"{window.selection_levels} level(s)"
+        if window.element_filters.excluded:
+            scope += " · visible, unlocked types"
+        painter.setPen(QColor("#b9e5ff"))
+        scope_rect = QRectF(
+            max(-self.viewport.offset.x(), c0 * cell),
+            max(-self.viewport.offset.y(), r1 * cell),
+            painter.fontMetrics().horizontalAdvance(scope) + 12,
+            24,
+        )
+        painter.fillRect(scope_rect, QColor("#111418"))
+        painter.drawText(scope_rect, Qt.AlignmentFlag.AlignCenter, scope)
+        if window.pending_block is not None:
+            return
         block = window.tile_clipboard
         if block is None or window.select_drag_kind is not None:
             return
@@ -661,6 +677,8 @@ class CanvasPaintingMixin:
         # A nested map paints on every storey it reaches: the storeys its
         # ends rest on plus its own, so the whole building is visible from
         # each floor it passes.
+        if "nested_maps" in self.window.element_filters.hidden:
+            return
         for entry in self.window.map_data.get("nested_maps", []):
             shape = self.window.nested_map_shape(entry["map"])
             storeys = shape.level_count if shape else 1
@@ -833,7 +851,7 @@ class CanvasPaintingMixin:
         for zone in self.visible_entries(PLAYER_ZONE_LIST, self.window.map_data[PLAYER_ZONE_LIST]):
             if zone_spans_level(zone, level_idx):
                 self.paint_player_spawn_zone(painter, zone, cell)
-        if self.window.show_roam_extensions:
+        if self.window.show_roam_extensions and ACTOR_ZONE_LIST not in self.window.element_filters.hidden:
             for zone in self.window.map_data[ACTOR_ZONE_LIST]:
                 self.paint_roam_range(painter, zone, cell, level_idx)
         for zone in self.visible_entries(ACTOR_ZONE_LIST, self.window.map_data[ACTOR_ZONE_LIST]):

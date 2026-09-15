@@ -52,6 +52,11 @@ from .select import SelectMixin
 from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
 from .tool_settings import ToolSettings
+from .element_filters import ElementFilters
+from .workflow import WorkflowMixin
+from .selection_transfer import SelectionTransferMixin
+from .selection_properties import SelectionProperties
+from .plate_connections import PlateConnections
 from .tool_catalog import ERASE_TOOLS, MODE_TO_TOOL
 from .tool_palette import ToolPalette
 from .tool_search import ToolSearch
@@ -61,6 +66,8 @@ from .window_geometry import WindowGeometry
 
 
 class EditorWindow(
+    WorkflowMixin,
+    SelectionTransferMixin,
     ControlActionsMixin,
     FileActionsMixin,
     NestedDefinitionsMixin,
@@ -87,6 +94,10 @@ class EditorWindow(
         # Material for newly painted floors, walls, and ramps; an alias, since
         # face values are validated against the catalog on save.
         self.current_material = ""
+        self.sampled_materials = None
+        self.selection_levels = 1
+        self.pending_block = None
+        self.inspected_refs = []
         self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
         self.actor_kinds = load_actor_kinds()
         self.wall_light_kinds = load_wall_light_kinds()
@@ -163,6 +174,18 @@ class EditorWindow(
         self.issues_panel.repair_requested.connect(self.review_repairs)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.issues_panel)
         self.issues_panel.hide()
+        self.element_filters = ElementFilters(self)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.element_filters)
+        self.tabifyDockWidget(self.tool_palette, self.element_filters)
+        self.element_filters.hide()
+        self.element_filters.changed.connect(self.element_filters_changed)
+        self.properties_panel = SelectionProperties(self)
+        self.connections_panel = PlateConnections(self)
+        for panel in (self.properties_panel, self.connections_panel):
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, panel)
+        self.tabifyDockWidget(self.properties_panel, self.connections_panel)
+        self.properties_panel.hide()
+        self.connections_panel.hide()
         self.tool_settings = ToolSettings(self)
         self.issues_action = QAction("Issues", self)
         self.issues_action.triggered.connect(self.issues_panel.show)
@@ -177,6 +200,7 @@ class EditorWindow(
         self.dependencies = MapDependencies(self)
         self.dependencies.changed.connect(self.reload_dependencies)
         self.refresh_ui()
+        self.layout().activate()
         self.window_geometry = WindowGeometry(self, self.preferences)
         self.canvas.fit_map()
 
@@ -279,6 +303,8 @@ class EditorWindow(
         self.wall_width_cells = catalogs.wall_width_cells
         self.texture_catalog = catalogs.texture_catalog
         self.materials_catalog = list(catalogs.texture_catalog)
+        if hasattr(self, "properties_panel"):
+            self.properties_panel.signature = None
         if self.current_material not in catalogs.texture_catalog:
             self.current_material = next(iter(catalogs.texture_catalog), "")
 
@@ -359,6 +385,9 @@ class EditorWindow(
         self.canvas_shortcut(fit_action)
         view_menu.addSeparator()
         view_menu.addAction(self.tool_palette.toggleViewAction())
+        view_menu.addAction(self.element_filters.toggleViewAction())
+        view_menu.addAction(self.properties_panel.toggleViewAction())
+        view_menu.addAction(self.connections_panel.toggleViewAction())
         view_menu.addAction(self.issues_panel.toggleViewAction())
         self.material_overlay_action = QAction("Show &Material Overlay", self)
         self.material_overlay_action.setCheckable(True)
@@ -388,6 +417,7 @@ class EditorWindow(
         self.add_shortcut(Qt.Key.Key_Left, self.previous_tool)
         self.add_shortcut(Qt.Key.Key_Right, self.next_tool)
         self.add_shortcut(Qt.Key.Key_E, self.tool_palette.toggle_erase)
+        self.add_shortcut(Qt.Key.Key_I, self.sample_under_cursor)
 
     def add_shortcut(self, key, callback) -> None:
         shortcut = QShortcut(QKeySequence(key), self.canvas)
@@ -416,7 +446,8 @@ class EditorWindow(
         toolbar.addWidget(QLabel("Level "))
         toolbar.addWidget(self.level_combo)
         toolbar.addSeparator()
-        toolbar.addAction(self.tool_palette.toggleViewAction())
+        self.tools_action = toolbar.addAction("Tools", lambda: self.toggle_dock(self.tool_palette))
+        self.elements_action = toolbar.addAction("Elements", lambda: self.toggle_dock(self.element_filters))
         toolbar.addWidget(self.tool_palette.current_button)
         tool_settings_action = toolbar.addWidget(self.tool_settings)
         self.tool_settings.available_changed.connect(tool_settings_action.setVisible)
@@ -435,6 +466,13 @@ class EditorWindow(
         self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.run_time.toolbar)
 
+    def toggle_dock(self, dock):
+        if dock.isVisible() and not dock.visibleRegion().isEmpty():
+            dock.hide()
+        else:
+            dock.show()
+            dock.raise_()
+
     # === State updates & UI refresh ===
 
     def _on_document_changed(self, before: dict) -> None:
@@ -443,6 +481,7 @@ class EditorWindow(
             self.clear_selection()
             self.current_level = 0
         self.displayed_map = self.doc.active_map
+        self.inspected_refs = []
         self.cancel_interaction()
         self.canvas.issue_rects = []
         prior_selection: tuple[str, dict] | None = None
@@ -456,6 +495,7 @@ class EditorWindow(
             r1 = min(r1, self.map_data["grid_rows"])
             self.tile_selection = (c0, r0, c1, r1) if c0 < c1 and r0 < r1 else None
         self.current_level = max(0, min(self.current_level, len(self.map_data["levels"]) - 1))
+        self.selection_levels = max(1, min(self.selection_levels, len(self.map_data["levels"]) - self.current_level))
         if prior_selection is not None:
             list_name, snapshot = prior_selection
             self.selected_spawn_zone_ref = self._zone_ref_after_change(list_name, snapshot)
@@ -465,8 +505,13 @@ class EditorWindow(
         if switched:
             self.canvas.fit_map()
 
-    def apply_change(self, label: str, after: dict) -> None:
-        self.doc.apply_change(label, after)
+    def apply_change(self, label: str, after: dict) -> bool:
+        try:
+            after = self.protect_change(after)
+        except ValueError as error:
+            self.notify(str(error))
+            return False
+        return self.doc.apply_change(label, after)
 
     def refresh_ui(self) -> None:
         self.adopt_catalogs(self.catalog_map, self.current_catalogs())
@@ -495,6 +540,7 @@ class EditorWindow(
         self.tool_settings.refresh()
         self.jump_reach.refresh()
         self.run_time.refresh()
+        self.refresh_inspection()
 
     def refresh_issues(self, *, validate: bool = True) -> None:
         if validate:
@@ -530,6 +576,9 @@ class EditorWindow(
         if 0 <= index < len(self.map_data["levels"]):
             self.cancel_interaction()
             self.current_level = index
+            self.selection_levels = min(self.selection_levels, len(self.map_data["levels"]) - index)
+            self.inspected_refs = []
+            self.refresh_inspection()
             self.tool_settings.refresh()
             self.canvas.update()
             self.refresh_issues(validate=False)
@@ -550,6 +599,8 @@ class EditorWindow(
             raise ValueError(f"Unknown editor tool: {mode}")
         self.cancel_interaction()
         self.mode = mode
+        self.inspected_refs = []
+        self.refresh_inspection()
         self.tool_palette.set_mode(mode)
         self.canvas.setCursor(self.cursor_for_mode(mode))
         self.canvas.update()

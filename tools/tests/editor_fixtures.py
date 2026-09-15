@@ -3,6 +3,7 @@ for the editing mixins, and a shown editor window on a small map."""
 
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -95,6 +96,11 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
 
     def __init__(self, map_data: dict | None, bridge_kinds: list[str], doc=None) -> None:
         self.doc = doc
+        self.element_filters = SimpleNamespace(hidden=set(), locked=set(), excluded=set())
+        self.selection_levels = 1
+        self.pending_block = None
+        self.inspected_refs = []
+        self.sampled_materials = None
         self._map_data = map_data
         self.current_level = 0
         self.bridge_kinds = bridge_kinds
@@ -141,6 +147,15 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
 
     def update_selection_actions(self) -> None:
         pass
+
+    def refresh_inspection(self, **kwargs):
+        pass
+
+    def visible_map_data(self):
+        return self.map_data
+
+    def editable_map_data(self):
+        return self.map_data
 
 
 class WindowTestCase(unittest.TestCase):

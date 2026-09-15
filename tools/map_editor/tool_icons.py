@@ -12,6 +12,7 @@ _TILE = '<path d="M3 9 12 4 21 9 12 14Z M3 9v6l9 5 9-5V9 M12 14v6"/>'
 _RAMP = '<path d="M3 18 18 5 21 8v11H3Z M18 5v11L3 18 M18 16l3 3"/>'
 _BRUSH = '<path d="m13 11 6-7 3 3-7 6Z" fill="#b78ce8"/><path d="M13 12c-5-2-3 6-8 5 4 6 12 0 10-4" fill="#b78ce8"/>'
 _ICONS = {
+    c.MODE_SAMPLE: '<path d="m5 16 11-11 4 4-11 11H5Z M13 5l6 6M3 22l2-2" fill="#67b8ef"/>',
     c.MODE_SELECT: '<path d="m5 3 14 10-7 1-3 7Z" fill="#67b8ef"/>',
     c.MODE_ERASE: '<path d="m4 14 10-11 8 7-10 11H9Z" fill="#eaaa89"/><path d="m8 10 8 7M12 21h10"/>',
     c.MODE_FLOOR: _TILE,

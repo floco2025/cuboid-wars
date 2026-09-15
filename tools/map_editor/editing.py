@@ -36,7 +36,17 @@ def update_records(data: dict, name: str, predicate, values: dict, level: int | 
     )
 
 
-def paint_floors(data: dict, level_idx: int, rect: tuple, material: str, *, blocked: bool = False) -> dict:
+def placement_materials(material, faces=FACES):
+    return (
+        {face: material.get(face, next(iter(material.values()), "")) for face in faces}
+        if isinstance(material, dict)
+        else dict.fromkeys(faces, material)
+    )
+
+
+def paint_floors(
+    data: dict, level_idx: int, rect: tuple, material: str | dict[str, str], *, blocked: bool = False
+) -> dict:
     after = copy.deepcopy(data)
     level = after["levels"][level_idx]
     added, removed = ("inaccessible_floors", "floors") if blocked else ("floors", "inaccessible_floors")
@@ -44,7 +54,7 @@ def paint_floors(data: dict, level_idx: int, rect: tuple, material: str, *, bloc
     c0, r0, c1, r1 = rect
     cells = {(c, r) for r in range(r0, r1) for c in range(c0, c1)}
     for col, row in sorted(cells, key=lambda cell: (cell[1], cell[0])):
-        existing.setdefault((col, row), {"col": col, "row": row, **dict.fromkeys(FACES, material)})
+        existing.setdefault((col, row), {"col": col, "row": row, **placement_materials(material)})
     level[added] = list(existing.values())
     level[removed] = [f for f in level[removed] if (f["col"], f["row"]) not in cells]
     level["terrain"] = [f for f in level["terrain"] if (f["col"], f["row"]) not in cells]
@@ -54,7 +64,7 @@ def paint_floors(data: dict, level_idx: int, rect: tuple, material: str, *, bloc
     return after
 
 
-def paint_terrain(data: dict, level_idx: int, rect: tuple, material: str) -> dict:
+def paint_terrain(data: dict, level_idx: int, rect: tuple, material: str | dict[str, str]) -> dict:
     after = copy.deepcopy(data)
     level = after["levels"][level_idx]
     terrain = {(cell["col"], cell["row"]): cell for cell in level["terrain"]}
@@ -63,7 +73,7 @@ def paint_terrain(data: dict, level_idx: int, rect: tuple, material: str) -> dic
     for col, row in sorted(cells, key=lambda cell: (cell[1], cell[0])):
         terrain.setdefault(
             (col, row),
-            {"col": col, "row": row, **dict.fromkeys(TERRAIN_FACES, material)},
+            {"col": col, "row": row, **placement_materials(material, TERRAIN_FACES)},
         )
     level["terrain"] = list(terrain.values())
     level["floors"] = [f for f in level["floors"] if (f["col"], f["row"]) not in cells]
@@ -77,7 +87,7 @@ def paint_edges(
     start: tuple,
     end: tuple,
     *,
-    material: str | None = None,
+    material: str | dict[str, str] | None = None,
     kind: str | None = None,
     controls: dict | None = None,
 ) -> dict:
@@ -91,7 +101,7 @@ def paint_edges(
         key = tuple(endpoints)
         entry = dict(zip(("c0", "r0", "c1", "r1"), endpoints))
         if material is not None:
-            existing.setdefault(key, {**entry, **dict.fromkeys(FACES, material)})
+            existing.setdefault(key, {**entry, **placement_materials(material)})
         elif key not in walls:
             existing[key] = {**entry, "kind": kind, **(controls or {})}
     level[name] = list(existing.values())

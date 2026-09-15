@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 from .constants import (
     CHECKPOINT_TYPE_LABELS,
     MODE_CHECKPOINT,
+    MODE_SELECT,
     ITEM_KEY_TYPE,
     ITEM_TYPES,
     MODE_ACTOR_SPAWN_ZONE,
@@ -43,6 +44,7 @@ class ToolSettings(QWidget):
         self.window = window
         self.signature = None
         self.bindings = []
+        self.selection_buttons = []
         self.body = None
         self.key_controls = None
         self.material_permission = None
@@ -52,6 +54,8 @@ class ToolSettings(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
 
     def sync_values(self) -> None:
+        for button, action in self.selection_buttons:
+            button.setEnabled(action.isEnabled())
         for widget, attribute in self.bindings:
             value = getattr(self.window, attribute)
             widget.blockSignals(True)
@@ -64,7 +68,7 @@ class ToolSettings(QWidget):
                 if attribute == "current_material":
                     widget.setToolTip(portal_label(self.window.texture_catalog.get(value, False)))
             else:
-                if attribute == "recent_player_spawn_levels":
+                if attribute in ("recent_player_spawn_levels", "selection_levels"):
                     widget.setMaximum(max(1, len(self.window.map_data["levels"]) - self.window.current_level))
                 widget.setValue(value)
             widget.blockSignals(False)
@@ -99,6 +103,7 @@ class ToolSettings(QWidget):
             return
         self.signature = signature
         self.bindings = []
+        self.selection_buttons = []
         self.key_controls = None
         self.material_permission = None
         self.actor_count = None
@@ -134,7 +139,10 @@ class ToolSettings(QWidget):
             if editable:
                 box.completer().setFilterMode(Qt.MatchFlag.MatchContains)
                 box.completer().setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-            box.currentTextChanged.connect(lambda text: setattr(window, attribute, text))
+            if attribute == "current_material":
+                box.currentTextChanged.connect(window.set_placement_material)
+            else:
+                box.currentTextChanged.connect(lambda text: setattr(window, attribute, text))
             if attribute == "current_material":
                 box.currentTextChanged.connect(
                     lambda alias: box.setToolTip(portal_label(window.texture_catalog.get(alias, False)))
@@ -209,8 +217,27 @@ class ToolSettings(QWidget):
             button.clicked.connect(self.configure_actor)
             form.addWidget(button)
 
+        def selection_controls():
+            levels = QSpinBox()
+            levels.setRange(1, max(1, len(window.map_data["levels"]) - window.current_level))
+            levels.setValue(min(window.selection_levels, levels.maximum()))
+            levels.valueChanged.connect(window.selection_scope_changed)
+            field("Levels", levels)
+            self.bindings.append((levels, "selection_levels"))
+            for text, action in (
+                ("Duplicate", window.duplicate_action),
+                ("Rotate", window.rotate_action),
+                ("Mirror", window.mirror_x_action),
+            ):
+                button = QPushButton(text)
+                button.setEnabled(action.isEnabled())
+                button.clicked.connect(action.trigger)
+                self.selection_buttons.append((button, action))
+                form.addWidget(button)
+
         # The controls each tool needs, by mode.
         builders = {
+            MODE_SELECT: selection_controls,
             **dict.fromkeys(
                 (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_WALL, *RAMP_MODES),
                 material_controls,

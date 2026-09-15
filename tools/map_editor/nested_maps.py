@@ -29,6 +29,8 @@ class NestedMapsMixin:
     def nested_map_end_at(self, cell: tuple[int, int]) -> tuple[dict, str] | None:
         """The nested map end anchored on `cell` on the current level, as
         `(entry, "from" | "to")`, so a drag that starts on an end moves it."""
+        if NESTED_MAPS_LIST in self.element_filters.excluded:
+            return None
         for entry in self.map_data.get(NESTED_MAPS_LIST, []):
             if entry["level"] == self.current_level and entry["from"] == list(cell):
                 return entry, "from"

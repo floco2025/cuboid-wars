@@ -252,13 +252,13 @@ mode (floors, terrain, walls, ramps, nested maps, ladders, barriers, light
 bridges, spawn zones, items, materials, lights, pressure plates). The
 Pressure Plate tool places a plate on the switch chosen in the toolbar; the
 barrier, bridge, actor zone, and nested-map dialogs choose a pressure plate kind and On/Off response, and the actor zone dialog also sets the zone's respawn delay. The Map menu edits pressure plate kinds, appearance catalogs, and fireworks; renames update references throughout the document, including key pickups and the toolbar defaults, and in-use kinds cannot be deleted. Catalog edits rewrite only the `barrier_kinds` and `bridge_kinds` values of `settings.json`, in prettier's style (`settings_text.py`), and a Save As carries edited catalogs to the destination map, whose other tuning it keeps. Select Tiles,
-the default, selects a tile rectangle for copy/cut/delete over a prompted
-level count and paste that replaces the destination; `regions.py` owns the
+the default, selects a tile rectangle for immediate copy/cut/delete over the
+visible Levels control’s upward span and paste that replaces the destination; `regions.py` owns the
 volume operations and their boundary rules. Alt/Option selects, moves, and
 resizes spawn zones or moves nested-map ends; right-click edits or erases the element under the
 cursor in every tool. `tool_catalog.py` groups the tool palette into Build,
-Zones & Items, Mechanisms, Appearance, and Measure, with Select and general
-Erase pinned above them. `tool_palette.py` shows icons and short labels in
+Zones & Items, Mechanisms, Appearance, and Measure, with Select, general
+Erase, and Sample pinned above them. `tool_palette.py` shows icons and short labels in
 stable positions; `tool_icons.py` renders vector silhouettes at multiple
 scales. Place/Erase (or `E` with canvas focus) selects the existing element
 and group-erase modes; shared erase scopes retain the selected placement
@@ -273,6 +273,9 @@ file; every view uses the parent's barrier and bridge kinds, colours, and
 texture aliases with portal permissions. `nested_definitions.py` owns creating,
 renaming, and deleting definitions; save, autosave, and undo cover the whole
 parent document and appearance catalog edits. Catalogs reload when the global configuration or the selected map’s settings file changes; `catalogs.py` holds every loader (kinds, switches, textures, the wall width), and `MapCatalogs` is the one value a window adopts for a map. The editor reads `config/client/assets.json` (wall-light kinds, watched) and `client/assets/symbols/items.json` (item glyphs); texture images are neither read nor watched.
+`workflow.py` owns sampling (`I` under the cursor or Use This Tool), inspection, and edit protection. Sampling copies applicable placement defaults, including per-face materials; choosing a material clears that recipe. `elements.py` identifies records across all levels, and `selection_properties.py` uses `property_fields.py` for mixed-value batch editing with explicit Apply and one undo entry. `element_filters.py` supplies session-wide Show/Lock toggles by type: hidden types are not drawn or picked, hidden and locked types are skipped by edits and clipboard operations, and dependency/normalization checks prevent collateral changes to protected records. Structural resizing and level edits require all types shown and unlocked. `plate_connections.py` highlights selected switches and lists plates and targets across outer and named geometry with navigation to their level.
+`selection_transfer.py` previews direct selection drags, duplicates, rotations, and mirrors before a single root-document transaction. `block_transforms.py` transforms geometry and directional properties without Qt; nested transforms copy the reachable definitions, preserving other placements, and require complete child footprints at both motion ends. Pending transforms leave the document and clipboard unchanged until placement; only reachable generated definitions are committed. Destination replacement uses the same whole-object rules as clipboard paste.
+
 Jump Reach (`jump_reach.py` and `jump_reach_overlay.py`) shows persistent per-power-up landing markers: dots for no damage, triangles for damage, crosses for fatal landings at full health. It reads the parent map’s `player_fall` thresholds and global maximum health; synchronization comments in `server/src/characters/falling.rs` identify the shared damage rules.
 Run Time (`run_time.py` and `run_time_overlay.py`) labels every cell on the origin's level with the straight-line seconds between cell centres at the map's run speed and with the speed power-up; it ignores walls and ramps and reads only `geometry.grid_cell_size` and the `movement.player` speeds. Both tools take their numbers through `setting_number` in `catalogs.py`.
 Player and actor spawn zones have no ground-support or floor-capacity checks in the editor; surface suitability belongs to the map designer. Zones remain one object across their level span. Numeric spawn-zone ordering and deduplication match the server while preserving invalid authored values for validation. Actor zone Controls edits the comma-separated count list (`dialogs/spawn_count.py`), the span, and the roam extension in metres; View → Show Roam Extensions (`R`, disabled initially) toggles the rounded boundary, including its cross-section above and below the zone.

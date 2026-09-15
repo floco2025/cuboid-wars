@@ -12,7 +12,7 @@ class Tool:
     erase: str | None = None
 
 
-PINNED_TOOLS = (Tool(c.MODE_SELECT, "Select"), Tool(c.MODE_ERASE, "Erase"))
+PINNED_TOOLS = (Tool(c.MODE_SELECT, "Select"), Tool(c.MODE_ERASE, "Erase"), Tool(c.MODE_SAMPLE, "Sample"))
 TOOL_GROUPS = (
     (
         "Build",

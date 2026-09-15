@@ -21,6 +21,7 @@ from .dialogs import ActorSpawnFieldsDialog, KindDialog, MaterialAssignmentDialo
 from .dialogs.controls import FieldPropertiesDialog
 from .editing import (
     material_values,
+    placement_materials,
     merge_record,
     paint_bridges,
     paint_edges,
@@ -50,20 +51,23 @@ class PlacementMixin:
 
     # === Placement (paint / draw new segments) ===
 
+    def placement_material(self):
+        return self.sampled_materials if self.sampled_materials is not None else self.current_material
+
     def _new_ramp(self, low: list[int], high: list[int], lower_level: int) -> dict:
-        return {"low": low, "high": high, "lower_level": lower_level, **dict.fromkeys(FACES, self.current_material)}
+        return {"low": low, "high": high, "lower_level": lower_level, **placement_materials(self.placement_material())}
 
     def add_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         self.apply_change(
             "Paint Floor",
-            paint_floors(self.map_data, self.current_level, rect_from_cells(start, end), self.current_material),
+            paint_floors(self.map_data, self.current_level, rect_from_cells(start, end), self.placement_material()),
         )
 
     def add_inaccessible_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         self.apply_change(
             "Paint Inaccessible Floor",
             paint_floors(
-                self.map_data, self.current_level, rect_from_cells(start, end), self.current_material, blocked=True
+                self.map_data, self.current_level, rect_from_cells(start, end), self.placement_material(), blocked=True
             ),
         )
 
@@ -74,7 +78,7 @@ class PlacementMixin:
                 self.map_data,
                 self.current_level,
                 rect_from_cells(start, end),
-                self.current_material,
+                self.placement_material(),
             ),
         )
 
@@ -172,7 +176,7 @@ class PlacementMixin:
 
     def add_wall_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         self.apply_change(
-            "Place Wall", paint_edges(self.map_data, self.current_level, start, end, material=self.current_material)
+            "Place Wall", paint_edges(self.map_data, self.current_level, start, end, material=self.placement_material())
         )
 
     def add_equipment_eraser_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:

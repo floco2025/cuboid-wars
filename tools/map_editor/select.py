@@ -6,13 +6,14 @@ import json
 
 from PySide6.QtCore import QMimeData
 from PySide6.QtGui import QKeySequence
-from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QApplication
 
 from .constants import MODE_SELECT
 from .geometry import rect_from_cells
 from .normalization import normalize_map, nested_map_key
-from .regions import TileRegion, copy_region, delete_region, paste_region
-from .types import DRAG_NESTED_END, DRAG_SPAWN_ZONE, DRAG_TILES
+from .regions import copy_region, delete_region, paste_region
+from .elements import filtered_map, restore_excluded
+from .types import DRAG_NESTED_END, DRAG_SPAWN_ZONE, DRAG_TILES, DRAG_BLOCK
 
 
 CLIPBOARD_MIME = "application/x-cuboid-wars-map-block+json"
@@ -20,16 +21,28 @@ CLIPBOARD_MIME = "application/x-cuboid-wars-map-block+json"
 
 class SelectMixin:
     def build_selection_actions(self, menu) -> None:
-        self.cut_action = self.add_menu_action(menu, "Cu&t...", QKeySequence.StandardKey.Cut, self.cut_selection)
-        self.copy_action = self.add_menu_action(menu, "&Copy...", QKeySequence.StandardKey.Copy, self.copy_selection)
+        self.cut_action = self.add_menu_action(menu, "Cu&t", QKeySequence.StandardKey.Cut, self.cut_selection)
+        self.copy_action = self.add_menu_action(menu, "&Copy", QKeySequence.StandardKey.Copy, self.copy_selection)
         self.paste_action = self.add_menu_action(menu, "&Paste", QKeySequence.StandardKey.Paste, self.paste_selection)
-        self.delete_action = self.add_menu_action(menu, "&Delete...", None, self.delete_selection)
+        self.delete_action = self.add_menu_action(menu, "&Delete", None, self.delete_selection)
         self.delete_action.setShortcuts([QKeySequence("Delete"), QKeySequence("Backspace")])
         self.edit_barriers_action = self.add_menu_action(
             menu, "Edit Selected Barriers…", None, lambda: self.edit_selected_fields("barriers")
         )
         self.edit_bridges_action = self.add_menu_action(
             menu, "Edit Selected Light Bridges…", None, lambda: self.edit_selected_fields("light_bridges")
+        )
+        self.duplicate_action = self.add_menu_action(
+            menu, "Duplicate Selection", QKeySequence("Ctrl+D"), self.duplicate_selection
+        )
+        self.rotate_action = self.add_menu_action(
+            menu, "Rotate Selection Clockwise", None, lambda: self.transform_selection("rotate")
+        )
+        self.mirror_x_action = self.add_menu_action(
+            menu, "Mirror Selection Horizontally", None, lambda: self.transform_selection("mirror_x")
+        )
+        self.mirror_y_action = self.add_menu_action(
+            menu, "Mirror Selection Vertically", None, lambda: self.transform_selection("mirror_y")
         )
         menu.addSeparator()
         self.add_menu_action(menu, "Select &All Tiles", QKeySequence.StandardKey.SelectAll, self.select_all_tiles)
@@ -59,15 +72,22 @@ class SelectMixin:
             self.delete_action,
             self.edit_barriers_action,
             self.edit_bridges_action,
+            self.duplicate_action,
+            self.rotate_action,
+            self.mirror_x_action,
+            self.mirror_y_action,
         ):
             action.setEnabled(selected)
         self.paste_action.setEnabled(selected and self.tile_clipboard is not None)
         self.deselect_action.setEnabled(True)
+        self.tool_settings.sync_values()
 
     def set_tile_selection(self, rect: tuple[int, int, int, int] | None) -> None:
         self.tile_selection = rect
+        self.inspected_refs = []
         self.selected_spawn_zone_ref = None
         self.update_selection_actions()
+        self.refresh_inspection()
         self.canvas.update()
 
     def clear_selection(self) -> None:
@@ -77,6 +97,7 @@ class SelectMixin:
     def cancel_interaction(self) -> None:
         self.spawn_zone_drag = None
         self.select_drag_kind = None
+        self.pending_block = None
         self.canvas.cancel()
 
     def select_all_tiles(self) -> None:
@@ -86,6 +107,16 @@ class SelectMixin:
     # `pos` is in grid units.
     def begin_select_press(self, pos, *, edit_objects: bool = False) -> bool:
         self.select_drag_kind = None
+        self.selection_point = pos
+        if self.pending_block is not None:
+            self.move_pending_block(pos)
+            self.select_drag_kind = DRAG_BLOCK
+            return True
+        if self.tile_selection is not None and not edit_objects:
+            c0, r0, c1, r1 = self.tile_selection
+            if c0 <= pos.x() < c1 and r0 <= pos.y() < r1 and self.begin_transfer(point=pos):
+                self.select_drag_kind = DRAG_BLOCK
+                return True
         if edit_objects or self.selected_spawn_zone_handle(pos) is not None:
             self.tile_selection = None
             if self.begin_spawn_zone_drag(pos):
@@ -103,17 +134,31 @@ class SelectMixin:
         return True
 
     def update_select_drag(self, pos) -> None:
-        if self.select_drag_kind == DRAG_SPAWN_ZONE:
+        self.selection_point = pos
+        if self.select_drag_kind == DRAG_BLOCK:
+            self.move_pending_block(pos)
+        elif self.select_drag_kind == DRAG_SPAWN_ZONE:
             self.update_spawn_zone_edit_drag(pos)
 
     def end_select_drag(self, start_cell: tuple[int, int] | None, end_cell: tuple[int, int] | None) -> None:
         kind = self.select_drag_kind
         self.select_drag_kind = None
-        if kind == DRAG_SPAWN_ZONE:
+        if kind == DRAG_BLOCK:
+            pending = self.pending_block
+            if pending is not None and pending.dragging and pending.destination == pending.source.rect[:2]:
+                self.pending_block = None
+                self.inspect_hit(self.hit_at(self.selection_point))
+            else:
+                self.commit_pending_block()
+        elif kind == DRAG_SPAWN_ZONE:
             self.commit_spawn_zone_edit_drag()
         elif start_cell is not None and end_cell is not None:
             if kind == DRAG_TILES:
                 self.set_tile_selection(rect_from_cells(start_cell, end_cell))
+                if start_cell == end_cell:
+                    self.inspect_hit(self.hit_at(self.selection_point))
+                else:
+                    self.refresh_inspection(show=True)
             elif kind == DRAG_NESTED_END and end_cell != start_cell:
                 hit = self.nested_map_end_at(start_cell)
                 if hit is not None:
@@ -121,18 +166,8 @@ class SelectMixin:
                     self.move_nested_map_end(nested_map_key(entry), end, end_cell)
         self.update_selection_actions()
 
-    def _selection_region(self, operation: str) -> TileRegion | None:
-        if self.mode != MODE_SELECT or self.tile_selection is None:
-            return None
-        count, accepted = QInputDialog.getInt(
-            self,
-            f"{operation} Tiles",
-            f"How many levels to {operation.lower()}?\nStarting at the current level, upward:",
-            1,
-            1,
-            len(self.map_data["levels"]) - self.current_level,
-        )
-        return TileRegion(self.tile_selection, self.current_level, count) if accepted else None
+    def _selection_region(self, operation):
+        return self.selection_region() if self.mode == MODE_SELECT else None
 
     def copy_selection(self) -> None:
         self._edit_selection("Copy", copy_tiles=True, delete_tiles=False)
@@ -148,10 +183,12 @@ class SelectMixin:
         if region is None:
             return
         try:
-            block = copy_region(self.map_data, region) if copy_tiles else None
-            after = delete_region(self.map_data, region) if delete_tiles else None
+            block = copy_region(self.editable_map_data(), region) if copy_tiles else None
+            after = delete_region(self.editable_map_data(), region) if delete_tiles else None
+            if after is not None:
+                after = self.protect_change(restore_excluded(self.map_data, after, self.element_filters.excluded))
         except ValueError as exc:
-            QMessageBox.information(self, f"Cannot {operation} Tiles", str(exc))
+            self.notify(f"Cannot {operation.lower()}: {exc}")
             return
         if block is not None:
             mime = QMimeData()
@@ -167,16 +204,15 @@ class SelectMixin:
             return
         col, row = self.tile_selection[:2]
         try:
-            after = paste_region(self.map_data, self.tile_clipboard, (col, row), self.current_level)
-            errors = self.validate(self.tile_clipboard, plated_from=after)
-            if errors:
-                raise ValueError("The copied block cannot be used in this map:\n\n" + "\n".join(errors[:8]))
+            block = filtered_map(self.tile_clipboard, self.element_filters.excluded)
+            after = paste_region(self.editable_map_data(), block, (col, row), self.current_level)
+            after = self.protect_change(restore_excluded(self.map_data, after, self.element_filters.excluded))
             before = {issue.identity() for issue in self.validate(self.map_data).issues}
             added_errors = [issue.message for issue in self.validate(after).issues if issue.identity() not in before]
             if added_errors:
                 raise ValueError("The pasted block conflicts with the destination:\n\n" + "\n".join(added_errors[:8]))
         except ValueError as exc:
-            QMessageBox.information(self, "Cannot Paste Tiles", str(exc))
+            self.notify(f"Cannot paste: {exc}")
             return
         self.apply_change("Paste Tiles", after)
         self.set_tile_selection(

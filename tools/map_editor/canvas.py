@@ -41,12 +41,14 @@ from .constants import (
     MODE_RUN_TIME,
     MODE_LIGHT,
     MODE_SELECT,
+    MODE_SAMPLE,
     MODE_LIGHT_BRIDGE,
     MODE_NESTED_MAP,
     MODE_PLAYER_SPAWN_ZONE,
     MODE_CHECKPOINT,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_MATERIAL,
+    MODE_RAMP_UP,
     MODE_WALL,
     MODE_WALL_MATERIAL,
     RAMP_MODES,
@@ -62,6 +64,7 @@ from .geometry import (
     snapped_wall_end,
 )
 
+from .elements import ELEMENT_MODES
 from .canvas_painting import CanvasPaintingMixin
 from .erasing import ERASE_GROUPS
 from .viewport import Viewport
@@ -161,6 +164,7 @@ def _erase_cells_tool(canvas: "Canvas", event) -> None:
 
 
 CLICK_TOOLS = {
+    MODE_SAMPLE: lambda canvas, event: canvas.window.sample_at(canvas.grid_position(event.position())),
     MODE_JUMP_REACH: lambda canvas, event: canvas.window.jump_reach.select(*canvas.point_to_cell(event.position())),
     MODE_RUN_TIME: lambda canvas, event: canvas.window.run_time.select(*canvas.point_to_cell(event.position())),
     MODE_LIGHT: _light_tool,
@@ -326,6 +330,8 @@ class Canvas(CanvasPaintingMixin, QWidget):
         super().focusOutEvent(event)
 
     def visible_entries(self, name: str, entries: list[dict]):
+        if name in self.window.element_filters.hidden:
+            return
         visible = self.viewport.visible_rect(self.width(), self.height()).adjusted(-1, -1, 1, 1)
         for entry in entries:
             c0, r0, c1, r1 = record_rect(name, entry)
@@ -366,6 +372,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
             return
         self.setFocus(Qt.FocusReason.MouseFocusReason)
         self.clear_drag()
+        mode = MODE_RAMP_UP if self.window.mode in RAMP_MODES else self.window.mode
+        if any(ELEMENT_MODES[name] == mode for name in self.window.element_filters.excluded):
+            self.window.notify("Show and unlock this element type before placing it.")
+            return
         if self.window.mode in CLICK_TOOLS:
             self.click_pending = self.point_to_cell(event.position()) is not None
             self._update_cell_hover(event.position())
@@ -384,6 +394,8 @@ class Canvas(CanvasPaintingMixin, QWidget):
         self.update()
 
     def mouseMoveEvent(self, event) -> None:
+        if self.window.pending_block is not None and self.pan_origin is None:
+            self.window.move_pending_block(self.grid_position(event.position()))
         if self.pan_origin is not None:
             self.pan_by(event.position() - self.pan_origin)
             self.pan_origin = event.position()
@@ -451,7 +463,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
 
     def _update_material_hover(self, pos) -> None:
         level_idx = self.window.current_level
-        level = self.window.map_data["levels"][level_idx]
+        level = self.window.visible_map_data()["levels"][level_idx]
 
         kind: str | None = None
         target: dict | None = None
@@ -481,7 +493,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
             cell = self.point_to_cell(pos)
             if cell is not None:
                 col, row = cell
-                for ramp in self.window.map_data["ramps"]:
+                for ramp in self.window.visible_map_data()["ramps"]:
                     if ramp["lower_level"] == level_idx and (col, row) in ramp_cells(ramp):
                         kind, target = "ramp", ramp
                         tooltip = f"Ramp\n{materials_summary(ramp)}"
@@ -578,6 +590,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
                 self.window.copy_action,
                 self.window.paste_action,
                 self.window.delete_action,
+                self.window.duplicate_action,
+                self.window.rotate_action,
+                self.window.mirror_x_action,
+                self.window.mirror_y_action,
             ):
                 menu.addAction(action)
             menu.addSeparator()
@@ -588,6 +604,14 @@ class Canvas(CanvasPaintingMixin, QWidget):
             nothing.setEnabled(False)
             menu.exec(event.globalPos())
             return
+        from .elements import refs_for_hit
+
+        refs = refs_for_hit(self.window.map_data, self.window.current_level, hit)
+        protected = any(ref.name in self.window.element_filters.excluded for ref in refs)
+        menu.addAction("Properties", lambda: self.window.inspect_hit(hit))
+        position = self.grid_position(event.pos())
+        menu.addAction("Use This Tool", lambda: self.window.sample_at(position))
+        menu.addSeparator()
         kind, value = hit
         if kind in (HIT_SPAWN_ZONE, HIT_CHECKPOINT):
             list_name, index = value
@@ -624,6 +648,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
                 )
         if kind != HIT_PRESSURE_PLATE and not (preserve_floors and kind in FLOOR_HIT_KINDS):
             menu.addAction(f"Erase {kind}", lambda: self.window.erase_hit(hit, preserve_floors))
+        if protected:
+            for action in menu.actions():
+                if action.text().startswith(("Edit ", "Erase ")):
+                    action.setEnabled(False)
         menu.exec(event.globalPos())
 
     def clear_drag(self) -> None:

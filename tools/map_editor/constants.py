@@ -17,6 +17,7 @@ ASSETS_PATH = REPO_ROOT / "config" / "client" / "assets.json"
 UNKNOWN_SWITCH_PLATE_COLOR = "#9ca3af"
 
 MODE_SELECT = "Select Tiles"
+MODE_SAMPLE = "Sample Tool"
 MODE_JUMP_REACH = "Jump Reach"
 MODE_RUN_TIME = "Run Time"
 MODE_FLOOR = "Floor"

@@ -26,7 +26,7 @@ class SpawnZoneEditMixin:
 
     def selected_spawn_zone(self) -> dict | None:
         ref = self.selected_spawn_zone_ref
-        if ref is None:
+        if ref is None or ref.list_name in self.element_filters.excluded:
             return None
         if not (0 <= ref.index < len(self.map_data[ref.list_name])):
             return None
@@ -57,6 +57,8 @@ class SpawnZoneEditMixin:
         row = int(pos.y() // 1)
         # Lists in pick order; within each, the most-recently-painted wins.
         for list_name in ZONE_PICK_ORDER:
+            if list_name in self.element_filters.excluded:
+                continue
             for idx in range(len(self.map_data[list_name]) - 1, -1, -1):
                 zone = self.map_data[list_name][idx]
                 if zone_spans_level(zone, self.current_level) and zone_contains_cell(zone, col, row):

@@ -130,8 +130,15 @@ def erase_floors(data: dict, level_idx: int, rect: Rect) -> dict:
     level["floors"] = cells_outside(level["floors"], rect)
     level["inaccessible_floors"] = cells_outside(level["inaccessible_floors"], rect)
     level["terrain"] = cells_outside(level.get("terrain", []), rect)
-    after[ITEMS_LIST] = level_cells_outside(after.get(ITEMS_LIST, []), level_idx, rect)
-    after["pressure_plates"] = level_cells_outside(after.get("pressure_plates", []), level_idx, rect)
+    floor_names = ("floors", "inaccessible_floors", "terrain")
+    cells = lambda level: {(e["col"], e["row"]) for name in floor_names for e in level.get(name, [])}
+    removed = cells(data["levels"][level_idx]) - cells(level)
+    for name in (ITEMS_LIST, "pressure_plates"):
+        after[name] = [
+            entry
+            for entry in after.get(name, [])
+            if entry["level"] != level_idx or (entry["col"], entry["row"]) not in removed
+        ]
     return after
 
 

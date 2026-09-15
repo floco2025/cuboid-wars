@@ -16,6 +16,9 @@ class StructureMixin:
     # === Map structure (resize / levels / help) ===
 
     def resize_map(self) -> None:
+        if self.element_filters.excluded:
+            self.notify("Show and unlock all element types before resizing the map.")
+            return
         result = ResizeMapDialog.prompt(self, self.map_data["grid_cols"], self.map_data["grid_rows"])
         if result is None:
             return
@@ -40,6 +43,9 @@ class StructureMixin:
         self.canvas.fit_map()
 
     def add_level(self) -> None:
+        if self.element_filters.excluded:
+            self.notify("Show and unlock all element types before changing levels.")
+            return
         insert_at = self.current_level + 1
         crossing = crossing_ramps(self.map_data, insert_at)
         if crossing:
@@ -56,7 +62,8 @@ class StructureMixin:
             self.canvas.update()
             if answer != QMessageBox.StandardButton.Yes:
                 return
-        self.apply_change("Add Level", insert_level_data(self.map_data, insert_at, remove_crossing_ramps=True))
+        if not self.apply_change("Add Level", insert_level_data(self.map_data, insert_at, remove_crossing_ramps=True)):
+            return
         self.current_level = insert_at
         self.refresh_ui()
 
@@ -70,6 +77,9 @@ class StructureMixin:
         self.apply_change("Rename Level", after)
 
     def remove_level(self) -> None:
+        if self.element_filters.excluded:
+            self.notify("Show and unlock all element types before changing levels.")
+            return
         if len(self.map_data["levels"]) == 1:
             QMessageBox.information(self, "Remove Level", "A map must have at least one level.")
             return

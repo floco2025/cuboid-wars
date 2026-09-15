@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 # What a press in Select Tiles started dragging.
 DRAG_TILES = "tiles"
+DRAG_BLOCK = "block"
 DRAG_SPAWN_ZONE = "spawn zone"
 DRAG_NESTED_END = "nested end"
 

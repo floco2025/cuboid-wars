@@ -215,13 +215,15 @@ class SelectionWindowTests(WindowTestCase):
         window = self.window
         before = copy.deepcopy(window.map_data)
         self.click(1, 1)
-        with patch("map_editor.select.QInputDialog.getInt", return_value=(1, True)) as prompt:
+        with patch(
+            "PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")
+        ) as prompt:
             window.copy_action.trigger()
-            self.assertEqual(prompt.call_args.args[3:6], (1, 1, 1))
+            prompt.assert_not_called()
         self.assertEqual(window.map_data, before)
         self.assertFalse(window.dirty)
         self.assertTrue(window.paste_action.isEnabled())
-        with patch("map_editor.select.QInputDialog.getInt", return_value=(1, True)):
+        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
             window.cut_action.trigger()
         self.assertEqual(window.map_data["levels"][0]["floors"], [])
         self.assertEqual(window.undo_stack.count(), 1)
@@ -232,7 +234,7 @@ class SelectionWindowTests(WindowTestCase):
         self.click(4, 4)
         window.paste_action.trigger()
         self.assertEqual(len(window.map_data["levels"][0]["floors"]), 2)
-        with patch("map_editor.select.QInputDialog.getInt", return_value=(1, True)):
+        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
             window.delete_action.trigger()
         self.assertEqual(window.map_data, before)
         self.assertEqual(bytes(self.app.clipboard().mimeData().data(CLIPBOARD_MIME)), clipboard)
@@ -241,11 +243,13 @@ class SelectionWindowTests(WindowTestCase):
         window.undo_stack.redo()
         self.assertEqual(window.map_data, before)
 
-    def test_cancelled_dialog_and_switching_tool_do_not_edit_the_map(self):
+    def test_cancelled_duplicate_and_switching_tool_do_not_edit_the_map(self):
         self.click(1, 1)
         before = copy.deepcopy(self.window.map_data)
-        with patch("map_editor.select.QInputDialog.getInt", return_value=(1, False)):
-            self.window.cut_selection()
+        self.window.duplicate_selection()
+        self.assertIsNotNone(self.window.pending_block)
+        self.window.clear_selection()
+        self.assertIsNone(self.window.pending_block)
         self.assertEqual(self.window.map_data, before)
         self.assertIsNone(self.window.tile_clipboard)
         self.window.set_mode(MODE_FLOOR)
@@ -278,15 +282,19 @@ class SelectionWindowTests(WindowTestCase):
         self.window.activateWindow()
         self.click(1, 1)
         self.app.processEvents()
-        with patch("map_editor.select.QInputDialog.getInt", return_value=(1, True)) as prompt:
+        with patch(
+            "PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")
+        ) as prompt:
             QTest.keySequence(self.window.canvas, QKeySequence(QKeySequence.StandardKey.Copy))
-            prompt.assert_called_once()
+            prompt.assert_not_called()
         self.click(5, 5)
         QTest.keySequence(self.window.canvas, QKeySequence(QKeySequence.StandardKey.Paste))
         self.assertEqual(len(self.window.map_data["levels"][0]["floors"]), 2)
-        with patch("map_editor.select.QInputDialog.getInt", return_value=(1, True)) as prompt:
+        with patch(
+            "PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")
+        ) as prompt:
             QTest.keyClick(self.window.canvas, Qt.Key.Key_Backspace)
-            prompt.assert_called_once()
+            prompt.assert_not_called()
         QTest.keySequence(self.window.canvas, QKeySequence(QKeySequence.StandardKey.SelectAll))
         self.assertEqual(self.window.tile_selection, (0, 0, 8, 8))
         QTest.keyClick(self.window.canvas, Qt.Key.Key_Escape)
@@ -311,7 +319,8 @@ class SelectionWindowTests(WindowTestCase):
         window.add_level()
         window.set_level_index(0)
         self.click(1, 1)
-        with patch("map_editor.select.QInputDialog.getInt", return_value=(2, True)):
+        window.selection_scope_changed(2)
+        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
             window.copy_selection()
         window.set_level_index(1)
         self.click(4, 4)
@@ -324,7 +333,7 @@ class SelectionWindowTests(WindowTestCase):
 
     def test_clipboard_survives_opening_a_map_but_selection_does_not(self):
         self.click(1, 1)
-        with patch("map_editor.select.QInputDialog.getInt", return_value=(1, True)):
+        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
             self.window.copy_selection()
         block = copy.deepcopy(self.window.tile_clipboard)
         other = Path(self.temp.name) / "obby" / "layout.json"
@@ -349,10 +358,10 @@ class SelectionWindowTests(WindowTestCase):
         write_map(other, data)
         self.window.load_path(other)
         self.click(1, 1)
-        with patch("map_editor.select.QInputDialog.getInt", return_value=(1, True)):
+        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
             self.window.copy_selection()
         self.click(3, 3)
-        with patch("map_editor.select.QMessageBox.information", side_effect=AssertionError("paste refused")):
+        with patch.object(self.window, "notify", side_effect=AssertionError("paste refused")):
             self.window.paste_selection()
         bridges = self.window.map_data["levels"][0]["light_bridges"]
         self.assertEqual([(bridge["col"], bridge["row"]) for bridge in bridges], [(1, 1), (3, 3)])

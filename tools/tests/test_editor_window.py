@@ -46,19 +46,19 @@ class WindowTests(WindowTestCase):
         data["items"] = [{"level": 0, "col": 6, "row": 6, "type": "not_a_type"}]
         window.doc.replace_with_new(data)
         self.click(1, 1)
-        with patch("map_editor.select.QInputDialog.getInt", return_value=(1, True)):
+        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
             window.copy_action.trigger()
         self.click(3, 3)
-        with patch("map_editor.select.QMessageBox.information") as refused:
+        with patch.object(window, "notify") as refused:
             window.paste_action.trigger()
         refused.assert_not_called()
         self.assertEqual(len(window.map_data["levels"][0]["floors"]), 3)
 
-    def test_issues_dock_and_tool_settings_start_hidden(self):
+    def test_issues_dock_starts_hidden_and_selection_scope_is_visible(self):
         window = self.window
         self.assertFalse(window.issues_panel.isVisible())
         self.assertTrue(window.tool_palette.isVisible())
-        self.assertFalse(window.tool_settings.isVisible())
+        self.assertTrue(window.tool_settings.isVisible())
 
     def test_close_saves_geometry_shared_with_other_maps_but_cancel_keeps_window_open(self):
         window = self.window
@@ -204,7 +204,7 @@ class WindowTests(WindowTestCase):
         window.set_mode(MODE_ACTOR_SPAWN_ZONE)
         self.app.processEvents()
         self.assertTrue(window.tool_settings.isVisible())
-        for mode in (MODE_SELECT, MODE_ERASE):
+        for mode in (MODE_ERASE,):
             window.set_mode(mode)
             self.app.processEvents()
             self.assertFalse(window.tool_settings.isVisible())
