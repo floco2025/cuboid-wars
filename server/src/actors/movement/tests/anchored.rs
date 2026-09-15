@@ -27,7 +27,7 @@ fn step(
 ) {
     let starts = query
         .iter()
-        .map(|(entity, _, _, pos, _, _, _, _, _, _, character)| (entity, *pos, character.0.physics()))
+        .map(|(entity, _, _, pos, _, _, _, _, _, _, _, character)| (entity, *pos, character.0.physics()))
         .collect::<Vec<_>>();
     let mut planned = Vec::new();
     plan_actor_moves(

@@ -11,7 +11,7 @@ ANTI_GRAVITY = 4
 BOTH = 8
 
 
-# Keep the cutoff and damage calculation in sync with server/src/players/falling.rs.
+# Keep the cutoff and damage calculation in sync with server/src/characters/falling.rs.
 FALL_DAMAGE_EMIT_THRESHOLD = 1.0
 # Match common/src/constants.rs::CHARACTER_TERMINAL_VELOCITY.
 CHARACTER_TERMINAL_VELOCITY = 50.0

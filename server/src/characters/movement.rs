@@ -31,7 +31,7 @@ pub fn characters_movement_system(
     let mut planned_moves = Vec::new();
     let actor_starts: Vec<(Entity, Position, CharacterPhysicsConfig)> = actor_query
         .iter()
-        .filter_map(|(entity, id, _, pos, _, _, _, _, _, _, _)| {
+        .filter_map(|(entity, id, _, pos, _, _, _, _, _, _, _, _)| {
             let info = actors.get(id)?;
             Some((entity, *pos, gameplay_config.expect_actor(&info.spawn_kind).physics()))
         })

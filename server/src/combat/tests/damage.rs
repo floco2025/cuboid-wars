@@ -104,6 +104,10 @@ fn server_gameplay_config() -> ServerGameplayConfig {
                     safe_distance: 4.0,
                     lethal_distance: 12.0,
                 },
+                actor_fall: FallDamageConfig {
+                    safe_distance: 4.0,
+                    lethal_distance: 12.0,
+                },
                 respawn: Default::default(),
                 power_ups: PowerUpsConfig {
                     duration_secs: PowerUpDurationSecs {

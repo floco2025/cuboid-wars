@@ -1,4 +1,5 @@
 mod behavior;
+mod falling;
 mod movement;
 pub mod navigation;
 mod plugin;
@@ -9,12 +10,13 @@ mod spawning;
 pub(crate) mod test_kinds;
 
 pub use behavior::actors_behavior_system;
+pub use falling::actors_fall_damage_system;
 pub(crate) use movement::{ActorMovementQuery, apply_actor_moves, plan_actor_moves};
 pub use plugin::actors_plugin;
 pub use removal::actors_removal_system;
 pub use resources::{
-    ActorCharacter, ActorCrushed, ActorInfo, ActorMap, ActorMotionQuery, ActorRespawnTimers, ActorSpawner,
-    ActorStateQuery, PendingActorSpawn, PendingActorSpawns,
+    ActorCharacter, ActorCrushed, ActorInfo, ActorLanding, ActorMap, ActorMotionQuery, ActorRespawnTimers,
+    ActorSpawner, ActorStateQuery, PendingActorSpawn, PendingActorSpawns,
 };
 pub(crate) use resources::{ActorMode, ActorRespawnState, ActorRoute, BeamState};
 pub use spawning::{

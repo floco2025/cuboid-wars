@@ -5,7 +5,7 @@ use common::{
     protocol::{ActorId, ActorMarker, ActorMoveIntent, FaceYaw, PlayerMarker, Position},
 };
 
-use crate::actors::{ActorCharacter, ActorCrushed};
+use crate::actors::{ActorCharacter, ActorCrushed, ActorLanding};
 
 pub(crate) type ActorMovementQuery<'w, 's> = Query<
     'w,
@@ -21,6 +21,7 @@ pub(crate) type ActorMovementQuery<'w, 's> = Query<
         &'static mut CharacterSupport,
         Option<&'static KnockbackVelocity>,
         &'static mut ActorCrushed,
+        &'static mut ActorLanding,
         &'static ActorCharacter,
     ),
     (With<ActorMarker>, Without<PlayerMarker>),

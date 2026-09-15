@@ -18,6 +18,12 @@ use super::navigation::{GroundState, NavNode, NavWaypoint, PlannedRoute, Waypoin
 #[derive(Component, Default)]
 pub struct ActorCrushed(pub bool);
 
+// The downward speed this tick's movement landed the actor with, zero when
+// it did not land; written by `apply_actor_moves`, read by
+// `actors_fall_damage_system`.
+#[derive(Component, Default)]
+pub struct ActorLanding(pub f32);
+
 // The kind's body and abilities, resolved once at materialization so
 // movement never looks the kind up by name per tick.
 #[derive(Component, Clone)]

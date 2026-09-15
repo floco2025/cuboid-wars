@@ -45,6 +45,7 @@ pub(crate) fn plan_actor_moves(
             mut support,
             knockback,
             _,
+            _,
             character,
         )) = query.get_mut(actor_order.entity)
         else {

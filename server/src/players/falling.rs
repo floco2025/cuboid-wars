@@ -2,8 +2,9 @@ use bevy::prelude::*;
 
 use super::{Invincibility, PlayerMap, place_player_body, player_spawn_destination, spawn_zone_destination};
 use crate::{
+    characters::{FALL_DAMAGE_EMIT_THRESHOLD, fall_damage_for_distance, fall_distance_for_speed},
     combat::{DeathSource, PendingExplosions, apply_damage, kill_player},
-    config::{FallDamageConfig, ServerGameplayConfig},
+    config::{FallDamageConfigs, ServerGameplayConfig},
     map::MapConfig,
     portals::PortalAssignments,
 };
@@ -127,17 +128,6 @@ pub fn players_fatal_outcomes_system(
     }
 }
 
-// ============================================================================
-// Players Fall Damage System
-// ============================================================================
-
-// Below this damage, skip damage and camera shake. The lerp produces
-// near-zero damage just past `safe_distance` due to float / tick
-// noise; without this gate the client would get a wiggle for every tiny
-// step off a curb.
-// Keep this cutoff in sync with tools/map_editor/jump_reach.py.
-const FALL_DAMAGE_EMIT_THRESHOLD: f32 = 1.0;
-
 pub fn players_fall_damage_system(
     mut commands: Commands,
     mut players: ResMut<PlayerMap>,
@@ -145,7 +135,7 @@ pub fn players_fall_damage_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     invincibility: Res<Invincibility>,
     map_settings: Res<MapSettings>,
-    fall: Res<FallDamageConfig>,
+    fall: Res<FallDamageConfigs>,
     mut player_query: Query<(Entity, &PlayerId, &mut Health), With<PlayerMarker>>,
 ) {
     let invincible = invincibility.0;
@@ -165,7 +155,7 @@ pub fn players_fall_damage_system(
             }
             let pos = &impact.pos;
             let fall_distance = fall_distance_for_speed(impact.impact_speed, map_settings.movement.gravity);
-            let damage = fall_damage_for_distance(fall_distance, fall.safe_distance, fall.lethal_distance, max_health);
+            let damage = fall_damage_for_distance(fall_distance, &fall.player, max_health);
             if damage < FALL_DAMAGE_EMIT_THRESHOLD {
                 if impact.impact_speed > 0.0
                     && let Some(info) = players.get(id)
@@ -218,18 +208,6 @@ pub fn players_fall_damage_system(
             }
         }
     }
-}
-
-// Express impact energy as a normal-gravity drop so map distance thresholds retain their meaning.
-fn fall_distance_for_speed(impact_speed: f32, normal_gravity: f32) -> f32 {
-    impact_speed * impact_speed / (2.0 * normal_gravity)
-}
-
-// Lerp damage between `safe_distance` (0 dmg) and `lethal_distance`
-// (full health), clamping the falloff beyond the lethal endpoint.
-// Keep this curve in sync with tools/map_editor/jump_reach.py::FallSettings.damage_fraction.
-fn fall_damage_for_distance(distance: f32, safe: f32, lethal: f32, max_health: f32) -> f32 {
-    f32::inverse_lerp(safe, lethal, distance).clamp(0.0, 1.0) * max_health
 }
 
 #[cfg(test)]

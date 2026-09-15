@@ -1,6 +1,6 @@
 use super::*;
 use crate::actors::{
-    ActorCharacter, ActorCrushed, ActorInfo,
+    ActorCharacter, ActorCrushed, ActorInfo, ActorLanding,
     test_kinds::{self, CONTACT},
 };
 use bevy::{ecs::system::SystemState, prelude::*};
@@ -27,6 +27,7 @@ fn rejected_flying_step_does_not_apply_its_vertical_velocity_or_crush_result() {
             FaceYaw(0.0),
             CharacterSupport::Airborne,
             ActorCrushed(false),
+            ActorLanding(0.0),
             ActorCharacter(character),
         ))
         .id();
@@ -54,4 +55,51 @@ fn rejected_flying_step_does_not_apply_its_vertical_velocity_or_crush_result() {
         0.0
     );
     assert!(!ecs.get::<ActorCrushed>(entity).expect("actor crush state missing").0);
+}
+
+#[test]
+fn an_applied_step_records_its_landing_speed_until_the_next_step() {
+    let mut ecs = World::new();
+    let character = test_kinds::kind(CONTACT).character;
+    let physics = character.physics();
+    let start = Position { y: 1.0, ..default() };
+    let entity = ecs
+        .spawn((
+            ActorId(1),
+            ActorMarker,
+            start,
+            CharacterVerticalVelocity(-9.0),
+            ActorMoveIntent::Idle,
+            FaceYaw(0.0),
+            CharacterSupport::Airborne,
+            ActorCrushed(false),
+            ActorLanding(0.0),
+            ActorCharacter(character),
+        ))
+        .id();
+    let mut actors = ActorMap::default();
+    actors.insert(ActorId(1), ActorInfo::new(entity, 0, CONTACT.into(), CarrierId::WORLD));
+    let world = CollisionWorld::from_map_layout(&MapLayout::default());
+    let landed = Position::default();
+    let landing = CharacterMovePlan {
+        entity,
+        start,
+        target: landed,
+        target_vertical_velocity: 0.0,
+        impact_speed: 9.0,
+        physics,
+        blocked: false,
+        crushed: false,
+    };
+    let standing = CharacterMovePlan::stationary(entity, landed, 0.0, physics);
+    let mut state = SystemState::<ActorMovementQuery>::new(&mut ecs);
+    for (plan, expected_landing) in [(landing, 9.0), (standing, 0.0)] {
+        let mut query = state.get_mut(&mut ecs).expect("movement query invalid");
+        apply_actor_moves(&mut query, &actors, &[plan], &world, &[]);
+        assert_eq!(*ecs.get::<Position>(entity).expect("actor position missing"), landed);
+        assert_eq!(
+            ecs.get::<ActorLanding>(entity).expect("actor landing missing").0,
+            expected_landing
+        );
+    }
 }

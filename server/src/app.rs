@@ -10,7 +10,7 @@ use crate::{
     },
     characters::characters_plugin,
     combat::{PendingExplosions, combat_plugin},
-    config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
+    config::{FallDamageConfigs, ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
     map::{GeneratedMap, MapFireworks, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
@@ -183,7 +183,10 @@ fn build_server_app_with_loader(
         .insert_resource(map_layout)
         .insert_resource(map_items)
         .insert_resource(map_settings)
-        .insert_resource(map_server_config.player_fall)
+        .insert_resource(FallDamageConfigs {
+            player: map_server_config.player_fall,
+            actor: map_server_config.actor_fall,
+        })
         .insert_resource(world_bootstrap)
         .insert_resource(weather_state)
         .insert_resource(celestial_clock)

@@ -27,7 +27,7 @@ pub fn actors_removal_system(
         let kind = if !server_gameplay_config.expect_actor(&info.spawn_kind).character.flies()
             && pos.y < CHARACTER_FALL_DEATH_Y
         {
-            ActorDeathKind::Fall
+            ActorDeathKind::Void
         } else if crushed.0 {
             ActorDeathKind::Crushed
         } else if health.0 <= 0.0 {
@@ -72,8 +72,12 @@ pub fn actors_removal_system(
                     death.killer,
                 );
             }
-            ActorDeathKind::Fall => {
-                info!("{} fell and despawned at {:?}", actors.describe(&death.id), death.pos);
+            ActorDeathKind::Void => {
+                info!(
+                    "{} fell out of the world at {:?}",
+                    actors.describe(&death.id),
+                    death.pos
+                );
                 commands.entity(death.entity).despawn();
                 actors.remove(&death.id);
             }
@@ -83,7 +87,7 @@ pub fn actors_removal_system(
 
 #[derive(Copy, Clone)]
 enum ActorDeathKind {
-    Fall,
+    Void,
     Crushed,
     Killed,
 }

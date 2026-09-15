@@ -87,15 +87,21 @@ fn maps_load_independent_fall_thresholds() {
     let directory = TestConfigDir::new();
     let mut settings: Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON invalid");
     settings["player_fall"] = json!({"safe_distance": 2.0, "lethal_distance": 6.0});
+    settings["actor_fall"] = json!({"safe_distance": 3.0, "lethal_distance": 7.0});
     directory.write_settings("first", &settings.to_string());
     settings["player_fall"] = json!({"safe_distance": 12.0, "lethal_distance": 30.0});
+    settings["actor_fall"] = json!({"safe_distance": 1.0, "lethal_distance": 9.0});
     directory.write_settings("second", &settings.to_string());
     directory.write_registry(json!(["first", "second"]), "second");
     let loaded = directory.load().expect("valid fall thresholds rejected");
     assert_eq!(loaded.maps["first"].player_fall.safe_distance, 2.0);
     assert_eq!(loaded.maps["first"].player_fall.lethal_distance, 6.0);
+    assert_eq!(loaded.maps["first"].actor_fall.safe_distance, 3.0);
+    assert_eq!(loaded.maps["first"].actor_fall.lethal_distance, 7.0);
     assert_eq!(loaded.maps["second"].player_fall.safe_distance, 12.0);
     assert_eq!(loaded.maps["second"].player_fall.lethal_distance, 30.0);
+    assert_eq!(loaded.maps["second"].actor_fall.safe_distance, 1.0);
+    assert_eq!(loaded.maps["second"].actor_fall.lethal_distance, 9.0);
 }
 
 #[test]

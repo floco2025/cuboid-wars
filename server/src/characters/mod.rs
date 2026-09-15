@@ -1,4 +1,5 @@
 mod contact_explosions;
+mod falling;
 mod geometry;
 mod health;
 mod movement;
@@ -6,6 +7,7 @@ mod plugin;
 mod spawning;
 
 pub use common::physics::knockback_decay_system;
+pub(crate) use falling::{FALL_DAMAGE_EMIT_THRESHOLD, fall_damage_for_distance, fall_distance_for_speed};
 pub(crate) use geometry::{character_overlaps_item, character_surface_distance};
 pub use health::characters_health_regeneration_system;
 pub(crate) use health::regenerate_health;

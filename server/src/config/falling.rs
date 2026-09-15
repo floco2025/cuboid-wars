@@ -5,7 +5,15 @@ use serde::Deserialize;
 use super::validation::validate_non_negative_finite;
 use common::constants::CHARACTER_TERMINAL_VELOCITY;
 
-#[derive(Resource, Debug, Clone, Copy, Deserialize)]
+// The selected map's landing thresholds: `player_fall` for players and
+// `actor_fall` for ground actors.
+#[derive(Resource, Debug, Clone, Copy)]
+pub struct FallDamageConfigs {
+    pub player: FallDamageConfig,
+    pub actor: FallDamageConfig,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct FallDamageConfig {
     pub safe_distance: f32,
     pub lethal_distance: f32,
@@ -35,7 +43,7 @@ impl FallDamageConfig {
             return None;
         }
         Some(format!(
-            "{path}.lethal_distance ({} m) requires an impact speed of {lethal_speed:.2} m/s at gravity {normal_gravity} m/s², exceeding terminal velocity ({CHARACTER_TERMINAL_VELOCITY} m/s); ordinary falls cannot kill a full-health player",
+            "{path}.lethal_distance ({} m) requires an impact speed of {lethal_speed:.2} m/s at gravity {normal_gravity} m/s², exceeding terminal velocity ({CHARACTER_TERMINAL_VELOCITY} m/s); ordinary falls cannot be lethal at full health",
             self.lethal_distance
         ))
     }

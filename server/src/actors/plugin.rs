@@ -25,6 +25,7 @@ pub fn actors_plugin(app: &mut App) {
             )
                 .chain()
                 .in_set(ServerSet::Behavior),
+            actors_fall_damage_system.in_set(ServerSet::CombatDamage),
             actors_removal_system.in_set(ServerSet::CombatRemoval),
             actors_respawn_system
                 .run_if(actor_respawns_active)

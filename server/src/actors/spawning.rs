@@ -4,8 +4,8 @@ use std::f32::consts::TAU;
 
 use crate::{
     actors::{
-        ActorCharacter, ActorCrushed, ActorInfo, ActorMap, ActorRespawnState, ActorRespawnTimers, ActorSpawner,
-        PendingActorSpawn, PendingActorSpawns,
+        ActorCharacter, ActorCrushed, ActorInfo, ActorLanding, ActorMap, ActorRespawnState, ActorRespawnTimers,
+        ActorSpawner, PendingActorSpawn, PendingActorSpawns,
     },
     characters::{generate_flying_spawn_position, generate_ground_actor_spawn_position},
     config::{ActorRespawnScope, ServerGameplayConfig},
@@ -429,6 +429,7 @@ fn materialize_actor(
             CharacterSupport::Airborne,
             Health(max_health),
             ActorCrushed::default(),
+            ActorLanding::default(),
             ActorCharacter(character.clone()),
         ))
         .id();

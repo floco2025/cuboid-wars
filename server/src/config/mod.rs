@@ -25,7 +25,7 @@ pub use combat::{
     ActorDamageConfig, ActorHealthConfig, BlastConfig, CombatConfig, DamageConfig, HealthConfig, PlayerHealthConfig,
 };
 pub use cycles::{CyclesConfig, WeatherCycleConfig};
-pub use falling::FallDamageConfig;
+pub use falling::{FallDamageConfig, FallDamageConfigs};
 pub use feed::FeedConfig;
 pub use gameplay::{PlayerServerConfig, ServerGameplayConfig};
 pub use items::{PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpDurationSecs, PowerUpsConfig};

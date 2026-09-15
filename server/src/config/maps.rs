@@ -23,6 +23,8 @@ pub struct MapServerConfig {
     #[serde(flatten)]
     pub settings: MapSettings,
     pub player_fall: FallDamageConfig,
+    // Ground actors only; flying actors never land.
+    pub actor_fall: FallDamageConfig,
     // `None` = no random item spawning on this map.
     #[serde(deserialize_with = "deserialize_required_option")]
     pub random_items: Option<RandomItemsConfig>,
@@ -97,6 +99,9 @@ pub(super) fn validate_maps(
         entry
             .player_fall
             .validate(&format!("{path} player_fall"), movement.gravity)?;
+        entry
+            .actor_fall
+            .validate(&format!("{path} actor_fall"), movement.gravity)?;
         if let Some(random_items) = &entry.random_items {
             random_items.validate(&format!("{path} random_items"))?;
         }

@@ -1,95 +1,14 @@
 use super::*;
-use crate::config::fixtures;
+use crate::config::{FallDamageConfig, fixtures};
 use crate::{
     players::{CheckpointId, PlayerCheckpoint, PlayerInfo, PowerUpState, outcomes::Landing},
     test_geometry::geometry,
 };
-use common::{
-    config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
-    physics::{CharacterEnvironment, CharacterStep, CharacterSupport, LadderMode, step_character_movement},
-    protocol::{
-        BarrierKindId, CarrierId, Checkpoint, CheckpointKind, Floor, Lane, MapLayout, PlayerGeneration, PortalMode,
-        PowerUpKind,
-    },
+use common::protocol::{
+    BarrierKindId, CarrierId, Checkpoint, CheckpointKind, Floor, Lane, MapLayout, PlayerGeneration, PortalMode,
+    PowerUpKind,
 };
 use crossbeam_channel::unbounded;
-
-const TEST_GRAVITY: f32 = 25.0;
-
-#[test]
-fn simulated_tall_fall_reaches_lethal_damage_without_low_gravity() {
-    let world = CollisionWorld::from_map_layout(&MapLayout {
-        floors: vec![Floor {
-            x1: -4.0,
-            x2: 4.0,
-            z1: -4.0,
-            z2: 4.0,
-            y: 0.0,
-            thickness: 0.4,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
-        ..default()
-    });
-    let carriers = Carriers::default();
-    for gravity in [24.0, 13.2] {
-        let environment = CharacterEnvironment {
-            collision_world: &world,
-            carriers: &carriers,
-            gravity,
-            physics: CharacterPhysicsConfig {
-                movement_collider: MovementColliderConfig {
-                    diameter: 0.6,
-                    height: 1.8,
-                },
-                hitbox: HitboxConfig {
-                    width: 0.6,
-                    height: 1.8,
-                    depth: 0.6,
-                    bottom_offset: 0.0,
-                },
-            },
-            passable_kinds: &[],
-            ladder_climb_ratio: 0.4,
-            ladder_mode: LadderMode::Automatic,
-            portals: None,
-        };
-        let mut pos = Position { y: 21.6, ..default() };
-        let mut vertical_velocity = 0.0;
-        let mut impact = None;
-        for _ in 0..300 {
-            let result = step_character_movement(
-                CharacterStep {
-                    start: pos,
-                    vertical_velocity,
-                    control_velocity: Vec3::ZERO,
-                    external_displacement: Vec3::ZERO,
-                    delta: 1.0 / 30.0,
-                },
-                &environment,
-            );
-            pos = result.position;
-            vertical_velocity = result.vertical_velocity;
-            if result.support == CharacterSupport::Ground {
-                impact = Some(result.impact_speed);
-                break;
-            }
-        }
-        let distance = fall_distance_for_speed(impact.expect("the fall never landed"), 24.0);
-        let damage = fall_damage_for_distance(distance, 8.0, 15.0, 100.0);
-        if gravity == 24.0 {
-            assert_eq!(
-                damage, 100.0,
-                "normal-gravity fall was not lethal: effective drop {distance}"
-            );
-        } else {
-            assert!(
-                (50.0..60.0).contains(&damage),
-                "low gravity lost its protection: damage {damage}"
-            );
-        }
-    }
-}
 
 #[test]
 fn a_crushed_player_dies_at_the_reported_contact() {
@@ -139,12 +58,6 @@ fn a_crushed_player_dies_at_the_reported_contact() {
     assert_eq!(death.id, id);
     assert_eq!(death.killer, None);
     assert_eq!(death.pos, contact);
-}
-
-#[test]
-fn fall_damage_zero_at_safe_distance() {
-    assert_eq!(fall_damage_for_distance(4.0, 4.0, 12.0, 100.0), 0.0);
-    assert_eq!(fall_damage_for_distance(3.0, 4.0, 12.0, 100.0), 0.0);
 }
 
 #[test]
@@ -391,9 +304,15 @@ fn landing_damage_uses_impact_speed_and_map_thresholds() {
         app.add_plugins(MinimalPlugins)
             .insert_resource(server)
             .insert_resource(settings)
-            .insert_resource(FallDamageConfig {
-                safe_distance: safe,
-                lethal_distance: lethal,
+            .insert_resource(FallDamageConfigs {
+                player: FallDamageConfig {
+                    safe_distance: safe,
+                    lethal_distance: lethal,
+                },
+                actor: FallDamageConfig {
+                    safe_distance: 0.0,
+                    lethal_distance: 1.0,
+                },
             })
             .insert_resource(PlayerMap::default())
             .insert_resource(Invincibility(false))
@@ -457,28 +376,4 @@ fn landing_damage_uses_impact_speed_and_map_thresholds() {
             }
         }
     }
-}
-
-#[test]
-fn fall_damage_lethal_at_lethal_distance() {
-    assert_eq!(fall_damage_for_distance(12.0, 4.0, 12.0, 100.0), 100.0);
-}
-
-#[test]
-fn fall_damage_lerps_midpoint() {
-    // (8 - 4) / (12 - 4) = 0.5 → 50 dmg
-    assert_eq!(fall_damage_for_distance(8.0, 4.0, 12.0, 100.0), 50.0);
-}
-
-#[test]
-fn fall_damage_saturates_past_lethal() {
-    assert_eq!(fall_damage_for_distance(100.0, 4.0, 12.0, 100.0), 100.0);
-}
-
-#[test]
-fn impact_energy_determines_the_equivalent_drop() {
-    assert_eq!(fall_distance_for_speed(0.0, TEST_GRAVITY), 0.0);
-    assert_eq!(fall_distance_for_speed(10.0, TEST_GRAVITY), 2.0);
-    assert_eq!(fall_distance_for_speed(20.0, TEST_GRAVITY), 8.0);
-    assert_eq!(fall_distance_for_speed(25.0, TEST_GRAVITY), 12.5);
 }

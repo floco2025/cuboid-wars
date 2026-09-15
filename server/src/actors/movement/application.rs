@@ -14,7 +14,7 @@ pub(crate) fn apply_actor_moves(
     open: &[BarrierId],
 ) {
     for planned_move in planned_moves {
-        let Ok((_, id, _, mut pos, mut motion, _, _, _, _, mut crushed, character)) =
+        let Ok((_, id, _, mut pos, mut motion, _, _, _, _, mut crushed, mut landing, character)) =
             query.get_mut(planned_move.entity)
         else {
             continue;
@@ -34,6 +34,7 @@ pub(crate) fn apply_actor_moves(
         }
         motion.0 = planned_move.target_vertical_velocity;
         crushed.0 = planned_move.crushed;
+        landing.0 = planned_move.impact_speed;
     }
 }
 

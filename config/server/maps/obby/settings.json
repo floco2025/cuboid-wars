@@ -19,6 +19,7 @@
   },
   "weather": "clear",
   "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
+  "actor_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
   "movement": {
     "gravity": 24.0,
     "low_gravity": 13.2,
