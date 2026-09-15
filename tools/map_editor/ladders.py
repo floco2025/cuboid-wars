@@ -7,14 +7,11 @@ import copy
 
 from .constants import LADDER_SIDES
 from .geometry import cell_side_from_click, ladder_anchor_from_click, wall_endpoints_for_cell_side
-from .normalization import ladder_edge_key, ladder_key, ladder_spans_level, ladders_overlap
+from .normalization import ladder_edge_key, ladder_spans_level, ladders_overlap
 
 
 class LaddersMixin:
     # === Ladders ===
-
-    def edit_ladder_at(self, key: tuple) -> None:
-        self.open_properties_for("ladders", lambda entry: ladder_key(entry) == key)
 
     def add_ladder_at(self, pos) -> None:
         px = pos.x()

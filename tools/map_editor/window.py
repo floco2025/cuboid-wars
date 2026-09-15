@@ -252,6 +252,23 @@ class EditorWindow(
         }
         return [root, *placed_definitions(root, definitions).values()]
 
+    def document_issues(self) -> ValidationErrors:
+        if self._document_issues is None:
+            self._document_issues = self.validate_document(self.doc.root_data)
+        return self._document_issues
+
+    # The messages `after` adds to the current map's issues: an edit may not
+    # introduce an error, while the issues already there stay Check Map's.
+    def added_issues(self, after: dict) -> list[str]:
+        if self._map_issues is None:
+            self._map_issues = {issue.identity() for issue in self.validate(self.map_data).issues}
+        current = self._map_issues
+        return [issue.message for issue in self.validate(after).issues if issue.identity() not in current]
+
+    def added_document_issues(self, root: dict) -> list[str]:
+        current = {issue.identity() for issue in self.document_issues().issues}
+        return [issue.message for issue in self.validate_document(root).issues if issue.identity() not in current]
+
     # The whole document against the catalogs of `map_name`, or the adopted ones.
     def validate_document(self, data: dict, map_name: str | None = None) -> ValidationErrors:
         catalogs = (self.current_catalogs() if map_name is None else MapCatalogs.load(map_name)).for_layout(data)
@@ -275,6 +292,8 @@ class EditorWindow(
     # Every view, dialog, and validation reads the catalogs of one map;
     # opening, Save As, and a settings reload all switch them here.
     def adopt_catalogs(self, map_name: str, catalogs: MapCatalogs) -> None:
+        self._map_issues = None
+        self._document_issues = None
         catalogs = catalogs.for_layout(self.doc.root_data)
         self.catalog_map = map_name
         self.barrier_kind_colors = catalogs.barrier_kind_colors
@@ -451,6 +470,8 @@ class EditorWindow(
     # === State updates & UI refresh ===
 
     def _on_document_changed(self, before: dict) -> None:
+        self._map_issues = None
+        self._document_issues = None
         switched = self.displayed_map != self.doc.active_map
         if switched:
             self.clear_selection()
@@ -505,8 +526,7 @@ class EditorWindow(
 
     def refresh_issues(self, *, validate: bool = True) -> None:
         if validate:
-            errors = self.validate_document(self.doc.root_data)
-            self.issues_dialog.set_issues(errors.issues)
+            self.issues_dialog.set_issues(self.document_issues().issues)
         if self.mode == MODE_RAMP_UP:
             target = self.current_level + 1
             self.ramp_direction_label.setText(f"↑ Building UP to Level {target}")

@@ -3,12 +3,12 @@
 import copy
 from unittest.mock import patch
 
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QContextMenuEvent
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QContextMenuEvent, QFocusEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMenu
 
-from editor_fixtures import WindowTestCase, floor, nested
+from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, floor, nested
 from map_editor import constants as c
 from map_editor.elements import ElementRef
 from map_editor.normalization import empty_level, empty_map
@@ -489,8 +489,136 @@ class EditorInputTests(WindowTestCase):
         self.drag((4.5, 4.5), (6.5, 4.5))
         self.assertEqual(window.map_data, before)
         self.assertTrue(window.selection.empty)
+        with patch.object(window, "notify") as notify:
+            self.drag((5.5, 4.5), (5.5, 6.5))
+        self.assertEqual(window.map_data, before)
+        self.assertIn("ends here", notify.call_args.args[0])
         window.set_mode(c.MODE_ERASE_LADDERS)
         self.drag((2.5, 2.5), (2.5, 3.5))
         self.assertEqual(window.map_data["ladders"], [])
         window.undo_stack.undo()
         self.assertEqual(window.map_data, before)
+
+    def test_range_tools_place_up_to_the_grid_edge_when_released_past_it(self):
+        window = self.window
+        window.set_mode(c.MODE_FLOOR)
+        self.drag((1.5, 3.5), (8.3, 3.5))
+        floors = window.map_data["levels"][0]["floors"]
+        self.assertEqual(sorted(f["col"] for f in floors if f["row"] == 3), list(range(1, 8)))
+        window.set_mode(c.MODE_WALL)
+        self.drag((1, 5), (8.4, 5))
+        walls = window.map_data["levels"][0]["walls"]
+        self.assertEqual(sorted((w["c0"], w["c1"]) for w in walls), [(col, col + 1) for col in range(1, 8)])
+
+    def test_right_click_keeps_a_pending_duplicate_for_its_transform_menu(self):
+        window = self.window
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["floors"] = [floor(1, 1), floor(2, 2)]
+        data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
+        window.doc.replace_with_new(data)
+        self.click_at(1.5, 1.5)
+        self.assertEqual(window.selection_refs(), [ElementRef("items", 0)])
+        window.duplicate_selection()
+        actions = self.context(2.5, 2.5)
+        self.assertEqual(
+            actions, ["Rotate Selection Clockwise", "Mirror Selection Horizontally", "Mirror Selection Vertically"]
+        )
+        self.assertTrue(window.pending_block.duplicate)
+        self.assertEqual(window.selection_refs(), [ElementRef("items", 0)])
+        window.transform_selection("rotate")
+        self.assertTrue(window.pending_block.duplicate)
+
+    def test_shift_drag_adds_the_box_without_toggling_the_pressed_object(self):
+        window = self.window
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["floors"] = [floor(col, row) for col in (1, 2) for row in (1, 2)]
+        window.doc.replace_with_new(data)
+        self.drag((0.5, 0.5), (2.7, 2.7))
+        self.assertEqual(len(window.selection_refs()), 4)
+        canvas = window.canvas
+        shift = Qt.KeyboardModifier.ShiftModifier
+        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, shift, pos=self.point(1.5, 1.5))
+        self.assertEqual(len(window.selection_refs()), 4)
+        QTest.mouseMove(canvas, self.point(1.95, 1.95))
+        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, shift, pos=self.point(1.95, 1.95))
+        self.assertEqual(len(window.selection_refs()), 4)
+        self.click_at(1.5, 1.5, shift)
+        self.assertEqual(len(window.selection_refs()), 3)
+        self.click_at(1.5, 1.5, shift)
+        self.assertEqual(len(window.selection_refs()), 4)
+
+    def test_focus_loss_restores_the_selection_a_press_replaced(self):
+        window = self.window
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["floors"] = [floor(col, row) for col in range(8) for row in range(8)]
+        data["items"] = [{"level": 0, "col": col, "row": 1, "type": "gold"} for col in (1, 3, 5)]
+        window.doc.replace_with_new(data)
+        canvas = window.canvas
+        items = [ElementRef("items", index) for index in range(3)]
+        window.inspect_refs(items)
+        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=self.point(2.5, 2.5))
+        self.assertEqual([ref.name for ref in window.selection_refs()], ["floors"])
+        canvas.focusOutEvent(QFocusEvent(QEvent.Type.FocusOut))
+        self.assertEqual(window.selection_refs(), items)
+        self.assertIsNone(canvas.input.gesture)
+        window.selection_kind_changed("Tiles")
+        window.set_tile_selection((0, 0, 3, 3))
+        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=self.point(5.5, 5.5))
+        self.assertEqual(window.selection.area.rect, (5, 5, 6, 6))
+        canvas.focusOutEvent(QFocusEvent(QEvent.Type.FocusOut))
+        self.assertEqual(window.selection.area.rect, (0, 0, 3, 3))
+
+    def test_material_tools_leave_the_selection_scope_alone(self):
+        window = self.window
+        window.selection_kind_changed("Tiles")
+        window.set_mode(c.MODE_FLOOR_MATERIAL)
+        self.drag((1.2, 1.2), (1.8, 1.8))
+        self.assertEqual(window.selection_refs(), [ElementRef("floors", 0, 0)])
+        self.assertEqual(window.selection_kind, "Tiles")
+        window.set_mode(c.MODE_SELECT)
+        self.drag((0.3, 0.3), (2.7, 2.7))
+        self.assertEqual(window.selection.area.rect, (0, 0, 3, 3))
+
+    def test_a_sub_cell_drag_on_a_tile_area_neither_moves_nor_complains(self):
+        window = self.window
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["walls"] = [{"c0": 2, "r0": 1, "c1": 2, "r1": 2, "all": DEFAULT_ALIAS}]
+        data["levels"][0]["lights"] = [{"col": 2, "row": 1, "side": "W"}]
+        window.doc.replace_with_new(data)
+        before = copy.deepcopy(window.map_data)
+        window.selection_kind_changed("Tiles")
+        window.set_tile_selection((0, 0, 2, 3))
+        with patch.object(window, "notify") as notify:
+            self.drag((1.5, 1.5), (1.85, 1.85))
+        notify.assert_not_called()
+        self.assertEqual(window.map_data, before)
+        self.assertIsNone(window.pending_block)
+        self.assertEqual(window.selection.area.rect, (0, 0, 2, 3))
+
+    def test_moving_an_object_from_an_upper_storey_keeps_the_tile_span(self):
+        window = self.window
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"] += [empty_level(1), empty_level(2)]
+        data["actor_spawn_zones"] = [
+            {
+                "level": 0,
+                "levels": 3,
+                "cols": [2, 4],
+                "rows": [2, 4],
+                "kind": "scuttler",
+                "count": [2],
+                "respawn_secs": 90,
+            }
+        ]
+        window.doc.replace_with_new(data)
+        window.select_level(2)
+        self.click_at(3, 3)
+        self.drag((3, 3), (5, 5))
+        zone = window.map_data["actor_spawn_zones"][0]
+        self.assertEqual((zone["cols"], zone["rows"], zone["level"]), ([4, 6], [4, 6], 0))
+        self.assertEqual(window.selection_levels, 1)

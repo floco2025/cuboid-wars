@@ -23,7 +23,7 @@ from .editing import (
     place_plate,
     place_ramp,
 )
-from .normalization import edge_key, plate_cell_error, pressure_plate_key
+from .normalization import plate_cell_error
 from .geometry import (
     ramp_error,
     ramp_points_from_cells,
@@ -195,18 +195,6 @@ class PlacementMixin:
             ),
         )
 
-    def edit_light_bridge_at(self, col: int, row: int) -> None:
-        def matches(bridge: dict) -> bool:
-            return (bridge["col"], bridge["row"]) == (col, row)
-
-        bridge = next((b for b in self.map_data["levels"][self.current_level]["light_bridges"] if matches(b)), None)
-        if bridge is None:
-            return
-        self.edit_fields("light_bridges", "Edit Light Bridge", matches)
-
-    def edit_fields(self, name: str, title: str, matches) -> None:
-        self.open_properties_for(name, matches)
-
     def configure_field_defaults(self, barrier: bool) -> None:
         prefix = "barrier" if barrier else "bridge"
         controls = getattr(self, f"recent_{prefix}_controls")
@@ -245,9 +233,6 @@ class PlacementMixin:
             if plate["level"] == self.current_level and (plate["col"], plate["row"]) == (col, row)
         ]
 
-    def edit_pressure_plate_at(self, key: tuple) -> None:
-        self.open_properties_for("pressure_plates", lambda entry: pressure_plate_key(entry) == key)
-
     def _add_plate(self, plate: dict, label: str) -> None:
         error = plate_cell_error(self.map_data, plate["level"], plate["col"], plate["row"])
         if error is not None:
@@ -260,11 +245,6 @@ class PlacementMixin:
             return
         self.apply_change(label, after)
 
-    def erase_pressure_plate(self, key: tuple) -> None:
-        after = copy.deepcopy(self.map_data)
-        after["pressure_plates"] = [p for p in after["pressure_plates"] if pressure_plate_key(p) != key]
-        self.apply_change("Erase Pressure Plate", after)
-
     def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
         if kind not in self.barrier_kinds:
             self.notify(f"Unknown barrier kind {kind!r}")
@@ -275,12 +255,6 @@ class PlacementMixin:
                 self.map_data, self.current_level, start, end, kind=kind, controls=self.recent_barrier_controls
             ),
         )
-
-    def edit_barrier_at(self, key: tuple) -> None:
-        barrier = next((b for b in self.map_data["levels"][self.current_level]["barriers"] if edge_key(b) == key), None)
-        if barrier is None:
-            return
-        self.edit_fields("barriers", "Edit Barrier", lambda b: edge_key(b) == key)
 
     def add_ramp(self, start_cell: tuple[int, int], end_cell: tuple[int, int], mode: str) -> None:
         start_point, end_point = ramp_points_from_cells(start_cell, end_cell)

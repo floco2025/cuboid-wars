@@ -13,6 +13,7 @@ from .normalization import normalize_map
 from .placement_input import CLICK_TOOLS, RELEASE_TOOLS
 from .regions import TileRegion
 from .selection import Selection
+from .selection_transfer import snapped_offset
 from .spawn_zones import resized_zone_rect
 from .transforms import EDGE_LISTS, record_levels
 
@@ -35,6 +36,7 @@ class Gesture:
     original: dict | None = None
     moved: bool = False
     object_type: str | None = None
+    hits: tuple[ElementRef, ...] = ()
 
 
 class CanvasInput:
@@ -162,23 +164,16 @@ class CanvasInput:
                 else:
                     self.window.set_tile_selection(rect_from_cells(self.clamped_cell(point), self.clamped_cell(point)))
                     kind = "box"
+            elif additive:
+                # A Shift-click toggles on release; a Shift-drag adds the
+                # group its box covers, so the pressed object stays as it was.
+                kind = "add_box"
             elif hits:
-                if additive:
-                    chosen = list(self.window.selection.objects)
-                    for ref in hits:
-                        if ref in chosen:
-                            chosen.remove(ref)
-                        else:
-                            chosen.append(ref)
-                    self.window.inspect_refs(chosen)
-                    kind = "add_box"
-                else:
-                    kind = "move" if initial.contains(point, hits) else "box"
-                    self.target(point, hits)
+                kind = "move" if initial.contains(point, hits) else "box"
+                self.target(point, hits)
             else:
-                if not additive:
-                    self.window.set_selection(Selection(anchor=self.cell(point)))
-                kind = "add_box" if additive else "box"
+                self.window.set_selection(Selection(anchor=self.cell(point)))
+                kind = "box"
             self.gesture = Gesture(
                 kind,
                 point,
@@ -186,6 +181,7 @@ class CanvasInput:
                 initial,
                 c.MODE_SELECT,
                 object_type=hits[0].name if hits and self.window.selection_kind == "Objects" else None,
+                hits=tuple(hits),
             )
         self.canvas.update()
 
@@ -207,6 +203,8 @@ class CanvasInput:
         ).manhattanLength() * self.canvas.cell_size() >= QApplication.startDragDistance()
         if gesture.kind == "move" and gesture.moved:
             if self.window.pending_block is None:
+                if snapped_offset(point.x() - gesture.start.x(), point.y() - gesture.start.y()) == (0, 0):
+                    return
                 if not self.window.begin_transfer(point=gesture.start):
                     gesture.kind = "blocked"
                     return
@@ -231,9 +229,21 @@ class CanvasInput:
             return
         self.move(event)
         if gesture.kind == "tool":
-            handler = CLICK_TOOLS.get(gesture.mode) if gesture.mode in CLICK_TOOLS else RELEASE_TOOLS.get(gesture.mode)
-            if handler is not None and self.tool_accepts(gesture.mode, gesture.current):
-                handler(self.canvas, event)
+            # Range tools clamp their drag to the grid; a click released outside it is dropped.
+            if gesture.mode in CLICK_TOOLS:
+                if self.tool_accepts(gesture.mode, gesture.current):
+                    CLICK_TOOLS[gesture.mode](self.canvas, event)
+            elif gesture.mode in RELEASE_TOOLS:
+                RELEASE_TOOLS[gesture.mode](self.canvas, event)
+        elif gesture.kind == "add_box" and not gesture.moved:
+            if gesture.hits:
+                chosen = list(gesture.initial.objects)
+                for ref in gesture.hits:
+                    if ref in chosen:
+                        chosen.remove(ref)
+                    else:
+                        chosen.append(ref)
+                self.window.inspect_refs(chosen)
         elif gesture.kind in ("box", "add_box") and gesture.moved and self.window.selection_kind == "Tiles":
             self.window.set_tile_selection(
                 rect_from_cells(self.clamped_cell(gesture.start), self.clamped_cell(gesture.current))
@@ -373,10 +383,11 @@ class CanvasInput:
         else:
             self.canvas._update_cell_hover(position)
 
-    def cancel(self, *, restore=False):
+    # A cancelled press leaves the selection it found, not the one it began.
+    def cancel(self):
         gesture = self.gesture
         self.gesture = None
-        if restore and gesture is not None and gesture.kind in ("box", "add_box"):
+        if gesture is not None and gesture.kind in ("box", "add_box"):
             self.window.set_selection(gesture.initial)
         self.canvas._clear_hover()
         self.canvas.setCursor(
@@ -389,9 +400,14 @@ class CanvasInput:
         point = self.canvas.grid_position(event.pos())
         if window.mode != c.MODE_SELECT:
             window.set_mode(c.MODE_SELECT)
-        window.cancel_interaction()
-        refs = self.target(point, self.hits(point))
+        self.cancel()
         menu = QMenu(self.canvas)
+        if window.pending_block is not None:
+            for action in (window.rotate_action, window.mirror_x_action, window.mirror_y_action):
+                menu.addAction(action)
+            menu.exec(event.globalPos())
+            return
+        refs = self.target(point, self.hits(point))
         if refs or window.selection.area is not None:
             for action in (window.cut_action, window.copy_action, window.paste_action, window.delete_action):
                 menu.addAction(action)

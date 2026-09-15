@@ -3,9 +3,10 @@
 import copy
 
 from .elements import element_refs
-from .normalization import empty_level, normalize_map
-from .regions import TileRegion, copy_region
-from .transforms import record_levels, record_lists, record_rect, translate_map
+from .geometry import ramp_rect
+from .normalization import empty_level, empty_map, ladders_overlap, light_key, normalize_map
+from .regions import TileRegion
+from .transforms import GLOBAL_LISTS, record_levels, record_lists, record_rect, translate_entry, translate_map
 
 
 def selected_data(data, refs, *, remove=False):
@@ -17,6 +18,9 @@ def selected_data(data, refs, *, remove=False):
     return result
 
 
+# The region spans the selected records and, for a nested map, its child's
+# footprint, which a transform needs inside the block; it may overhang the
+# grid, since a placed footprint may.
 def object_region(data, refs, definitions):
     rectangles, levels = [], []
     for ref in refs:
@@ -41,28 +45,51 @@ def object_region(data, refs, definitions):
 
 def copy_objects(data, refs, definitions):
     region = object_region(data, refs, definitions)
-    return copy_region(selected_data(data, refs), region), region
+    c0, r0, c1, r1 = region.rect
+    block = {**empty_map(c1 - c0, r1 - r0), **{name: [] for name in GLOBAL_LISTS}}
+    block["levels"] = [empty_level(index) for index in range(region.levels)]
+    chosen = set(refs)
+    for ref, entry in element_refs(data):
+        if ref in chosen:
+            target = block if ref.level is None else block["levels"][ref.level - region.level]
+            target[ref.name].append(translate_entry(ref.name, entry, -c0, -r0, -region.level))
+    return block, region
+
+
+# Records are judged one by one against the grid, not the block's rectangle:
+# a nested map's footprint may overhang while its anchor cells fit.
+def _within_grid(name, entry, data):
+    c0, r0, c1, r1 = ramp_rect(entry) if name == "ramps" else record_rect(name, entry)
+    return 0 <= c0 <= c1 <= data["grid_cols"] and 0 <= r0 <= r1 <= data["grid_rows"]
+
+
+def block_fits(block, cell, data):
+    moved = translate_map(block, *cell)
+    return all(_within_grid(name, entry, data) for (_, name), entries in record_lists(moved) for entry in entries)
+
+
+def _records_collide(name, a, b, level):
+    if name == "lights":
+        return light_key(a) == light_key(b)
+    if name == "ladders":
+        return ladders_overlap(a, b)
+    return record_rect(name, a) == record_rect(name, b) and record_levels(a, level) == record_levels(b, level)
 
 
 def paste_objects(data, block, cell, level):
-    col, row = cell
-    destination = TileRegion(
-        (col, row, col + block["grid_cols"], row + block["grid_rows"]), level, len(block["levels"])
-    )
+    if level < 0:
+        raise ValueError("The selected levels are outside the map.")
     after = copy.deepcopy(data)
-    while len(after["levels"]) < destination.top:
+    while len(after["levels"]) < level + len(block["levels"]):
         after["levels"].append(empty_level(len(after["levels"])))
-    destination.check_bounds(after)
-    moved = translate_map(block, col, row, level)
+    moved = translate_map(block, *cell, level)
     for (offset, name), entries in record_lists(moved):
         target = after if offset is None else after["levels"][level + offset]
         existing = target.setdefault(name, [])
         for entry in entries:
-            if any(
-                record_rect(name, other) == record_rect(name, entry)
-                and record_levels(other, offset) == record_levels(entry, offset)
-                for other in existing
-            ):
+            if not _within_grid(name, entry, after):
+                raise ValueError("The block does not fit inside the map. Choose another tile or resize the map.")
+            if any(_records_collide(name, other, entry, offset) for other in existing):
                 raise ValueError(f"The destination already contains {name.replace('_', ' ')} here.")
         existing.extend(entries)
     return after

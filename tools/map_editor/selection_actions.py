@@ -59,11 +59,13 @@ class SelectionActionsMixin:
         mime = QApplication.clipboard().mimeData()
         self.tile_clipboard = None
         self.clipboard_objects = False
+        self.clipboard_view_offset = 0
         if mime is not None and mime.hasFormat(CLIPBOARD_MIME):
             try:
                 payload = json.loads(bytes(mime.data(CLIPBOARD_MIME)))
                 data = payload["map"]
                 self.clipboard_objects = payload.get("objects") is True
+                self.clipboard_view_offset = int(payload.get("view_offset", 0))
                 block = normalize_map(data)
                 if block["grid_cols"] > 0 and block["grid_rows"] > 0:
                     self.tile_clipboard = block
@@ -111,7 +113,7 @@ class SelectionActionsMixin:
             if not refs:
                 return
             try:
-                block, _ = copy_objects(self.map_data, refs, self.doc.nested_geometry)
+                block, region = copy_objects(self.map_data, refs, self.definitions)
             except ValueError as error:
                 self.notify(str(error))
                 return
@@ -122,8 +124,11 @@ class SelectionActionsMixin:
             if delete_tiles:
                 self.clear_selection()
             if copy_tiles:
+                # An object block's level 0 is its lowest storey; the offset
+                # keeps a paste relative to the viewed level, like a tile paste.
+                payload = {"map": block, "objects": True, "view_offset": self.current_level - region.level}
                 mime = QMimeData()
-                mime.setData(CLIPBOARD_MIME, json.dumps({"map": block, "objects": True}).encode("utf-8"))
+                mime.setData(CLIPBOARD_MIME, json.dumps(payload).encode("utf-8"))
                 QApplication.clipboard().setMimeData(mime)
             return
         region = self.selection_region() if self.mode == MODE_SELECT else None
@@ -148,15 +153,15 @@ class SelectionActionsMixin:
         if self.mode != MODE_SELECT or self.selection.anchor is None or self.tile_clipboard is None:
             return
         col, row = self.selection.anchor
+        level = self.current_level - self.clipboard_view_offset if self.clipboard_objects else self.current_level
         try:
             block = self.tile_clipboard
             after = (
-                paste_objects(self.map_data, block, (col, row), self.current_level)
+                paste_objects(self.map_data, block, (col, row), level)
                 if self.clipboard_objects
-                else paste_region(self.map_data, block, (col, row), self.current_level)
+                else paste_region(self.map_data, block, (col, row), level)
             )
-            before = {issue.identity() for issue in self.validate(self.map_data).issues}
-            added_errors = [issue.message for issue in self.validate(after).issues if issue.identity() not in before]
+            added_errors = self.added_issues(after)
             if added_errors:
                 raise ValueError("The pasted block conflicts with the destination:\n\n" + "\n".join(added_errors[:8]))
         except ValueError as exc:
@@ -165,13 +170,12 @@ class SelectionActionsMixin:
         if not self.apply_change("Paste Objects" if self.clipboard_objects else "Paste Tiles", after):
             return
         if self.clipboard_objects:
-            self.inspect_refs(refs_for_block(self.map_data, block, (col, row), self.current_level))
+            self.inspect_refs(refs_for_block(self.map_data, block, (col, row), level))
         else:
             self.set_tile_selection((col, row, col + block["grid_cols"], row + block["grid_rows"]))
 
     def apply_object_change(self, label, after):
-        before = {issue.identity() for issue in self.validate(self.map_data).issues}
-        errors = [issue.message for issue in self.validate(after).issues if issue.identity() not in before]
+        errors = self.added_issues(after)
         if errors:
             self.notify(errors[0])
             return False

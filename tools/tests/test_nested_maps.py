@@ -1,9 +1,9 @@
 import unittest
 from unittest.mock import Mock
 
-from editor_fixtures import EditorHost, NESTED_SHAPES, floor, nested
+from editor_fixtures import EditorHost, NESTED_SHAPES, nested
 from map_editor.nesting import NestedMapShape, NestedMotion, nested_map_cycle, nested_map_label, nested_map_rest_points
-from map_editor.normalization import empty_level, empty_map, nested_map_key
+from map_editor.normalization import empty_map
 
 
 class NestedMapTests(unittest.TestCase):
@@ -29,58 +29,26 @@ class NestedMapTests(unittest.TestCase):
         self.assertEqual(len(host.map_data["nested_maps"]), 2)
         self.assertTrue(host.statuses[-1].startswith("Nested map not placed"))
 
-    def test_dragging_a_nested_map_end_moves_only_that_end(self) -> None:
+    def test_placement_refuses_a_cell_where_a_nested_map_starts_or_ends(self) -> None:
         data = empty_map(8, 8)
-        data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1]), nested("cabin", 0, [2, 5], [2, 5])]
+        data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1])]
         host = EditorHost(data, [])
 
-        host.move_nested_map_end(nested_map_key(host.map_data["nested_maps"][0]), "to", (5, 4))
-        self.assertEqual(
-            (host.map_data["nested_maps"][0]["from"], host.map_data["nested_maps"][0]["to"]), ([1, 1], [5, 4])
-        )
-        host.move_nested_map_end(nested_map_key(host.map_data["nested_maps"][0]), "from", (2, 5))
-        self.assertTrue(host.statuses[-1].startswith("Nested map end not moved"))
-        self.assertEqual(host.map_data["nested_maps"][0]["from"], [1, 1])
+        host.add_nested_map((5, 1), (5, 4))
+        self.assertTrue(host.statuses[-1].startswith("A nested map already ends here"))
+        host.add_nested_map((1, 1), (3, 3))
+        self.assertTrue(host.statuses[-1].startswith("A nested map already starts here"))
+        self.assertEqual(host.map_data["nested_maps"], [nested("cabin", 0, [1, 1], [5, 1])])
 
-    def test_editing_nested_map_properties_can_swap_the_map(self) -> None:
-        data = empty_map(8, 8)
-        data["levels"].append({**empty_level(1), "floors": [floor(0, 0)]})
-        data["nested_maps"] = [nested("cabin", 0, [1, 1], [4, 1])]
-        host = EditorHost(data, [])
-        key = (0, (1, 1), 0, (4, 1), "cabin")
-
-        host.set_nested_map_properties(
-            key, NestedMotion("loop_a", 1, 3.5, 0.25, 2.0, (0.0, 0.0, 0.0), (0.0, -0.5, 0.5))
-        )
-
-        entry = host.map_data["nested_maps"][0]
-        self.assertEqual((entry["from"], entry["to"]), ([1, 1], [4, 1]))
-        self.assertEqual(
-            (entry["map"], entry["to_level"], entry["travel_secs"], entry["pause_secs"], entry["phase_secs"]),
-            ("loop_a", 1, 3.5, 0.25, 2.0),
-        )
-        self.assertEqual((entry["from_nudge"], entry["to_nudge"]), ([0.0, 0.0, 0.0], [0.0, -0.5, 0.5]))
-
-    def test_a_nested_maps_switch_is_written_only_while_set(self) -> None:
-        host = EditorHost(empty_map(8, 8), [])
-        motion = NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lift")
-        host.place_nested_map((1, 1), (4, 1), motion)
-        entry = host.map_data["nested_maps"][0]
-        self.assertEqual(entry["switch"], "lift")
-        self.assertEqual(NestedMotion.from_entry({**entry, "to_level": 0, "phase_secs": 0.0}).switch, "lift")
-
-        key = (0, (1, 1), 0, (4, 1), "cabin")
-        host.set_nested_map_properties(key, NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
-        self.assertNotIn("switch", host.map_data["nested_maps"][0])
-
-    def test_clearing_a_nested_maps_switch_drops_its_response_too(self) -> None:
+    def test_a_nested_maps_switch_and_response_are_written_only_while_set(self) -> None:
         host = EditorHost(empty_map(8, 8), [])
         motion = NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lift", True)
         host.place_nested_map((1, 1), (4, 1), motion)
-        self.assertTrue(host.map_data["nested_maps"][0]["switch_inverted"])
-        key = (0, (1, 1), 0, (4, 1), "cabin")
-        host.set_nested_map_properties(key, NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
         entry = host.map_data["nested_maps"][0]
+        self.assertEqual((entry["switch"], entry["switch_inverted"]), ("lift", True))
+        self.assertEqual(NestedMotion.from_entry({**entry, "to_level": 0, "phase_secs": 0.0}).switch, "lift")
+        host.place_nested_map((2, 2), (2, 2), NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
+        entry = host.map_data["nested_maps"][1]
         self.assertNotIn("switch", entry)
         self.assertNotIn("switch_inverted", entry)
         self.assertFalse(NestedMotion.from_entry(entry).switch_inverted)

@@ -115,7 +115,7 @@ def _erase_cells_tool(canvas: "Canvas", event) -> None:
     if canvas.drag_start_cell and canvas.drag_current_cell and canvas.drag_start_cell != canvas.drag_current_cell:
         canvas.window.erase_cell_rect(canvas.drag_start_cell, canvas.drag_current_cell, preserve_floors)
     else:
-        canvas.window.erase_at(canvas.grid_position(event.position()), preserve_floors)
+        canvas.window.erase_at(canvas.input.gesture.start, preserve_floors)
 
 
 CLICK_TOOLS = {

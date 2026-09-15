@@ -260,10 +260,7 @@ class SelectionProperties(QDockWidget):
                     entry.pop("switch_inverted", None)
                 if ref.name == "items" and entry["type"] != "key":
                     entry.pop("kind", None)
-            before_issues = {issue.identity() for issue in self.window.validate(self.window.map_data).issues}
-            errors = [
-                issue.message for issue in self.window.validate(after).issues if issue.identity() not in before_issues
-            ]
+            errors = self.window.added_issues(after)
             if errors:
                 raise ValueError(errors[0])
             selection = self.window.selection

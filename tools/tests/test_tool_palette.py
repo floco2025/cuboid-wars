@@ -99,10 +99,22 @@ class ToolPaletteTests(WindowTestCase):
         self.assertEqual(edit.text(), "erase")
         self.assertEqual(self.window.mode, c.MODE_ACTOR_SPAWN_ZONE)
 
-    def test_icon_palette_ignores_old_hidden_panel_preferences(self):
+    def test_switching_icon_mode_and_shrinking_the_window_keep_saved_widths(self):
+        window = self.window
+        window.preferences.setValue("panels/tools/labels", 260)
+        window.tool_icons_action.setChecked(True)
+        self.app.processEvents()
+        window.tool_icons_action.setChecked(False)
+        self.app.processEvents()
+        self.assertEqual(window.preferences.value("panels/tools/labels", type=int), 260)
+        self.assertEqual(window.tool_palette.width(), 260)
+        window.resize(420, 500)
+        self.app.processEvents()
+        self.assertEqual(window.preferences.value("panels/tools/labels", type=int), 260)
+
+    def test_panels_stay_shown_and_icon_mode_persists_across_sessions(self):
         window = self.window
         window.tool_icons_action.trigger()
-        window.preferences.setValue("tools/palette_visible", False)
         window.close()
         self.window = EditorWindow(self.path, preferences=window.preferences)
         window.deleteLater()

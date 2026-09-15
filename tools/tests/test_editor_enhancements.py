@@ -311,3 +311,42 @@ class EditorEnhancementTests(WindowTestCase):
         self.assertTrue(notify.called)
         self.assertEqual(window.map_data, before)
         self.assertIsNotNone(window.pending_block)
+
+    def test_object_paste_lands_relative_to_the_viewed_level(self):
+        window = self.window
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"].append(empty_level(1))
+        data["levels"][0]["floors"] = [floor(1, 1), floor(6, 6)]
+        data["ladders"] = [{"col": 1, "row": 1, "side": "S", "lower_level": 0, "levels": 1}]
+        window.doc.replace_with_new(data)
+        window.select_level(1)
+        window.inspect_refs([ElementRef("ladders", 0)])
+        window.copy_selection()
+        window.set_tile_selection((6, 6, 7, 7), objects=True)
+        window.paste_selection()
+        ladders = window.map_data["ladders"]
+        self.assertEqual([(l["col"], l["row"], l["lower_level"]) for l in ladders], [(1, 1, 0), (6, 6, 0)])
+        self.assertEqual(len(window.map_data["levels"]), 2)
+        window.select_level(0)
+        window.set_tile_selection((4, 4, 5, 5), objects=True)
+        with patch.object(window, "notify") as notify:
+            window.paste_selection()
+        self.assertIn("outside the map", notify.call_args.args[0])
+        self.assertEqual(len(window.map_data["ladders"]), 2)
+
+    def test_clearing_a_switch_in_properties_drops_its_response_too(self):
+        window = self.window
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["switch_kinds"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
+        window.switch_ids = ["barrier_1"]
+        data["nested_geometry"] = {"room": empty_map(1, 1)}
+        data["nested_maps"] = [{**nested("room", 0, [3, 3], [5, 5]), "switch": "barrier_1", "switch_inverted": True}]
+        window.doc.replace_with_new(data)
+        window.inspect_refs([ElementRef("nested_maps", 0)], show=True)
+        self.set_property("switch", None)
+        window.properties_panel.apply_button.click()
+        entry = window.map_data["nested_maps"][0]
+        self.assertNotIn("switch", entry)
+        self.assertNotIn("switch_inverted", entry)

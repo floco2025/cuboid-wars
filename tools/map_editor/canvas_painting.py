@@ -622,30 +622,11 @@ class CanvasPaintingMixin:
         painter.setPen(Qt.PenStyle.NoPen)
 
     def _paint_nested_map_drag(self, painter: QPainter, cell: float) -> None:
-        # A drag from an existing end previews that end at the cursor with
-        # the other end where it is; any other drag previews a new entry.
         start, current = self.drag_start_cell, self.drag_current_cell
         level_idx = self.window.current_level
-        hit = self.window.nested_map_end_at(start)
-        if hit is None:
-            name = self.window.recent_nested_map_name()
-            self.paint_motion_span(painter, start, current, level_idx, level_idx, level_idx, cell, 1, dim=True)
-            self._paint_nested_map_footprint(painter, current, name, cell, dashed=current != start, dim=True)
-            return
-        entry, end = hit
-        moved = {**entry, end: [current[0], current[1]]}
-        self.paint_motion_span(
-            painter,
-            tuple(moved["from"]),
-            tuple(moved["to"]),
-            entry["level"],
-            entry["to_level"],
-            level_idx,
-            cell,
-            1,
-            dim=True,
-        )
-        self._paint_nested_map_footprint(painter, current, entry["map"], cell, dashed=end == "to", dim=True)
+        name = self.window.recent_nested_map_name()
+        self.paint_motion_span(painter, start, current, level_idx, level_idx, level_idx, cell, 1, dim=True)
+        self._paint_nested_map_footprint(painter, current, name, cell, dashed=current != start, dim=True)
 
     def _paint_wall_material_drag(self, painter: QPainter, cell: float) -> None:
         # Grid-point based: 2D rectangle when the drag spans both axes, or a

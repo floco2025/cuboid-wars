@@ -41,11 +41,6 @@ class ItemsMixin:
             self.recent_item_key_kind = kind
         self.add_item(col, row, item_type, kind)
 
-    def edit_item_at(self, col: int, row: int) -> None:
-        self.open_properties_for(
-            "items", lambda entry: entry["level"] == self.current_level and (entry["col"], entry["row"]) == (col, row)
-        )
-
     def add_item(self, col: int, row: int, item_type: str, kind: str | None, label: str | None = None) -> None:
         error = item_cell_error(self.map_data, self.current_level, col, row)
         if error is not None:

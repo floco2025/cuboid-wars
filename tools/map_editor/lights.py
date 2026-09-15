@@ -14,11 +14,6 @@ from .normalization import edge_key, level_label, light_key, light_placement_err
 class LightsMixin:
     # === Lights ===
 
-    def edit_light_at(self, col: int, row: int, side: str) -> None:
-        self.open_properties_for(
-            "lights", lambda entry: (entry["col"], entry["row"], entry["side"]) == (col, row, side)
-        )
-
     def add_light_at(self, pos) -> None:
         px = pos.x()
         py = pos.y()

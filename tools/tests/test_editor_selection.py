@@ -10,10 +10,15 @@ from PySide6.QtWidgets import QMessageBox
 
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, nested
 from map_editor.constants import MODE_ERASE, MODE_FLOOR, MODE_SELECT
+from map_editor.elements import ElementRef
 from map_editor.io import write_map
-from map_editor.normalization import canonicalize_map, empty_map
+from map_editor.normalization import canonicalize_map, empty_level, empty_map
+from map_editor.object_selection import block_fits, copy_objects, paste_objects, selected_data
 from map_editor.regions import GLOBAL_LISTS, LEVEL_LISTS, TileRegion, copy_region, delete_region, paste_region
+from map_editor.selection import Selection
 from map_editor.selection_actions import CLIPBOARD_MIME
+from map_editor.selection_transfer import snapped_offset
+from map_editor.transforms import insert_level_data, remove_level_data
 from map_editor.types import ZoneRef
 
 
@@ -155,6 +160,62 @@ class RegionTests(unittest.TestCase):
         data = empty_map(8, 8)
         with self.assertRaisesRegex(ValueError, "spawn zone"):
             copy_region(data, TileRegion((0, 0, 1, 1), 0))
+
+
+class ObjectBlockTests(unittest.TestCase):
+    def block_of(self, data, ref, definitions=None):
+        block, _ = copy_objects(data, [ref], definitions or {})
+        return block
+
+    def test_objects_paste_beside_lights_and_ladders_on_other_sides(self):
+        data = empty_map(8, 8)
+        data["levels"][0]["lights"] = [{"col": 3, "row": 1, "side": "W"}]
+        data["ladders"] = [{"col": 3, "row": 1, "side": "N", "lower_level": 0, "levels": 1}]
+        source = empty_map(8, 8)
+        source["levels"][0]["lights"] = [{"col": 0, "row": 0, "side": "N"}]
+        source["ladders"] = [{"col": 0, "row": 0, "side": "E", "lower_level": 0, "levels": 1}]
+        after = paste_objects(data, self.block_of(source, ElementRef("lights", 0, 0)), (3, 1), 0)
+        self.assertEqual([light["side"] for light in after["levels"][0]["lights"]], ["W", "N"])
+        after = paste_objects(data, self.block_of(source, ElementRef("ladders", 0)), (3, 1), 0)
+        self.assertEqual([ladder["side"] for ladder in after["ladders"]], ["N", "E"])
+        source["levels"][0]["lights"][0]["side"] = "W"
+        with self.assertRaisesRegex(ValueError, "already contains lights"):
+            paste_objects(data, self.block_of(source, ElementRef("lights", 0, 0)), (3, 1), 0)
+        source["ladders"][0]["side"] = "N"
+        with self.assertRaisesRegex(ValueError, "already contains ladders"):
+            paste_objects(data, self.block_of(source, ElementRef("ladders", 0)), (3, 1), 0)
+
+    def test_a_nested_map_overhanging_the_grid_copies_and_moves_by_its_anchor(self):
+        data = empty_map(8, 8)
+        data["nested_maps"] = [nested("cabin", 0, [6, 6], [6, 6])]
+        definitions = {"cabin": empty_map(3, 3)}
+        ref = ElementRef("nested_maps", 0)
+        block, region = copy_objects(data, [ref], definitions)
+        self.assertEqual(region.rect, (6, 6, 9, 9))
+        self.assertEqual(block["nested_maps"][0]["from"], [0, 0])
+        moved = paste_objects(selected_data(data, [ref], remove=True), block, (7, 7), 0)
+        self.assertEqual(moved["nested_maps"][0]["from"], [7, 7])
+        self.assertTrue(block_fits(block, (7, 7), data))
+        self.assertFalse(block_fits(block, (8, 8), data))
+        with self.assertRaisesRegex(ValueError, "does not fit"):
+            paste_objects(data, block, (8, 8), 0)
+
+    def test_a_level_insertion_or_removal_ends_the_selection(self):
+        data = empty_map(8, 8)
+        data["levels"] += [empty_level(1), empty_level(2)]
+        wall = {"c0": 2, "r0": 2, "c1": 4, "r1": 2, "all": DEFAULT_ALIAS}
+        data["levels"][1]["walls"] = [dict(wall)]
+        data["levels"][2]["walls"] = [dict(wall)]
+        selection = Selection((ElementRef("walls", 0, 1),), anchor=(2, 2))
+        self.assertEqual(selection.refreshed(data, data), selection)
+        self.assertTrue(selection.refreshed(data, remove_level_data(data, 1)).empty)
+        area = Selection(area=TileRegion((0, 0, 8, 8), 1, 2))
+        self.assertTrue(area.refreshed(data, insert_level_data(data, 1)).empty)
+
+    def test_half_cell_drags_snap_away_from_the_origin(self):
+        self.assertEqual(snapped_offset(0.5, -0.5), (1, -1))
+        self.assertEqual(snapped_offset(1.5, 2.5), (2, 3))
+        self.assertEqual(snapped_offset(-1.5, 0.49), (-2, 0))
 
 
 class SelectHostTests(WindowTestCase):

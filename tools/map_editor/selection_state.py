@@ -7,15 +7,21 @@ from .selection import Selection
 
 
 class SelectionMixin:
+    @property
+    def definitions(self):
+        return self.doc.nested_geometry if self.doc else {}
+
     def selection_refs(self):
         return self.selection.refs(self.map_data)
 
     def selection_region(self):
-        return self.selection.region(self.map_data, self.doc.nested_geometry if self.doc else {})
+        return self.selection.region(self.map_data, self.definitions)
 
+    # The Scope control follows what Select picks; a tool that publishes
+    # objects for Properties leaves the user's scope alone.
     def set_selection(self, selection, *, focus=False):
         self.selection = selection
-        if not selection.empty:
+        if not selection.empty and self.mode == c.MODE_SELECT:
             self.selection_kind = "Tiles" if selection.area is not None else "Objects"
         self.refresh_inspection(show=focus)
         self.update_selection_actions()
@@ -23,7 +29,7 @@ class SelectionMixin:
 
     def inspect_refs(self, refs, *, show=False):
         refs = tuple(dict.fromkeys(refs))
-        region = Selection(refs).region(self.map_data, self.doc.nested_geometry if self.doc else {})
+        region = Selection(refs).region(self.map_data, self.definitions)
         self.set_selection(Selection(refs, anchor=region.rect[:2] if region else None), focus=show)
 
     def inspect_hit(self, hit, *, show=False):
@@ -69,7 +75,7 @@ class SelectionMixin:
 
     def escape_selection(self):
         if self.canvas.input.gesture is not None or self.pending_block is not None:
-            self.canvas.input.cancel(restore=True)
+            self.canvas.input.cancel()
             if self.pending_block is not None:
                 self.pending_block = None
                 self.notify("Pending selection cancelled")

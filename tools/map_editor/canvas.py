@@ -183,15 +183,6 @@ class Canvas(CanvasPaintingMixin, QWidget):
             return col, row
         return None
 
-    def point_to_grid_point(self, pos) -> tuple[int, int]:
-        grid = self.grid_position(pos)
-        col = round(grid.x())
-        row = round(grid.y())
-        return (
-            max(0, min(self.window.map_data["grid_cols"], col)),
-            max(0, min(self.window.map_data["grid_rows"], row)),
-        )
-
     def mousePressEvent(self, event):
         self.input.press(event)
 

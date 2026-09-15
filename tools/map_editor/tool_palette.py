@@ -161,8 +161,7 @@ class ToolPalette(QDockWidget):
     def set_icon_only(self, enabled):
         self.icon_only = enabled
         self.parent().preferences.setValue("tools/icons_only", enabled)
-        self.reflow()
-        self.parent().panel_layout.resize(self)
+        self.parent().panel_layout.reflow_tools()
 
     def reflow(self):
         columns = 2 if self.icon_only else 1
@@ -185,5 +184,11 @@ class ToolPalette(QDockWidget):
                 grid.addWidget(button, index // columns, index % columns)
             grid.setColumnStretch(0, 1)
             grid.setColumnStretch(1, int(self.icon_only))
-
+        # The body's layout keeps its children's previous minimums until they
+        # announce a change, and the dock's minimum follows the body's, so
+        # both are refreshed here rather than by Qt's later layout pass.
+        for grid, _ in self.grids:
+            grid.parentWidget().updateGeometry()
+        self.operations.updateGeometry()
+        self.widget().layout().activate()
         self.setMinimumWidth(80 if self.icon_only else 180)

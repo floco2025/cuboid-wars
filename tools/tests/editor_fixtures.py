@@ -11,7 +11,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from config_fixtures import install_catalogs
-from map_editor.constants import FACES
+from map_editor.constants import FACES, MODE_SELECT
 from map_editor.erase_tools import EraseMixin
 from map_editor.io import write_map
 from map_editor.items import ItemsMixin
@@ -84,6 +84,9 @@ class StubCanvas:
     def update(self) -> None:
         pass
 
+    def cancel(self) -> None:
+        pass
+
     def cells_per_pixel(self, pixels: float) -> float:
         return pixels / 36.0
 
@@ -107,9 +110,11 @@ class EditorHost(
     def __init__(self, map_data: dict | None, bridge_kinds: list[str], doc=None) -> None:
         self.doc = doc
         self.selection = Selection()
+        self.mode = MODE_SELECT
         self.selection_levels = 1
         self.selection_kind = "Objects"
         self.clipboard_objects = False
+        self.clipboard_view_offset = 0
         self.pending_block = None
         self.sampled_materials = None
         self._map_data = map_data

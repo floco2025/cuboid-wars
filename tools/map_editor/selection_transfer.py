@@ -1,17 +1,23 @@
 """Preview and commit moves, duplicates, rotations, and reflections."""
 
 import copy
+import math
 from dataclasses import dataclass, field
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPen
 
 from .block_transforms import transform_block
-from .object_selection import copy_objects, selected_data, paste_objects, refs_for_block
+from .object_selection import block_fits, copy_objects, selected_data, paste_objects, refs_for_block
 from .constants import MODE_SELECT
 from .regions import copy_region, delete_region, paste_region
 from .transforms import record_levels, record_lists
 from .selection_painting import paint_outline, paint_caption
+
+
+# Half a cell rounds away from the origin, whatever its sign.
+def snapped_offset(dx, dy):
+    return tuple(int(math.copysign(math.floor(abs(value) + 0.5), value)) for value in (dx, dy))
 
 
 @dataclass
@@ -37,7 +43,7 @@ class SelectionTransferMixin:
                 if not refs:
                     self.notify("No objects selected.")
                     return False
-                block, region = copy_objects(self.map_data, refs, self.doc.nested_geometry)
+                block, region = copy_objects(self.map_data, refs, self.definitions)
             else:
                 block = copy_region(self.map_data, region)
                 if not duplicate:
@@ -87,7 +93,8 @@ class SelectionTransferMixin:
         if pending.drag_origin is not None:
             ox, oy = pending.drag_origin
             col, row = pending.source.rect[:2]
-            pending.destination = (col + round(point.x() - ox), row + round(point.y() - oy))
+            dc, dr = snapped_offset(point.x() - ox, point.y() - oy)
+            pending.destination = (col + dc, row + dr)
         else:
             pending.destination = (int(point.x() // 1), int(point.y() // 1))
         self.canvas.update()
@@ -102,12 +109,7 @@ class SelectionTransferMixin:
                 data = self.map_data if pending.duplicate else selected_data(self.map_data, pending.refs, remove=True)
                 after = paste_objects(data, pending.block, pending.destination, region.level)
                 if not pending.additions:
-                    before_issues = {issue.identity() for issue in self.validate(self.map_data).issues}
-                    errors = [
-                        issue.message for issue in self.validate(after).issues if issue.identity() not in before_issues
-                    ]
-                    if errors:
-                        raise ValueError(errors[0])
+                    errors = self.added_issues(after)
                 else:
                     # Validate before maintenance can remove an unselected
                     # dependent, using the transformed geometry definitions.
@@ -117,14 +119,9 @@ class SelectionTransferMixin:
                     else:
                         candidate["nested_geometry"][self.doc.active_map] = after
                     candidate.setdefault("nested_geometry", {}).update(pending.additions)
-                    before_issues = {issue.identity() for issue in self.validate_document(self.doc.root_data).issues}
-                    errors = [
-                        issue.message
-                        for issue in self.validate_document(candidate).issues
-                        if issue.identity() not in before_issues
-                    ]
-                    if errors:
-                        raise ValueError(errors[0])
+                    errors = self.added_document_issues(candidate)
+                if errors:
+                    raise ValueError(errors[0])
             else:
                 data = self.map_data
                 if not pending.duplicate:
@@ -150,8 +147,7 @@ class SelectionTransferMixin:
             collect(pending.block)
             if required:
                 root.setdefault("nested_geometry", {}).update({name: pending.additions[name] for name in required})
-            before = {issue.identity() for issue in self.validate_document(self.doc.root_data).issues}
-            errors = [issue.message for issue in self.validate_document(root).issues if issue.identity() not in before]
+            errors = self.added_document_issues(root)
             if errors:
                 raise ValueError(errors[0])
             self.pending_block = None
@@ -163,10 +159,10 @@ class SelectionTransferMixin:
             return
         col, row = pending.destination
         self.pending_block = None
-        self.selection_levels = len(pending.block["levels"])
         if pending.refs is not None:
             self.inspect_refs(refs_for_block(self.map_data, pending.block, pending.destination, region.level))
         else:
+            self.selection_levels = len(pending.block["levels"])
             self.set_tile_selection((col, row, col + pending.block["grid_cols"], row + pending.block["grid_rows"]))
 
     def paint_transfer(self, painter, cell):
@@ -175,12 +171,15 @@ class SelectionTransferMixin:
             return
         col, row = pending.destination
         width, height = pending.block["grid_cols"], pending.block["grid_rows"]
-        fits = (
-            0 <= col
-            and 0 <= row
-            and col + width <= self.map_data["grid_cols"]
-            and row + height <= self.map_data["grid_rows"]
-        )
+        if pending.refs is None:
+            fits = (
+                0 <= col
+                and 0 <= row
+                and col + width <= self.map_data["grid_cols"]
+                and row + height <= self.map_data["grid_rows"]
+            )
+        else:
+            fits = block_fits(pending.block, pending.destination, self.map_data)
         color = QColor("#86efac" if fits else "#f87171")
         painter.save()
         painter.setPen(QPen(color, 2, Qt.PenStyle.DashLine))
