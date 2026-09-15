@@ -49,7 +49,7 @@ to obstacle courses.
 - **Physics** — Rapier (static map collision, kinematic characters, projectile shape casts)
 - **Networking** — UDP via `renet` and its netcode transport, polled from the game loop
 - **Wire format** — `bincode` 2 (binary)
-- **Architecture** — client–server with a shared `common` crate (protocol, physics, map types, spawn validation)
+- **Architecture** — client–server with a shared `common` crate
 
 ## Running locally
 
@@ -75,13 +75,7 @@ The server accepts anyone who can reach its port; keep it on a LAN you trust.
 python3 tools/editor.py hotel      # edits config/server/maps/hotel/layout.json in place
 ```
 
-Select tools from the grouped icon palette on the left. Use **Place / Erase** (or `E` with canvas focus) for the selected element, and **Ctrl/Cmd+K** to find any tool by name. The toolbar’s **Tools** button hides the palette; the active-tool button opens search.
-
-Sample existing objects with `I`, move or duplicate selections, rotate and mirror blocks, edit selection properties, inspect plate connections, and hide or lock element types in **Elements**.
-
 Maps are listed by name in `config/server/gameplay.json` (`maps` + `default_map`). Each map has a folder containing `layout.json` and a hand-edited `settings.json` for movement, kind catalogs, respawn policies, quests, and other tuning. To add a map, register its name and create its settings file; the editor can then create its layout.
-
-Actor spawn zones can scale enemy numbers with the number of players.
 
 ## License
 
