@@ -31,7 +31,12 @@ class ItemsMixin:
                 self.add_item(col, row, self.recent_item_type, self.recent_item_key_kind)
                 return
         result = ItemTypeDialog.prompt(
-            self, "Place Item", self.key_kinds, self.recent_item_type, self.recent_item_key_kind
+            self,
+            "Place Item",
+            self.key_kinds,
+            self.recent_item_type,
+            self.recent_item_key_kind,
+            self.barrier_kind_colors,
         )
         if result is None:
             return

@@ -33,20 +33,17 @@ def map_settings(name="hotel"):
                 else ["basement-floor", "portal-resistant", "slab"]
             )
         },
-        "barrier_kinds": (
-            [
-                {"id": kind, "color": color}
-                for kind, color in [
-                    ("treasure", "#ff3333"),
-                    ("basement", "#f0c020"),
-                    ("gravity", "#5090ff"),
-                    ("lobby", "#22cc33"),
-                ]
-            ]
-            if name == "hotel"
-            else [{"id": "barrier_1", "color": "#f0c020"}]
-        ),
-        "bridge_kinds": [] if name == "hotel" else [{"id": "bridge_1", "color": "#30d8ff"}],
+    }
+
+
+# The kind catalogs a test layout carries for the named map.
+def map_kinds(name="hotel"):
+    if name == "hotel":
+        kinds = [("treasure", "#ff3333"), ("basement", "#f0c020"), ("gravity", "#5090ff"), ("lobby", "#22cc33")]
+        return {"barrier_kinds": [{"id": kind, "color": color} for kind, color in kinds], "bridge_kinds": []}
+    return {
+        "barrier_kinds": [{"id": "barrier_1", "color": "#f0c020"}],
+        "bridge_kinds": [{"id": "bridge_1", "color": "#30d8ff"}],
     }
 
 

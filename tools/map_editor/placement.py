@@ -34,10 +34,10 @@ from .geometry import (
 
 
 class PlacementMixin:
-    def placement_kind(self, title: str, kinds: list[str], recent: str | None, noun: str) -> str | None:
+    def placement_kind(self, title: str, kinds: list[str], recent: str | None, noun: str, colors=None) -> str | None:
         if recent in kinds:
             return recent
-        return KindDialog.prompt(self, title, kinds, recent, noun)
+        return KindDialog.prompt(self, title, kinds, recent, noun, colors)
 
     # === Placement (paint / draw new segments) ===
 
@@ -171,14 +171,18 @@ class PlacementMixin:
         self.apply_change("Place Equipment Eraser", paint_erasers(self.map_data, self.current_level, start, end))
 
     def prompt_and_add_barrier_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        kind = self.placement_kind("Place Barrier", self.barrier_kinds, self.recent_barrier_kind, "barrier kind")
+        kind = self.placement_kind(
+            "Place Barrier", self.barrier_kinds, self.recent_barrier_kind, "barrier kind", self.barrier_kind_colors
+        )
         if kind is None:
             return
         self.recent_barrier_kind = kind
         self.add_barrier_line(start, end, kind)
 
     def prompt_and_add_light_bridge_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        kind = self.placement_kind("Place Light Bridge", self.bridge_kinds, self.recent_bridge_kind, "bridge kind")
+        kind = self.placement_kind(
+            "Place Light Bridge", self.bridge_kinds, self.recent_bridge_kind, "bridge kind", self.bridge_kind_colors
+        )
         if kind is None:
             return
         self.recent_bridge_kind = kind
@@ -205,6 +209,8 @@ class PlacementMixin:
             self.barrier_kinds if barrier else self.bridge_kinds,
             self.switches,
             [{"kind": kind, **controls}],
+            kind_colors=self.barrier_kind_colors if barrier else self.bridge_kind_colors,
+            switch_colors=self.plate_colors,
         )
         if values is not None:
             defaults = merge_record({"kind": kind, **controls}, values)
@@ -213,7 +219,9 @@ class PlacementMixin:
             self.tool_settings.refresh()
 
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
-        switch = self.placement_kind("Place Pressure Plate", self.switches, self.recent_pressure_plate_switch, "switch")
+        switch = self.placement_kind(
+            "Place Pressure Plate", self.switches, self.recent_pressure_plate_switch, "switch", self.plate_colors
+        )
         if switch is None:
             return
         self.recent_pressure_plate_switch = switch

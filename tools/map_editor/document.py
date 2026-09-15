@@ -15,15 +15,10 @@ from uuid import uuid4
 from PySide6.QtCore import QLockFile, QObject, QStandardPaths, Signal
 from PySide6.QtGui import QUndoStack
 
-from .catalogs import parse_settings_json, read_settings_json, read_settings_text
 from .commands import SetMapCommand
-from .io import read_map, write_map, write_text_atomic
+from .io import read_map, write_map
 from .normalization import canonicalize_map, empty_map, normalize_map
 from .repairs import repair_summary
-from .settings_text import splice_catalogs
-
-# The settings.json values the editor owns; the rest of the file is tuning it never writes.
-CATALOGS = ("barrier_kinds", "bridge_kinds")
 
 
 class MapDocument(QObject):
@@ -48,7 +43,7 @@ class MapDocument(QObject):
         self._canonical: dict[str | None, dict] = {}
         self._repairs_pending: dict[str | None, bool] = {}
         if path is not None and path.exists():
-            self.root_data = self.with_settings(read_map(path), path)
+            self.root_data = read_map(path)
             # mtime snapshot for external-modification detection. Compared on
             # save so the editor warns before overwriting a file that changed
             # under it (e.g. someone edited `map.json` in another tool, or git
@@ -61,17 +56,6 @@ class MapDocument(QObject):
         self.dirty = self._saved_data is None
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(self.UNDO_LIMIT)
-
-    @staticmethod
-    def with_settings(data: dict, path: Path | None) -> dict:
-        settings_path = path.with_name("settings.json") if path is not None else None
-        if settings_path is not None and settings_path.exists() and "_settings" not in data:
-            data = {**data, "_settings": read_settings_json(settings_path)}
-        return data
-
-    @property
-    def settings_dirty(self) -> bool:
-        return self.root_data.get("_settings") != (self._saved_data or {}).get("_settings")
 
     @property
     def root_data(self) -> dict:
@@ -167,7 +151,7 @@ class MapDocument(QObject):
         before = self.map_data
         self.active_map = None
         self.clear_autosave()
-        self.root_data = self.with_settings(normalize_map(map_data), path)
+        self.root_data = normalize_map(map_data)
         self._saved_data = None
         self.path = path
         self.path_mtime = path_mtime
@@ -187,7 +171,6 @@ class MapDocument(QObject):
         before = self.map_data
         self.active_map = None
         self.clear_autosave()
-        data = self.with_settings(data, path)
         self.root_data = data
         self.path = path
         self.path_mtime = mtime
@@ -202,97 +185,16 @@ class MapDocument(QObject):
         # existing file at this path is something the user chose to overwrite.
         if self.path is None or self.path_mtime is None:
             return False
-        settings = self.path.with_name("settings.json")
-        saved_settings = (self._saved_data or {}).get("_settings")
-        if saved_settings is not None:
-            try:
-                current = read_settings_json(settings) if settings.exists() else None
-            except ValueError:
-                current = None
-            if current != saved_settings:
-                return True
         return not self.path.exists() or self.path.stat().st_mtime != self.path_mtime
-
-    def reload_settings(self) -> None:
-        if self.path is None or self.settings_dirty:
-            return
-        path = self.path.with_name("settings.json")
-        if not path.exists():
-            return
-        settings = read_settings_json(path)
-        before = self.root_data.get("_settings")
-        if settings == before:
-            return
-        self.root_data = {**self.root_data, "_settings": copy.deepcopy(settings)}
-        if self._saved_data is not None:
-            self._saved_data = {**self._saved_data, "_settings": copy.deepcopy(settings)}
-        self._rebase_history(before, settings)
-
-    # Undo entries adopt `settings` except for the catalogs they changed
-    # relative to `reference`, which stay the history of those edits.
-    def _rebase_history(self, reference: dict | None, settings: dict) -> None:
-        for index in range(self.undo_stack.count()):
-            command = self.undo_stack.command(index)
-            for name in ("before", "after"):
-                data = getattr(command, name)
-                previous = data.get("_settings", {})
-                merged = copy.deepcopy(settings)
-                for catalog in CATALOGS:
-                    if previous.get(catalog) != (reference or {}).get(catalog):
-                        merged[catalog] = copy.deepcopy(previous.get(catalog, []))
-                setattr(command, name, {**data, "_settings": merged})
-
-    # The document as it will be written to `destination`: its own settings
-    # at its own path; elsewhere the destination's tuning, with the
-    # document's catalogs when they were edited, so validation and the write
-    # see the same kinds.
-    def data_for_destination(self, destination: Path) -> dict:
-        if destination == self.path:
-            return self.root_data
-        data = self.with_settings(
-            {key: value for key, value in self.root_data.items() if key != "_settings"}, destination
-        )
-        if self.settings_dirty and "_settings" in data:
-            edited = self.root_data.get("_settings", {})
-            data["_settings"] = {
-                **data["_settings"],
-                **{catalog: copy.deepcopy(edited[catalog]) for catalog in CATALOGS if catalog in edited},
-            }
-        return data
 
     def write(self, path: Path | None = None) -> None:
         """Write to the backing file. Raises on write failure."""
         destination = path if path is not None else self.path
         assert destination is not None, "write called with no backing file"
-        data = copy.deepcopy(self.data_for_destination(destination))
-        settings_path = destination.with_name("settings.json")
-        original = read_settings_text(settings_path) if settings_path.exists() else None
-        settings_written = False
-        if original is not None:
-            settings = parse_settings_json(original, settings_path)
-            baseline = (self._saved_data or {}).get("_settings", {}) if destination == self.path else settings
-            edited = data.get("_settings", {})
-            changed = {
-                catalog: edited[catalog]
-                for catalog in CATALOGS
-                if catalog in edited and edited[catalog] != baseline.get(catalog)
-            }
-            data["_settings"] = {**settings, **copy.deepcopy(changed)}
-            text = splice_catalogs(original, changed)
-            if text != original:
-                write_text_atomic(settings_path, text)
-                settings_written = True
-        try:
-            write_map(destination, data)
-        except Exception:
-            if settings_written:
-                write_text_atomic(settings_path, original)
-            raise
+        data = copy.deepcopy(self.root_data)
+        write_map(destination, data)
         mtime = destination.stat().st_mtime
         self.clear_autosave()
-        saved_settings = (self._saved_data or {}).get("_settings")
-        if "_settings" in data and data["_settings"] != saved_settings:
-            self._rebase_history(saved_settings, data["_settings"])
         self.root_data = data
         self.path = destination
         self.path_mtime = mtime
@@ -321,7 +223,7 @@ class MapDocument(QObject):
                 if not lock.tryLock(0):
                     return
                 self.recovery_lock = lock
-            write_map(autosave, self.root_data, recovery=True)
+            write_map(autosave, self.root_data)
         except Exception:
             # Autosave is best-effort; never interrupt the user with a modal.
             pass

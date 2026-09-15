@@ -5,16 +5,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, qt_app
+from editor_fixtures import WindowTestCase, qt_app
 from map_editor.control_catalogs import edit_catalog, validate_catalog
-from map_editor.dialogs.control_catalogs import FireworksDialog
+from map_editor.dialogs.control_catalogs import ControlCatalogDialog, FireworksDialog
 from map_editor.dialogs.controls import FieldPropertiesDialog
 from map_editor.document import MapDocument
-from map_editor.editing import paint_floors, update_records
+from map_editor.editing import update_records
 from map_editor.io import read_map, write_map
 from map_editor.nesting import NestedMotion
 from map_editor.normalization import empty_map
-from map_editor.settings_text import splice_catalogs
 
 
 class ControlTests(unittest.TestCase):
@@ -47,17 +46,14 @@ class ControlTests(unittest.TestCase):
     def root(self):
         root = empty_map(3, 3)
         root["switch_kinds"] = [{"id": "lobby", "activation": "auto", "reset_on_player_death": "never"}]
-        root["_settings"] = {
-            "barrier_kinds": [{"id": "green", "color": "#22cc33"}],
-            "bridge_kinds": [],
-            "movement": {"gravity": 12},
-        }
+        root["barrier_kinds"] = [{"id": "green", "color": "#22cc33"}]
+        root["bridge_kinds"] = []
         root["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green", "switch": "lobby"}]
         root["items"] = [{"col": 1, "row": 1, "level": 0, "type": "key", "kind": "green"}]
         root["pressure_plates"] = [{"col": col, "row": 2, "level": 0, "switch": "lobby"} for col in (0, 2)]
         nested = copy.deepcopy(root)
-        nested.pop("_settings")
-        nested.pop("switch_kinds")
+        for catalog in ("switch_kinds", "barrier_kinds", "bridge_kinds"):
+            nested.pop(catalog)
         root["nested_geometry"] = {"room": nested}
         root["fireworks"] = {"switch": "lobby", "cooldown_secs": 2}
         return root
@@ -132,6 +128,34 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(fireworks.value(), {"switch": "lobby", "cooldown_secs": 3.0})
         fireworks.deleteLater()
 
+    def test_catalog_dialogs_edit_colours_through_swatches(self):
+        dialog = ControlCatalogDialog(None, "Barrier Kinds", "barrier_kinds", [{"id": "green", "color": "#22cc33"}])
+        swatch = dialog.table.cellWidget(0, 1)
+        self.assertEqual((swatch.color, swatch.button.text()), ("#22cc33", "#22cc33"))
+        self.assertFalse(swatch.clear_button.isVisibleTo(dialog))
+        swatch.set_color("#123456")
+        dialog.add_entry({"id": "fresh", "color": dialog.fresh_color()})
+        entries, renames = dialog.values()
+        self.assertEqual(entries[0], {"id": "green", "color": "#123456"})
+        self.assertRegex(entries[1]["color"], r"#[0-9a-f]{6}")
+        self.assertNotEqual(entries[1]["color"], entries[0]["color"])
+        self.assertEqual(renames, {})
+        dialog.deleteLater()
+        plates = ControlCatalogDialog(
+            None,
+            "Pressure Plate Kinds",
+            "switch_kinds",
+            [{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}],
+        )
+        override = plates.table.cellWidget(0, 4)
+        self.assertEqual((override.color, override.button.text()), (None, "Inherit"))
+        override.set_color("#9b5de5")
+        self.assertEqual(plates.values()[0][0]["plate_color"], "#9b5de5")
+        self.assertTrue(override.clear_button.isVisibleTo(plates))
+        override.clear_button.click()
+        self.assertNotIn("plate_color", plates.values()[0][0])
+        plates.deleteLater()
+
     def map_folder(self, directory, name, settings, layout):
         path = Path(directory) / name / "layout.json"
         path.parent.mkdir()
@@ -139,113 +163,27 @@ class ControlTests(unittest.TestCase):
         write_map(path, layout)
         return path
 
-    def test_save_as_with_edited_catalogs_carries_both_catalogs_to_the_destination(self):
+    def test_save_as_carries_the_catalogs_in_the_layout_and_leaves_settings_alone(self):
         with tempfile.TemporaryDirectory() as directory:
-            obby_settings = {
-                "barrier_kinds": [{"id": "barrier_1", "color": "#f0c020"}],
-                "bridge_kinds": [{"id": f"bridge_{index}", "color": "#30d8ff"} for index in (1, 2, 3)],
-            }
-            hotel_settings = {
-                "barrier_kinds": [{"id": "treasure", "color": "#ff3333"}],
-                "bridge_kinds": [],
-                "portals": "both",
-            }
             layout = empty_map(3, 3)
+            layout["barrier_kinds"] = [{"id": "barrier_1", "color": "#f0c020"}]
+            layout["bridge_kinds"] = [{"id": "bridge_1", "color": "#30d8ff"}]
             layout["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "kind": "bridge_1"}]
-            obby = self.map_folder(directory, "obby", obby_settings, layout)
-            hotel = self.map_folder(directory, "hotel", hotel_settings, empty_map(3, 3))
+            obby = self.map_folder(directory, "obby", {"portals": "single"}, layout)
+            hotel = self.map_folder(directory, "hotel", {"portals": "both"}, empty_map(3, 3))
+            settings = {path: path.with_name("settings.json").read_text() for path in (obby, hotel)}
             doc = MapDocument(obby)
             recolored = [{"id": "barrier_1", "color": "#123456"}]
             doc.apply_root_change("Recolor", edit_catalog(doc.root_data, "barrier_kinds", recolored, {}), None)
-            staged = doc.data_for_destination(hotel)
-            self.assertEqual(staged["_settings"]["bridge_kinds"], obby_settings["bridge_kinds"])
-            self.assertEqual(staged["_settings"]["portals"], "both")
             doc.write(hotel)
-            written = json.loads(hotel.with_name("settings.json").read_text())
+            written = read_map(hotel)
             self.assertEqual(written["barrier_kinds"], recolored)
-            self.assertEqual(written["bridge_kinds"], obby_settings["bridge_kinds"])
-            self.assertEqual(written["portals"], "both")
-            self.assertEqual({entry["id"] for entry in written["bridge_kinds"]} >= {"bridge_1"}, True)
-            self.assertFalse(doc.settings_dirty)
-            unchanged = MapDocument(obby)
-            self.assertEqual(
-                unchanged.data_for_destination(hotel)["_settings"],
-                hotel_settings | {"barrier_kinds": recolored, "bridge_kinds": obby_settings["bridge_kinds"]},
-            )
-
-    def test_undo_after_save_as_keeps_the_destinations_catalogs(self):
-        with tempfile.TemporaryDirectory() as directory:
-            hotel = self.map_folder(
-                directory,
-                "hotel",
-                {"barrier_kinds": [{"id": "treasure", "color": "#ff3333"}], "bridge_kinds": []},
-                empty_map(3, 3),
-            )
-            obby_settings = {
-                "barrier_kinds": [{"id": "barrier_1", "color": "#f0c020"}],
-                "bridge_kinds": [{"id": "bridge_1", "color": "#30d8ff"}],
-            }
-            obby = self.map_folder(directory, "obby", obby_settings, empty_map(3, 3))
-            original = obby.with_name("settings.json").read_text()
-            doc = MapDocument(hotel)
-            doc.apply_change("Paint", paint_floors(doc.map_data, 0, (1, 1, 2, 2), DEFAULT_ALIAS))
-            doc.write(obby)
-            doc.undo_stack.undo()
-            self.assertFalse(doc.settings_dirty)
-            self.assertEqual(doc.root_data["_settings"], obby_settings)
-            doc.write()
-            self.assertEqual(obby.with_name("settings.json").read_text(), original)
-
-    def test_catalog_saves_rewrite_only_their_own_values(self):
-        obby = "\n".join(
-            [
-                "{",
-                '  "movement": { "gravity": 12 },',
-                '  "barrier_kinds": [{ "id": "barrier_1", "color": "#f0c020" }],',
-                '  "bridge_kinds": [',
-                '    { "id": "bridge_1", "color": "#30d8ff" },',
-                '    { "id": "bridge_2", "color": "#30d8ff" },',
-                '    { "id": "bridge_3", "color": "#30d8ff" }',
-                "  ],",
-                '  "celestial": {}',
-                "}",
-                "",
-            ]
-        )
-        settings = json.loads(obby)
-        self.assertEqual(splice_catalogs(obby, {key: settings[key] for key in ("barrier_kinds", "bridge_kinds")}), obby)
-        recolored = splice_catalogs(obby, {"barrier_kinds": [{"id": "barrier_1", "color": "#123456"}]})
-        self.assertEqual(
-            recolored,
-            obby.replace('{ "id": "barrier_1", "color": "#f0c020" }', '{ "id": "barrier_1", "color": "#123456" }'),
-        )
-        collapsed = splice_catalogs(obby, {"bridge_kinds": [{"id": "bridge_1", "color": "#30d8ff"}]})
-        broken = "\n".join(
-            [
-                '  "bridge_kinds": [',
-                '    { "id": "bridge_1", "color": "#30d8ff" },',
-                '    { "id": "bridge_2", "color": "#30d8ff" },',
-                '    { "id": "bridge_3", "color": "#30d8ff" }',
-                "  ],",
-            ]
-        )
-        self.assertEqual(
-            collapsed, obby.replace(broken, '  "bridge_kinds": [{ "id": "bridge_1", "color": "#30d8ff" }],')
-        )
-        wide = splice_catalogs(
-            obby, {"barrier_kinds": [{"id": "barrier_1", "color": "#f0c020"}, {"id": "b", "color": "#f0c020"}]}
-        )
-        self.assertIn(
-            '\n  "barrier_kinds": [\n    { "id": "barrier_1", "color": "#f0c020" },\n    { "id": "b", "color": "#f0c020" }\n  ],\n',
-            wide,
-        )
-        added = splice_catalogs(
-            '{\n  "celestial": {},\n  "barrier_kinds": []\n}\n', {"bridge_kinds": [{"id": "b", "color": "#ffffff"}]}
-        )
-        self.assertEqual(
-            added,
-            '{\n  "celestial": {},\n  "barrier_kinds": [],\n  "bridge_kinds": [{ "id": "b", "color": "#ffffff" }]\n}\n',
-        )
+            self.assertEqual(written["bridge_kinds"], layout["bridge_kinds"])
+            self.assertEqual([bridge["kind"] for bridge in written["levels"][0]["light_bridges"]], ["bridge_1"])
+            self.assertEqual(doc.path, hotel)
+            self.assertFalse(doc.dirty)
+            for path, text in settings.items():
+                self.assertEqual(path.with_name("settings.json").read_text(), text)
 
     def test_bulk_controls_preserve_mixed_appearance_and_choose_one_plate_kind(self):
         dialog = FieldPropertiesDialog(
@@ -262,13 +200,12 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(dialog.values(), {"switch": "b", "switch_inverted": True})
         dialog.deleteLater()
 
-    def test_catalog_changes_share_undo_recovery_and_save_without_changing_tuning(self):
+    def test_catalog_changes_share_undo_recovery_and_save_without_touching_settings(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "layout.json"
             settings_path = path.with_name("settings.json")
-            root = self.root()
-            settings_path.write_text(json.dumps(root.pop("_settings")))
-            write_map(path, root)
+            settings_path.write_text('{"movement": {"gravity": 12}}')
+            write_map(path, self.root())
             doc = MapDocument(path)
             before = copy.deepcopy(doc.root_data)
             after = edit_catalog(before, "barrier_kinds", [{"id": "blue", "color": "#0000ff"}], {"green": "blue"})
@@ -277,54 +214,11 @@ class ControlTests(unittest.TestCase):
             self.assertEqual(doc.root_data, before)
             doc.undo_stack.redo()
             doc.write_autosave()
-            recovered = read_map(doc.autosave_path())
-            self.assertEqual(recovered, after)
+            self.assertEqual(read_map(doc.autosave_path()), after)
             doc.write()
-            settings = json.loads(settings_path.read_text())
-            self.assertEqual(settings["movement"], {"gravity": 12})
-            self.assertEqual(settings["barrier_kinds"][0]["id"], "blue")
-            self.assertNotIn("_settings", read_map(path))
+            self.assertEqual(read_map(path)["barrier_kinds"], [{"id": "blue", "color": "#0000ff"}])
+            self.assertEqual(settings_path.read_text(), '{"movement": {"gravity": 12}}')
             self.assertFalse(doc.dirty)
-
-    def test_external_tuning_changes_survive_a_catalog_save(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "layout.json"
-            root = self.root()
-            settings = root.pop("_settings")
-            settings_path = path.with_name("settings.json")
-            settings_path.write_text(json.dumps(settings))
-            write_map(path, root)
-            doc = MapDocument(path)
-            after = edit_catalog(doc.root_data, "barrier_kinds", [{"id": "green", "color": "#ff0000"}], {})
-            doc.apply_root_change("Recolor", after, None)
-            settings["movement"]["gravity"] = 7
-            settings_path.write_text(json.dumps(settings))
-            self.assertTrue(doc.externally_modified())
-            doc.write()
-            self.assertEqual(json.loads(settings_path.read_text())["movement"]["gravity"], 7)
-
-    def test_failed_layout_save_restores_settings_and_keeps_edits_unsaved(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "layout.json"
-            root = self.root()
-            settings = root.pop("_settings")
-            settings_path = path.with_name("settings.json")
-            settings_path.write_text(json.dumps(settings))
-            write_map(path, root)
-            original_layout = path.read_text()
-            original_settings = settings_path.read_text()
-            doc = MapDocument(path)
-            after = edit_catalog(
-                doc.root_data, "barrier_kinds", [{"id": "blue", "color": "#0000ff"}], {"green": "blue"}
-            )
-            doc.apply_root_change("Rename barrier", after, None)
-            with patch("map_editor.document.write_map", side_effect=OSError("write failed")):
-                with self.assertRaisesRegex(OSError, "write failed"):
-                    doc.write()
-            self.assertEqual(settings_path.read_text(), original_settings)
-            self.assertEqual(path.read_text(), original_layout)
-            self.assertEqual(doc.root_data, after)
-            self.assertTrue(doc.dirty)
 
 
 class ControlWindowTests(WindowTestCase):

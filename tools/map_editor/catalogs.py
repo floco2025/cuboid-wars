@@ -1,6 +1,6 @@
-"""The catalogs the editor reads from the gameplay and asset configuration:
-the map registry, each map's settings, and the global actor and wall-light
-kinds. Catalog entries are metadata; no texture image is ever loaded."""
+"""The catalogs the editor reads: the map registry, each map's layout kinds
+and settings, and the global actor and wall-light kinds. Catalog entries are
+metadata; no texture image is ever loaded."""
 
 from __future__ import annotations
 
@@ -26,39 +26,17 @@ def load_actor_kinds() -> list[str]:
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 
 
-# A map's kind catalog from its gameplay settings, in catalog order: id → "#rrggbb".
-def load_map_kinds(map_name: str, key: str) -> dict[str, str]:
-    map_settings = load_map_settings(map_name)
-    source = map_settings_path(map_name)
-    if key not in map_settings:
-        raise ValueError(f"{source}: {key} is required; use [] when the map has none")
-    value = map_settings[key]
-    if not isinstance(value, list):
-        raise ValueError(f"{source}: {key} must be an array of {{id, color}} objects")
-    kinds: dict[str, str] = {}
-    for idx, entry in enumerate(value):
-        path = f"{source}: {key}[{idx}]"
-        if (
-            not isinstance(entry, dict)
-            or not isinstance(entry.get("id"), str)
-            or not isinstance(entry.get("color"), str)
-        ):
-            raise ValueError(f"{path} must be an object with string `id` and `color`")
-        if set(entry) - {"id", "color"}:
-            raise ValueError(f"{path}: kinds define only id and color")
-        kind, color = entry["id"], entry["color"]
-        if not kind:
-            raise ValueError(f"{path}.id is empty")
-        if kind in kinds:
-            raise ValueError(f"{path}.id duplicates {kind!r}")
-        if not HEX_COLOR.fullmatch(color):
-            raise ValueError(f"{path}.color must look like #rrggbb, got {color!r}")
-        kinds[kind] = color
-    return kinds
-
-
-def load_map_barrier_kinds(map_name: str) -> dict[str, str]:
-    return load_map_kinds(map_name, "barrier_kinds")
+# A layout's kind catalog in catalog order: id → "#rrggbb". Malformed
+# entries are validation's business and are left out here.
+def kind_colors(root: dict, key: str) -> dict[str, str]:
+    entries = root.get(key, [])
+    if not isinstance(entries, list):
+        return {}
+    return {
+        entry["id"]: entry["color"]
+        for entry in entries
+        if isinstance(entry, dict) and isinstance(entry.get("id"), str) and isinstance(entry.get("color"), str)
+    }
 
 
 SWITCH_ACTIVATIONS = ("momentary", "toggle", "auto")
@@ -105,15 +83,12 @@ def plate_colors(root: dict, barriers: dict[str, str], bridges: dict[str, str]) 
     }
 
 
-def load_map_bridge_kinds(map_name: str) -> dict[str, str]:
-    return load_map_kinds(map_name, "bridge_kinds")
-
-
-def load_map_wall_width_cells(map_name: str) -> float:
-    """One wall width in cells, the unit a nested map's nudge is drawn in."""
-    map_settings = load_map_settings(map_name)
-    geometry = map_settings["geometry"]
-    return float(geometry["wall_thickness"]) / float(geometry["grid_cell_size"])
+# The cell size and level height in metres, and one wall width in cells,
+# the unit a nested map's nudge is drawn in.
+def load_map_geometry(map_name: str) -> tuple[float, float, float]:
+    geometry = load_map_settings(map_name)["geometry"]
+    cell, level_height, wall = (float(geometry[key]) for key in ("grid_cell_size", "level_height", "wall_thickness"))
+    return cell, level_height, wall / cell
 
 
 def load_texture_catalog(host: str) -> dict[str, bool]:
@@ -223,19 +198,13 @@ class MapCatalogs:
     # The switch ids in catalog order.
     switches: list[str] = field(default_factory=list)
     plate_colors: dict[str, str] = field(default_factory=dict)
+    grid_cell_size: float = 0.0
+    level_height: float = 0.0
 
+    # The layout owns the kinds and switches; the rest stays as loaded.
     def for_layout(self, root: dict) -> "MapCatalogs":
-        settings = root.get("_settings", {})
-        barriers = (
-            {entry["id"]: entry["color"] for entry in settings["barrier_kinds"]}
-            if "barrier_kinds" in settings
-            else self.barrier_kind_colors
-        )
-        bridges = (
-            {entry["id"]: entry["color"] for entry in settings["bridge_kinds"]}
-            if "bridge_kinds" in settings
-            else self.bridge_kind_colors
-        )
+        barriers = kind_colors(root, "barrier_kinds")
+        bridges = kind_colors(root, "bridge_kinds")
         return replace(
             self,
             barrier_kind_colors=barriers,
@@ -246,9 +215,14 @@ class MapCatalogs:
 
     @classmethod
     def load(cls, map_name: str) -> "MapCatalogs":
+        cell, level_height, wall_width = load_map_geometry(map_name)
+        layout = map_layout_path(map_name)
+        root = read_settings_json(layout)["map"] if layout.exists() else {}
         return cls(
-            load_map_barrier_kinds(map_name),
-            load_map_bridge_kinds(map_name),
-            load_map_wall_width_cells(map_name),
+            {},
+            {},
+            wall_width,
             load_texture_catalog(map_name),
-        ).for_layout(read_settings_json(map_layout_path(map_name))["map"] if map_layout_path(map_name).exists() else {})
+            grid_cell_size=cell,
+            level_height=level_height,
+        ).for_layout(root)

@@ -13,8 +13,10 @@ BRIDGE_KIND = "skyway"
 
 
 class FileIoTests(unittest.TestCase):
-    def test_map_files_are_written_without_a_schema_version(self) -> None:
+    def test_map_files_carry_the_catalogs_and_no_schema_version(self) -> None:
         data = empty_map(2, 2)
+        data["barrier_kinds"] = [{"id": KIND, "color": "#ff3333"}]
+        data["bridge_kinds"] = []
         data["levels"][0]["floors"] = [floor(0, 0)]
 
         with tempfile.TemporaryDirectory() as directory:
@@ -23,7 +25,8 @@ class FileIoTests(unittest.TestCase):
 
             wrapper = json.loads(path.read_text(encoding="utf-8"))
             self.assertNotIn("version", wrapper)
-            self.assertNotIn("barrier_kinds", wrapper["map"])
+            self.assertEqual(wrapper["map"]["barrier_kinds"], data["barrier_kinds"])
+            self.assertEqual(wrapper["map"]["bridge_kinds"], [])
             self.assertEqual(read_map(path), canonicalize_map(data))
 
     def test_plates_round_trip_through_the_file_format(self) -> None:

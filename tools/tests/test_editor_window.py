@@ -474,8 +474,8 @@ class WindowTests(WindowTestCase):
         window.add_floor_rect((2, 1), (2, 1))
         window.barrier_kind_colors = {"gate": "#ff0000"}
         window.bridge_kind_colors = {"bridge": "#00ff00"}
-        window.doc.root_data["_settings"]["barrier_kinds"] = [{"id": "gate", "color": "#ff0000"}]
-        window.doc.root_data["_settings"]["bridge_kinds"] = [{"id": "bridge", "color": "#00ff00"}]
+        window.doc.root_data["barrier_kinds"] = [{"id": "gate", "color": "#ff0000"}]
+        window.doc.root_data["bridge_kinds"] = [{"id": "bridge", "color": "#00ff00"}]
         window.doc.root_data["switch_kinds"] = [
             {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["gate", "bridge"]
         ]

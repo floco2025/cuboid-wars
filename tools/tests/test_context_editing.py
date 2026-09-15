@@ -34,8 +34,8 @@ class ContextEditingTests(WindowTestCase):
 
     def test_kind_edits_target_one_record_in_the_viewed_map_and_level(self):
         window = self.window
-        window.bridge_kind_colors = window.barrier_kind_colors = {"a": "#ff0000", "b": "#0000ff"}
         window.wall_light_kinds = ["a", "b"]
+        kinds = [{"id": "a", "color": "#ff0000"}, {"id": "b", "color": "#0000ff"}]
         cases = (
             ("light_bridges", {"col": 2, "row": 3, "kind": "a"}, (2.5, 3.5), "Edit…"),
             ("barriers", {"c0": 2, "r0": 3, "c1": 3, "r1": 3, "kind": "a"}, (2.5, 3.0), "Edit…"),
@@ -54,6 +54,8 @@ class ContextEditingTests(WindowTestCase):
                     ]
                 data["levels"].append({**copy.deepcopy(level), "name": "Upper"})
                 root = copy.deepcopy(data)
+                root["barrier_kinds"] = copy.deepcopy(kinds)
+                root["bridge_kinds"] = copy.deepcopy(kinds)
                 root["nested_geometry"] = {"room": data}
                 window.doc.replace_with_new(root)
                 window.doc.select_map("room")

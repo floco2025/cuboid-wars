@@ -1,4 +1,5 @@
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..control_catalogs import validate_catalog
+from .color_swatch import ColorSwatch
 from .controls import choice
 
 
@@ -41,7 +43,7 @@ class ControlCatalogDialog(QDialog):
             lambda: self.add_entry(
                 {
                     "id": "",
-                    "color": "#ffffff",
+                    "color": self.fresh_color(),
                     "activation": "momentary",
                     "reset_on_player_death": "never",
                     "held": "any",
@@ -60,7 +62,11 @@ class ControlCatalogDialog(QDialog):
         layout.addWidget(self.table)
         layout.addLayout(row)
         layout.addWidget(buttons)
-        self.resize(760 if catalog == "switch_kinds" else 420, 360)
+        self.resize(820 if catalog == "switch_kinds" else 460, 360)
+
+    # New kinds start apart on the hue wheel rather than all white.
+    def fresh_color(self):
+        return QColor.fromHsv((self.table.rowCount() * 137) % 360, 190, 235).name()
 
     def add_entry(self, entry, original=None):
         row = self.table.rowCount()
@@ -79,6 +85,8 @@ class ControlCatalogDialog(QDialog):
                     box.addItem(value)
                 box.setCurrentText(value)
                 self.table.setCellWidget(row, column, box)
+            elif field in ("color", "plate_color"):
+                self.table.setCellWidget(row, column, ColorSwatch(value, optional=field == "plate_color"))
             else:
                 item = QTableWidgetItem(value)
                 if field == "id":
@@ -91,9 +99,11 @@ class ControlCatalogDialog(QDialog):
             entry = {}
             for column, field in enumerate(self.fields):
                 widget = self.table.cellWidget(row, column)
-                value = widget.currentText() if widget is not None else self.table.item(row, column).text()
-                if field != "plate_color" or value:
-                    entry[field] = value
+                if isinstance(widget, ColorSwatch):
+                    if widget.color is not None:
+                        entry[field] = widget.color
+                    continue
+                entry[field] = widget.currentText() if widget is not None else self.table.item(row, column).text()
             original = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
             if original and original != entry["id"]:
                 renames[original] = entry["id"]

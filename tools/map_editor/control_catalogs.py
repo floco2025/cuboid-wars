@@ -60,8 +60,7 @@ def validate_catalog(catalog: str, entries: list[dict]) -> None:
 def edit_catalog(root: dict, catalog: str, entries: list[dict], renames: dict[str, str]) -> dict:
     validate_catalog(catalog, entries)
     after = copy.deepcopy(root)
-    source = after.setdefault("_settings", {}) if catalog in ("barrier_kinds", "bridge_kinds") else after
-    previous = {entry["id"] for entry in source.get(catalog, [])}
+    previous = {entry["id"] for entry in after.get(catalog, [])}
     kept = {entry["id"] for entry in entries} & previous - set(renames.values())
     removed = previous - set(renames) - kept
     for entry, field in references(after, catalog):
@@ -70,5 +69,5 @@ def edit_catalog(root: dict, catalog: str, entries: list[dict], renames: dict[st
             raise ValueError(f"{value!r} is still assigned to map objects; reassign them before deleting it")
         if value in renames:
             entry[field] = renames[value]
-    source[catalog] = copy.deepcopy(entries)
+    after[catalog] = copy.deepcopy(entries)
     return after

@@ -150,7 +150,11 @@ def normalize_map(map_data: dict) -> dict:
     ladders = [normalize_ladder(l) for l in map_data.get("ladders", [])]
     nested_maps = [normalize_nested_map(n) for n in map_data.get("nested_maps", [])]
     return {
-        **{key: copy.deepcopy(map_data[key]) for key in ("switch_kinds", "fireworks", "_settings") if key in map_data},
+        **{
+            key: copy.deepcopy(map_data[key])
+            for key in ("switch_kinds", "barrier_kinds", "bridge_kinds", "fireworks")
+            if key in map_data
+        },
         "grid_cols": cols,
         "grid_rows": rows,
         "actor_spawn_zones": actor_spawn_zones,

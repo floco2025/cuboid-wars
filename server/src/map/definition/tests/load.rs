@@ -61,21 +61,29 @@ fn invalid_named_geometry_is_rejected() {
 fn root_catalogs_move_off_the_geometry_and_nested_geometry_may_not_define_them() {
     let mut value = geometry(&["room"]);
     value["switch_kinds"] = json!([{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]);
+    value["barrier_kinds"] = json!([{"id": "red", "color": "#ff0000"}]);
+    value["bridge_kinds"] = json!([{"id": "skyway", "color": "#30d8ff"}]);
     value["fireworks"] = json!({"switch": "door", "cooldown_secs": 3.0});
     value["nested_geometry"] = json!({"room": geometry(&[])});
     let loaded = prepare_source(serde_json::from_value::<MapDef>(value.clone()).expect("test source is invalid"))
         .expect("root catalogs rejected");
     assert_eq!(loaded.switch_kinds[0].id, "door");
+    assert_eq!(loaded.barrier_kinds[0].id, "red");
+    assert_eq!(loaded.bridge_kinds[0].id, "skyway");
     assert_eq!(
         loaded.fireworks.map(|fireworks| fireworks.switch).as_deref(),
         Some("door")
     );
-    assert!(loaded.geometry.switch_kinds.is_empty() && loaded.geometry.fireworks.is_none());
+    let root = &loaded.geometry;
+    assert!(root.switch_kinds.is_empty() && root.fireworks.is_none());
+    assert!(root.barrier_kinds.is_empty() && root.bridge_kinds.is_empty());
     for (key, nested) in [
         (
             "switch_kinds",
             json!([{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]),
         ),
+        ("barrier_kinds", json!([{"id": "red", "color": "#ff0000"}])),
+        ("bridge_kinds", json!([{"id": "skyway", "color": "#30d8ff"}])),
         ("fireworks", json!({"switch": "door", "cooldown_secs": 3.0})),
         ("nested_geometry", json!({"inner": geometry(&[])})),
     ] {

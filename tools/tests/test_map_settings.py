@@ -9,9 +9,8 @@ from PySide6.QtWidgets import QMessageBox
 from editor_fixtures import WindowTestCase
 from config_fixtures import ConfigTestCase
 from map_editor.catalogs import (
+    kind_colors,
     list_map_names,
-    load_map_barrier_kinds,
-    load_map_bridge_kinds,
     load_map_settings,
     map_layout_path,
     plate_colors,
@@ -49,13 +48,12 @@ class MapSettingsTests(ConfigTestCase):
     def test_only_registered_folders_load_and_layout_is_not_required(self):
         settings = map_settings_path("hotel")
         settings.parent.mkdir(parents=True)
-        settings.write_text('{"barrier_kinds": []}')
+        settings.write_text('{"portals": "both"}')
         other = map_settings_path("unregistered")
         other.parent.mkdir()
         other.write_text("{}")
         self.assertEqual(list_map_names(), ["hotel"])
-        self.assertEqual(load_map_settings("hotel"), {"barrier_kinds": []})
-        self.assertEqual(load_map_barrier_kinds("hotel"), {})
+        self.assertEqual(load_map_settings("hotel"), {"portals": "both"})
         self.assertFalse(map_layout_path("hotel").exists())
         with self.assertRaisesRegex(ValueError, "not registered"):
             load_map_settings("unregistered")
@@ -69,22 +67,11 @@ class MapSettingsTests(ConfigTestCase):
             path.write_text(text)
             with self.assertRaisesRegex(ValueError, "hotel/settings.json"):
                 load_map_settings("hotel")
-        path.write_text("{}")
-        with self.assertRaisesRegex(ValueError, "settings.json: barrier_kinds"):
-            load_map_barrier_kinds("hotel")
 
     def test_plate_colors_follow_targets_and_explicit_switch_colors(self):
-        path = map_settings_path("hotel")
-        path.parent.mkdir(parents=True)
-        path.write_text(
-            json.dumps(
-                {
-                    "barrier_kinds": [{"id": "green", "color": "#22cc33"}],
-                    "bridge_kinds": [{"id": "cyan", "color": "#30d8ff"}],
-                }
-            )
-        )
         data = empty_map(3, 3)
+        data["barrier_kinds"] = [{"id": "green", "color": "#22cc33"}]
+        data["bridge_kinds"] = [{"id": "cyan", "color": "#30d8ff"}]
         data["switch_kinds"] = [
             {"id": "door"},
             {"id": "bridge"},
@@ -93,7 +80,7 @@ class MapSettingsTests(ConfigTestCase):
         ]
         data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green", "switch": "door"}]
         data["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "kind": "cyan", "switch": "bridge"}]
-        barriers, bridges = load_map_barrier_kinds("hotel"), load_map_bridge_kinds("hotel")
+        barriers, bridges = kind_colors(data, "barrier_kinds"), kind_colors(data, "bridge_kinds")
         colors = plate_colors(data, barriers, bridges)
         self.assertEqual(colors, {"door": "#22cc33", "bridge": "#30d8ff", "show": "#9b5de5", "other": "#2c99bc"})
         data["switch_kinds"][0]["plate_color"] = "#ffaa00"
@@ -108,28 +95,25 @@ class MapSettingsTests(ConfigTestCase):
 
 
 class MapSettingsWindowTests(WindowTestCase):
-    def test_save_as_copies_layout_and_catalogs_and_preserves_destination_tuning(self):
+    def test_save_as_carries_the_layouts_catalogs_and_leaves_both_settings_files_alone(self):
         before = {name: map_settings_path(name).read_bytes() for name in ["hotel", "obby"]}
         edited = copy.deepcopy(self.window.doc.root_data)
-        edited["_settings"]["barrier_kinds"] = [{"id": "edited", "color": "#123456"}]
-        edited["_settings"]["bridge_kinds"] = [{"id": "light", "color": "#654321"}]
+        edited["barrier_kinds"] = [{"id": "edited", "color": "#123456"}]
+        edited["bridge_kinds"] = [{"id": "light", "color": "#654321"}]
         self.window.doc.apply_root_change("Edit catalogs", edited, None)
-        data = self.window.doc.root_data.copy()
-        source_settings = data.pop("_settings")
+        data = copy.deepcopy(self.window.doc.root_data)
         with patch("map_editor.file_actions.QInputDialog.getItem", return_value=("obby", True)):
             self.assertTrue(self.window.save_as())
         self.assertEqual(self.window.path, map_layout_path("obby"))
         self.assertEqual(self.window.catalog_map, "obby")
-        self.assertEqual(self.window.barrier_kinds, [entry["id"] for entry in source_settings["barrier_kinds"]])
+        self.assertEqual(self.window.barrier_kinds, ["edited"])
+        self.assertEqual(self.window.bridge_kind_colors, {"light": "#654321"})
         self.assertIn("obby", self.window.windowTitle())
         self.assertEqual(read_map(self.window.path), data)
         self.assertIn(str(map_settings_path("obby").resolve()), self.window.dependencies.watcher.files())
         self.assertNotIn(str(map_settings_path("hotel").resolve()), self.window.dependencies.watcher.files())
-        self.assertEqual(map_settings_path("hotel").read_bytes(), before["hotel"])
-        destination = json.loads(before["obby"])
-        for key in ("barrier_kinds", "bridge_kinds"):
-            destination[key] = source_settings[key]
-        self.assertEqual(json.loads(map_settings_path("obby").read_text()), destination)
+        for name, content in before.items():
+            self.assertEqual(map_settings_path(name).read_bytes(), content)
 
     def test_new_registered_map_can_create_a_layout_without_overwriting_settings(self):
         source = map_settings_path("hotel").read_bytes()
@@ -156,7 +140,7 @@ class MapSettingsWindowTests(WindowTestCase):
         self.global_path.write_text(json.dumps(global_config))
         settings = map_settings_path("fresh")
         settings.parent.mkdir()
-        settings.write_text('{"barrier_kinds": [],}')
+        settings.write_text('{"portals": "both",}')
         original = self.window.doc.root_data.copy()
         with (
             patch("map_editor.file_actions.ResizeMapDialog.prompt", return_value=(8, 8, 0, 0)),
@@ -174,18 +158,16 @@ class MapSettingsWindowTests(WindowTestCase):
         window = self.window
         path = map_settings_path("hotel")
         window.reload_dependencies()
-        colors = dict(window.barrier_kind_colors)
-        settings_before = copy.deepcopy(window.doc.root_data["_settings"])
+        materials = list(window.materials_catalog)
         settings = json.loads(path.read_text())
-        del settings["barrier_kinds"][0]["color"]
+        settings["textures"] = []
         path.write_text(json.dumps(settings))
         window.reload_dependencies()
         self.assertIn("Catalog reload failed", window.canvas.notice.text())
-        self.assertEqual(window.barrier_kind_colors, colors)
-        self.assertEqual(window.doc.root_data["_settings"], settings_before)
+        self.assertEqual(list(window.materials_catalog), materials)
         window.add_floor_rect((2, 2), (2, 2))
         window.refresh_ui()
-        self.assertEqual(window.barrier_kind_colors, colors)
+        self.assertEqual(list(window.materials_catalog), materials)
 
     def test_new_over_an_existing_layout_replaces_it_only_after_asking(self):
         obby = map_layout_path("obby")
@@ -260,16 +242,15 @@ class MapSettingsWindowTests(WindowTestCase):
     def test_atomic_settings_replacement_reloads_and_restores_the_file_watch(self):
         path = map_settings_path("hotel")
         self.assertIn(str(path.resolve()), self.window.dependencies.watcher.files())
-        for color in ["#010203", "#040506"]:
+        for alias in ["fresh-one", "fresh-two"]:
             settings = json.loads(path.read_text())
-            name = settings["barrier_kinds"][0]["id"]
-            settings["barrier_kinds"][0]["color"] = color
+            settings["textures"][alias] = {"material": "test", "portalable": True}
             replacement = path.with_suffix(".tmp")
             replacement.write_text(json.dumps(settings))
             replacement.replace(path)
             for _ in range(30):
-                if self.window.barrier_kind_colors.get(name) == color:
+                if alias in self.window.texture_catalog:
                     break
                 QTest.qWait(100)
-            self.assertEqual(self.window.barrier_kind_colors[name], color)
+            self.assertIn(alias, self.window.texture_catalog)
             self.assertIn(str(path.resolve()), self.window.dependencies.watcher.files())

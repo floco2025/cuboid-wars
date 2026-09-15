@@ -281,10 +281,8 @@ def validate_document(
     definitions = root.get("nested_geometry", {})
     errors = ValidationErrors()
     try:
-        validate_catalog("switch_kinds", root.get("switch_kinds", []))
-        for catalog in ("barrier_kinds", "bridge_kinds"):
-            if catalog in root.get("_settings", {}):
-                validate_catalog(catalog, root["_settings"][catalog])
+        for catalog in ("switch_kinds", "barrier_kinds", "bridge_kinds"):
+            validate_catalog(catalog, root.get(catalog, []))
     except (ValueError, TypeError, AttributeError) as exc:
         errors.append(str(exc))
     fireworks = root.get("fireworks")
@@ -314,7 +312,9 @@ def validate_document(
         label = f"Nested {name}" if name is not None else None
         if name is not None and not MAP_NAME_RE.fullmatch(name):
             errors.append(f"{label}: use only ASCII letters, digits, '_' or '-' in the name", map_name=name)
-        if name is not None and (geometry.get("switch_kinds") or geometry.get("fireworks")):
+        if name is not None and any(
+            geometry.get(key) for key in ("switch_kinds", "barrier_kinds", "bridge_kinds", "fireworks")
+        ):
             errors.append(f"{label}: control definitions belong in the outer map", map_name=name)
         if name is not None and "nested_geometry" in geometry:
             errors.append(f"{label}: named geometry belongs in the outer map's nested_geometry", map_name=name)

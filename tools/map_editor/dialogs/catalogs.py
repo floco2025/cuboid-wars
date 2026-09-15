@@ -8,6 +8,7 @@ from .controls import RespawnSpinBox, SwitchControl
 from .spawn_volume import SpawnVolumeControl
 from .spawn_count import SpawnCountControl
 from ..constants import ITEM_KEY_TYPE, ITEM_TYPES
+from ..display import color_icon
 
 
 class ActorSpawnFieldsDialog(QDialog):
@@ -115,13 +116,13 @@ class KindDialog(QDialog):
     `noun` names one entry of that catalog in the empty-catalog warning.
     Returns the chosen id string on accept, None on cancel."""
 
-    def __init__(self, parent, title: str, kinds: list[str], current: str | None, noun: str = "kind"):
+    def __init__(self, parent, title: str, kinds: list[str], current: str | None, noun: str = "kind", colors=None):
         super().__init__(parent)
         self.setWindowTitle(title)
 
         self._combo = QComboBox()
         for id_ in kinds:
-            self._combo.addItem(id_)
+            self._combo.addItem(color_icon((colors or {}).get(id_)), id_)
         if current and current in kinds:
             self._combo.setCurrentIndex(kinds.index(current))
 
@@ -141,7 +142,7 @@ class KindDialog(QDialog):
 
     # `noun` is the catalog entry ("barrier kind", "switch"), pluralized with an s.
     @classmethod
-    def prompt(cls, parent, title: str, kinds: list[str], current: str | None, noun: str) -> str | None:
+    def prompt(cls, parent, title: str, kinds: list[str], current: str | None, noun: str, colors=None) -> str | None:
         if not kinds:
             QMessageBox.warning(
                 parent,
@@ -149,7 +150,7 @@ class KindDialog(QDialog):
                 f"This map lists no {noun}s; add them in the Map menu first.",
             )
             return None
-        dialog = cls(parent, title, kinds, current, noun)
+        dialog = cls(parent, title, kinds, current, noun, colors)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         return dialog.value()
@@ -160,7 +161,9 @@ class ItemTypeDialog(QDialog):
     pick a barrier kind; the kind combo is disabled for every other type.
     Returns (type, kind-or-None) on accept, None on cancel."""
 
-    def __init__(self, parent, title: str, kinds: list[str], current_type: str | None, current_kind: str | None):
+    def __init__(
+        self, parent, title: str, kinds: list[str], current_type: str | None, current_kind: str | None, colors=None
+    ):
         super().__init__(parent)
         self.setWindowTitle(title)
 
@@ -172,7 +175,7 @@ class ItemTypeDialog(QDialog):
 
         self._kind_combo = QComboBox()
         for id_ in kinds:
-            self._kind_combo.addItem(id_)
+            self._kind_combo.addItem(color_icon((colors or {}).get(id_)), id_)
         if current_kind and current_kind in kinds:
             self._kind_combo.setCurrentIndex(kinds.index(current_kind))
         self._type_combo.currentTextChanged.connect(self._update_kind_enabled)
@@ -200,9 +203,9 @@ class ItemTypeDialog(QDialog):
 
     @classmethod
     def prompt(
-        cls, parent, title: str, kinds: list[str], current_type: str | None, current_kind: str | None
+        cls, parent, title: str, kinds: list[str], current_type: str | None, current_kind: str | None, colors=None
     ) -> tuple[str, str | None] | None:
-        dialog = cls(parent, title, kinds, current_type, current_kind)
+        dialog = cls(parent, title, kinds, current_type, current_kind, colors)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         item_type, kind = dialog.values()

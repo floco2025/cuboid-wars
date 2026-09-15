@@ -16,7 +16,7 @@ use super::{FireworksConfig, MapConfig, definition};
 pub struct GeneratedMap {
     pub layout: MapLayout,
     pub config: MapConfig,
-    // The map's settings with the layout's switch catalog filled in.
+    // The map's settings with the layout's catalogs filled in.
     pub settings: MapSettings,
     pub barrier_kinds: BarrierKindTable,
     pub bridge_kinds: BridgeKindTable,
@@ -37,11 +37,16 @@ pub(crate) fn generate_map_at(
     settings: &MapSettings,
 ) -> Result<GeneratedMap> {
     let source = definition::load_map(path).with_context(|| format!("failed to load map at {}", path.display()))?;
-    let (barrier_kinds, bridge_kinds) = settings.kind_tables()?;
+    let barrier_kinds = BarrierKindTable::from_defs(&source.barrier_kinds)
+        .with_context(|| format!("invalid barrier_kinds in {}", path.display()))?;
+    let bridge_kinds = BridgeKindTable::from_defs(&source.bridge_kinds)
+        .with_context(|| format!("invalid bridge_kinds in {}", path.display()))?;
     let switch_table = SwitchTable::from_switch_defs(&source.switch_kinds)
         .with_context(|| format!("invalid switch_kinds in {}", path.display()))?;
     let mut settings = settings.clone();
     settings.switches = source.switch_kinds;
+    settings.barrier_kinds = source.barrier_kinds;
+    settings.bridge_kinds = source.bridge_kinds;
     let map_def = source.geometry;
     let nested = source.nested_geometry;
     ensure!(

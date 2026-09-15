@@ -73,13 +73,6 @@
     "actors": { "on_player_death": "never", "scope": "dead" }
   },
   "portals": "both",
-  "barrier_kinds": [
-    { "id": "treasure", "color": "#ff3333" },
-    { "id": "basement", "color": "#f0c020" },
-    { "id": "gravity", "color": "#5090ff" },
-    { "id": "lobby", "color": "#22cc33" }
-  ],
-  "bridge_kinds": [],
   "random_items": {
     "weights": {
       "single_shot": 15,

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import hashlib
 
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QIcon, QPixmap
 
+from .catalogs import HEX_COLOR
 from .constants import (
     FACES,
     MODE_ERASE,
@@ -45,6 +46,14 @@ def pressure_plate_label(plate: dict) -> str:
 
 def switch_plate_color(colors: dict[str, str], switch: str | None) -> QColor:
     return QColor(colors.get(switch, UNKNOWN_SWITCH_PLATE_COLOR))
+
+
+def color_icon(color: str | None, size: int = 12) -> QIcon:
+    if not isinstance(color, str) or not HEX_COLOR.fullmatch(color):
+        return QIcon()
+    pixmap = QPixmap(size, size)
+    pixmap.fill(QColor(color))
+    return QIcon(pixmap)
 
 
 def contrasting_text_color(color: QColor) -> QColor:

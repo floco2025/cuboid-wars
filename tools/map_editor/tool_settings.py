@@ -32,7 +32,7 @@ from .constants import (
     RAMP_MODES,
 )
 from .dialogs import ActorSpawnFieldsDialog, MotionDialog
-from .display import portal_label
+from .display import color_icon, portal_label
 from .compact_widgets import CompactComboBox
 from .spawn_counts import actor_count_preview, actor_count_summary
 
@@ -122,11 +122,12 @@ class ToolSettings(QWidget):
             form.addWidget(box)
             return caption
 
-        def combo(label, attribute, values, editable=False, required=False):
+        def combo(label, attribute, values, editable=False, required=False, colors=None):
             box = CompactComboBox()
             if not required:
                 box.addItem("")
-            box.addItems(values)
+            for value in values:
+                box.addItem(color_icon((colors or {}).get(value)), value)
             if attribute == "current_material":
                 for index, alias in enumerate(values):
                     box.setItemData(index, portal_label(window.texture_catalog[alias]), Qt.ItemDataRole.ToolTipRole)
@@ -173,7 +174,7 @@ class ToolSettings(QWidget):
 
         def item_controls():
             item, _ = combo("Item", "recent_item_type", list(ITEM_TYPES), required=True)
-            key, label = combo("Kind", "recent_item_key_kind", window.key_kinds)
+            key, label = combo("Kind", "recent_item_key_kind", window.key_kinds, colors=window.barrier_kind_colors)
             self.key_controls = (key, label)
 
             def show_key_kind(item_type):
@@ -200,7 +201,12 @@ class ToolSettings(QWidget):
 
         def field_controls(barrier):
             prefix = "barrier" if barrier else "bridge"
-            combo("Kind", f"recent_{prefix}_kind", window.barrier_kinds if barrier else window.bridge_kinds)
+            combo(
+                "Kind",
+                f"recent_{prefix}_kind",
+                window.barrier_kinds if barrier else window.bridge_kinds,
+                colors=window.barrier_kind_colors if barrier else window.bridge_kind_colors,
+            )
             button = QPushButton("Controls…")
             button.clicked.connect(lambda: window.configure_field_defaults(barrier))
             form.addWidget(button)
@@ -257,7 +263,9 @@ class ToolSettings(QWidget):
                 "Levels", "recent_player_spawn_levels", 1, max(1, len(window.map_data["levels"]) - window.current_level)
             ),
             MODE_BARRIER: lambda: field_controls(True),
-            MODE_PRESSURE_PLATE: lambda: combo("Switch", "recent_pressure_plate_switch", window.switches),
+            MODE_PRESSURE_PLATE: lambda: combo(
+                "Switch", "recent_pressure_plate_switch", window.switches, colors=window.plate_colors
+            ),
             MODE_LIGHT_BRIDGE: lambda: field_controls(False),
             MODE_LIGHT: lambda: combo("Style", "recent_light_kind", window.wall_light_kinds, required=True),
             MODE_ITEM: item_controls,

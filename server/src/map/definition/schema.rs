@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Deserializer, de};
 
-use common::protocol::{CheckpointKind, FaceMaterials, SwitchDef, TERRAIN_MATERIAL};
+use common::protocol::{CheckpointKind, FaceMaterials, KindDef, SwitchDef, TERRAIN_MATERIAL};
 
 use crate::config::deserialize_required_option;
 
@@ -18,6 +18,8 @@ pub(crate) struct MapSource {
     pub(crate) geometry: MapDef,
     pub(crate) nested_geometry: HashMap<String, MapDef>,
     pub(crate) switch_kinds: Vec<SwitchDef>,
+    pub(crate) barrier_kinds: Vec<KindDef>,
+    pub(crate) bridge_kinds: Vec<KindDef>,
     pub(crate) fireworks: Option<FireworksConfig>,
 }
 
@@ -55,6 +57,10 @@ pub(crate) struct MapDef {
     // Root only: `load` rejects them on nested geometry.
     #[serde(default)]
     pub(crate) switch_kinds: Vec<SwitchDef>,
+    #[serde(default)]
+    pub(crate) barrier_kinds: Vec<KindDef>,
+    #[serde(default)]
+    pub(crate) bridge_kinds: Vec<KindDef>,
     #[serde(default)]
     pub(crate) fireworks: Option<FireworksConfig>,
     #[serde(default)]

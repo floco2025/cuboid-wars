@@ -766,9 +766,7 @@ class CanvasPaintingMixin:
     def paint_roam_range(self, painter: QPainter, zone: dict, cell: float, level_idx: int) -> None:
         if not self.window.show_roam_extensions:
             return
-        geometry = self.window.doc.root_data.get("_settings", {}).get("geometry", {})
-        cell_size = geometry.get("grid_cell_size")
-        level_height = geometry.get("level_height")
+        cell_size, level_height = self.window.grid_cell_size, self.window.level_height
         if not cell_size or not level_height:
             return
         radius = roam_slice_radius(zone, level_idx, level_height)

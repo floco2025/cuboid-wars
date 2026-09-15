@@ -340,8 +340,9 @@ impl MapLayout {
     }
 }
 
-// Per-map tuning defined in `config/server/maps/<name>/settings.json` and
-// shipped to clients in `SInit` so prediction uses the server's values.
+// Per-map tuning defined in `config/server/maps/<name>/settings.json`, plus
+// the catalogs the root layout defines, shipped to clients in `SInit` so
+// prediction uses the server's values.
 #[derive(Debug, Clone, Encode, Decode, Resource, Deserialize)]
 pub struct MapSettings {
     #[serde(default)]
@@ -352,14 +353,16 @@ pub struct MapSettings {
     pub movement: MapMovementConfig,
     pub portals: PortalMode,
 
-    // Ordered catalog assigning this map's stable `SwitchId` values, each
-    // with its plates' policy; empty when the map has no pressure plates.
+    // The root layout's ordered catalogs, filled by map generation rather
+    // than read from settings.json: `switches` assigns this map's stable
+    // `SwitchId` values, each with its plates' policy; `barrier_kinds` its
+    // `BarrierKindId` values, shared by barriers and keys; `bridge_kinds`
+    // its `BridgeKindId` values. Each is empty when the map has none.
     #[serde(skip)]
     pub switches: Vec<SwitchDef>,
-    // Ordered catalog assigning this map's stable `BarrierKindId` values;
-    // empty when the map has no barriers or keys.
+    #[serde(skip)]
     pub barrier_kinds: Vec<KindDef>,
-    // Same for `BridgeKindId`; empty when the map has no light bridges.
+    #[serde(skip)]
     pub bridge_kinds: Vec<KindDef>,
 }
 

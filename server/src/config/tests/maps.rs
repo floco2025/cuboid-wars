@@ -14,7 +14,7 @@ use crate::test_geometry::sizes;
 use common::{
     celestial::{CelestialMapSettings, LocalTime, Season},
     config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
-    protocol::{HexColor, KindDef, MapSettings, PortalMode},
+    protocol::{MapSettings, PortalMode},
 };
 
 fn actor_kinds() -> HashMap<String, ActorKindServerConfig> {
@@ -53,13 +53,6 @@ fn ok_movement() -> MapMovementConfig {
             up_speed: 7.0,
             deceleration: 35.0,
         },
-    }
-}
-
-fn kind(id: &str) -> KindDef {
-    KindDef {
-        id: id.to_owned(),
-        color: HexColor([0; 3]),
     }
 }
 
@@ -199,8 +192,6 @@ fn parse_map_entry(portals: &str, weather: Option<&str>) -> Result<MapServerConf
         "portals": portals,
         "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
         "actor_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
-        "barrier_kinds": [],
-        "bridge_kinds": [],
         "random_items": null,
         "respawn": { "players": "individual", "actors": { "on_player_death": "never", "scope": "dead" } },
         "power_ups": { "duration_secs": { "speed": 30.0, "single_shot": 0.0, "multi_shot": 25.0, "low_gravity": 20.0, "portal_gun": 0.0 } },
@@ -435,20 +426,6 @@ fn textures_require_an_explicit_catalog_with_materials_and_boolean_permissions()
 }
 
 #[test]
-fn map_entry_requires_explicit_barrier_kinds() {
-    let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
-    let mut hotel = source.clone();
-    hotel
-        .as_object_mut()
-        .expect("hotel map settings are not an object")
-        .remove("barrier_kinds");
-
-    let error = serde_json::from_value::<MapServerConfig>(hotel)
-        .expect_err("barrier_kinds must be explicit even when absent by design");
-    assert!(error.to_string().contains("barrier_kinds"));
-}
-
-#[test]
 fn map_entry_requires_placed_items() {
     let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
     let mut hotel = source.clone();
@@ -476,71 +453,6 @@ fn validate_maps_rejects_negative_placed_item_respawn() {
         error
             .to_string()
             .contains("settings.json: placed_items.respawn_secs.gold")
-    );
-}
-
-#[test]
-fn map_entry_accepts_empty_kind_catalogs() {
-    let entry = parse_map_entry("both", Some("clear")).expect("map entry failed to deserialize");
-    assert!(entry.settings.barrier_kinds.is_empty());
-    assert!(entry.settings.bridge_kinds.is_empty());
-}
-
-#[test]
-fn map_entry_rejects_null_kind_catalogs() {
-    for key in ["barrier_kinds", "bridge_kinds"] {
-        let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
-        let mut hotel = source.clone();
-        hotel[key] = serde_json::Value::Null;
-
-        let error = serde_json::from_value::<MapServerConfig>(hotel)
-            .expect_err("a null kind catalog deserialized; an empty map lists []");
-        assert!(error.to_string().contains("expected a sequence"), "{key}: {error}");
-    }
-}
-
-#[test]
-fn validate_maps_rejects_duplicate_barrier_kinds() {
-    let mut maps = one_map("hotel");
-    maps.get_mut("hotel")
-        .expect("hotel entry missing")
-        .settings
-        .barrier_kinds = vec![kind("lobby"), kind("lobby")];
-
-    let error = validate_test_maps(&maps, "hotel").expect_err("duplicate barrier kinds must be rejected");
-    assert!(
-        format!("{error:#}").contains("settings.json: barrier_kinds or bridge_kinds")
-            && format!("{error:#}").contains("barrier_kinds contains duplicate"),
-        "{error:#}"
-    );
-}
-
-#[test]
-fn map_entry_requires_explicit_bridge_kinds() {
-    let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
-    let mut hotel = source.clone();
-    hotel
-        .as_object_mut()
-        .expect("hotel map settings are not an object")
-        .remove("bridge_kinds");
-
-    let error = serde_json::from_value::<MapServerConfig>(hotel)
-        .expect_err("bridge_kinds must be explicit even when absent by design");
-    assert!(error.to_string().contains("bridge_kinds"));
-}
-
-#[test]
-fn validate_maps_rejects_duplicate_bridge_kinds() {
-    let mut maps = one_map("hotel");
-    maps.get_mut("hotel")
-        .expect("hotel entry missing")
-        .settings
-        .bridge_kinds = vec![kind("skyway"), kind("skyway")];
-
-    let error = validate_test_maps(&maps, "hotel").expect_err("duplicate bridge kinds must be rejected");
-    assert!(
-        format!("{error:#}").contains("bridge_kinds contains duplicate"),
-        "{error:#}"
     );
 }
 

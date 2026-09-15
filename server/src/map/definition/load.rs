@@ -23,6 +23,8 @@ pub(crate) fn load_map(path: &Path) -> Result<MapSource> {
 
 fn prepare_source(mut root: MapDef) -> Result<MapSource> {
     let switch_kinds = mem::take(&mut root.switch_kinds);
+    let barrier_kinds = mem::take(&mut root.barrier_kinds);
+    let bridge_kinds = mem::take(&mut root.bridge_kinds);
     let fireworks = root.fireworks.take();
     let mut nested_geometry = mem::take(&mut root.nested_geometry);
     validate_map(&root)?;
@@ -30,8 +32,12 @@ fn prepare_source(mut root: MapDef) -> Result<MapSource> {
     for (name, geometry) in &mut nested_geometry {
         ensure!(is_valid_map_name(name), "invalid nested_geometry name {name:?}");
         ensure!(
-            geometry.switch_kinds.is_empty() && geometry.fireworks.is_none() && geometry.nested_geometry.is_empty(),
-            "nested geometry {name:?} defines switch_kinds, fireworks, or nested_geometry, which only the root map defines"
+            geometry.switch_kinds.is_empty()
+                && geometry.barrier_kinds.is_empty()
+                && geometry.bridge_kinds.is_empty()
+                && geometry.fireworks.is_none()
+                && geometry.nested_geometry.is_empty(),
+            "nested geometry {name:?} defines switch_kinds, barrier_kinds, bridge_kinds, fireworks, or nested_geometry, which only the root map defines"
         );
         validate_map(geometry).with_context(|| format!("nested geometry {name:?}"))?;
         canonicalize(geometry);
@@ -48,6 +54,8 @@ fn prepare_source(mut root: MapDef) -> Result<MapSource> {
         geometry: root,
         nested_geometry,
         switch_kinds,
+        barrier_kinds,
+        bridge_kinds,
         fireworks,
     })
 }

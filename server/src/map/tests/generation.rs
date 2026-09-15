@@ -1,6 +1,7 @@
 use crate::config::fixtures;
 use std::fs;
 
+use common::protocol::{BarrierKindId, BridgeKindId};
 use rand::random;
 use serde_json::{Value, json};
 
@@ -25,6 +26,8 @@ impl TestMap {
                 {"id": "lobby", "activation": "toggle", "reset_on_player_death": "never"},
                 {"id": "fireworks", "activation": "momentary", "reset_on_player_death": "never"}
             ],
+            "barrier_kinds": [{"id": "lobby", "color": "#22cc33"}],
+            "bridge_kinds": [{"id": "skyway", "color": "#30d8ff"}],
             "pressure_plates": [{"level": 0, "col": 1, "row": 0, "switch": "fireworks"}],
             "fireworks": {"switch": "fireworks", "cooldown_secs": 2.0}
         }});
@@ -81,15 +84,37 @@ fn a_map_cannot_reference_an_alias_outside_its_host_catalog() {
 }
 
 #[test]
-fn the_layouts_switch_catalog_and_fireworks_fill_the_generated_map() {
+fn the_layouts_catalogs_and_fireworks_fill_the_generated_map() {
     let map = TestMap::new(|_| {}).generate().expect("test map failed to generate");
     let ids: Vec<&str> = map.settings.switches.iter().map(|def| def.id.as_str()).collect();
     assert_eq!(ids, ["lobby", "fireworks"]);
     assert_eq!(map.switch_table.index_of("fireworks"), map.fireworks_switch);
+    let kinds: Vec<&str> = map.settings.barrier_kinds.iter().map(|def| def.id.as_str()).collect();
+    assert_eq!(kinds, ["lobby"]);
+    assert_eq!(map.barrier_kinds.index_of("lobby"), Some(BarrierKindId(0)));
+    assert_eq!(map.settings.bridge_kinds[0].id, "skyway");
+    assert_eq!(map.bridge_kinds.index_of("skyway"), Some(BridgeKindId(0)));
     assert_eq!(
         map.fireworks.as_ref().map(|fireworks| fireworks.switch.as_str()),
         Some("fireworks")
     );
+}
+
+#[test]
+fn duplicate_barrier_kinds_are_rejected_naming_the_layout() {
+    let hotel = TestMap::new(|map| {
+        let lobby = map["barrier_kinds"][0].clone();
+        map["barrier_kinds"]
+            .as_array_mut()
+            .expect("barrier_kinds is an array")
+            .push(lobby);
+    });
+    let error = hotel.error();
+    assert!(
+        error.contains("barrier_kinds") && error.contains("duplicate"),
+        "{error}"
+    );
+    assert!(error.contains("layout.json"), "{error}");
 }
 
 #[test]

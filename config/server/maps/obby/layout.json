@@ -1,6 +1,14 @@
 {
   "map": {
     "switch_kinds": [{"id": "bridge_1", "activation": "toggle", "reset_on_player_death": "never"}],
+    "barrier_kinds": [
+      {"id": "barrier_1", "color": "#f0c020"}
+    ],
+    "bridge_kinds": [
+      {"id": "bridge_1", "color": "#30d8ff"},
+      {"id": "bridge_2", "color": "#30d8ff"},
+      {"id": "bridge_3", "color": "#30d8ff"}
+    ],
     "fireworks": null,
     "grid_cols": 100,
     "grid_rows": 40,

@@ -10,7 +10,7 @@ from PySide6.QtCore import QEvent, QPoint, QSettings, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from config_fixtures import install_catalogs
+from config_fixtures import install_catalogs, map_kinds
 from map_editor.constants import FACES, MODE_SELECT
 from map_editor.erase_tools import EraseMixin
 from map_editor.io import write_map
@@ -184,6 +184,7 @@ class WindowTestCase(unittest.TestCase):
         install_catalogs(self, Path(self.temp.name))
         self.path = Path(self.temp.name) / "hotel" / "layout.json"
         data = empty_map(8, 8)
+        data.update(map_kinds("hotel"))
         data["player_spawn_zones"] = []
         data["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
         write_map(self.path, data)

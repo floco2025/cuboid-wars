@@ -24,11 +24,7 @@ class ControlActionsMixin:
 
     def edit_control_catalog(self, catalog, title):
         root = self.doc.root_data
-        source = root if catalog == "switch_kinds" else root.get("_settings", {})
-        if catalog != "switch_kinds" and catalog not in source:
-            self.notify("Open a map with settings.json to edit its appearance kinds.")
-            return
-        result = ControlCatalogDialog.prompt(self, title, catalog, source.get(catalog, []))
+        result = ControlCatalogDialog.prompt(self, title, catalog, root.get(catalog, []))
         if result is None:
             return
         entries, renames = result

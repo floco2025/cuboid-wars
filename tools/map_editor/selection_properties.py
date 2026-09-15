@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 from .elements import ELEMENT_MODES, element_refs
 from .compact_widgets import CompactComboBox
 from .constants import FACES
-from .display import portal_label
+from .display import color_icon, portal_label
 from .transforms import record_rect
 from .tool_catalog import TOOLS
 from .normalization import normalize_map
@@ -125,11 +125,12 @@ class SelectionProperties(QDockWidget):
                 widget = CompactComboBox()
                 if value is _MIXED:
                     widget.addItem("Mixed / unchanged", _MIXED)
+                colors = dict(field.colors)
                 for choice, label in field.choices:
                     caption = "None" if choice is None else label
                     if field.key[0] in FACES and choice in self.window.texture_catalog:
                         caption = f"{label} — {portal_label(self.window.texture_catalog[choice])}"
-                    widget.addItem(caption, choice)
+                    widget.addItem(color_icon(colors.get(choice)), caption, choice)
                     widget.setItemData(widget.count() - 1, caption, Qt.ItemDataRole.ToolTipRole)
                     widget.setItemData(
                         widget.count() - 1, "None" if choice is None else label, Qt.ItemDataRole.UserRole + 1

@@ -71,12 +71,25 @@ def _pressure_plate_body(plate: dict) -> str:
     return _inline_object_body(body)
 
 
+# A kind catalog, one entry per line; a catalog holding something other
+# than objects is kept verbatim for repair.
+def _catalog_lines(key: str, entries) -> list[str]:
+    if isinstance(entries, list) and all(isinstance(entry, dict) for entry in entries):
+        return with_trailing_comma(format_object_array(key, entries, _inline_object_body, 4))
+    return [f'    "{key}": {json.dumps(entries)},']
+
+
 def format_map_file(wrapper: dict) -> str:
     map_data = wrapper["map"]
-    lines = [
-        "{",
-        '  "map": {',
-        *[f'    "{key}": {json.dumps(map_data[key])},' for key in ("switch_kinds", "fireworks") if key in map_data],
+    lines = ["{", '  "map": {']
+    if "switch_kinds" in map_data:
+        lines.append(f'    "switch_kinds": {json.dumps(map_data["switch_kinds"])},')
+    for key in ("barrier_kinds", "bridge_kinds"):
+        if key in map_data:
+            lines.extend(_catalog_lines(key, map_data[key]))
+    if "fireworks" in map_data:
+        lines.append(f'    "fireworks": {json.dumps(map_data["fireworks"])},')
+    lines += [
         f'    "grid_cols": {map_data["grid_cols"]},',
         f'    "grid_rows": {map_data["grid_rows"]},',
         *with_trailing_comma(

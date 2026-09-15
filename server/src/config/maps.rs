@@ -3,7 +3,7 @@ use std::{
     path::Path,
 };
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use serde::Deserialize;
 
 use super::{
@@ -77,10 +77,6 @@ pub(super) fn validate_maps(
     for (name, entry) in maps {
         let path = format!("{}:", directory.join(name).join("settings.json").display());
         entry.settings.celestial.validate(&format!("{path} celestial"))?;
-        entry
-            .settings
-            .kind_tables()
-            .with_context(|| format!("invalid {path} barrier_kinds or bridge_kinds"))?;
         validate_texture_catalog(&entry.settings.textures, &format!("{path} textures"))?;
         entry.settings.geometry.validate(&format!("{path} geometry"))?;
         let movement_path = format!("{path} movement");

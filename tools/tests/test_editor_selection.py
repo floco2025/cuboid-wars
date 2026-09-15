@@ -440,6 +440,7 @@ class SelectionWindowTests(WindowTestCase):
         data = empty_map(8, 8)
         data["player_spawn_zones"] = []
         data["switch_kinds"] = [{"id": "bridge_1", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["bridge_kinds"] = [{"id": "bridge_1", "color": "#30d8ff"}]
         data["pressure_plates"] = [{"col": 6, "row": 6, "level": 0, "switch": "bridge_1"}]
         data["levels"][0]["floors"] = [{"col": 6, "row": 6, "all": DEFAULT_ALIAS}]
         data["levels"][0]["light_bridges"] = [{"col": 1, "row": 1, "kind": "bridge_1", "switch": "bridge_1"}]

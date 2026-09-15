@@ -1,5 +1,7 @@
 from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QSpinBox, QVBoxLayout, QWidget
 
+from ..display import color_icon
+
 
 class RespawnSpinBox(QSpinBox):
     """Seconds before an actor zone refills a killed actor's slot; the minimum
@@ -27,14 +29,14 @@ class RespawnSpinBox(QSpinBox):
         return None if value == self.NEVER else value
 
 
-def choice(values, current, *, optional=False, mixed=False):
+def choice(values, current, *, optional=False, mixed=False, colors=None):
     box = QComboBox()
     if mixed:
         box.addItem("Mixed / leave unchanged", None)
     if optional:
         box.addItem("(none)", "")
     for value in values:
-        box.addItem(value, value)
+        box.addItem(color_icon((colors or {}).get(value)), value, value)
     wanted = "" if current is None and not mixed else current
     index = box.findData(wanted)
     if index < 0 and wanted:
@@ -45,11 +47,11 @@ def choice(values, current, *, optional=False, mixed=False):
 
 
 class SwitchControl(QWidget):
-    def __init__(self, switches, current=None, inverted=False, *, mixed=False, response_mixed=False):
+    def __init__(self, switches, current=None, inverted=False, *, mixed=False, response_mixed=False, colors=None):
         super().__init__()
         self.mixed = mixed
         self.initial = (None if mixed else current or None, None if response_mixed else inverted)
-        self.kind = choice(switches, current, optional=True, mixed=mixed)
+        self.kind = choice(switches, current, optional=True, mixed=mixed, colors=colors)
         self.response = choice(
             ["On", "Off"], None if response_mixed else "Off" if inverted else "On", mixed=response_mixed
         )
@@ -85,7 +87,7 @@ class SwitchControl(QWidget):
 
 
 class FieldPropertiesDialog(QDialog):
-    def __init__(self, parent, title, kinds, switches, entries):
+    def __init__(self, parent, title, kinds, switches, entries, *, kind_colors=None, switch_colors=None):
         super().__init__(parent)
         self.setWindowTitle(title)
 
@@ -94,10 +96,12 @@ class FieldPropertiesDialog(QDialog):
             return (next(iter(values)), False) if len(values) == 1 else (None, True)
 
         appearance, mixed = initial("kind")
-        self.appearance = choice(kinds, appearance, mixed=mixed)
+        self.appearance = choice(kinds, appearance, mixed=mixed, colors=kind_colors)
         switch, mixed = initial("switch")
         inverted, response_mixed = initial("switch_inverted", False)
-        self.control = SwitchControl(switches, switch, inverted, mixed=mixed, response_mixed=response_mixed)
+        self.control = SwitchControl(
+            switches, switch, inverted, mixed=mixed, response_mixed=response_mixed, colors=switch_colors
+        )
         form = QFormLayout()
         form.addRow("Appearance kind:", self.appearance)
         form.addRow(self.control)
@@ -115,6 +119,6 @@ class FieldPropertiesDialog(QDialog):
         return result
 
     @classmethod
-    def prompt(cls, *args):
-        dialog = cls(*args)
+    def prompt(cls, *args, **kwargs):
+        dialog = cls(*args, **kwargs)
         return dialog.values() if dialog.exec() == QDialog.DialogCode.Accepted else None

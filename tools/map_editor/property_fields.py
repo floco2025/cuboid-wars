@@ -11,16 +11,26 @@ class PropertyField:
     label: str
     kind: str = "text"
     choices: tuple = ()
+    # (value, "#rrggbb") pairs for the choices drawn with a colour swatch.
+    colors: tuple = ()
 
 
 def fields_for(window, name):
     fields = []
 
-    def add(key, label, kind="text", choices=()):
-        fields.append(PropertyField((key,) if isinstance(key, str) else key, label, kind, tuple(choices)))
+    def add(key, label, kind="text", choices=(), colors=None):
+        fields.append(
+            PropertyField(
+                (key,) if isinstance(key, str) else key,
+                label,
+                kind,
+                tuple(choices),
+                tuple((colors or {}).items()),
+            )
+        )
 
-    def choice(key, label, values):
-        add(key, label, "choice", [(value, str(value)) for value in values])
+    def choice(key, label, values, colors=None):
+        add(key, label, "choice", [(value, str(value)) for value in values], colors)
 
     if name in ("floors", "inaccessible_floors", "walls", "ramps", "terrain"):
         for face in TERRAIN_FACES if name == "terrain" else FACES:
@@ -44,11 +54,11 @@ def fields_for(window, name):
         add("type", "Type", "choice", CHECKPOINT_TYPE_LABELS.items())
     elif name == "items":
         choice("type", "Item", ITEM_TYPES)
-        choice("kind", "Key kind", [None, *window.key_kinds])
+        choice("kind", "Key kind", [None, *window.key_kinds], window.barrier_kind_colors)
     elif name == "barriers":
-        choice("kind", "Kind", window.barrier_kinds)
+        choice("kind", "Kind", window.barrier_kinds, window.barrier_kind_colors)
     elif name == "light_bridges":
-        choice("kind", "Kind", window.bridge_kinds)
+        choice("kind", "Kind", window.bridge_kinds, window.bridge_kind_colors)
     elif name == "lights":
         choice("kind", "Style", window.wall_light_kinds)
         choice("side", "Side", ("N", "S", "E", "W"))
@@ -71,7 +81,7 @@ def fields_for(window, name):
                 add((end, axis), f"{label} {letter}", "number")
     if name in ("barriers", "light_bridges", "actor_spawn_zones", "nested_maps", "pressure_plates"):
         values = window.switches if name == "pressure_plates" else [None, *window.switches]
-        choice("switch", "Plate kind", values)
+        choice("switch", "Plate kind", values, window.plate_colors)
         if name != "pressure_plates":
             add("switch_inverted", "Respond when", "choice", [(False, "On"), (True, "Off")])
     return fields
