@@ -40,7 +40,7 @@ fn home(physics: CharacterPhysicsConfig, world: &CollisionWorld) -> AirHome {
         cols: [0, 2],
         rows: [0, 2],
         kind: CONTACT.into(),
-        count: 1,
+        count: vec![1],
         respawn_secs: None,
         switch: None,
         switch_inverted: false,

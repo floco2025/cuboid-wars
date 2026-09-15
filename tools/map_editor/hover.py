@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .spawn_counts import actor_count_preview
+
 from .constants import (
     ACTOR_ZONE_LIST,
     HIT_BARRIER,
@@ -82,7 +84,7 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
         list_name, index = value
         zone = data[list_name][index]
         if list_name == ACTOR_ZONE_LIST:
-            label = f"Actor spawn zone: {zone['kind']}\nCount: {zone['count']}"
+            label = f"Actor spawn zone: {zone['kind']}\n{actor_count_preview(zone['count'])}"
             if zone.get("switch"):
                 label += f"\nSwitch: {zone['switch']}"
             return label

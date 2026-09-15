@@ -1,7 +1,6 @@
-use super::ZoneVolume;
+use super::{FireworksConfig, ZoneVolume};
 use bevy::prelude::Resource;
 
-use super::FireworksConfig;
 use common::{
     map::MapGeometry,
     protocol::{BridgeId, CarrierId, ItemType, MapItems, PlateState, SwitchId},
@@ -122,12 +121,20 @@ pub struct ActorSpawnZone {
     pub cols: [i32; 2],
     pub rows: [i32; 2],
     pub kind: String,
-    pub count: u32,
+    pub count: Vec<u32>,
     pub respawn_secs: Option<f32>,
     pub switch: Option<SwitchId>,
 }
 
 impl ActorSpawnZone {
+    pub fn target_count(&self, players: usize) -> u32 {
+        *self
+            .count
+            .get(players.saturating_sub(1))
+            .or_else(|| self.count.last())
+            .expect("actor count lists are validated as nonempty")
+    }
+
     pub fn volume(&self, grid: &CarrierGrid) -> ZoneVolume {
         ZoneVolume::from_grid(grid.geometry, self.level, self.levels, self.cols, self.rows)
     }

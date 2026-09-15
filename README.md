@@ -77,6 +77,8 @@ python3 tools/editor.py hotel      # edits config/server/maps/hotel/layout.json 
 
 Maps are listed by name in `config/server/gameplay.json` (`maps` + `default_map`). Each map has a folder containing `layout.json` and a hand-edited `settings.json` for movement, kind catalogs, respawn policies, quests, and other tuning. To add a map, register its name and create its settings file; the editor can then create its layout.
 
+Actor spawn zones can scale enemy numbers with the number of players.
+
 ## License
 
 ### Code

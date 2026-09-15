@@ -6,6 +6,7 @@ import math
 import re
 from dataclasses import dataclass, replace
 
+from .spawn_counts import actor_count_error
 from .control_catalogs import validate_catalog
 from .constants import (
     FACES,
@@ -130,8 +131,8 @@ def validate_map(
             errors.append(f"actor_spawn_zones[{idx}] has empty `kind`")
         elif actor_kinds is not None and zone["kind"] not in actor_kinds:
             errors.append(f"actor_spawn_zones[{idx}] has unknown actor kind {zone['kind']!r}")
-        if zone["count"] < 0:
-            errors.append(f"actor_spawn_zones[{idx}] has negative count")
+        if error := actor_count_error(zone["count"]):
+            errors.append(f"actor_spawn_zones[{idx}] {error}")
         if "respawn_secs" not in zone:
             errors.append(f"actor_spawn_zones[{idx}] needs `respawn_secs` (seconds, or null to never refill)")
         elif zone["respawn_secs"] is not None and not _is_non_negative_number(zone["respawn_secs"]):

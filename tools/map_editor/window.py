@@ -107,7 +107,7 @@ class EditorWindow(
         self.recent_bridge_controls = {}
         self.recent_checkpoint_type: str = "individual"
         self.recent_actor_spawn_kind: str = ""
-        self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
+        self.recent_actor_spawn_count: list[int] = [DEFAULT_ACTOR_COUNT]
         self.recent_actor_spawn_respawn_secs: int | None = DEFAULT_ACTOR_RESPAWN_SECS
         # Empty = the zone has no switch.
         self.recent_actor_spawn_switch: str = ""

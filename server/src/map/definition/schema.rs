@@ -296,7 +296,7 @@ pub(crate) struct ActorSpawnZoneDef {
     pub(crate) cols: [i32; 2],
     pub(crate) rows: [i32; 2],
     pub(crate) kind: String,
-    pub(crate) count: u32,
+    pub(crate) count: Vec<u32>,
     #[serde(deserialize_with = "deserialize_required_option")]
     pub(crate) respawn_secs: Option<f32>,
     #[serde(default)]

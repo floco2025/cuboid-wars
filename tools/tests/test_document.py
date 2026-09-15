@@ -71,7 +71,7 @@ class DocumentTests(unittest.TestCase):
         data["ladders"] = [{"col": 3, "row": 3, "lower_level": 0, "levels": 0, "side": "invalid"}]
         data["items"] = [{"col": 7, "row": 7, "level": 0, "type": "gold"}]
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "unknown", "count": -2, "respawn_secs": 90}
+            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "unknown", "count": [-2], "respawn_secs": 90}
         ]
         write_map(self.path, data)
         self.doc.load(self.path)
@@ -84,7 +84,7 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(data["levels"][0]["lights"][0]["side"], "INVALID")
         errors = validate_map(data, [], [], actor_kinds=["beetle"])
         self.assertTrue(any("unknown actor kind" in error for error in errors))
-        self.assertTrue(any("negative count" in error for error in errors))
+        self.assertTrue(any("Count entries must be whole numbers" in error for error in errors))
         self.assertFalse(self.doc.dirty)
 
     def test_explicit_repairs_are_one_undoable_edit(self):

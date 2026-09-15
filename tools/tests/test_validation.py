@@ -99,7 +99,7 @@ class PressurePlateTests(unittest.TestCase):
     def test_actor_zone_respawn_must_be_explicit_and_non_negative(self) -> None:
         data = empty_map(4, 4)
         data["levels"][0]["floors"] = [floor(2, 2)]
-        zone = {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1}
+        zone = {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": [1]}
         data["actor_spawn_zones"] = [
             zone,
             {**zone, "respawn_secs": None},
@@ -128,7 +128,7 @@ class PressurePlateTests(unittest.TestCase):
                 "cols": [2, 3],
                 "rows": [2, 3],
                 "kind": "zapper",
-                "count": 1,
+                "count": [1],
                 "respawn_secs": 90,
                 "switch": "guards",
             },
@@ -137,7 +137,7 @@ class PressurePlateTests(unittest.TestCase):
                 "cols": [2, 3],
                 "rows": [2, 3],
                 "kind": "zapper",
-                "count": 1,
+                "count": [1],
                 "respawn_secs": 90,
                 "switch": "nope",
             },
@@ -146,7 +146,7 @@ class PressurePlateTests(unittest.TestCase):
                 "cols": [2, 3],
                 "rows": [2, 3],
                 "kind": "zapper",
-                "count": 1,
+                "count": [1],
                 "respawn_secs": 90,
                 "switch": "lift",
             },
@@ -155,7 +155,7 @@ class PressurePlateTests(unittest.TestCase):
                 "cols": [2, 3],
                 "rows": [2, 3],
                 "kind": "zapper",
-                "count": 1,
+                "count": [1],
                 "respawn_secs": 90,
                 "switch": "",
             },
@@ -206,7 +206,7 @@ class PressurePlateTests(unittest.TestCase):
                 "cols": [3, 4],
                 "rows": [3, 4],
                 "kind": "zapper",
-                "count": 1,
+                "count": [1],
                 "respawn_secs": 90,
                 "switch": "guards",
             },

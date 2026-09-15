@@ -78,7 +78,7 @@ class NormalizationTests(unittest.TestCase):
 
     def test_canonicalization_keeps_actor_zones_that_differ_only_by_switch(self) -> None:
         data = empty_map(4, 4)
-        zone = {"level": 0, "cols": [0, 2], "rows": [0, 2], "kind": "zapper", "count": 1, "respawn_secs": 90}
+        zone = {"level": 0, "cols": [0, 2], "rows": [0, 2], "kind": "zapper", "count": [1], "respawn_secs": 90}
         data["actor_spawn_zones"] = [{**zone, "switch": "guards"}, dict(zone), {**zone, "switch": "guards"}, dict(zone)]
 
         result = canonicalize_map(data)
@@ -87,21 +87,21 @@ class NormalizationTests(unittest.TestCase):
 
     def test_actor_zone_numbers_sort_numerically_and_equivalent_values_deduplicate(self) -> None:
         data = empty_map(2, 2)
-        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1}
+        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1]}
         data["actor_spawn_zones"] = [dict(zone, roam_distance=value) for value in [10, 2, 1.0, 1]]
         result = canonicalize_map(data)
         self.assertEqual([zone["roam_distance"] for zone in result["actor_spawn_zones"]], [1, 2, 10])
 
     def test_actor_zone_identity_preserves_switch_inversion(self) -> None:
         data = empty_map(2, 2)
-        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "switch": "guards"}
+        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "switch": "guards"}
         data["actor_spawn_zones"] = [dict(zone, switch_inverted=True), zone]
         result = canonicalize_map(data)
         self.assertEqual([zone.get("switch_inverted", False) for zone in result["actor_spawn_zones"]], [False, True])
 
     def test_invalid_zone_controls_survive_canonicalization_for_validation(self) -> None:
         data = empty_map(2, 2)
-        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "switch": "guards"}
+        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "switch": "guards"}
         data["actor_spawn_zones"] = [dict(zone, switch_inverted=value) for value in [False, "invalid", True]]
         result = canonicalize_map(data)
         self.assertEqual(len(result["actor_spawn_zones"]), 3)
@@ -115,7 +115,7 @@ class NormalizationTests(unittest.TestCase):
                 "cols": [0, 1],
                 "rows": [0, 1],
                 "kind": "zapper",
-                "count": 1,
+                "count": [1],
                 "respawn_secs": 90,
                 "switch": "guards",
             },
@@ -124,7 +124,7 @@ class NormalizationTests(unittest.TestCase):
                 "cols": [0, 1],
                 "rows": [0, 1],
                 "kind": "zapper",
-                "count": 1,
+                "count": [1],
                 "respawn_secs": 90,
                 "switch": "",
             },

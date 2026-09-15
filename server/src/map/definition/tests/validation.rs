@@ -128,7 +128,7 @@ fn validation_rejects_actor_zone_with_empty_kind() {
             cols: [0, 1],
             rows: [0, 1],
             kind: String::new(),
-            count: 1,
+            count: vec![1],
             respawn_secs: Some(90.0),
             switch: None,
         }],
@@ -158,7 +158,7 @@ fn validation_accepts_unknown_kind_strings() {
             cols: [0, 1],
             rows: [0, 1],
             kind: "boss".into(),
-            count: 1,
+            count: vec![1],
             respawn_secs: Some(90.0),
             switch: None,
         }],
@@ -683,4 +683,38 @@ fn validate_rejects_empty_switch_names() {
         err.to_string().contains("actor_spawn_zones[0] has empty `switch`"),
         "{err}"
     );
+}
+
+#[test]
+fn actor_count_lists_validate_and_canonicalize() {
+    let mut zone = actor_zone(0, 0, 0);
+    let mut map = map_with_zones(4, vec![level(Vec::new())], vec![zone.clone()], vec![], vec![]);
+    for counts in [vec![], vec![2, 1]] {
+        map.actor_spawn_zones[0].count = counts;
+        let error = validate_map(&map).expect_err("invalid count list");
+        assert!(error.to_string().contains("actor_spawn_zones[0].count"));
+    }
+    zone.count = vec![0, 2, 4];
+    map.actor_spawn_zones = vec![zone.clone(), actor_zone(0, 0, 0), zone];
+    validate_map(&map).expect("valid scaled count");
+    canonicalize(&mut map);
+    assert_eq!(map.actor_spawn_zones.len(), 2);
+    assert_eq!(map.actor_spawn_zones[0].count, vec![0, 2, 4]);
+    assert_eq!(map.actor_spawn_zones[1].count, vec![1]);
+}
+
+#[test]
+fn actor_zones_require_lists_of_unsigned_integer_counts() {
+    for count in [
+        serde_json::json!(3),
+        serde_json::json!(null),
+        serde_json::json!([1, -2]),
+        serde_json::json!([1, 2.5]),
+        serde_json::json!([true]),
+        serde_json::json!([4294967296u64]),
+    ] {
+        let zone = serde_json::json!({"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "beam",
+            "count": count, "respawn_secs": null});
+        assert!(serde_json::from_value::<ActorSpawnZoneDef>(zone).is_err());
+    }
 }

@@ -32,6 +32,7 @@ from .constants import (
 )
 from .dialogs import ActorSpawnFieldsDialog, MotionDialog
 from .display import portal_label
+from .spawn_counts import actor_count_preview, actor_count_summary
 
 
 class ToolSettings(QWidget):
@@ -45,6 +46,7 @@ class ToolSettings(QWidget):
         self.body = None
         self.key_controls = None
         self.material_permission = None
+        self.actor_count = None
         self.row = QHBoxLayout(self)
         self.row.setContentsMargins(8, 0, 0, 0)
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
@@ -66,6 +68,9 @@ class ToolSettings(QWidget):
                     widget.setMaximum(max(1, len(self.window.map_data["levels"]) - self.window.current_level))
                 widget.setValue(value)
             widget.blockSignals(False)
+        if self.actor_count is not None:
+            self.actor_count.setText(actor_count_summary(self.window.recent_actor_spawn_count))
+            self.actor_count.setToolTip(actor_count_preview(self.window.recent_actor_spawn_count))
         if self.material_permission is not None:
             self.material_permission.setText(
                 portal_label(self.window.texture_catalog.get(self.window.current_material, False))
@@ -96,6 +101,7 @@ class ToolSettings(QWidget):
         self.bindings = []
         self.key_controls = None
         self.material_permission = None
+        self.actor_count = None
         body = QWidget()
         form = QHBoxLayout(body)
         form.setContentsMargins(0, 0, 0, 0)
@@ -192,7 +198,11 @@ class ToolSettings(QWidget):
 
         def actor_controls():
             combo("Actor", "recent_actor_spawn_kind", window.actor_kinds, editable=True)
-            number("Count", "recent_actor_spawn_count", 0, 9999)
+            self.actor_count = QPushButton(actor_count_summary(window.recent_actor_spawn_count))
+            self.actor_count.setToolTip(actor_count_preview(window.recent_actor_spawn_count))
+            self.actor_count.setMaximumWidth(130)
+            self.actor_count.clicked.connect(self.configure_actor)
+            field("Count", self.actor_count)
             # Respawn lives in the dialog: a third inline field overflows the
             # toolbar at the default window width.
             button = QPushButton("Controls…")

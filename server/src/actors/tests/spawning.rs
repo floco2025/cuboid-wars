@@ -2,9 +2,10 @@ use super::*;
 use crate::{
     actors::test_kinds::{self, BEAM, CONTACT, IMMOVABLE},
     map::{CellGrid, EdgeGrid, LevelGrid},
+    players::PlayerInfo,
 };
 use bevy::ecs::system::RunSystemOnce;
-use common::protocol::{ActorId, Carrier, CarrierId, MapLayout, SwitchId};
+use common::protocol::{ActorId, Carrier, CarrierId, MapLayout, PlayerId, SwitchId};
 
 fn spawn_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
     spawn_app_for(IMMOVABLE, cols, counts, respawn_secs)
@@ -54,7 +55,7 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
             cols: [0, cols],
             rows: [0, 1],
             kind: kind.into(),
-            count,
+            count: vec![count],
             respawn_secs,
             switch: None,
         })
@@ -67,13 +68,21 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
         .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
         .init_resource::<Carriers>()
         .init_resource::<ActorMap>()
+        .init_resource::<PlayerMap>()
         .init_resource::<ActorRespawnTimers>()
         .init_resource::<ActorSpawner>()
         .init_resource::<PendingActorSpawns>()
         .init_resource::<ServerTick>()
         .init_resource::<PlateState>()
         .add_systems(Startup, actors_initial_spawn_system)
-        .add_systems(Update, (actors_pending_spawn_system, actors_respawn_system).chain());
+        .add_systems(
+            Update,
+            (
+                actors_pending_spawn_system,
+                actors_respawn_system.run_if(actor_respawns_active),
+            )
+                .chain(),
+        );
     app
 }
 
@@ -332,7 +341,7 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 cols: [0, 1],
                 rows: [0, 1],
                 kind: CONTACT.to_owned(),
-                count: 2,
+                count: vec![2],
                 respawn_secs: Some(90.0),
                 switch: None,
             },
@@ -346,7 +355,7 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 cols: [0, 1],
                 rows: [0, 1],
                 kind: BEAM.to_owned(),
-                count: 1,
+                count: vec![1],
                 respawn_secs: Some(180.0),
                 switch: None,
             },
@@ -374,6 +383,7 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
         &mut pending,
         &mut timers,
         &map_config,
+        1,
         100,
         Some(CONTACT),
     );
@@ -617,7 +627,7 @@ fn expediting_respawns_makes_a_switched_off_zone_due_for_its_switch() {
              mut timers: ResMut<ActorRespawnTimers>,
              map_config: Res<MapConfig>,
              tick: Res<ServerTick>| {
-                expedite_actor_respawns(&actors, &mut pending, &mut timers, &map_config, tick.0, None)
+                expedite_actor_respawns(&actors, &mut pending, &mut timers, &map_config, 1, tick.0, None)
             },
         )
         .expect("expedite system failed");
@@ -746,4 +756,283 @@ fn flying_spawns_reselect_blocked_reservations_and_restart_the_warning() {
         .next()
         .expect("flying actor missing after obstruction cleared");
     assert!(actor.flight.is_some());
+}
+
+fn add_player(app: &mut App, id: u32, logged_in: bool) {
+    let entity = app.world_mut().spawn_empty().id();
+    let (channel, _) = crossbeam_channel::unbounded();
+    let mut info = PlayerInfo::new(entity, channel);
+    info.connection.logged_in = logged_in;
+    app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(id), info);
+}
+
+fn leave_player(app: &mut App, id: u32) {
+    app.world_mut()
+        .resource_mut::<PlayerMap>()
+        .get_mut(&PlayerId(id))
+        .expect("test player")
+        .connection
+        .logged_in = false;
+}
+
+fn scaled_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
+    let mut app = spawn_app(cols, &[counts[0]], respawn_secs);
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].count = counts.to_vec();
+    add_player(&mut app, 1, true);
+    app
+}
+
+fn live_count(app: &App) -> usize {
+    app.world().resource::<ActorMap>().values().count()
+}
+
+#[test]
+fn joins_add_only_new_slots_without_refilling_deaths_or_skipping_cooldowns() {
+    for respawn_secs in [None, Some(1000.0)] {
+        let mut app = scaled_app(8, &[3, 5, 6], respawn_secs);
+        app.update();
+        materialize_pending(&mut app);
+        destroy_one(&mut app);
+        app.update();
+        assert_eq!(live_count(&app), 2);
+        assert_eq!(pending_count(&app), 0);
+        add_player(&mut app, 2, true);
+        app.update();
+        assert_eq!(pending_count(&app), 2, "only the two added slots can spawn");
+        if respawn_secs.is_some() {
+            assert!(matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(remaining)) if remaining > 900.0));
+        } else {
+            assert_eq!(zone_state(&app), None);
+        }
+        materialize_pending(&mut app);
+        assert_eq!(live_count(&app), 4);
+        add_player(&mut app, 3, false);
+        app.update();
+        assert_eq!(pending_count(&app), 0, "connections awaiting login do not count");
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .begin_respawn(PlayerId(2), 10.0);
+        app.update();
+        assert_eq!(app.world().resource::<ActorSpawner>().player_count, 2);
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .get_mut(&PlayerId(3))
+            .expect("player")
+            .connection
+            .logged_in = true;
+        app.update();
+        assert_eq!(
+            pending_count(&app),
+            1,
+            "a dead logged-in player still counts toward the third-player quota"
+        );
+        materialize_pending(&mut app);
+        assert_eq!(live_count(&app), 5);
+        if respawn_secs.is_some() {
+            expire_countdown(&mut app);
+            app.update();
+            assert_eq!(
+                pending_count(&app),
+                1,
+                "the original dead slot still refills when its timer expires"
+            );
+        }
+    }
+}
+
+#[test]
+fn departures_preserve_announced_spawns_and_let_surplus_actors_die_off() {
+    let mut app = scaled_app(4, &[1, 3], Some(0.0));
+    app.update();
+    materialize_pending(&mut app);
+    add_player(&mut app, 2, true);
+    app.update();
+    assert_eq!(pending_count(&app), 2);
+    leave_player(&mut app, 2);
+    app.update();
+    assert_eq!(pending_count(&app), 2);
+    materialize_pending(&mut app);
+    assert_eq!(live_count(&app), 3);
+    for remaining in [2, 1] {
+        destroy_one(&mut app);
+        app.update();
+        assert_eq!(live_count(&app), remaining);
+        assert_eq!(pending_count(&app), 0);
+    }
+    destroy_one(&mut app);
+    app.update();
+    assert_eq!(pending_count(&app), 1);
+}
+
+#[test]
+fn rejoining_does_not_add_actors_while_the_zone_already_has_its_quota() {
+    let mut app = scaled_app(6, &[1, 3], None);
+    add_player(&mut app, 2, true);
+    app.update();
+    materialize_pending(&mut app);
+    assert_eq!(live_count(&app), 3);
+    leave_player(&mut app, 2);
+    app.update();
+    add_player(&mut app, 3, true);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    destroy_one(&mut app);
+    app.update();
+    assert_eq!(
+        pending_count(&app),
+        0,
+        "unused additions cannot later refill a killed slot"
+    );
+}
+
+#[test]
+fn switched_off_additions_survive_until_enabled_and_shrink_when_players_leave() {
+    let mut app = scaled_app(6, &[2, 4, 5], None);
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch = Some(GUARDS);
+    set_switch(&mut app, true);
+    app.update();
+    materialize_pending(&mut app);
+    destroy_one(&mut app);
+    set_switch(&mut app, false);
+    add_player(&mut app, 2, true);
+    add_player(&mut app, 3, true);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    leave_player(&mut app, 3);
+    app.update();
+    set_switch(&mut app, true);
+    app.update();
+    assert_eq!(
+        pending_count(&app),
+        2,
+        "the lost third-player slot and prior death stay empty"
+    );
+    materialize_pending(&mut app);
+    assert_eq!(live_count(&app), 3);
+}
+
+#[test]
+fn blocked_additions_are_discarded_on_departure_without_enabling_respawns() {
+    let mut app = scaled_app(1, &[1, 3], None);
+    app.update();
+    materialize_pending(&mut app);
+    add_player(&mut app, 2, true);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    assert_eq!(app.world().resource::<ActorSpawner>().additions[&0], 2);
+    leave_player(&mut app, 2);
+    app.update();
+    destroy_one(&mut app);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+}
+
+#[test]
+fn blocked_additions_fill_when_space_clears_without_refilling_other_dead_slots() {
+    let mut app = scaled_app(2, &[2, 3], None);
+    app.update();
+    materialize_pending(&mut app);
+    add_player(&mut app, 2, true);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    destroy_one(&mut app);
+    app.update();
+    assert_eq!(pending_count(&app), 1);
+    materialize_pending(&mut app);
+    app.update();
+    assert_eq!(live_count(&app), 2);
+    assert_eq!(pending_count(&app), 0);
+}
+
+#[test]
+fn actor_resets_fill_to_the_current_player_count() {
+    for scope in [ActorRespawnScope::Dead, ActorRespawnScope::All] {
+        let mut app = scaled_app(5, &[2, 4], None);
+        add_player(&mut app, 2, true);
+        app.update();
+        materialize_pending(&mut app);
+        for _ in 0..3 {
+            destroy_one(&mut app);
+        }
+        leave_player(&mut app, 2);
+        reset(&mut app, scope);
+        app.update();
+        assert_eq!(live_count(&app) + pending_count(&app), 2);
+        materialize_pending(&mut app);
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(live_count(&app), 2);
+        assert_eq!(pending_count(&app), 0);
+    }
+}
+
+#[test]
+fn multiplayer_only_zones_stay_empty_without_two_logged_in_players() {
+    let mut app = scaled_app(3, &[0, 2], None);
+    leave_player(&mut app, 1);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    add_player(&mut app, 1, true);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    add_player(&mut app, 2, true);
+    app.update();
+    assert_eq!(pending_count(&app), 2);
+    add_player(&mut app, 3, true);
+    app.update();
+    assert_eq!(pending_count(&app), 2, "the last entry caps larger sessions");
+}
+
+#[test]
+fn blocked_flying_beam_ins_retry_only_their_reserved_slot() {
+    use common::{config::ActorLocomotion, protocol::Wall};
+    let mut app = spawn_app_for(BEAM, 8, &[2], None);
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].count = vec![2, 3];
+    app.world_mut()
+        .resource_mut::<ServerGameplayConfig>()
+        .actors
+        .kinds
+        .get_mut(BEAM)
+        .expect("beam kind")
+        .character
+        .locomotion = ActorLocomotion::Flying;
+    add_player(&mut app, 1, true);
+    app.update();
+    materialize_pending(&mut app);
+    destroy_one(&mut app);
+    app.update();
+    add_player(&mut app, 2, true);
+    app.update();
+    assert_eq!(pending_count(&app), 1);
+    let due_tick = app.world().resource::<PendingActorSpawns>().0[0].due_tick;
+    app.world_mut()
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout {
+            walls: vec![Wall {
+                x1: -100.0,
+                x2: 100.0,
+                z1: 0.0,
+                z2: 0.0,
+                y: -10.0,
+                height: 100.0,
+                width: 100.0,
+                level: 0,
+                carrier: CarrierId::WORLD,
+            }],
+            ..Default::default()
+        }));
+    app.world_mut().resource_mut::<ServerTick>().0 = due_tick;
+    app.update();
+    assert_eq!(live_count(&app), 1);
+    assert_eq!(pending_count(&app), 0);
+    app.world_mut()
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()));
+    app.update();
+    assert_eq!(
+        pending_count(&app),
+        1,
+        "retry must not restore the previously killed actor"
+    );
+    materialize_pending(&mut app);
+    assert_eq!(live_count(&app), 2);
 }

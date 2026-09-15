@@ -17,6 +17,7 @@ from .constants import (
     MAP_NAME_RE,
     TERRAIN_FACES,
 )
+from .spawn_counts import actor_count_key
 from .geometry import normalized_wall, ramp_cells, ramp_cells_on_level, wall_endpoints_for_cell_side
 
 
@@ -372,10 +373,7 @@ def _normalize_zone_rect(zone: dict) -> dict:
 
 def normalize_actor_spawn_zone(zone: dict) -> dict:
     kind = str(zone.get("kind", ""))
-    try:
-        count = int(zone.get("count", 0))
-    except (TypeError, ValueError):
-        count = 0
+    count = copy.deepcopy(zone.get("count", []))
     normalized = {**_normalize_zone_rect(zone), "kind": kind, "count": count}
     if zone.get("levels", 1) != 1:
         normalized["levels"] = copy.deepcopy(zone["levels"])
@@ -443,7 +441,7 @@ def actor_zone_key(zone: dict) -> tuple:
         zone["rows"][1],
         zone["cols"][1],
         zone["kind"],
-        zone["count"],
+        actor_count_key(zone["count"]),
         _control_zone_key(zone.get("switch")),
         _control_zone_key(zone.get("switch_inverted", False)),
         _numeric_zone_key(zone.get("roam_distance", 0.0)),

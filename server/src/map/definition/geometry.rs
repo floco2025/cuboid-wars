@@ -385,7 +385,7 @@ fn actor_spawn_zones(
                 cols: zone.cols,
                 rows: zone.rows,
                 kind: zone.kind.clone(),
-                count: zone.count,
+                count: zone.count.clone(),
                 respawn_secs: zone.respawn_secs,
                 switch: scope
                     .target_switch(zone.switch.as_deref())

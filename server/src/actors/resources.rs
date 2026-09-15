@@ -273,10 +273,13 @@ impl ActorMap {
 #[derive(Resource, Default)]
 pub struct ActorSpawner {
     pub next_id: u32,
+    pub(crate) player_count: usize,
+    // Initial slots added by joins, or reserved slots whose beam-in was blocked.
+    // These must not bypass the independent cooldown for killed actors.
+    pub(crate) additions: HashMap<usize, u32>,
 }
 
-// Per zone index; a zone with no entry is active and full. A switched zone
-// whose switch is off holds `Inactive`, the one state that never comes due.
+// Automatic respawn and reset work, keyed by zone index.
 #[derive(Resource, Default)]
 pub struct ActorRespawnTimers(pub(crate) HashMap<usize, ActorRespawnState>);
 

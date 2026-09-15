@@ -1,11 +1,12 @@
 from __future__ import annotations
 from PySide6.QtCore import Qt
 
-from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QMessageBox, QSpinBox, QVBoxLayout
+from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QMessageBox, QVBoxLayout
 
 from ..catalogs import load_actor_kinds
 from .controls import RespawnSpinBox, SwitchControl
 from .spawn_volume import SpawnVolumeControl
+from .spawn_count import SpawnCountControl
 from ..constants import ITEM_KEY_TYPE, ITEM_TYPES
 
 
@@ -17,14 +18,13 @@ class ActorSpawnFieldsDialog(QDialog):
     one.
     """
 
-    MAX_COUNT = 9999
     NO_SWITCH = "(none)"
 
     def __init__(
         self,
         parent,
         kind: str,
-        count: int,
+        count: list[int],
         respawn_secs: int | None,
         switches: list[str],
         switch: str | None,
@@ -45,9 +45,7 @@ class ActorSpawnFieldsDialog(QDialog):
         self._kind_edit.setCurrentText(kind)
         self._kind_edit.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         self._kind_edit.completer().setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self._count_spin = QSpinBox()
-        self._count_spin.setRange(0, self.MAX_COUNT)
-        self._count_spin.setValue(count)
+        self.count_control = SpawnCountControl(count)
         self._respawn_spin = RespawnSpinBox(respawn_secs)
         self.control = SwitchControl(switches, switch, inverted)
         self._switch_combo = self.control.kind
@@ -55,7 +53,7 @@ class ActorSpawnFieldsDialog(QDialog):
 
         form = QFormLayout()
         form.addRow("Kind:", self._kind_edit)
-        form.addRow("Count:", self._count_spin)
+        form.addRow(self.count_control)
         form.addRow("Respawn:", self._respawn_spin)
         form.addRow(self.volume)
         form.addRow(self.control)
@@ -63,16 +61,26 @@ class ActorSpawnFieldsDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
+        self.count_control.validity_changed.connect(buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled)
+        self.count_control.refresh()
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(buttons)
 
+    def accept(self):
+        try:
+            self.count_control.value()
+        except ValueError as error:
+            QMessageBox.warning(self, "Actor Spawn Zone", str(error))
+            return
+        super().accept()
+
     def values(self):
         switch, inverted = self.control.state()
         return (
             self._kind_edit.currentText().strip(),
-            self._count_spin.value(),
+            self.count_control.value(),
             self._respawn_spin.secs(),
             switch,
             inverted,
@@ -84,7 +92,7 @@ class ActorSpawnFieldsDialog(QDialog):
         cls,
         parent,
         kind: str,
-        count: int,
+        count: list[int],
         respawn_secs: int | None,
         switches: list[str],
         switch: str | None,

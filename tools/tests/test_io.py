@@ -52,11 +52,11 @@ class FileIoTests(unittest.TestCase):
                 "cols": [0, 1],
                 "rows": [0, 1],
                 "kind": "zapper",
-                "count": 1,
+                "count": [1],
                 "respawn_secs": 90,
                 "switch": BRIDGE_KIND,
             },
-            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2, "respawn_secs": 90},
+            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [2], "respawn_secs": 90},
         ]
         data["nested_maps"] = [
             {**nested("tile", 0, [0, 0], [1, 0]), "switch": BRIDGE_KIND},

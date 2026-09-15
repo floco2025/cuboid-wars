@@ -111,7 +111,7 @@ impl Fixture {
                 cols: [1, 2],
                 rows: [2, 3],
                 kind: kind.to_owned(),
-                count: 1,
+                count: vec![1],
                 respawn_secs: None,
                 switch: None,
             }],

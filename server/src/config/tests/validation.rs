@@ -18,7 +18,7 @@ fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
         cols: [0, 1],
         rows: [0, 1],
         kind: "scuttler".into(),
-        count: 1,
+        count: vec![1],
         respawn_secs: None,
         switch: None,
     });
@@ -53,15 +53,15 @@ fn immovable_zones_are_not_limited_by_floor_capacity() {
         cols: [0, 4],
         rows: [0, 1],
         kind: "turret".into(),
-        count: 1,
+        count: vec![1],
         respawn_secs: None,
         switch: None,
     });
     validate_map_actor_kinds(&server, &map).expect("one turret rejected");
-    map.actor_spawn_zones[0].count = 2;
+    map.actor_spawn_zones[0].count = vec![2];
     validate_map_actor_kinds(&server, &map).expect("immovable zone rejected for floor capacity");
     map.actor_spawn_zones[0].kind = "scuttler".into();
-    map.actor_spawn_zones[0].count = 100;
+    map.actor_spawn_zones[0].count = vec![100];
     validate_map_actor_kinds(&server, &map).expect("movable actor count limited by cell count");
 }
 

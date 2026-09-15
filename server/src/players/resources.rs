@@ -351,6 +351,10 @@ pub(crate) struct PlayerResetCounts {
 }
 
 impl PlayerMap {
+    pub(crate) fn logged_in_count(&self) -> usize {
+        self.values().filter(|info| info.connection.logged_in).count()
+    }
+
     pub fn new(respawn: RespawnConfig) -> Self {
         Self { respawn, ..default() }
     }

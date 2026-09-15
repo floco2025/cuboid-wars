@@ -538,24 +538,24 @@ class WindowTests(WindowTestCase):
     def test_actor_picker_rejects_unknown_kinds_and_toolbar_reuses_valid_choices(self):
         window = self.window
         kind = window.actor_kinds[0]
-        dialog = ActorSpawnFieldsDialog(window, kind, 3, 90, ["guards"], None)
+        dialog = ActorSpawnFieldsDialog(window, kind, [3], 90, ["guards"], None)
         self.assertGreater(dialog._kind_edit.count(), 0)
-        self.assertEqual(dialog.values(), (kind, 3, 90, None, False, 0, 1, 0.0))
+        self.assertEqual(dialog.values(), (kind, [3], 90, None, False, 0, 1, 0.0))
         dialog._switch_combo.setCurrentText("guards")
-        self.assertEqual(dialog.values(), (kind, 3, 90, "guards", False, 0, 1, 0.0))
+        self.assertEqual(dialog.values(), (kind, [3], 90, "guards", False, 0, 1, 0.0))
         dialog.deleteLater()
         with (
             patch.object(ActorSpawnFieldsDialog, "exec", return_value=QDialog.DialogCode.Accepted),
             patch("map_editor.dialogs.catalogs.QMessageBox.warning") as warning,
         ):
-            self.assertIsNone(ActorSpawnFieldsDialog.prompt(window, "not_a_kind", 3, 90, ["guards"], None))
+            self.assertIsNone(ActorSpawnFieldsDialog.prompt(window, "not_a_kind", [3], 90, ["guards"], None))
             warning.assert_called_once()
         window.doc.root_data["switch_kinds"] = [
             {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["guards"]
         ]
         window.switch_ids = ["guards"]
         window.recent_actor_spawn_kind = kind
-        window.recent_actor_spawn_count = 7
+        window.recent_actor_spawn_count = [7]
         window.recent_actor_spawn_switch = "guards"
         window.mode_combo.setCurrentText(MODE_ACTOR_SPAWN_ZONE)
         window.tool_settings.refresh()
@@ -566,7 +566,7 @@ class WindowTests(WindowTestCase):
             window.add_actor_spawn_zone_rect((2, 2), (3, 3))
             prompt.assert_not_called()
         zone = window.map_data["actor_spawn_zones"][0]
-        self.assertEqual((zone["count"], zone["switch"]), (7, "guards"))
+        self.assertEqual((zone["count"], zone["switch"]), ([7], "guards"))
         window.recent_actor_spawn_switch = ""
         with patch.object(ActorSpawnFieldsDialog, "prompt") as prompt:
             window.add_actor_spawn_zone_rect((4, 4), (5, 5))

@@ -122,6 +122,7 @@ pub(super) fn run_admin_command(
                 pending_actor_spawns,
                 &mut admin.actor_respawn_timers,
                 map_config,
+                players.logged_in_count(),
                 admin.server_tick.0,
                 kind.as_deref(),
             );

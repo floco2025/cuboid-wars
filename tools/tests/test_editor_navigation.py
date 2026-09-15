@@ -8,7 +8,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QComboBox, QMenu, QSpinBox, QStatusBar
 
 from editor_fixtures import WindowTestCase
-from map_editor.constants import MODE_ACTOR_SPAWN_ZONE, MODE_ERASE, MODE_JUMP_REACH
+from map_editor.constants import MODE_ACTOR_SPAWN_ZONE, MODE_PLAYER_SPAWN_ZONE, MODE_ERASE, MODE_JUMP_REACH
 from map_editor.transforms import insert_level_data
 from map_editor.types import ZoneRef
 from map_editor.viewport import Viewport
@@ -32,9 +32,9 @@ class EditorNavigationTests(WindowTestCase):
     def test_page_keys_change_levels_from_canvas_and_number_controls(self):
         window = self.window
         window.doc.replace_with_new(insert_level_data(window.map_data, 1))
-        window.mode_combo.setCurrentText(MODE_ACTOR_SPAWN_ZONE)
+        window.mode_combo.setCurrentText(MODE_PLAYER_SPAWN_ZONE)
         count = window.tool_settings.findChild(QSpinBox)
-        count.setValue(5)
+        count.setValue(2)
         for control in (window.canvas, count, count.lineEdit()):
             control.setFocus()
             self.app.processEvents()
@@ -42,7 +42,7 @@ class EditorNavigationTests(WindowTestCase):
             self.assertEqual(window.current_level, 1)
             QTest.keyClick(control, Qt.Key.Key_PageDown)
             self.assertEqual(window.current_level, 0)
-            self.assertEqual(count.value(), 5)
+            self.assertEqual(count.value(), 2)
         window.mode_combo.setCurrentText(MODE_JUMP_REACH)
         margin = window.jump_reach.margin
         margin.setFocus()
@@ -187,7 +187,7 @@ class SpawnZoneHandleTests(WindowTestCase):
         window = self.window
         data = copy.deepcopy(window.map_data)
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [2, 4], "rows": [2, 4], "kind": "zapper", "count": 3, "respawn_secs": 90}
+            {"level": 0, "cols": [2, 4], "rows": [2, 4], "kind": "zapper", "count": [3], "respawn_secs": 90}
         ]
         window.apply_change("Spawn zone", data)
         canvas = window.canvas
@@ -205,7 +205,7 @@ class SpawnZoneHandleTests(WindowTestCase):
         QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=end)
         zone = window.map_data["actor_spawn_zones"][0]
         self.assertEqual((zone["cols"], zone["rows"]), ([2, 5], [2, 6]))
-        self.assertEqual((zone["kind"], zone["count"]), ("zapper", 3))
+        self.assertEqual((zone["kind"], zone["count"]), ("zapper", [3]))
         window.undo_stack.undo()
         self.assertEqual(window.map_data["actor_spawn_zones"], data["actor_spawn_zones"])
         window.undo_stack.redo()

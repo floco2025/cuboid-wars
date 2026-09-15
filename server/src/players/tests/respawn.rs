@@ -64,7 +64,7 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
             cols: [col, col + 1],
             rows: [0, 1],
             kind: "turret".into(),
-            count: 1,
+            count: vec![1],
             respawn_secs: None,
             switch: None,
         })

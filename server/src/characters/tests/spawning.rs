@@ -154,7 +154,7 @@ fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, A
         cols: [1, 2],
         rows: [1, 2],
         kind: "scuttler".to_owned(),
-        count: 1,
+        count: vec![1],
         respawn_secs: None,
         switch: None,
     };
@@ -252,7 +252,7 @@ fn immovable_spawn_checks_every_cell_before_reporting_a_full_zone() {
         cols: [0, 120],
         rows: [0, 1],
         kind: "turret".into(),
-        count: 120,
+        count: vec![120],
         respawn_secs: None,
         switch: None,
     };
@@ -302,7 +302,7 @@ fn immovable_spawn_waits_instead_of_shifting_away_from_an_obstructed_center() {
         cols: [1, 2],
         rows: [1, 2],
         kind: "turret".into(),
-        count: 1,
+        count: vec![1],
         respawn_secs: None,
         switch: None,
     };

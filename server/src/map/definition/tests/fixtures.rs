@@ -186,7 +186,7 @@ pub(crate) fn actor_zone(level: u32, col: i32, row: i32) -> ActorSpawnZoneDef {
         cols: [col, col + 1],
         rows: [row, row + 1],
         kind: "actor".into(),
-        count: 1,
+        count: vec![1],
         respawn_secs: Some(90.0),
         switch: None,
     }

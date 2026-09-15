@@ -104,6 +104,12 @@ fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
     for (zone_idx, zone) in map_def.actor_spawn_zones.iter().enumerate() {
         let label = format!("actor_spawn_zones[{zone_idx}]");
         validate_zone_placement(zone, &label, map_def)?;
+        if zone.count.is_empty() {
+            return Err(anyhow!("{label}.count must contain at least one count"));
+        }
+        if zone.count.windows(2).any(|pair| pair[0] > pair[1]) {
+            return Err(anyhow!("{label}.count must be nondecreasing"));
+        }
         validate_non_negative_finite(zone.roam_distance, &format!("{label}.roam_distance"))?;
         if zone.kind.is_empty() {
             return Err(anyhow!("{label} has empty `kind`"));
@@ -688,7 +694,7 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
             a.rows[1],
             a.cols[1],
             &a.kind,
-            a.count,
+            &a.count,
             &a.switch,
             a.switch_inverted,
         )
@@ -700,7 +706,7 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
                 b.rows[1],
                 b.cols[1],
                 &b.kind,
-                b.count,
+                &b.count,
                 &b.switch,
                 b.switch_inverted,
             ))

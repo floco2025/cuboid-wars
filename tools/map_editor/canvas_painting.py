@@ -7,6 +7,8 @@ import math
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF
 
+from .spawn_counts import actor_count_summary
+
 from .constants import (
     ACTOR_ZONE_LIST,
     ITEMS_LIST,
@@ -862,7 +864,7 @@ class CanvasPaintingMixin:
         painter.setPen(QPen(outline_color, 2))
         painter.drawRect(rect)
         painter.setPen(QColor("#f8fafc"))
-        label = f"{zone['kind']}:{zone['count']}" if zone["kind"] else "(empty)"
+        label = f"{zone['kind']}:{actor_count_summary(zone['count'])}" if zone["kind"] else "(empty)"
         if zone.get("levels", 1) > 1:
             label += f" · {zone['levels']} levels"
         if cell >= 8:

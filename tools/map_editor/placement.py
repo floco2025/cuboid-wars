@@ -136,7 +136,7 @@ class PlacementMixin:
     def prompt_for_actor_spawn_fields(
         self,
         kind: str | None = None,
-        count: int | None = None,
+        count: list[int] | None = None,
         respawn_secs: int | None = None,
         switch: str | None = None,
         inverted: bool = False,

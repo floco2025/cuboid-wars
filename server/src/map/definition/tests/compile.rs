@@ -339,18 +339,18 @@ fn plate_zone_and_motion_defs_parse_their_switch() {
     );
 
     let zone: ActorSpawnZoneDef = serde_json::from_str(
-        r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2, "respawn_secs": 90}"#,
+        r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [2], "respawn_secs": 90}"#,
     )
     .expect("zone def parses");
     assert_eq!((zone.respawn_secs, zone.switch), (Some(90.0), None));
     let zone: ActorSpawnZoneDef = serde_json::from_str(
-        r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2, "respawn_secs": null, "switch": "guards"}"#,
+        r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [2], "respawn_secs": null, "switch": "guards"}"#,
     )
     .expect("switched zone def parses");
     assert_eq!((zone.respawn_secs, zone.switch.as_deref()), (None, Some("guards")));
     assert!(
         serde_json::from_str::<ActorSpawnZoneDef>(
-            r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2}"#
+            r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [2]}"#
         )
         .is_err(),
         "respawn_secs must be explicit"
