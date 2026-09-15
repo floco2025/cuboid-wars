@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng};
-use std::f32::consts::TAU;
+use std::{collections::HashMap, f32::consts::TAU};
 
 use crate::{
     actors::{
@@ -22,36 +22,6 @@ use common::{
     },
 };
 
-pub fn actor_respawns_active(
-    actors: Res<ActorMap>,
-    timers: Res<ActorRespawnTimers>,
-    spawner: Res<ActorSpawner>,
-    players: Res<PlayerMap>,
-) -> bool {
-    actors.has_vacated_spawn_zones()
-        || !timers.0.is_empty()
-        || !spawner.additions.is_empty()
-        || spawner.player_count != players.logged_in_count()
-}
-
-fn update_population(spawner: &mut ActorSpawner, zones: &[ActorSpawnZone], players: usize) {
-    if spawner.player_count == players {
-        return;
-    }
-    for (zone_idx, zone) in zones.iter().enumerate() {
-        let previous = zone.target_count(spawner.player_count);
-        let target = zone.target_count(players);
-        let additions = spawner.additions.entry(zone_idx).or_default();
-        *additions = if target >= previous {
-            additions.saturating_add(target - previous)
-        } else {
-            additions.saturating_sub(previous - target)
-        };
-    }
-    spawner.additions.retain(|_, count| *count > 0);
-    spawner.player_count = players;
-}
-
 pub fn pending_actor_spawns_active(pending: Res<PendingActorSpawns>) -> bool {
     !pending.0.is_empty()
 }
@@ -60,6 +30,7 @@ pub(crate) fn reset_actors(
     commands: &mut Commands,
     actors: &mut ActorMap,
     pending: &mut PendingActorSpawns,
+    spawner: &mut ActorSpawner,
     timers: &mut ActorRespawnTimers,
     map_config: &MapConfig,
     scope: ActorRespawnScope,
@@ -71,6 +42,10 @@ pub(crate) fn reset_actors(
         actors.clear();
         pending.0.clear();
     }
+    // A reset forgives every kill so far, including those not yet drained.
+    actors.forget_vacated_spawn_zones();
+    spawner.lost.clear();
+    spawner.cooling.clear();
     timers.0.clear();
     timers
         .0
@@ -89,7 +64,7 @@ fn tick_actor_respawns(timers: &mut ActorRespawnTimers, delta: f32) -> Vec<usize
         .0
         .iter_mut()
         .filter_map(|(zone_idx, state)| match state {
-            ActorRespawnState::Cooldown(remaining_secs) => {
+            ActorRespawnState::Cooldown(remaining_secs) | ActorRespawnState::Blocked(remaining_secs) => {
                 *remaining_secs -= delta;
                 (*remaining_secs <= 0.0).then_some(*zone_idx)
             }
@@ -118,7 +93,6 @@ pub fn actors_initial_spawn_system(
     player_map: Res<PlayerMap>,
 ) {
     let player_count = player_map.logged_in_count();
-    spawner.player_count = player_count;
     let mut planner = SpawnPlanner {
         pending: &mut pending,
         spawner: &mut spawner,
@@ -161,26 +135,23 @@ pub fn actors_respawn_system(
     player_map: Res<PlayerMap>,
 ) {
     let player_count = player_map.logged_in_count();
-    update_population(&mut spawner, &map_config.actor_spawn_zones, player_count);
     // A zone gets one timer for all vacancies; later deaths do not restart it,
     // and neither does its switch: a kill while the zone is switched off counts
     // down all the same, and the vacancy fills once the countdown and the
     // switch both allow.
-    let dt = time.delta_secs();
     for zone_idx in actors.drain_vacated_spawn_zones() {
         let Some(zone) = map_config.actor_spawn_zones.get(zone_idx) else {
             continue;
         };
-        let Some(respawn_secs) = zone.respawn_secs else {
-            continue;
-        };
-        arm_actor_respawn(&mut timers, zone_idx, respawn_secs);
+        match zone.respawn_secs {
+            Some(respawn_secs) => {
+                arm_actor_respawn(&mut timers, zone_idx, respawn_secs);
+                *spawner.cooling.entry(zone_idx).or_default() += 1;
+            }
+            None => *spawner.lost.entry(zone_idx).or_default() += 1,
+        }
     }
-
-    let due_zones = tick_actor_respawns(&mut timers, dt);
-    if due_zones.is_empty() && spawner.additions.is_empty() {
-        return;
-    }
+    let due_zones = tick_actor_respawns(&mut timers, time.delta_secs());
 
     let mut live_by_zone = vec![0u32; map_config.actor_spawn_zones.len()];
     for info in actors.values() {
@@ -216,35 +187,21 @@ pub fn actors_respawn_system(
         tick: tick.0,
         open: &plates.open_barriers,
     };
-    for zone_idx in due_zones {
-        planner.spawner.additions.remove(&zone_idx);
-        let Some(zone) = map_config.actor_spawn_zones.get(zone_idx) else {
-            planner.timers.0.remove(&zone_idx);
-            continue;
-        };
-        // A due zone its switch holds back keeps its entry and fills the
-        // tick the switch allows.
+    for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
+        // A zone its switch holds back keeps its entry, and its due countdown
+        // or join fills the tick the switch allows.
         if !zone.is_enabled(&plates) {
             continue;
         }
-        let missing = zone.target_count(player_count).saturating_sub(live_by_zone[zone_idx]);
-        planner.queue_zone(zone_idx, zone, missing);
-    }
-    let added_zones: Vec<_> = planner.spawner.additions.keys().copied().collect();
-    for zone_idx in added_zones {
-        let zone = &map_config.actor_spawn_zones[zone_idx];
-        let vacancies = zone.target_count(player_count).saturating_sub(live_by_zone[zone_idx]);
-        let mut remaining = planner.spawner.additions[&zone_idx].min(vacancies);
-        if zone.is_enabled(&plates) {
-            let character = &server_gameplay_config.expect_actor(&zone.kind).character;
-            while remaining > 0 && planner.queue_one(zone_idx, zone, character) {
-                remaining -= 1;
-            }
+        let due = due_zones.contains(&zone_idx);
+        if due {
+            planner.spawner.cooling.remove(&zone_idx);
+        } else if matches!(planner.timers.0.get(&zone_idx), Some(ActorRespawnState::Blocked(_))) {
+            continue;
         }
-        if remaining == 0 {
-            planner.spawner.additions.remove(&zone_idx);
-        } else {
-            planner.spawner.additions.insert(zone_idx, remaining);
+        let missing = planner.missing(zone_idx, zone, player_count, live_by_zone[zone_idx]);
+        if (missing == 0 || planner.queue_zone(zone_idx, zone, missing)) && due {
+            planner.timers.0.remove(&zone_idx);
         }
     }
 }
@@ -267,7 +224,22 @@ struct SpawnPlanner<'a> {
 }
 
 impl SpawnPlanner<'_> {
-    fn queue_zone(&mut self, zone_idx: usize, zone: &ActorSpawnZone, missing: u32) {
+    // The zone's wanted population less what already stands or is announced
+    // in it: its target for the logged-in players, less the slots it lost for
+    // good, less the kills its running countdown owes.
+    fn missing(&self, zone_idx: usize, zone: &ActorSpawnZone, player_count: usize, live: u32) -> u32 {
+        let owed = |slots: &HashMap<usize, u32>| slots.get(&zone_idx).copied().unwrap_or(0);
+        zone.target_count(player_count)
+            .saturating_sub(owed(&self.spawner.lost))
+            .saturating_sub(live)
+            .saturating_sub(owed(&self.spawner.cooling))
+    }
+
+    // Queues `missing` beam-ins, or records how the zone retries when a spot
+    // cannot be found: a running countdown keeps the slots for its own fill, a
+    // movable kind with a respawn time waits that long, and the rest retry
+    // every tick. False when a spot was missing.
+    fn queue_zone(&mut self, zone_idx: usize, zone: &ActorSpawnZone, missing: u32) -> bool {
         let config = self.config;
         let kind_config = config.expect_actor(&zone.kind);
         for _ in 0..missing {
@@ -278,14 +250,18 @@ impl SpawnPlanner<'_> {
                     Some(ActorRespawnState::Reset | ActorRespawnState::WaitingForSpace)
                 );
                 match zone.respawn_secs {
+                    Some(_) if matches!(previous, Some(ActorRespawnState::Cooldown(remaining)) if remaining > 0.0) => {
+                        warn!(
+                            "actor spawn zone {zone_idx} on carrier {} has no clear spot for a {:?}; its countdown retries",
+                            zone.carrier.0, zone.kind
+                        );
+                    }
                     Some(respawn_secs) if !kind_config.character.immovable && !retry_immediately => {
                         warn!(
                             "actor spawn zone {zone_idx} on carrier {} has no clear spot for a {:?}; retrying after its respawn time",
                             zone.carrier.0, zone.kind
                         );
-                        self.timers
-                            .0
-                            .insert(zone_idx, ActorRespawnState::Cooldown(respawn_secs));
+                        self.timers.0.insert(zone_idx, ActorRespawnState::Blocked(respawn_secs));
                     }
                     _ => {
                         self.timers.0.insert(zone_idx, ActorRespawnState::WaitingForSpace);
@@ -297,10 +273,10 @@ impl SpawnPlanner<'_> {
                         }
                     }
                 }
-                return;
+                return false;
             }
         }
-        self.timers.0.remove(&zone_idx);
+        true
     }
 
     // Reserve an id, spot, and heading for one actor and queue it for beam-in.
@@ -389,7 +365,8 @@ pub(crate) fn expedite_actor_respawns(
                 .saturating_sub(occupied_by_zone[zone_idx]);
             if missing > 0 {
                 let state = timers.0.entry(zone_idx).or_insert(ActorRespawnState::Cooldown(0.0));
-                if let ActorRespawnState::Cooldown(remaining_secs) = state {
+                if let ActorRespawnState::Cooldown(remaining_secs) | ActorRespawnState::Blocked(remaining_secs) = state
+                {
                     *remaining_secs = 0.0;
                 }
                 respawning += missing as usize;
@@ -405,7 +382,6 @@ pub fn actors_pending_spawn_system(
     mut commands: Commands,
     mut actors: ResMut<ActorMap>,
     mut pending: ResMut<PendingActorSpawns>,
-    mut spawner: ResMut<ActorSpawner>,
     tick: Res<ServerTick>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     map_settings: Res<MapSettings>,
@@ -437,7 +413,8 @@ pub fn actors_pending_spawn_system(
                     .iter()
                     .any(|(other, physics)| character_positions_intersect(&pos, character.physics(), other, *physics)))
         {
-            *spawner.additions.entry(spawn.zone_idx).or_default() += 1;
+            // Dropped from the quota, so the respawn system reserves a fresh
+            // spot this tick.
             continue;
         }
         occupied.push((pos, character.physics()));

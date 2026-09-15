@@ -7,8 +7,8 @@ from PySide6.QtWidgets import QSpinBox
 
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, floor, furnished_map, nested
 from map_editor import constants as c
-from map_editor.elements import ElementRef
-from map_editor.normalization import empty_level, empty_map
+from map_editor.elements import ElementRef, refs_for_hit
+from map_editor.normalization import canonicalize_map, empty_level, empty_map
 
 
 class EditorWorkflowTests(WindowTestCase):
@@ -389,3 +389,182 @@ class EditorWorkflowTests(WindowTestCase):
         window.activate_tool(c.MODE_INACCESSIBLE_FLOOR)
         self.drag((1.5, 1.5), (1.5, 1.5))
         self.assertEqual(window.map_data, before)
+
+    def test_locked_types_in_authored_order_do_not_block_other_edits(self):
+        data = furnished_map()
+        data["items"] = []
+        data["pressure_plates"] = [
+            {"level": 0, "col": 2, "row": 2, "switch": "barrier_1"},
+            {"level": 0, "col": 1, "row": 1, "switch": "barrier_1"},
+        ]
+        self.set_data(data)
+        window = self.window
+        self.assertNotEqual(canonicalize_map(window.map_data)["pressure_plates"], window.map_data["pressure_plates"])
+        self.lock("pressure_plates")
+        window.add_floor_rect((3, 3), (3, 3))
+        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 3)
+        self.assertEqual(len(window.map_data["pressure_plates"]), 2)
+
+    def test_reversed_wall_endpoints_are_picked_like_any_wall(self):
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["floors"] = [floor(1, 1)]
+        data["levels"][0]["walls"] = [{"c0": 2, "r0": 1, "c1": 1, "r1": 1, "all": DEFAULT_ALIAS}]
+        self.set_data(data)
+        window = self.window
+        hit = window.hit_at(QPointF(1.5, 1.0))
+        self.assertEqual(hit, (c.HIT_WALL, (1, 1, 2, 1)))
+        self.assertEqual(refs_for_hit(window.map_data, 0, hit), [ElementRef("walls", 0, 0)])
+        window.sample_at(QPointF(1.5, 1.0))
+        self.assertEqual(window.mode, c.MODE_WALL)
+        window.erase_hit(hit)
+        self.assertEqual(window.map_data["levels"][0]["walls"], [])
+
+    def test_sampling_a_plate_without_a_switch_keeps_the_current_switch(self):
+        data = furnished_map()
+        data["items"] = []
+        data["pressure_plates"] = [{"level": 0, "col": 2, "row": 2}]
+        self.set_data(data)
+        window = self.window
+        window.recent_pressure_plate_switch = "barrier_1"
+        window.sample_at(QPointF(2.5, 2.5))
+        self.assertEqual(window.mode, c.MODE_PRESSURE_PLATE)
+        self.assertEqual(window.recent_pressure_plate_switch, "barrier_1")
+
+    def test_inspector_keeps_the_selection_through_normalization_and_no_op_edits(self):
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"].append(empty_level(1))
+        data["actor_spawn_zones"] = [
+            {
+                "level": 0,
+                "levels": 2,
+                "cols": [1, 2],
+                "rows": [1, 2],
+                "kind": "scuttler",
+                "count": [2],
+                "respawn_secs": None,
+            }
+        ]
+        self.set_data(data)
+        window = self.window
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        inspector = window.properties_panel
+        self.edit_text(inspector.widgets[("levels",)], "1")
+        inspector.apply_button.click()
+        self.assertNotIn("levels", window.map_data["actor_spawn_zones"][0])
+        self.assertEqual(window.inspected_refs, [ElementRef("actor_spawn_zones", 0)])
+        self.edit_text(inspector.widgets[("levels",)], "1")
+        inspector.apply_button.click()
+        self.assertEqual(window.inspected_refs, [ElementRef("actor_spawn_zones", 0)])
+        self.assertEqual(window.undo_stack.count(), 1)
+
+    def test_a_click_inside_the_selection_inspects_and_only_a_drag_lifts_the_block(self):
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["floors"] = [floor(1, 1)]
+        data["actor_spawn_zones"] = [
+            {"level": 0, "cols": [2, 6], "rows": [2, 6], "kind": "scuttler", "count": [1], "respawn_secs": None}
+        ]
+        self.set_data(data)
+        window = self.window
+        before = copy.deepcopy(window.map_data)
+        window.set_tile_selection((0, 0, 4, 4))
+        with patch.object(window, "notify") as notify:
+            self.click(1, 1)
+        notify.assert_not_called()
+        self.assertEqual(window.tile_selection, (0, 0, 4, 4))
+        self.assertIsNone(window.pending_block)
+        self.assertEqual(window.inspected_refs, [ElementRef("floors", 0, 0)])
+        with patch.object(window, "notify") as notify:
+            self.drag((1.5, 1.5), (3.5, 3.5))
+        self.assertIn("crosses a spawn zone", notify.call_args.args[0])
+        self.assertEqual(window.tile_selection, (0, 0, 4, 4))
+        self.assertEqual(window.map_data, before)
+
+    def test_duplicate_keeps_a_pending_transform_and_cancelling_it_notifies(self):
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["floors"] = [floor(1, 1), floor(2, 1)]
+        self.set_data(data)
+        window = self.window
+        window.set_tile_selection((1, 1, 3, 2))
+        window.rotate_action.trigger()
+        with patch.object(window, "notify") as notify:
+            window.duplicate_selection()
+        notify.assert_called_once()
+        self.assertEqual((window.pending_block.block["grid_cols"], window.pending_block.block["grid_rows"]), (1, 2))
+        self.assertFalse(window.pending_block.duplicate)
+        with patch.object(window, "notify") as notify:
+            window.clear_selection()
+        notify.assert_called_once_with("Pending selection cancelled")
+        self.assertIsNone(window.pending_block)
+
+    def test_a_refused_cut_leaves_the_clipboard_alone(self):
+        self.set_data(furnished_map())
+        window = self.window
+        self.hide("lights")
+        self.lock("floors")
+        window.set_tile_selection((1, 1, 2, 2))
+        before = copy.deepcopy(window.map_data)
+        window.cut_selection()
+        self.assertEqual(window.map_data, before)
+        self.assertIsNone(window.tile_clipboard)
+
+    def test_kind_and_nested_map_renames_are_refused_while_element_types_are_locked(self):
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["nested_geometry"] = {"cabin": empty_map(3, 2)}
+        self.set_data(data)
+        window = self.window
+        self.lock("barriers")
+        with (
+            patch(
+                "map_editor.control_actions.ControlCatalogDialog.prompt",
+                side_effect=AssertionError("Unexpected dialog"),
+            ),
+            patch.object(window, "notify") as notify,
+        ):
+            window.edit_control_catalog("barrier_kinds", "Barrier Kinds")
+        notify.assert_called_once()
+        window.doc.select_map("cabin")
+        with (
+            patch.object(window, "prompt_nested_name", side_effect=AssertionError("Unexpected dialog")),
+            patch.object(window, "notify") as notify,
+        ):
+            window.rename_nested_map()
+        notify.assert_called_once()
+        self.assertIn("cabin", window.doc.nested_geometry)
+
+    def test_filtered_multilevel_paste_onto_the_top_storey_appends_levels(self):
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"].append(empty_level(1))
+        data["levels"][0]["floors"] = [floor(1, 1)]
+        data["levels"][1]["floors"] = [floor(1, 1)]
+        self.set_data(data)
+        window = self.window
+        window.set_tile_selection((1, 1, 2, 2))
+        window.tool_settings.findChild(QSpinBox).setValue(2)
+        window.copy_selection()
+        self.lock("lights")
+        window.set_level_index(1)
+        window.set_tile_selection((4, 4, 5, 5))
+        window.paste_selection()
+        self.assertEqual(len(window.map_data["levels"]), 3)
+        self.assertEqual([(e["col"], e["row"]) for e in window.map_data["levels"][2]["floors"]], [(4, 4)])
+
+    def test_the_fireworks_target_is_listed_with_its_plates(self):
+        data = furnished_map()
+        data["items"] = []
+        data["fireworks"] = {"switch": "fireworks"}
+        data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": "fireworks"}]
+        self.set_data(data)
+        window = self.window
+        window.inspect_hit((c.HIT_PRESSURE_PLATE, (1, 1)))
+        panel = window.connections_panel
+        texts = [panel.list.item(index).text() for index in range(panel.list.count())]
+        self.assertEqual(len(texts), 2)
+        self.assertIn("Fireworks · Outer map", texts)
+        panel.navigate(panel.list.item(texts.index("Fireworks · Outer map")))
+        self.assertIsNone(window.doc.active_map)

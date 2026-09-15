@@ -696,7 +696,7 @@ fn actor_count_lists_validate_and_canonicalize() {
     }
     zone.count = vec![0, 2, 4];
     map.actor_spawn_zones = vec![zone.clone(), actor_zone(0, 0, 0), zone];
-    validate_map(&map).expect("valid scaled count");
+    validate_map(&map).expect("scaled count list rejected");
     canonicalize(&mut map);
     assert_eq!(map.actor_spawn_zones.len(), 2);
     assert_eq!(map.actor_spawn_zones[0].count, vec![0, 2, 4]);

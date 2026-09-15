@@ -303,17 +303,17 @@ def hit_at(data: dict, level_idx: int, px: float, py: float, tolerance: float):
     if any((l["col"], l["row"], l["side"]) == (col, row, side) for l in level.get("lights", [])):
         return (HIT_LIGHT, (col, row, side))
     for wall in level["walls"]:
-        wall_arr = [wall["c0"], wall["r0"], wall["c1"], wall["r1"]]
-        if point_near_wall(px, py, wall_arr, tolerance):
-            return (HIT_WALL, tuple(wall_arr))
+        edge = list(edge_key(wall))
+        if point_near_wall(px, py, edge, tolerance):
+            return (HIT_WALL, tuple(edge))
     for eraser in level.get("erasers", []):
         edge = list(edge_key(eraser))
         if point_near_wall(px, py, edge, tolerance):
             return (HIT_EQUIPMENT_ERASER, tuple(edge))
     for barrier in level.get("barriers", []):
-        arr = [barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]]
-        if point_near_wall(px, py, arr, tolerance):
-            return (HIT_BARRIER, tuple(arr))
+        edge = list(edge_key(barrier))
+        if point_near_wall(px, py, edge, tolerance):
+            return (HIT_BARRIER, tuple(edge))
     for ladder in data.get("ladders", []):
         if not ladder_spans_level(ladder, level_idx):
             continue

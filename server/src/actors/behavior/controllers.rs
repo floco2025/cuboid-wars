@@ -12,6 +12,11 @@ pub(super) fn retarget_beam(info: &mut ActorInfo, context: &BehaviorContext<'_>)
     super::beam::retarget_beam(info, &context.into());
 }
 
+// A falling actor keeps its mode for the landing; firing is its only decision.
+pub(super) fn decide_falling_actor(info: &mut ActorInfo, context: &BehaviorContext<'_>) -> Option<ActorBeam> {
+    find_beam_target(info, &context.into()).map(|target| start_beam(info, &context.into(), target))
+}
+
 pub(super) fn decide_stationary_actor(info: &mut ActorInfo, context: &BehaviorContext<'_>) -> Option<ActorBeam> {
     context.kind_config.attack.beam()?;
     if info.beam.target().is_none() {

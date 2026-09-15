@@ -17,7 +17,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .elements import ELEMENT_MODES
+from .elements import ELEMENT_MODES, element_refs
+from .normalization import normalize_map
 from .property_fields import fields_for, property_value
 from .spawn_counts import actor_count_error
 
@@ -195,7 +196,6 @@ class SelectionProperties(QDockWidget):
         try:
             values = {key: self.value(key) for key in self.changed_keys}
             after = copy.deepcopy(self.window.map_data)
-            changed_entries = []
             for ref in self.targets():
                 if ref.name in self.window.element_filters.excluded:
                     continue
@@ -213,7 +213,6 @@ class SelectionProperties(QDockWidget):
                     entry.pop("switch_inverted", None)
                 if ref.name == "items" and entry["type"] != "key":
                     entry.pop("kind", None)
-                changed_entries.append((ref.name, ref.level, copy.deepcopy(entry)))
             before_issues = {issue.identity() for issue in self.window.validate(self.window.map_data).issues}
             errors = [
                 issue.message for issue in self.window.validate(after).issues if issue.identity() not in before_issues
@@ -221,18 +220,21 @@ class SelectionProperties(QDockWidget):
             if errors:
                 raise ValueError(errors[0])
             self.applying = True
-            self.window.apply_change("Edit Selection Properties", after)
+            applied = self.window.apply_change("Edit Selection Properties", after)
         except ValueError as error:
             self.error.setText(str(error))
             self.error.show()
             return
         finally:
             self.applying = False
-        from .elements import element_refs
-
-        self.window.inspected_refs = [
-            ref for ref, entry in element_refs(self.window.map_data) if (ref.name, ref.level, entry) in changed_entries
-        ]
+        if applied:
+            # The document normalizes and reorders what it applies, so the
+            # selection is found again by its normalized records.
+            normalized = normalize_map(after)
+            selected = [(ref.name, ref.level, ref.get(normalized)) for ref in self.refs]
+            self.window.inspected_refs = [
+                ref for ref, entry in element_refs(self.window.map_data) if (ref.name, ref.level, entry) in selected
+            ]
         self.signature = None
         self.window.refresh_inspection()
 

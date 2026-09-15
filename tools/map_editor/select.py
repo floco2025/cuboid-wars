@@ -95,6 +95,8 @@ class SelectMixin:
         self.set_tile_selection(None)
 
     def cancel_interaction(self) -> None:
+        if self.pending_block is not None:
+            self.notify("Pending selection cancelled")
         self.spawn_zone_drag = None
         self.select_drag_kind = None
         self.pending_block = None
@@ -108,13 +110,16 @@ class SelectMixin:
     def begin_select_press(self, pos, *, edit_objects: bool = False) -> bool:
         self.select_drag_kind = None
         self.selection_point = pos
+        self.press_point = pos
         if self.pending_block is not None:
             self.move_pending_block(pos)
             self.select_drag_kind = DRAG_BLOCK
             return True
         if self.tile_selection is not None and not edit_objects:
             c0, r0, c1, r1 = self.tile_selection
-            if c0 <= pos.x() < c1 and r0 <= pos.y() < r1 and self.begin_transfer(point=pos):
+            if c0 <= pos.x() < c1 and r0 <= pos.y() < r1:
+                # The transfer starts once the pointer leaves the pressed
+                # cell, so a click inspects instead of lifting the block.
                 self.select_drag_kind = DRAG_BLOCK
                 return True
         if edit_objects or self.selected_spawn_zone_handle(pos) is not None:
@@ -136,6 +141,13 @@ class SelectMixin:
     def update_select_drag(self, pos) -> None:
         self.selection_point = pos
         if self.select_drag_kind == DRAG_BLOCK:
+            if self.pending_block is None:
+                pressed = self.press_point
+                if (int(pos.x() // 1), int(pos.y() // 1)) == (int(pressed.x() // 1), int(pressed.y() // 1)):
+                    return
+                if not self.begin_transfer(point=pressed):
+                    self.select_drag_kind = None
+                    return
             self.move_pending_block(pos)
         elif self.select_drag_kind == DRAG_SPAWN_ZONE:
             self.update_spawn_zone_edit_drag(pos)
@@ -145,7 +157,9 @@ class SelectMixin:
         self.select_drag_kind = None
         if kind == DRAG_BLOCK:
             pending = self.pending_block
-            if pending is not None and pending.dragging and pending.destination == pending.source.rect[:2]:
+            if pending is None:
+                self.inspect_hit(self.hit_at(self.selection_point))
+            elif pending.dragging and pending.destination == pending.source.rect[:2]:
                 self.pending_block = None
                 self.inspect_hit(self.hit_at(self.selection_point))
             else:
@@ -186,17 +200,17 @@ class SelectMixin:
             block = copy_region(self.editable_map_data(), region) if copy_tiles else None
             after = delete_region(self.editable_map_data(), region) if delete_tiles else None
             if after is not None:
-                after = self.protect_change(restore_excluded(self.map_data, after, self.element_filters.excluded))
+                after = restore_excluded(self.map_data, after, self.element_filters.excluded)
         except ValueError as exc:
             self.notify(f"Cannot {operation.lower()}: {exc}")
+            return
+        if after is not None and not self.apply_change(f"{operation} Tiles ({region.levels} level(s))", after):
             return
         if block is not None:
             mime = QMimeData()
             mime.setData(CLIPBOARD_MIME, json.dumps({"map": block}).encode("utf-8"))
             QApplication.clipboard().setMimeData(mime)
-        if after is not None:
-            self.apply_change(f"{operation} Tiles ({region.levels} level(s))", after)
-        else:
+        if after is None:
             self.notify(f"Copied tiles from {region.levels} level(s)")
 
     def paste_selection(self) -> None:
@@ -206,7 +220,7 @@ class SelectMixin:
         try:
             block = filtered_map(self.tile_clipboard, self.element_filters.excluded)
             after = paste_region(self.editable_map_data(), block, (col, row), self.current_level)
-            after = self.protect_change(restore_excluded(self.map_data, after, self.element_filters.excluded))
+            after = restore_excluded(self.map_data, after, self.element_filters.excluded)
             before = {issue.identity() for issue in self.validate(self.map_data).issues}
             added_errors = [issue.message for issue in self.validate(after).issues if issue.identity() not in before]
             if added_errors:
@@ -214,7 +228,8 @@ class SelectMixin:
         except ValueError as exc:
             self.notify(f"Cannot paste: {exc}")
             return
-        self.apply_change("Paste Tiles", after)
+        if not self.apply_change("Paste Tiles", after):
+            return
         self.set_tile_selection(
             (col, row, col + self.tile_clipboard["grid_cols"], row + self.tile_clipboard["grid_rows"])
         )

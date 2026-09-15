@@ -45,6 +45,17 @@ class BlockTransformTests(unittest.TestCase):
         data["pressure_plates"] = [{"col": 1, "row": 1, "level": 0, "switch": "door"}]
         return normalize_map(data)
 
+    def test_rotating_a_square_ramp_is_refused_while_mirroring_is_not(self):
+        data = empty_map(5, 5)
+        data["player_spawn_zones"] = []
+        data["levels"].append(empty_level(1))
+        data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 3], "all": DEFAULT_ALIAS}]
+        block = normalize_map(data)
+        with self.assertRaisesRegex(ValueError, "square ramp"):
+            transform_block(block, "rotate", {})
+        result, _ = transform_block(block, "mirror_x", {})
+        self.assertEqual((result["ramps"][0]["low"], result["ramps"][0]["high"]), ([4, 1], [2, 3]))
+
     def test_rotation_moves_attached_light_directions_faces_and_multilevel_shapes(self):
         block = self.block()
         original = copy.deepcopy(block)

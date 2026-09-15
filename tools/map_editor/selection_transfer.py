@@ -47,6 +47,9 @@ class SelectionTransferMixin:
         return True
 
     def duplicate_selection(self):
+        if self.pending_block is not None:
+            self.notify("Place or cancel the pending selection first")
+            return
         if self.begin_transfer(duplicate=True):
             self.notify("Place duplicate · Esc cancels")
             self.canvas.setFocus()

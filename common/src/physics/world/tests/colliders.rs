@@ -96,7 +96,7 @@ fn cached_rock_hulls_preserve_scaled_and_rotated_collision_surfaces() {
                     collider
                         .shape()
                         .cast_ray_and_get_normal(collider.position(), &ray, 16.0, true)
-                        .expect("ray through rock hits its surface")
+                        .expect("ray misses the rock")
                 };
                 let expected = hit(&expected);
                 let actual = hit(actual);

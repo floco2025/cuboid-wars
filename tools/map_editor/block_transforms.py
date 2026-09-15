@@ -79,8 +79,13 @@ def transform_block(block, operation, definitions):
                     b = transform.point(entry["c1"], entry["r1"])
                     entry.update(zip(("c0", "r0", "c1", "r1"), normalized_wall([*a, *b])))
                 elif name == "ramps":
-                    entry["low"] = transform.point(*entry["low"])
-                    entry["high"] = transform.point(*entry["high"])
+                    (x0, y0), (x1, y1) = entry["low"], entry["high"]
+                    # A square ramp's slope always runs along the rows, so no
+                    # low/high pair can express its quarter turn.
+                    if operation == "rotate" and abs(x1 - x0) == abs(y1 - y0):
+                        raise ValueError("Cannot rotate a square ramp: its slope always runs north-south.")
+                    entry["low"] = transform.point(x0, y0)
+                    entry["high"] = transform.point(x1, y1)
                 elif name == "nested_maps":
                     original = entry["map"]
                     if original not in definitions:

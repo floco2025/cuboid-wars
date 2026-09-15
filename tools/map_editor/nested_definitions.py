@@ -44,6 +44,9 @@ class NestedDefinitionsMixin:
         current = self.doc.active_map
         if current is None:
             return
+        if self.element_filters.excluded:
+            self.notify("Show and unlock all element types before renaming nested maps.")
+            return
         name = self.prompt_nested_name("Rename Nested Map", current)
         if name is None or name == current:
             return

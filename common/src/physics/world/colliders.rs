@@ -152,10 +152,15 @@ pub(super) fn insert_grounds_colliders(colliders: &mut ColliderSet, grounds: &Gr
                         .collect();
                     ConvexPolyhedron::from_convex_hull(&points).expect("rock hull points are coplanar")
                 });
+                // Parry scales hull normals as if the scale were uniform.
+                assert!(
+                    decoration.scale.x == decoration.scale.y && decoration.scale.y == decoration.scale.z,
+                    "rock scale is not uniform"
+                );
                 let shape = hull
                     .clone()
                     .scaled(to_rapier(decoration.scale))
-                    .expect("invalid rock scale");
+                    .expect("rock hull scale is degenerate");
                 (
                     ColliderBuilder::new(SharedShape::new(shape))
                         .position(rapier_pose(Vec3::ZERO, decoration.rotation)),

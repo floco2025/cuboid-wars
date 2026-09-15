@@ -45,11 +45,10 @@ class WorkflowMixin:
                 raise ValueError("This edit would affect hidden or locked elements. Show and unlock them first.")
         elif protected == self.map_data and after != self.map_data:
             self.notify("The affected element types are hidden or locked.")
-        maintained = self.doc.maintain(protected)
-        final_lists = dict(record_lists(maintained))
-        if any(
-            entries != final_lists.get(key, []) for key, entries in record_lists(self.map_data) if key[1] in excluded
-        ):
+        # Both sides canonical: the loaded lists keep their authored order.
+        final_lists = dict(record_lists(self.doc.maintain(protected)))
+        current_lists = record_lists(self.doc.maintain(self.map_data))
+        if any(entries != final_lists.get(key, []) for key, entries in current_lists if key[1] in excluded):
             raise ValueError("This edit would affect hidden or locked elements. Show and unlock them first.")
         return protected
 
@@ -130,7 +129,7 @@ class WorkflowMixin:
         elif name == "items":
             self.recent_item_type = entry["type"]
             self.recent_item_key_kind = entry.get("kind")
-        elif name == "pressure_plates":
+        elif name == "pressure_plates" and entry.get("switch"):
             self.recent_pressure_plate_switch = entry["switch"]
         elif name == "lights":
             self.recent_light_kind = entry["kind"]

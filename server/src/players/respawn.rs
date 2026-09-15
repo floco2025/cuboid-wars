@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::{PlayerMap, place_player_body, player_spawn_destination};
 use crate::{
-    actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns, reset_actors},
+    actors::{ActorMap, ActorRespawnTimers, ActorSpawner, PendingActorSpawns, reset_actors},
     config::ServerGameplayConfig,
     map::MapConfig,
     portals::PortalAssignments,
@@ -35,6 +35,7 @@ pub fn players_respawn_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     player_query: Query<&Position, With<PlayerMarker>>,
     mut actors: ResMut<ActorMap>,
+    mut actor_spawner: ResMut<ActorSpawner>,
     mut actor_timers: ResMut<ActorRespawnTimers>,
     mut pending_actors: ResMut<PendingActorSpawns>,
 ) {
@@ -44,6 +45,7 @@ pub fn players_respawn_system(
             &mut commands,
             &mut actors,
             &mut pending_actors,
+            &mut actor_spawner,
             &mut actor_timers,
             &map_config,
             scope,

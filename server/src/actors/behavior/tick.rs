@@ -23,7 +23,8 @@ use common::{
 
 use super::{
     controllers::{
-        decide_beam_actor, decide_contact_actor, decide_contact_beam_actor, decide_stationary_actor, retarget_beam,
+        decide_beam_actor, decide_contact_actor, decide_contact_beam_actor, decide_falling_actor,
+        decide_stationary_actor, retarget_beam,
     },
     perception::{PlayerState, decay_awareness, player_states, update_awareness},
     transitions::BehaviorContext,
@@ -32,6 +33,9 @@ use super::{
 const GROUND_WORK_PER_TICK: usize = 2048;
 
 pub(super) const AI_DECISION_INTERVAL_SECS: f32 = 0.1;
+// A ledge step or a ladder exit reads Airborne for a tick or two; only a
+// longer fall suspends navigation, so those keep their route and failure memory.
+pub(super) const ACTOR_FALL_GRACE_SECS: f32 = 0.25;
 pub(super) const ROUTE_STALL_PROGRESS_DISTANCE: f32 = 0.5;
 pub(super) const ROUTE_STALL_TIMEOUT_SECS: f32 = 1.5;
 // How long the shake-loose hop owns the actor before the controller may
@@ -72,13 +76,15 @@ pub fn actors_behavior_system(
         };
         let character = &character.0;
         let airborne = !character.immovable && *support == CharacterSupport::Airborne;
-        let stationary = character.immovable || airborne;
+        info.airborne_secs = if airborne { info.airborne_secs + delta } else { 0.0 };
+        let falling = info.airborne_secs >= ACTOR_FALL_GRACE_SECS;
+        let stationary = character.immovable || falling;
         let share = GROUND_WORK_PER_TICK / count
             + usize::from((index + tick.0 as usize) % count < GROUND_WORK_PER_TICK % count);
         info.ground.tick(delta, if stationary { 0 } else { share });
         index += usize::from(!stationary);
         // Falling below the home volume must not launch a ground search from the terrain beneath it.
-        if airborne {
+        if falling {
             info.ground.clear();
             info.set_route(None);
         }
@@ -174,8 +180,10 @@ pub fn actors_behavior_system(
             if !info.route.as_ref().is_some_and(ActorRoute::traversing_ladder) {
                 if stalled {
                     shake_loose(info, &context, &mut rng);
-                } else if stationary {
+                } else if character.immovable {
                     decide_stationary_actor(info, &context);
+                } else if falling {
+                    decide_falling_actor(info, &context);
                 } else {
                     match kind_config.attack {
                         ActorAttackConfig::Contact(_) => decide_contact_actor(info, &context, &mut rng),

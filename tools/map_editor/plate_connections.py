@@ -13,12 +13,17 @@ from .transforms import record_levels, record_rect
 @dataclass(frozen=True)
 class Connection:
     map_name: str | None
-    ref: object
+    # None for the map-wide fireworks target, which has no place to draw or visit.
+    ref: object | None
     switch: str
-    plate: bool
+    role: str
     lower: int
     upper: int
-    rect: tuple
+    rect: tuple | None
+
+    @property
+    def plate(self):
+        return self.role == "Plate"
 
 
 def connections_for(root, switches):
@@ -30,11 +35,11 @@ def connections_for(root, switches):
             switch = entry.get("switch")
             if isinstance(switch, str) and switch in switches:
                 lower, upper = record_levels(entry, ref.level)
-                connections.append(
-                    Connection(
-                        name, ref, switch, ref.name == "pressure_plates", lower, upper, record_rect(ref.name, entry)
-                    )
-                )
+                role = "Plate" if ref.name == "pressure_plates" else ELEMENT_MODES[ref.name]
+                connections.append(Connection(name, ref, switch, role, lower, upper, record_rect(ref.name, entry)))
+    fireworks = root.get("fireworks")
+    if isinstance(fireworks, dict) and fireworks.get("switch") in switches:
+        connections.append(Connection(None, None, fireworks["switch"], "Fireworks", -1, -1, None))
     return connections
 
 
@@ -64,16 +69,18 @@ class PlateConnections(QDockWidget):
         self.list.clear()
         self.summary.setText(", ".join(sorted(switches)) if switches else "Select a plate or controlled object.")
         for connection in self.connections:
-            geometry = (
-                self.window.doc.root_data
-                if connection.map_name is None
-                else self.window.doc.nested_geometry[connection.map_name]
-            )
-            level = "Missing level"
-            if 0 <= connection.lower < len(geometry["levels"]):
-                level = geometry["levels"][connection.lower].get("name") or f"Level {connection.lower}"
-            role = "Plate" if connection.plate else ELEMENT_MODES[connection.ref.name]
-            item = QListWidgetItem(f"{role} · {connection.map_name or 'Outer map'} · {level}")
+            if connection.ref is None:
+                item = QListWidgetItem(f"{connection.role} · Outer map")
+            else:
+                geometry = (
+                    self.window.doc.root_data
+                    if connection.map_name is None
+                    else self.window.doc.nested_geometry[connection.map_name]
+                )
+                level = "Missing level"
+                if 0 <= connection.lower < len(geometry["levels"]):
+                    level = geometry["levels"][connection.lower].get("name") or f"Level {connection.lower}"
+                item = QListWidgetItem(f"{connection.role} · {connection.map_name or 'Outer map'} · {level}")
             item.setData(Qt.ItemDataRole.UserRole, connection)
             item.setToolTip(connection.switch)
             self.list.addItem(item)
@@ -82,6 +89,8 @@ class PlateConnections(QDockWidget):
     def navigate(self, item):
         connection = item.data(Qt.ItemDataRole.UserRole)
         self.window.doc.select_map(connection.map_name)
+        if connection.ref is None:
+            return
         self.window.set_level_index(connection.lower)
         self.window.inspected_refs = [connection.ref]
         self.window.refresh_inspection()
@@ -92,7 +101,8 @@ class PlateConnections(QDockWidget):
         visible = [
             connection
             for connection in self.connections
-            if connection.map_name == self.window.doc.active_map
+            if connection.ref is not None
+            and connection.map_name == self.window.doc.active_map
             and connection.lower <= self.window.current_level <= connection.upper
             and connection.ref.name not in self.window.element_filters.hidden
         ]

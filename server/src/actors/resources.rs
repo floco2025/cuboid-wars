@@ -152,6 +152,7 @@ pub struct ActorInfo {
     pub(crate) beam: BeamState,
     pub(crate) awareness: Vec<AwarePlayer>,
     pub(crate) decision_timer: f32,
+    pub(crate) airborne_secs: f32,
     pub(crate) watchdog: ProgressWatchdog,
     pub(crate) evade_replan_remaining_secs: f32,
     // Player who landed the last projectile damage. Read by
@@ -177,6 +178,7 @@ impl ActorInfo {
             beam: BeamState::Ready,
             awareness: Vec::new(),
             decision_timer: 0.0,
+            airborne_secs: 0.0,
             watchdog: ProgressWatchdog::default(),
             evade_replan_remaining_secs: 0.0,
             last_damager: None,
@@ -264,19 +266,27 @@ impl ActorMap {
         self.vacated_spawn_zones.drain()
     }
 
+    pub(crate) fn forget_vacated_spawn_zones(&mut self) {
+        self.vacated_spawn_zones.clear();
+    }
+
     #[must_use]
     pub fn has_vacated_spawn_zones(&self) -> bool {
         !self.vacated_spawn_zones.is_empty()
     }
 }
 
+// Per-zone population accounting, keyed by zone index. A zone's wanted
+// population is its target for the logged-in players less `lost`, and a fill
+// leaves `cooling` slots to the countdown, so a join spawns only its new
+// slots and a rejoin never revives a permanent kill.
 #[derive(Resource, Default)]
 pub struct ActorSpawner {
     pub next_id: u32,
-    pub(crate) player_count: usize,
-    // Initial slots added by joins, or reserved slots whose beam-in was blocked.
-    // These must not bypass the independent cooldown for killed actors.
-    pub(crate) additions: HashMap<usize, u32>,
+    // Kills in a zone without a respawn time; only a reset forgives them.
+    pub(crate) lost: HashMap<usize, u32>,
+    // Kills a zone's running countdown owes; it fills them when it comes due.
+    pub(crate) cooling: HashMap<usize, u32>,
 }
 
 // Automatic respawn and reset work, keyed by zone index.
@@ -286,6 +296,8 @@ pub struct ActorRespawnTimers(pub(crate) HashMap<usize, ActorRespawnState>);
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum ActorRespawnState {
     Cooldown(f32),
+    // A fill found no clear spot; nothing spawns here until the delay passes.
+    Blocked(f32),
     Reset,
     WaitingForSpace,
 }

@@ -28,7 +28,6 @@ pub fn actors_plugin(app: &mut App) {
             actors_fall_damage_system.in_set(ServerSet::CombatDamage),
             actors_removal_system.in_set(ServerSet::CombatRemoval),
             actors_respawn_system
-                .run_if(actor_respawns_active)
                 .in_set(ServerSet::Lifecycle)
                 .after(players_respawn_system),
         ),

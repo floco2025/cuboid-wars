@@ -117,8 +117,10 @@ def filtered_map(data, excluded):
 
 def restore_excluded(before, after, excluded):
     # Structural edits can move protected records between levels; refusing
-    # those is safer than treating a new level index as the same layer.
-    if excluded and len(before["levels"]) != len(after["levels"]):
+    # those is safer than treating a new level index as the same layer. Level
+    # insertion and removal are refused before reaching here, so extra levels
+    # are a paste's trailing storeys, which shift nothing.
+    if excluded and len(before["levels"]) > len(after["levels"]):
         raise ValueError("Show and unlock all element types before changing the level count.")
     result = dict(after)
     result["levels"] = [dict(level) for level in after["levels"]]

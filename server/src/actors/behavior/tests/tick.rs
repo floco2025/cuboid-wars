@@ -1,6 +1,38 @@
 use super::*;
 use crate::actors::navigation::{GroundNavigation, GroundSearchOptions, GroundTask};
 
+// Ticks at 30 Hz after which an airborne actor counts as falling.
+fn grace_ticks() -> usize {
+    (ACTOR_FALL_GRACE_SECS * 30.0).ceil() as usize
+}
+
+#[test]
+fn a_falling_actor_keeps_its_mode_while_firing() {
+    let (mut app, _, _) = actor_app(BEAM, 5000.0);
+    let entity = app
+        .world()
+        .resource::<ActorMap>()
+        .get(&ActorId(1))
+        .expect("actor missing")
+        .entity;
+    app.world_mut().entity_mut(entity).insert(CharacterSupport::Airborne);
+    for _ in 0..grace_ticks() {
+        step_tick(&mut app);
+    }
+    app.world_mut()
+        .resource_mut::<ActorMap>()
+        .get_mut(&ActorId(1))
+        .expect("actor missing")
+        .mode = ActorMode::Evade { fleeing: true };
+    for _ in 0..3 {
+        step_tick(&mut app);
+    }
+    let actors = app.world().resource::<ActorMap>();
+    let info = actors.get(&ActorId(1)).expect("actor missing");
+    assert!(matches!(info.mode, ActorMode::Evade { fleeing: true }));
+    assert!(matches!(info.beam, BeamState::Firing { .. }));
+}
+
 #[test]
 fn falling_actor_discards_routes_and_pending_searches_then_navigates_after_landing() {
     for supported in [CharacterSupport::Ground, CharacterSupport::Ladder] {
@@ -36,11 +68,15 @@ fn falling_actor_discards_routes_and_pending_searches_then_navigates_after_landi
             info.set_route(Some(route_through(&[target], &fixture)));
         }
         app.world_mut().entity_mut(entity).insert(CharacterSupport::Airborne);
-        for tick in 0..30 {
+        for tick in 1..=30 {
             app.world_mut().get_mut::<Position>(entity).expect("position missing").y = -(tick as f32);
             step_tick(&mut app);
             let actors = app.world().resource::<ActorMap>();
             let info = actors.get(&ActorId(1)).expect("actor missing");
+            if tick < grace_ticks() {
+                assert!(info.route.is_some(), "a brief hop dropped the ground route");
+                continue;
+            }
             assert!(info.route.is_none(), "falling actor retained a ground route");
             for task in [GroundTask::Roam, GroundTask::Return] {
                 assert!(!info.ground.pending(task), "falling actor continued a ground search");
@@ -73,7 +109,9 @@ fn falling_ground_actors_keep_beam_combat_active_without_ground_routes() {
             .expect("actor missing")
             .entity;
         app.world_mut().entity_mut(entity).insert(CharacterSupport::Airborne);
-        step_tick(&mut app);
+        for _ in 0..grace_ticks() {
+            step_tick(&mut app);
+        }
         assert!(app.world().get::<Health>(player).expect("health missing").0 < 5000.0);
         {
             let actors = app.world().resource::<ActorMap>();

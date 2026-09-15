@@ -75,14 +75,7 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
         .init_resource::<ServerTick>()
         .init_resource::<PlateState>()
         .add_systems(Startup, actors_initial_spawn_system)
-        .add_systems(
-            Update,
-            (
-                actors_pending_spawn_system,
-                actors_respawn_system.run_if(actor_respawns_active),
-            )
-                .chain(),
-        );
+        .add_systems(Update, (actors_pending_spawn_system, actors_respawn_system).chain());
     app
 }
 
@@ -92,12 +85,14 @@ fn reset(app: &mut App, scope: ActorRespawnScope) {
             move |mut commands: Commands,
                   mut actors: ResMut<ActorMap>,
                   mut pending: ResMut<PendingActorSpawns>,
+                  mut spawner: ResMut<ActorSpawner>,
                   mut timers: ResMut<ActorRespawnTimers>,
                   map_config: Res<MapConfig>| {
                 reset_actors(
                     &mut commands,
                     &mut actors,
                     &mut pending,
+                    &mut spawner,
                     &mut timers,
                     &map_config,
                     scope,
@@ -813,7 +808,6 @@ fn joins_add_only_new_slots_without_refilling_deaths_or_skipping_cooldowns() {
             .resource_mut::<PlayerMap>()
             .begin_respawn(PlayerId(2), 10.0);
         app.update();
-        assert_eq!(app.world().resource::<ActorSpawner>().player_count, 2);
         app.world_mut()
             .resource_mut::<PlayerMap>()
             .get_mut(&PlayerId(3))
@@ -886,7 +880,7 @@ fn rejoining_does_not_add_actors_while_the_zone_already_has_its_quota() {
 }
 
 #[test]
-fn switched_off_additions_survive_until_enabled_and_shrink_when_players_leave() {
+fn switched_off_join_slots_survive_until_enabled_and_shrink_when_players_leave() {
     let mut app = scaled_app(6, &[2, 4, 5], None);
     app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch = Some(GUARDS);
     set_switch(&mut app, true);
@@ -912,23 +906,76 @@ fn switched_off_additions_survive_until_enabled_and_shrink_when_players_leave() 
 }
 
 #[test]
-fn blocked_additions_are_discarded_on_departure_without_enabling_respawns() {
+fn blocked_join_slots_are_discarded_on_departure_without_enabling_respawns() {
     let mut app = scaled_app(1, &[1, 3], None);
     app.update();
     materialize_pending(&mut app);
     add_player(&mut app, 2, true);
     app.update();
     assert_eq!(pending_count(&app), 0);
-    assert_eq!(app.world().resource::<ActorSpawner>().additions[&0], 2);
+    assert_eq!(zone_state(&app), Some(ActorRespawnState::WaitingForSpace));
     leave_player(&mut app, 2);
     app.update();
+    assert_eq!(zone_state(&app), None, "nothing is owed once the slots are gone");
     destroy_one(&mut app);
     app.update();
     assert_eq!(pending_count(&app), 0);
 }
 
 #[test]
-fn blocked_additions_fill_when_space_clears_without_refilling_other_dead_slots() {
+fn a_rejoin_after_a_kill_neither_revives_a_permanent_loss_nor_skips_the_countdown() {
+    for respawn_secs in [None, Some(1000.0)] {
+        let mut app = scaled_app(6, &[1, 3], respawn_secs);
+        add_player(&mut app, 2, true);
+        app.update();
+        materialize_pending(&mut app);
+        destroy_one(&mut app);
+        app.update();
+        assert_eq!(live_count(&app), 2);
+        leave_player(&mut app, 2);
+        app.update();
+        add_player(&mut app, 3, true);
+        app.update();
+        assert_eq!(pending_count(&app), 0, "the killed slot is not a join slot");
+        if respawn_secs.is_some() {
+            expire_countdown(&mut app);
+            app.update();
+            assert_eq!(pending_count(&app), 1, "the countdown still refills the kill");
+        }
+    }
+}
+
+fn set_ramps(app: &mut App, has_ramp: bool) {
+    for cell in &mut app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
+        .cells
+        .rows[0]
+    {
+        cell.has_ramp = has_ramp;
+    }
+}
+
+#[test]
+fn a_blocked_join_waits_out_the_respawn_time_like_a_blocked_refill() {
+    let mut app = spawn_app_for(CONTACT, 3, &[1], Some(90.0));
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].count = vec![1, 3];
+    add_player(&mut app, 1, true);
+    app.update();
+    materialize_pending(&mut app);
+    set_ramps(&mut app, true);
+    add_player(&mut app, 2, true);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    assert!(matches!(zone_state(&app), Some(ActorRespawnState::Blocked(remaining)) if remaining > 80.0));
+    set_ramps(&mut app, false);
+    app.update();
+    assert_eq!(pending_count(&app), 0, "a blocked join retries after the respawn time");
+    expire_countdown(&mut app);
+    app.update();
+    assert_eq!(pending_count(&app), 2);
+}
+
+#[test]
+fn blocked_join_slots_fill_when_space_clears_without_refilling_other_dead_slots() {
     let mut app = scaled_app(2, &[2, 3], None);
     app.update();
     materialize_pending(&mut app);

@@ -132,7 +132,7 @@ impl ActorSpawnZone {
             .count
             .get(players.saturating_sub(1))
             .or_else(|| self.count.last())
-            .expect("actor count lists are validated as nonempty")
+            .expect("actor count list is empty")
     }
 
     pub fn volume(&self, grid: &CarrierGrid) -> ZoneVolume {

@@ -7,8 +7,8 @@ use crossbeam_channel::{Receiver, unbounded};
 use super::{PlayerMap, respawn::*};
 use crate::{
     actors::{
-        ActorMap, ActorRespawnState, ActorRespawnTimers, ActorSpawner, PendingActorSpawns, actor_respawns_active,
-        actors_initial_spawn_system, actors_pending_spawn_system, actors_respawn_system,
+        ActorMap, ActorRespawnState, ActorRespawnTimers, ActorSpawner, PendingActorSpawns, actors_initial_spawn_system,
+        actors_pending_spawn_system, actors_respawn_system,
     },
     combat::{DeathSource, PendingExplosions, kill_actor, kill_player},
     config::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, RespawnConfig, ServerGameplayConfig},
@@ -106,7 +106,6 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
                 .chain()
                 .in_set(ServerSet::Lifecycle),
             actors_respawn_system
-                .run_if(actor_respawns_active)
                 .in_set(ServerSet::Lifecycle)
                 .after(players_respawn_system),
         ),

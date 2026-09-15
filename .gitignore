@@ -14,3 +14,7 @@ __pycache__
 
 # Per-user settings saved by the in-game menu
 config/client/client_local.json
+
+# Map editor recovery files
+*.autosave.json
+*.autosave.json.lock

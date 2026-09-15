@@ -21,6 +21,9 @@ class ControlActionsMixin:
         self.add_menu_action(menu, "Fireworks…", None, self.edit_fireworks)
 
     def edit_control_catalog(self, catalog, title):
+        if self.element_filters.excluded:
+            self.notify("Show and unlock all element types before editing kinds.")
+            return
         root = self.doc.root_data
         source = root if catalog == "switch_kinds" else root.get("_settings", {})
         if catalog != "switch_kinds" and catalog not in source:
