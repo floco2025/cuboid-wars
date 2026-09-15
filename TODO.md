@@ -12,6 +12,8 @@
 
 - **Actors park at the top of the basement ramps:** scuttlers and bruisers heading down a hotel basement ramp stop at the lip, one at a time, sometimes turned into the side wall. It happens with `/peace` on as well, so it is not the pursuit goal, and it predates the terrain query fix. On the hotel map in isolation the route from the landing to the basement, the motor's descent, and `character_ground_route_clear` from every point near the lip all pass; whatever stops them is in the live loop.
 
+- **Choppy actor falls:** a falling actor moves in visible steps on the client, seen through an unpowered light bridge's ghost pane during what may have been a short frame-rate dip. The 30 Hz `SActorMoves` feed, the `SampleBuffer` playback, and the shared motor's fall path look correct on paper; the open suspects are the two-tick playback lead running dry under server-tick or frame-time jitter, which only shows at fall speeds, and the translucent bridge pane's rendering (transparency ordering or temporal anti-aliasing) stepping the motion behind it. Reproduce with an actor falling in open view, then behind a ghost pane, and watch the frame time.
+
 ## Enhancements
 
 - **Obby player speed:** Once Obby is debugged, reduce `movement.player.walk_speed` and `run_speed` in `config/server/maps/obby/settings.json` to 5.0 m/s. The temporary 5.1 m/s setting makes testing easier.
