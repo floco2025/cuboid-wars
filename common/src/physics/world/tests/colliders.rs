@@ -1,4 +1,6 @@
 use super::*;
+use crate::map::{GroundsSettings, ROCK_VARIANTS, RockClass};
+use rapier3d::prelude::Ray;
 
 #[test]
 fn barrier_user_data_round_trips_kind() {
@@ -57,4 +59,55 @@ fn passability_excludes_only_the_named_barrier_instance() {
     assert!(!barrier_blocks(&a, &[BarrierId(70000)]));
     assert!(barrier_blocks(&b, &[BarrierId(70000)]));
     assert!(barrier_blocks(&a, &[]));
+}
+
+#[test]
+fn cached_rock_hulls_preserve_scaled_and_rotated_collision_surfaces() {
+    let grounds = Grounds::new([(-20.0, 20.0, -30.0, 30.0)], 4.4, GroundsSettings { level: 1 });
+    let mut colliders = ColliderSet::new();
+    let handles = insert_grounds_colliders(&mut colliders, &grounds);
+    let decorations = grounds.collidable_decorations();
+    assert_eq!(handles.len(), decorations.len() + 1);
+    let mut checked = HashMap::new();
+    for (decoration, handle) in decorations.iter().zip(&handles[1..]) {
+        let DecorationKind::Rock(class) = decoration.kind else {
+            continue;
+        };
+        let count = checked.entry((class, decoration.variant)).or_insert(0);
+        if *count == 2 {
+            continue;
+        }
+        *count += 1;
+        let points: Vec<_> = rock_shape(class, decoration.variant, ROCK_HULL_SUBDIVISIONS)
+            .vertices
+            .into_iter()
+            .map(|point| to_rapier(decoration.rotation * (point * decoration.scale)))
+            .collect();
+        let expected = ColliderBuilder::convex_hull(&points)
+            .expect("reference rock hull")
+            .translation(to_rapier(decoration.position))
+            .build();
+        let actual = &colliders[*handle];
+        for direction in [Vec3::X, Vec3::Y, Vec3::Z, Vec3::new(1.0, 2.0, 3.0).normalize()] {
+            for sign in [-1.0, 1.0] {
+                let direction = direction * sign;
+                let ray = Ray::new(to_rapier(decoration.position + direction * 8.0), to_rapier(-direction));
+                let hit = |collider: &Collider| {
+                    collider
+                        .shape()
+                        .cast_ray_and_get_normal(collider.position(), &ray, 16.0, true)
+                        .expect("ray through rock hits its surface")
+                };
+                let expected = hit(&expected);
+                let actual = hit(actual);
+                assert!((actual.time_of_impact - expected.time_of_impact).abs() < 0.001);
+                assert!(actual.normal.dot(expected.normal) > 0.999);
+            }
+        }
+    }
+    for class in [RockClass::Stone, RockClass::Boulder] {
+        for variant in 0..ROCK_VARIANTS {
+            assert_eq!(checked.get(&(class, variant)), Some(&2));
+        }
+    }
 }
