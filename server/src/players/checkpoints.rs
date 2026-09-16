@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use bevy::prelude::*;
 use rand::RngExt;
 
-use super::PlayerMap;
+use super::{PlayerMap, checkpoint_index};
 use crate::characters::{sample_clear_position, spawn_face_yaw};
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
@@ -214,11 +214,15 @@ pub(super) fn apply_checkpoint_entries(
     }
     for (id, previous) in previous {
         let player = players.get(&id).expect("checkpoint recipient missing");
-        if player.session.checkpoint.map(|checkpoint| checkpoint.id) != previous {
+        if let Some(saved) = player.session.checkpoint
+            && Some(saved.id) != previous
+        {
             let _ = player
                 .connection
                 .channel
-                .send(ServerMessage::CheckpointReached(SCheckpointReached));
+                .send(ServerMessage::CheckpointReached(SCheckpointReached {
+                    checkpoint: checkpoint_index(saved.id),
+                }));
         }
     }
 }

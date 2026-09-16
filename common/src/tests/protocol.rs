@@ -20,7 +20,7 @@ fn barrier_kind_cap() -> u16 {
 #[test]
 fn the_checkpoint_cue_rides_the_reliable_lane() {
     assert_eq!(
-        ServerMessage::CheckpointReached(SCheckpointReached).lane(),
+        ServerMessage::CheckpointReached(SCheckpointReached { checkpoint: 0 }).lane(),
         Lane::Reliable
     );
 }
@@ -168,6 +168,7 @@ fn hotel_sized_snapshot_takes_the_retransmitted_channel() {
                 held_keys: Vec::new(),
                 missiles: 0,
                 portal_access: PortalAccess::None,
+                checkpoint: None,
             },
         )
     };
@@ -209,6 +210,7 @@ fn hotel_sized_snapshot_takes_the_retransmitted_channel() {
         missiles: Vec::new(),
         plates: PlateState::default(),
         quests: Vec::new(),
+        shared_checkpoint: None,
         locked_switches: Vec::new(),
         cloud_cover: 0.0,
         raining: false,

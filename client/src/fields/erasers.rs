@@ -23,7 +23,7 @@ impl FromWorld for EraserAssets {
         let config = world.resource::<ClientSettings>().vfx.erasers;
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
         Self {
-            visual: PaneVisual::with_rails(
+            visual: PaneVisual::new(
                 &mut materials,
                 ERASER_COLOR,
                 config.opacity,

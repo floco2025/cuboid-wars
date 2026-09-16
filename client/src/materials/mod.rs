@@ -1,5 +1,6 @@
 mod cache;
 mod field;
+mod flag;
 #[cfg(test)]
 #[path = "tests/gltf.rs"]
 mod gltf_tests;
@@ -13,6 +14,7 @@ mod tree;
 
 pub use cache::MaterialHandleCache;
 pub use field::{FieldExtension, FieldMaterial, FieldMaterialPlugin, field_material};
+pub use flag::{FlagMaterial, FlagMaterialPlugin, FlagWindExtension};
 pub use grass::{GrassMaterial, GrassMaterialPlugin, GrassWindExtension};
 pub use mipmaps::generate_material_mipmaps_system;
 pub use portal_clip::{PortalClipExtension, PortalClipMaterial, PortalClipMaterialPlugin, portal_clip_material};

@@ -28,6 +28,9 @@ pub struct PlayerInfo {
     pub last_movement_tick: u32,
     // The spawn snapshot already places this body past any crossings through this tick.
     pub spawn_tick: u32,
+    // The saved respawn point, an index into `MapLayout.checkpoints`; the
+    // reached cue sets it early and the snapshot keeps it current.
+    pub checkpoint: Option<u16>,
 }
 
 impl PlayerInfo {
@@ -44,6 +47,7 @@ impl PlayerInfo {
             missiles: 0,
             last_movement_tick: tick,
             spawn_tick: tick,
+            checkpoint: None,
         };
         info.apply_snapshot(player);
         info
@@ -56,6 +60,7 @@ impl PlayerInfo {
         self.stunned = player.stunned;
         self.held_keys.clone_from(&player.held_keys);
         self.missiles = player.missiles;
+        self.checkpoint = player.checkpoint;
     }
 
     pub fn apply_status(&mut self, status: &SPlayerStatus) {

@@ -39,6 +39,7 @@ pub use plugin::players_plugin;
 pub use power_ups::PowerUpState;
 
 pub(crate) use resources::LoginStart;
+pub(crate) use resources::checkpoint_index;
 pub use resources::{Invincibility, PlayerInfo, PlayerMap, PlayerQuestState, PlayerStateQuery};
 pub use respawn::players_respawn_system;
 pub use status::players_status_timers_system;

@@ -1,7 +1,7 @@
 use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::*;
-use common::protocol::{Barrier, BarrierId, BarrierKindId, CarrierId, Checkpoint, Eraser, Floor, MapLayout, SwitchId};
+use common::protocol::{Barrier, BarrierId, BarrierKindId, CarrierId, Eraser, Floor, MapLayout, SwitchId};
 
 use super::surface::{clip_surface_rects, floor_bounds, surface_frame_rects};
 
@@ -24,32 +24,6 @@ pub(crate) struct VisualField {
 }
 
 impl VisualField {
-    pub fn checkpoint_perimeter(checkpoint: &Checkpoint, height: f32, thickness: f32) -> [Self; 4] {
-        let c = checkpoint;
-        [
-            (c.min_x, c.min_z, c.max_x, c.min_z),
-            (c.min_x, c.max_z, c.max_x, c.max_z),
-            (c.min_x, c.min_z, c.min_x, c.max_z),
-            (c.max_x, c.min_z, c.max_x, c.max_z),
-        ]
-        .map(|(x1, z1, x2, z2)| {
-            let (axis, plane, rect) = segment_rect(Vec3::new(x1, c.y, z1), Vec3::new(x2, c.y + height, z2));
-            Self {
-                barrier: None,
-                kind: None,
-                switch: None,
-                switch_inverted: false,
-                carrier: c.carrier,
-                level: c.level,
-                levels: 1,
-                rect,
-                thickness,
-                axis,
-                plane,
-            }
-        })
-    }
-
     pub fn from_barrier(barrier: &Barrier) -> Self {
         let (axis, plane, rect) = segment_rect(
             Vec3::new(barrier.x1, barrier.y, barrier.z1),

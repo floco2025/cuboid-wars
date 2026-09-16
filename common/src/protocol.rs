@@ -414,6 +414,8 @@ pub struct SSnapshot {
     // Unlocked `shared` / `everyone` quests. Completed quests stay listed
     // for the session so late joiners and clients that missed updates catch up.
     pub quests: Vec<QuestGroupStatus>,
+    // The group's claimed checkpoint, an index into `MapLayout.checkpoints`.
+    pub shared_checkpoint: Option<u16>,
     // Switches still locked behind a quest: the plates of a switch that
     // solves a quest are inert and hidden until that quest unlocks. Sorted,
     // usually empty.
@@ -608,10 +610,13 @@ impl SPlayerStatus {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SEquipmentErased;
 
-// Sent only to the player whose checkpoint changed, for the sound and banner.
-// Reliable: nothing else carries the save, so a lost cue would stay lost.
+// Sent only to the player whose checkpoint changed, for the sound, the banner,
+// and the flag; `Player.checkpoint` in the snapshot is the system of record.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SCheckpointReached;
+pub struct SCheckpointReached {
+    // An index into `MapLayout.checkpoints`.
+    pub checkpoint: u16,
+}
 
 // Player collected gold. Sent only to the collecting player; drives the
 // pickup sound AND carries the post-pickup score for snappier HUD reaction.

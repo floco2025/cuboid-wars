@@ -1,32 +1,5 @@
 use super::*;
-use common::protocol::{BarrierId, CheckpointKind, SwitchId, Wall};
-
-#[test]
-fn checkpoint_perimeter_has_four_vertical_sides_and_an_open_top() {
-    let checkpoint = Checkpoint {
-        kind: CheckpointKind::Individual,
-        name: None,
-        carrier: CarrierId::WORLD,
-        level: 2,
-        min_x: 1.0,
-        max_x: 7.0,
-        min_z: 3.0,
-        max_z: 11.0,
-        y: 8.0,
-    };
-    let fields = VisualField::checkpoint_perimeter(&checkpoint, 0.9, 0.05);
-    for field in fields {
-        assert_eq!(field.carrier, checkpoint.carrier);
-        assert_eq!(field.level, 2);
-        assert_eq!(field.rect.min.y, 8.0);
-        assert!((field.rect.max.y - 8.9).abs() < 1e-5);
-        assert!(field.axis == 0 || field.axis == 2);
-    }
-    assert_eq!([fields[0].plane, fields[1].plane], [3.0, 11.0]);
-    assert_eq!([fields[2].plane, fields[3].plane], [1.0, 7.0]);
-    assert_eq!(fields[0].rect.width(), 6.0);
-    assert_eq!(fields[2].rect.width(), 8.0);
-}
+use common::protocol::{BarrierId, SwitchId, Wall};
 
 fn barrier() -> Barrier {
     Barrier {

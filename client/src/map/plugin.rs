@@ -8,8 +8,8 @@ use crate::{
     },
     bridges::bridges_spawn_system,
     fields::{
-        CheckpointAssets, EraserAssets, FieldMeshes, FieldSurfaces, checkpoints_spawn_system, erasers_spawn_system,
-        fields_fade_system,
+        CheckpointAssets, EraserAssets, FieldMeshes, FieldSurfaces, SharedCheckpoint, checkpoint_pennants_system,
+        checkpoints_spawn_system, erasers_spawn_system, fields_fade_system,
     },
     schedule::ClientSet,
     vfx::{rain_audio_system, rain_particles_system, rain_smoothing_system},
@@ -25,6 +25,7 @@ pub fn map_plugin(app: &mut App) {
         .init_resource::<GrassSources>()
         .init_resource::<FieldMeshes>()
         .init_resource::<FieldSurfaces>()
+        .init_resource::<SharedCheckpoint>()
         .init_resource::<EraserAssets>()
         .init_resource::<CheckpointAssets>()
         .init_resource::<PressurePlateModel>();
@@ -37,6 +38,7 @@ pub fn map_plugin(app: &mut App) {
             grounds::grounds_spawn_system.after(grass_sources_reset_system),
             erasers_spawn_system,
             checkpoints_spawn_system,
+            checkpoint_pennants_system.after(checkpoints_spawn_system),
             terrain_spawn_system.after(grass_sources_reset_system),
             (
                 grass_streaming_system

@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::protocol::{SFeed, SFirework, SPressurePlate};
+use common::protocol::{SCheckpointReached, SFeed, SFirework, SPressurePlate};
 
 use super::context::ServerMessageContext;
 use crate::{audio::play_sound, ui::BannerMessage};
@@ -31,7 +31,15 @@ pub(super) fn handle_feed_message(message: SFeed, context: &mut ServerMessageCon
     context.feed.push(message);
 }
 
-pub(super) fn handle_checkpoint_reached_message(commands: &mut Commands, context: &mut ServerMessageContext) {
+pub(super) fn handle_checkpoint_reached_message(
+    message: SCheckpointReached,
+    commands: &mut Commands,
+    context: &mut ServerMessageContext,
+) {
+    let my_player_id = context.my_player_id.0;
+    if let Some(info) = context.players.get_mut(&my_player_id) {
+        info.checkpoint = Some(message.checkpoint);
+    }
     play_sound(
         commands,
         &context.assets.asset_server,

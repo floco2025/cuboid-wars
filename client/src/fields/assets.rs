@@ -29,26 +29,14 @@ impl FromWorld for FieldMeshes {
     }
 }
 
-// A translucent pane in one colour with a plain unlit frame (checkpoints) or
-// glowing rails (erasers).
+// The eraser look: a translucent pane in one colour with glowing rails.
 pub(crate) struct PaneVisual {
     pub surface: Handle<StandardMaterial>,
     pub frame: Handle<StandardMaterial>,
 }
 
 impl PaneVisual {
-    pub fn plain(materials: &mut Assets<StandardMaterial>, color: Color, alpha: f32, emissive: f32) -> Self {
-        Self {
-            surface: materials.add(translucent_kind_material(color, alpha, emissive)),
-            frame: materials.add(StandardMaterial {
-                base_color: color,
-                unlit: true,
-                ..default()
-            }),
-        }
-    }
-
-    pub fn with_rails(
+    pub fn new(
         materials: &mut Assets<StandardMaterial>,
         color: Color,
         alpha: f32,

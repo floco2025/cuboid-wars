@@ -13,6 +13,7 @@ fn snapshot_player() -> Player {
         held_keys: vec![BarrierKindId(1), BarrierKindId(3)],
         missiles: 2,
         portal_access: PortalAccess::None,
+        checkpoint: Some(3),
     }
 }
 

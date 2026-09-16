@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::protocol::*;
 
-use crate::barriers::LockedSwitches;
+use crate::{barriers::LockedSwitches, fields::SharedCheckpoint};
 
 use super::{
     actors::{sync_actors, sync_spawning_actors},
@@ -48,6 +48,9 @@ pub(super) fn handle_snapshot_message(
     context
         .locked_switches
         .set_if_neq(LockedSwitches(message.locked_switches));
+    context
+        .shared_checkpoint
+        .set_if_neq(SharedCheckpoint(message.shared_checkpoint));
 
     context.weather_intensity.target = message.cloud_cover;
     context.weather_intensity.raining = message.raining;

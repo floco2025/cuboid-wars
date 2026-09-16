@@ -11,6 +11,11 @@ use common::protocol::{
 
 use super::{CheckpointId, PendingOutcomes, PlayerCheckpoint, PowerUpState};
 
+// The wire form of a checkpoint id.
+pub(crate) fn checkpoint_index(id: CheckpointId) -> u16 {
+    u16::try_from(id.0).expect("checkpoint index exceeds u16")
+}
+
 pub type PlayerStateQuery<'w, 's> =
     Query<'w, 's, (&'static Position, &'static FaceYaw, &'static Health), With<PlayerMarker>>;
 
@@ -324,6 +329,7 @@ impl PlayerInfo {
             held_keys: self.life.held_keys.clone(),
             missiles: self.life.missiles,
             portal_access,
+            checkpoint: self.session.checkpoint.map(|saved| checkpoint_index(saved.id)),
         }
     }
 

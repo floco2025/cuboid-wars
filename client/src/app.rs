@@ -20,8 +20,8 @@ use crate::{
     items::{ItemMap, setup_item_assets},
     map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
     materials::{
-        FieldMaterialPlugin, GrassMaterialPlugin, PortalClipMaterialPlugin, ProceduralSkyMaterialPlugin,
-        TerrainMaterialPlugin, TreeMaterialPlugin, generate_material_mipmaps_system,
+        FieldMaterialPlugin, FlagMaterialPlugin, GrassMaterialPlugin, PortalClipMaterialPlugin,
+        ProceduralSkyMaterialPlugin, TerrainMaterialPlugin, TreeMaterialPlugin, generate_material_mipmaps_system,
     },
     missiles::{LockOnTarget, MissileAssets, MissileMap},
     network::{
@@ -149,6 +149,7 @@ pub fn build_client_app(
     app.add_plugins((
         FieldMaterialPlugin,
         GrassMaterialPlugin,
+        FlagMaterialPlugin,
         PortalClipMaterialPlugin,
         ProceduralSkyMaterialPlugin,
         TerrainMaterialPlugin,

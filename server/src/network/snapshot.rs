@@ -4,7 +4,7 @@ use crate::{
     actors::{ActorMap, ActorMotionQuery, ActorStateQuery, PendingActorSpawns},
     items::ItemMap,
     map::WeatherState,
-    players::{PlayerMap, PlayerStateQuery},
+    players::{PlayerMap, PlayerStateQuery, checkpoint_index},
     quests::{QuestBoard, QuestCatalog},
 };
 use common::{
@@ -115,6 +115,7 @@ pub(super) fn network_broadcast_snapshot_system(
         missiles: all_missiles,
         plates: (*plates).clone(),
         quests,
+        shared_checkpoint: players.shared_checkpoint.map(|saved| checkpoint_index(saved.id)),
         locked_switches,
         cloud_cover: conditions.weather.cloud_cover(),
         raining: conditions.weather.is_raining(),
