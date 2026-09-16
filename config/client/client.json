@@ -15,8 +15,8 @@
   "interpolation": { "buffer_intervals": 2.0 },
   "vfx": {
     "checkpoints": {
-      "flag_emissive_brightness": 0.0,
-      "paint_emissive_brightness": 0.0
+      "flag_emissive_brightness": 0.1,
+      "paint_emissive_brightness": 0.1
     },
     "pickups": { "emissive_brightness": 1.0 },
     "fields": {
