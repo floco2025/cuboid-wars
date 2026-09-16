@@ -7,7 +7,7 @@ use crate::{
     constants::ERASER_COLOR,
 };
 
-use super::{FieldMeshes, KindVisual, VisualField, merge_fields, spawn_field_visual};
+use super::{FieldMeshes, PaneVisual, VisualField, merge_fields, spawn_field_visual};
 
 #[derive(Component)]
 pub struct EraserMarker;
@@ -15,7 +15,7 @@ pub struct EraserMarker;
 // Every eraser shares one look; the map has no eraser kinds.
 #[derive(Resource)]
 pub(crate) struct EraserAssets {
-    visual: KindVisual,
+    visual: PaneVisual,
 }
 
 impl FromWorld for EraserAssets {
@@ -23,7 +23,13 @@ impl FromWorld for EraserAssets {
         let config = world.resource::<ClientSettings>().vfx.erasers;
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
         Self {
-            visual: KindVisual::new(&mut materials, ERASER_COLOR, config.opacity, config.emissive_brightness),
+            visual: PaneVisual::with_rails(
+                &mut materials,
+                ERASER_COLOR,
+                config.opacity,
+                config.emissive_brightness,
+                config.rail_emissive_brightness,
+            ),
         }
     }
 }

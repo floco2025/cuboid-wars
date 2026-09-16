@@ -1,26 +1,25 @@
 use super::*;
-use common::protocol::{BridgeKindId, CarrierId, HexColor, LightBridge, SwitchId};
+use common::protocol::{CarrierId, HexColor, LightBridge, SwitchId};
 
 #[test]
-fn bridges_use_translucent_panes_and_solid_frames() {
+fn bridge_kinds_colour_their_rails_and_impacts() {
     let mut materials = Assets::default();
-    let kinds = [KindDef {
-        id: "blue".into(),
-        color: HexColor([0, 0, 255]),
-    }];
-    let config = LightBridgeVfxConfig {
-        emissive_brightness: 4.0,
-        opacity: 0.8,
-        unpowered_opacity: 0.3,
-        fade_secs: 0.25,
-    };
-    // Two adjoining cells on one switch and a third on another.
+    let kinds = [
+        KindDef {
+            id: "blue".into(),
+            color: HexColor([0, 0, 255]),
+        },
+        KindDef {
+            id: "green".into(),
+            color: HexColor([0, 255, 0]),
+        },
+    ];
     let layout = MapLayout {
-        light_bridges: (0..3)
+        light_bridges: (0..2)
             .map(|index| LightBridge {
                 id: BridgeId(index),
-                kind: BridgeKindId(0),
-                switch: (index == 2).then_some(SwitchId(0)),
+                kind: BridgeKindId(index as u16),
+                switch: Some(SwitchId(0)),
                 switch_inverted: false,
                 x1: 2.0 * index as f32,
                 z1: 0.0,
@@ -34,22 +33,13 @@ fn bridges_use_translucent_panes_and_solid_frames() {
             .collect(),
         ..Default::default()
     };
-    let assets = build_bridge_assets(&mut materials, &kinds, &layout, config);
-    assert_eq!(assets.visuals.len(), 2);
-    assert_eq!(assets.visual(BridgeId(0)).surface, assets.visual(BridgeId(1)).surface);
-    assert_ne!(assets.visual(BridgeId(0)).surface, assets.visual(BridgeId(2)).surface);
-    let material = materials
-        .get(&assets.visual(BridgeId(0)).surface)
-        .expect("bridge material missing");
-    assert!(material.double_sided);
-    assert_eq!(material.cull_mode, None);
-    assert_eq!(material.alpha_mode, AlphaMode::Blend);
-    assert_eq!(material.base_color.alpha(), config.unpowered_opacity);
-    assert_eq!(material.emissive, LinearRgba::rgb(0.0, 0.0, config.emissive_brightness));
+    let assets = build_bridge_assets(&mut materials, &kinds, &layout, 4.0);
+    assert_eq!(assets.field_color(BridgeId(0)), Color::srgb(0.0, 0.0, 1.0));
+    assert_eq!(assets.field_color(BridgeId(1)), Color::srgb(0.0, 1.0, 0.0));
     let frame = materials
-        .get(&assets.visual(BridgeId(0)).frame)
+        .get(&assets.kind(BridgeKindId(0)).frame)
         .expect("bridge frame material missing");
     assert_eq!(frame.alpha_mode, AlphaMode::Opaque);
-    assert!(frame.unlit);
-    assert_eq!(frame.base_color, assets.field_color(BridgeId(0)));
+    assert!(!frame.unlit);
+    assert_eq!(frame.emissive, LinearRgba::rgb(0.0, 0.0, 4.0));
 }

@@ -1,8 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    config::BarrierVfxConfig,
-    constants::*,
+    constants::{ITEM_KEY_DEPTH, ITEM_KEY_SIZE},
     fields::KindVisual,
     items::{item_symbol_mesh, pickup_material},
     vfx::srgb_color,
@@ -12,7 +11,7 @@ use common::protocol::{BarrierId, BarrierKindId, ItemType, KindDef, MapLayout};
 // Indexed by `BarrierKindId`, in the map's kind order.
 #[derive(Resource)]
 pub struct BarrierAssets {
-    pub(super) kinds: Vec<KindVisual>,
+    kinds: Vec<KindVisual>,
     key_mesh: Handle<Mesh>,
     barrier_kinds: Vec<BarrierKindId>,
 }
@@ -26,14 +25,14 @@ impl BarrierAssets {
         self.base_color(self.barrier_kinds[id.0 as usize])
     }
 
-    pub fn material_for(&self, kind: BarrierKindId) -> &Handle<StandardMaterial> {
-        &self.kinds[kind.0 as usize].surface
+    pub(super) fn kind(&self, kind: BarrierKindId) -> &KindVisual {
+        &self.kinds[usize::from(kind.0)]
     }
 
     // sRGB base color for the kind, useful for HUD icons that aren't 3D
     // materials.
     pub fn base_color(&self, kind: BarrierKindId) -> Color {
-        self.kinds[kind.0 as usize].base_color
+        self.kind(kind).base_color
     }
 
     pub fn key_mesh(&self) -> &Handle<Mesh> {
@@ -41,7 +40,7 @@ impl BarrierAssets {
     }
 
     pub fn key_material_for(&self, kind: BarrierKindId) -> &Handle<StandardMaterial> {
-        self.kinds[usize::from(kind.0)]
+        self.kind(kind)
             .key_material
             .as_ref()
             .expect("key material missing from barrier kind")
@@ -53,7 +52,7 @@ pub fn build_barrier_assets(
     materials: &mut Assets<StandardMaterial>,
     kinds: &[KindDef],
     layout: &MapLayout,
-    config: BarrierVfxConfig,
+    rail_emissive: f32,
     pickup_glow: f32,
 ) -> BarrierAssets {
     let key_mesh = meshes.add(item_symbol_mesh(
@@ -67,7 +66,7 @@ pub fn build_barrier_assets(
             let color = srgb_color(kind.color);
             KindVisual {
                 key_material: Some(materials.add(pickup_material(color, pickup_glow))),
-                ..KindVisual::new(materials, color, config.opacity, config.emissive_brightness)
+                ..KindVisual::new(materials, color, rail_emissive)
             }
         })
         .collect();

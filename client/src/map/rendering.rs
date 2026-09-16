@@ -2,6 +2,7 @@ use bevy::{asset::AssetPath, prelude::*};
 
 use crate::fields::{CheckpointMarker, EraserMarker};
 use crate::{
+    barriers::BarrierMarker,
     bridges::LightBridgeMarker,
     carriers::{CarrierEntities, CarrierStoreys},
     config::{AssetSet, ClientSettings},
@@ -182,6 +183,7 @@ type MapLevelFilter = Or<(
     With<ItemMarker>,
     With<TerrainMarker>,
     With<GrassChunkMarker>,
+    With<BarrierMarker>,
     With<LightBridgeMarker>,
     With<EraserMarker>,
     With<CheckpointMarker>,

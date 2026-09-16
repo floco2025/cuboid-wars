@@ -4,7 +4,7 @@ use common::{
     protocol::{MapLayout, MapSettings},
 };
 
-use super::{FieldMeshes, KindVisual, VisualField, spawn_field_visual};
+use super::{FieldMeshes, PaneVisual, VisualField, spawn_field_visual};
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
     config::ClientSettings,
@@ -16,7 +16,7 @@ pub struct CheckpointMarker;
 
 #[derive(Resource)]
 pub(crate) struct CheckpointAssets {
-    visual: KindVisual,
+    visual: PaneVisual,
 }
 
 impl FromWorld for CheckpointAssets {
@@ -24,7 +24,7 @@ impl FromWorld for CheckpointAssets {
         let config = world.resource::<ClientSettings>().vfx.erasers;
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
         Self {
-            visual: KindVisual::new(
+            visual: PaneVisual::plain(
                 &mut materials,
                 CHECKPOINT_COLOR,
                 config.opacity,

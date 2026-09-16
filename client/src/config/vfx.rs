@@ -6,17 +6,15 @@ use super::settings::{validate_non_negative_finite, validate_positive_finite, va
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct VfxConfig {
     pub pickups: PickupVfxConfig,
-    pub barriers: BarrierVfxConfig,
+    pub fields: FieldVfxConfig,
     pub erasers: EraserVfxConfig,
-    pub light_bridges: LightBridgeVfxConfig,
 }
 
 impl VfxConfig {
     pub(super) fn validate(&self) -> Result<()> {
         self.pickups.validate()?;
-        self.barriers.validate()?;
-        self.erasers.validate()?;
-        self.light_bridges.validate()
+        self.fields.validate()?;
+        self.erasers.validate()
     }
 }
 
@@ -31,63 +29,43 @@ impl PickupVfxConfig {
     }
 }
 
+// The one look of barriers and light bridges: a closed barrier or powered
+// bridge shows at `opacity`, a passable one at `passable_opacity`.
 #[derive(Debug, Clone, Copy, Deserialize)]
-pub struct BarrierVfxConfig {
+pub struct FieldVfxConfig {
     pub emissive_brightness: f32,
+    pub rail_emissive_brightness: f32,
     pub opacity: f32,
-    pub pulse: BarrierPulseVfxConfig,
+    pub passable_opacity: f32,
+    pub fade_secs: f32,
 }
 
-impl BarrierVfxConfig {
+impl FieldVfxConfig {
     fn validate(&self) -> Result<()> {
-        validate_non_negative_finite(self.emissive_brightness, "vfx.barriers.emissive_brightness")?;
-        validate_unit_ratio(self.opacity, "vfx.barriers.opacity")?;
-        validate_unit_ratio(self.pulse.min_opacity, "vfx.barriers.pulse.min_opacity")?;
-        validate_non_negative_finite(self.pulse.frequency_hz, "vfx.barriers.pulse.frequency_hz")?;
-        if self.pulse.min_opacity > self.opacity {
-            bail!("vfx.barriers.pulse.min_opacity must not exceed vfx.barriers.opacity");
+        validate_non_negative_finite(self.emissive_brightness, "vfx.fields.emissive_brightness")?;
+        validate_non_negative_finite(self.rail_emissive_brightness, "vfx.fields.rail_emissive_brightness")?;
+        validate_unit_ratio(self.opacity, "vfx.fields.opacity")?;
+        validate_unit_ratio(self.passable_opacity, "vfx.fields.passable_opacity")?;
+        validate_positive_finite(self.fade_secs, "vfx.fields.fade_secs")?;
+        if self.passable_opacity > self.opacity {
+            bail!("vfx.fields.passable_opacity must not exceed vfx.fields.opacity");
         }
         Ok(())
     }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
-pub struct BarrierPulseVfxConfig {
-    pub min_opacity: f32,
-    pub frequency_hz: f32,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct EraserVfxConfig {
     pub emissive_brightness: f32,
+    pub rail_emissive_brightness: f32,
     pub opacity: f32,
 }
 
 impl EraserVfxConfig {
     fn validate(&self) -> Result<()> {
         validate_non_negative_finite(self.emissive_brightness, "vfx.erasers.emissive_brightness")?;
+        validate_non_negative_finite(self.rail_emissive_brightness, "vfx.erasers.rail_emissive_brightness")?;
         validate_unit_ratio(self.opacity, "vfx.erasers.opacity")
-    }
-}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct LightBridgeVfxConfig {
-    pub emissive_brightness: f32,
-    pub opacity: f32,
-    pub unpowered_opacity: f32,
-    pub fade_secs: f32,
-}
-
-impl LightBridgeVfxConfig {
-    fn validate(&self) -> Result<()> {
-        validate_non_negative_finite(self.emissive_brightness, "vfx.light_bridges.emissive_brightness")?;
-        validate_unit_ratio(self.opacity, "vfx.light_bridges.opacity")?;
-        validate_unit_ratio(self.unpowered_opacity, "vfx.light_bridges.unpowered_opacity")?;
-        validate_positive_finite(self.fade_secs, "vfx.light_bridges.fade_secs")?;
-        if self.unpowered_opacity > self.opacity {
-            bail!("vfx.light_bridges.unpowered_opacity must not exceed vfx.light_bridges.opacity");
-        }
-        Ok(())
     }
 }
 

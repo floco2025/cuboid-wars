@@ -688,6 +688,31 @@ pub const LASER_AIM_HEIGHT_FRACTION: f32 = 0.8;
 pub const ERASER_COLOR: Color = Color::srgb(0.7, 0.4, 1.0);
 
 // ============================================================================
+// Fields (barriers and light bridges)
+// ============================================================================
+// Opacities, emissions, and the fade are `client.json::vfx.fields`; the pane
+// pattern and the rail body are tuned here.
+
+// Hex cell width across the flats and line width (m) of the pane pattern.
+pub const FIELD_HEX_CELL_SIZE: f32 = 0.5;
+pub const FIELD_HEX_LINE_WIDTH: f32 = 0.025;
+// Emission added on the hex lines, as a multiple of the kind's emission.
+pub const FIELD_HEX_LINE_GLOW: f32 = 1.5;
+// How quickly a pane brightens toward grazing angles.
+pub const FIELD_FRESNEL_POWER: f32 = 3.0;
+// Opacity of a pane seen head-on, as a fraction of its configured opacity.
+pub const FIELD_FACE_OPACITY_RATIO: f32 = 0.55;
+// Emission added at grazing angles and along the frame, as a multiple of the kind's emission.
+pub const FIELD_EDGE_GLOW: f32 = 1.0;
+// Width (m) of the band that brightens toward the frame.
+pub const FIELD_EDGE_FADE_WIDTH: f32 = 0.25;
+// The rails: the kind colour darkened to this tint; their glow is
+// `client.json::vfx.fields.rail_emissive_brightness`.
+pub const FIELD_FRAME_BODY_TINT: f32 = 0.3;
+pub const FIELD_FRAME_METALLIC: f32 = 0.6;
+pub const FIELD_FRAME_ROUGHNESS: f32 = 0.4;
+
+// ============================================================================
 // Map Rendering
 // ============================================================================
 

@@ -1,25 +1,22 @@
 use bevy::prelude::*;
 
-use super::surface::bridge_visuals;
-use crate::{config::LightBridgeVfxConfig, fields::KindVisual, vfx::srgb_color};
-use common::protocol::{BridgeId, KindDef, MapLayout};
+use crate::{fields::KindVisual, vfx::srgb_color};
+use common::protocol::{BridgeId, BridgeKindId, KindDef, MapLayout};
 
-// One material set per drawn surface (`bridge_visuals`), so same-color
-// surfaces on different switches respond independently.
+// Indexed by `BridgeKindId`, in the map's kind order.
 #[derive(Resource)]
 pub struct BridgeAssets {
-    pub(super) visuals: Vec<(BridgeId, KindVisual)>,
-    // Each bridge's index into `visuals`.
-    visual_of: Vec<usize>,
+    kinds: Vec<KindVisual>,
+    bridge_kinds: Vec<BridgeKindId>,
 }
 
 impl BridgeAssets {
     pub fn field_color(&self, id: BridgeId) -> Color {
-        self.visual(id).base_color
+        self.kind(self.bridge_kinds[id.0 as usize]).base_color
     }
 
-    pub(super) fn visual(&self, id: BridgeId) -> &KindVisual {
-        &self.visuals[self.visual_of[id.0 as usize]].1
+    pub(super) fn kind(&self, kind: BridgeKindId) -> &KindVisual {
+        &self.kinds[usize::from(kind.0)]
     }
 }
 
@@ -27,28 +24,15 @@ pub fn build_bridge_assets(
     materials: &mut Assets<StandardMaterial>,
     kinds: &[KindDef],
     layout: &MapLayout,
-    config: LightBridgeVfxConfig,
+    rail_emissive: f32,
 ) -> BridgeAssets {
-    let mut visual_of = vec![0; layout.light_bridges.len()];
-    let visuals = bridge_visuals(layout)
-        .iter()
-        .enumerate()
-        .map(|(index, visual)| {
-            for member in &visual.members {
-                visual_of[member.0 as usize] = index;
-            }
-            (
-                visual.bridge.id,
-                KindVisual::new(
-                    materials,
-                    srgb_color(kinds[usize::from(visual.bridge.kind.0)].color),
-                    config.unpowered_opacity,
-                    config.emissive_brightness,
-                ),
-            )
-        })
-        .collect();
-    BridgeAssets { visuals, visual_of }
+    BridgeAssets {
+        kinds: kinds
+            .iter()
+            .map(|kind| KindVisual::new(materials, srgb_color(kind.color), rail_emissive))
+            .collect(),
+        bridge_kinds: layout.light_bridges.iter().map(|bridge| bridge.kind).collect(),
+    }
 }
 
 #[cfg(test)]

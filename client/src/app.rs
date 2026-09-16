@@ -20,8 +20,8 @@ use crate::{
     items::{ItemMap, setup_item_assets},
     map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
     materials::{
-        GrassMaterialPlugin, PortalClipMaterialPlugin, ProceduralSkyMaterialPlugin, TerrainMaterialPlugin,
-        TreeMaterialPlugin, generate_material_mipmaps_system,
+        FieldMaterialPlugin, GrassMaterialPlugin, PortalClipMaterialPlugin, ProceduralSkyMaterialPlugin,
+        TerrainMaterialPlugin, TreeMaterialPlugin, generate_material_mipmaps_system,
     },
     missiles::{LockOnTarget, MissileAssets, MissileMap},
     network::{
@@ -147,6 +147,7 @@ pub fn build_client_app(
     app.add_audio_source::<LoopAudio>()
         .init_asset_loader::<LoopAudioLoader>();
     app.add_plugins((
+        FieldMaterialPlugin,
         GrassMaterialPlugin,
         PortalClipMaterialPlugin,
         ProceduralSkyMaterialPlugin,

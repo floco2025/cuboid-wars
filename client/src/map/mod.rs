@@ -17,7 +17,6 @@ pub use grass::{
     GrassChunkMarker, GrassChunks, GrassSources, grass_burn_system, grass_chunk_finish_system,
     grass_sources_reset_system, grass_streaming_system, setup_grass_materials_system,
 };
-pub(crate) use rendering::map_level_visibility;
 pub use rendering::{
     added_map_level_visibility_system, map_level_focus_visibility_system, map_spawn_geometry_system,
     map_wall_light_emissive_system, update_focused_map_level_system,

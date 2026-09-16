@@ -1,14 +1,16 @@
 mod assets;
 mod checkpoints;
 mod erasers;
+mod fade;
 mod geometry;
 mod spawn;
 mod surface;
 
-pub(crate) use assets::{FieldMeshes, KindVisual};
+pub(crate) use assets::{FieldMeshes, KindVisual, PaneVisual, field_pane_mesh};
 pub(crate) use checkpoints::{CheckpointAssets, CheckpointMarker, checkpoints_spawn_system};
 pub use erasers::EraserMarker;
 pub(crate) use erasers::{EraserAssets, erasers_spawn_system};
+pub(crate) use fade::{FieldSurface, FieldSurfaces, fade_target, fields_fade_system};
 pub(crate) use geometry::{VisualField, merge_fields};
-pub(crate) use spawn::{spawn_field_visual, spawn_framed_surface};
+pub(crate) use spawn::{spawn_field_visual, spawn_patterned_surface};
 pub(crate) use surface::{clip_surface_rects, surface_frame_rects};

@@ -3,12 +3,14 @@ use bevy::prelude::*;
 
 use crate::{
     barriers::{
-        PressurePlateModel, barriers_pulsate_system, barriers_spawn_system, barriers_visibility_system,
-        pressure_plates_animation_system, pressure_plates_attach_system, pressure_plates_spawn_system,
-        pressure_plates_visibility_system,
+        PressurePlateModel, barriers_spawn_system, pressure_plates_animation_system, pressure_plates_attach_system,
+        pressure_plates_spawn_system, pressure_plates_visibility_system,
     },
-    bridges::{bridges_fade_system, bridges_spawn_system},
-    fields::{CheckpointAssets, EraserAssets, FieldMeshes, checkpoints_spawn_system, erasers_spawn_system},
+    bridges::bridges_spawn_system,
+    fields::{
+        CheckpointAssets, EraserAssets, FieldMeshes, FieldSurfaces, checkpoints_spawn_system, erasers_spawn_system,
+        fields_fade_system,
+    },
     schedule::ClientSet,
     vfx::{rain_audio_system, rain_particles_system, rain_smoothing_system},
 };
@@ -22,6 +24,7 @@ pub fn map_plugin(app: &mut App) {
         .init_resource::<GrassChunks>()
         .init_resource::<GrassSources>()
         .init_resource::<FieldMeshes>()
+        .init_resource::<FieldSurfaces>()
         .init_resource::<EraserAssets>()
         .init_resource::<CheckpointAssets>()
         .init_resource::<PressurePlateModel>();
@@ -58,10 +61,6 @@ pub fn map_plugin(app: &mut App) {
             map_wall_light_emissive_system,
             wall_light_flicker_system,
             barriers_spawn_system.after(update_focused_map_level_system),
-            barriers_pulsate_system,
-            barriers_visibility_system
-                .after(barriers_spawn_system)
-                .after(update_focused_map_level_system),
             (
                 pressure_plates_spawn_system,
                 pressure_plates_attach_system,
@@ -70,7 +69,7 @@ pub fn map_plugin(app: &mut App) {
             )
                 .chain(),
             bridges_spawn_system.after(update_focused_map_level_system),
-            bridges_fade_system,
+            fields_fade_system,
         )
             .in_set(ClientSet::MapMaintenance),
     );

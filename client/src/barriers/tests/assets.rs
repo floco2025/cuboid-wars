@@ -1,24 +1,16 @@
 use super::*;
-use crate::config::BarrierPulseVfxConfig;
+use crate::constants::FIELD_FRAME_BODY_TINT;
 use common::protocol::HexColor;
 
 #[test]
-fn barriers_are_translucent_and_keys_use_solid_glowing_symbols() {
+fn barrier_kinds_have_glowing_rails_and_solid_glowing_key_symbols() {
     let mut meshes = Assets::default();
     let mut materials = Assets::default();
     let kinds = [KindDef {
         id: "red".into(),
         color: HexColor([255, 0, 0]),
     }];
-    let config = BarrierVfxConfig {
-        emissive_brightness: 7.0,
-        opacity: 0.25,
-        pulse: BarrierPulseVfxConfig {
-            min_opacity: 0.1,
-            frequency_hz: 0.5,
-        },
-    };
-    let assets = build_barrier_assets(&mut meshes, &mut materials, &kinds, &MapLayout::default(), config, 3.0);
+    let assets = build_barrier_assets(&mut meshes, &mut materials, &kinds, &MapLayout::default(), 2.0, 3.0);
     let key_mesh = meshes.get(assets.key_mesh()).expect("key mesh missing");
     let positions = key_mesh
         .attribute(Mesh::ATTRIBUTE_POSITION)
@@ -34,12 +26,15 @@ fn barriers_are_translucent_and_keys_use_solid_glowing_symbols() {
     assert_eq!(key_material.alpha_mode, AlphaMode::Opaque);
     assert_eq!(key_material.emissive, LinearRgba::rgb(3.0, 0.0, 0.0));
 
-    let material = materials
-        .get(assets.material_for(BarrierKindId(0)))
-        .expect("barrier material missing");
-    assert!(material.double_sided);
-    assert_eq!(material.cull_mode, None);
-    assert_eq!(material.alpha_mode, AlphaMode::Blend);
-    assert_eq!(material.base_color.alpha(), config.opacity);
-    assert_eq!(material.emissive, LinearRgba::rgb(config.emissive_brightness, 0.0, 0.0));
+    let frame = materials
+        .get(&assets.kind(BarrierKindId(0)).frame)
+        .expect("frame material missing");
+    assert_eq!(frame.alpha_mode, AlphaMode::Opaque);
+    assert!(!frame.unlit);
+    assert_eq!(
+        frame.base_color.to_linear(),
+        LinearRgba::rgb(FIELD_FRAME_BODY_TINT, 0.0, 0.0)
+    );
+    assert_eq!(frame.emissive, LinearRgba::rgb(2.0, 0.0, 0.0));
+    assert_eq!(assets.base_color(BarrierKindId(0)), Color::srgb(1.0, 0.0, 0.0));
 }

@@ -19,4 +19,4 @@ pub(crate) use local::LocalSettingsPersistence;
 pub use local::{LOCAL_SETTINGS_VERSION, LocalSettings};
 pub use rendering::OpaqueRenderer;
 pub use settings::{ClientSettings, GrassConfig, LightingConfig, SkyConfig, WeatherConfig};
-pub use vfx::{BarrierPulseVfxConfig, BarrierVfxConfig, LightBridgeVfxConfig, VfxConfig};
+pub use vfx::{FieldVfxConfig, VfxConfig};

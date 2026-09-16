@@ -15,17 +15,17 @@
   "interpolation": { "buffer_intervals": 2.0 },
   "vfx": {
     "pickups": { "emissive_brightness": 1.0 },
-    "barriers": {
-      "emissive_brightness": 2.0,
-      "opacity": 0.45,
-      "pulse": { "min_opacity": 0.35, "frequency_hz": 0.5 }
-    },
-    "erasers": { "emissive_brightness": 3.0, "opacity": 0.2 },
-    "light_bridges": {
-      "emissive_brightness": 1.0,
-      "opacity": 0.8,
-      "unpowered_opacity": 0.2,
+    "fields": {
+      "emissive_brightness": 0.5,
+      "rail_emissive_brightness": 0.5,
+      "opacity": 0.7,
+      "passable_opacity": 0.1,
       "fade_secs": 0.25
+    },
+    "erasers": {
+      "emissive_brightness": 0.5,
+      "rail_emissive_brightness": 0.5,
+      "opacity": 0.3
     }
   },
   "audio": {

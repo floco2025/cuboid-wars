@@ -12,8 +12,6 @@
 
 - **Shared editor/game map logic:** evaluate a Rust core for map source types, validation, normalization, and geometry rules, preserving invalid authored data and structured editor diagnostics. Consider a thin Python binding for the existing PySide6 UI before a full Rust editor rewrite; assess a full rewrite separately if game-rendered 3D previews become a goal.
 
-- **Editor play from here:** add a playtest action that starts the game at a chosen map location and returns to the same editor view. Define how unsaved edits reach the playtest without changing authored spawn zones.
-
 - **Obby player speed:** Once Obby is debugged, reduce `movement.player.walk_speed` and `run_speed` in `config/server/maps/obby/settings.json` to 5.0 m/s. The temporary 5.1 m/s setting makes testing easier.
 
 - **Pressure plates cover characters' feet:** give plates collision geometry so players and other characters stand on their surface instead of intersecting the model. Keep the support height aligned with the tread in both active and inactive states.
