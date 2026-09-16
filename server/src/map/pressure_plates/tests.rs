@@ -7,7 +7,7 @@ use super::{
     system::{player_on_plate, presser_of_switch},
 };
 use crate::{
-    actors::{ActorMap, ActorRespawnTimers, ActorSpawner, PendingActorSpawns},
+    actors::{ActorMap, ActorSpawner, PendingActorSpawns},
     combat::{DeathSource, PendingExplosions, kill_player},
     config::{PlayerRespawnMode, QuestKind, RespawnConfig, ServerGameplayConfig, WeatherMode},
     map::{
@@ -1317,7 +1317,6 @@ fn toggle_switches_reset_before_a_dead_player_respawns() {
         .insert_resource(PortalAssignments::new(PortalMode::Both))
         .init_resource::<ActorMap>()
         .init_resource::<ActorSpawner>()
-        .init_resource::<ActorRespawnTimers>()
         .init_resource::<PendingActorSpawns>()
         .add_systems(Update, players_respawn_system.in_set(ServerSet::Lifecycle));
     let (entity, _) = standing_player(&mut app, 1);

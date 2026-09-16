@@ -1,29 +1,27 @@
 {
   "map": {
-    "switch_kinds": [{"id": "bridge_1", "activation": "toggle", "reset_on_player_death": "never"}],
+    "switch_kinds": [{"id": "trap 1", "activation": "toggle", "reset_on_player_death": "never", "held": "any"}],
     "barrier_kinds": [
-      {"id": "barrier_1", "color": "#f0c020"}
+      {"id": "behind trap 1", "color": "#20ed1b"}
     ],
     "bridge_kinds": [
-      {"id": "bridge_1", "color": "#30d8ff"},
-      {"id": "bridge_2", "color": "#30d8ff"},
-      {"id": "bridge_3", "color": "#30d8ff"}
+      {"id": "trap 1", "color": "#30d8ff"}
     ],
     "fireworks": null,
     "grid_cols": 100,
     "grid_rows": 40,
     "actor_spawn_zones": [
-      {"level": 9, "cols": [38, 40], "rows": [19, 21], "kind": "scuttler", "count": [6], "respawn_secs": 5, "switch": "bridge_1", "switch_inverted": false}
+      {"level": 9, "cols": [38, 40], "rows": [19, 21], "kind": "scuttler", "count": [6], "respawn_secs": 4.0, "switch": "trap 1", "switch_inverted": false}
     ],
     "player_spawn_zones": [
       {"level": 4, "cols": [1, 3], "rows": [8, 10]}
     ],
     "checkpoints": [
-      {"level": 9, "cols": [38, 40], "rows": [7, 9], "type": "individual"}
+      {"level": 9, "cols": [38, 40], "rows": [7, 9], "type": "individual", "name": "1"}
     ],
     "pressure_plates": [
-      {"level": 9, "col": 38, "row": 10, "switch": "bridge_1"},
-      {"level": 9, "col": 39, "row": 10, "switch": "bridge_1"}
+      {"level": 9, "col": 38, "row": 10, "switch": "trap 1"},
+      {"level": 9, "col": 39, "row": 10, "switch": "trap 1"}
     ],
     "items": [
       {"level": 4, "col": 6, "row": 7, "type": "speed"},
@@ -46,10 +44,10 @@
       {"level": 7, "col": 33, "row": 8, "type": "speed"},
       {"level": 7, "col": 33, "row": 9, "type": "speed"},
       {"level": 7, "col": 33, "row": 10, "type": "speed"},
-      {"level": 9, "col": 36, "row": 15, "type": "key", "kind": "barrier_1"},
-      {"level": 9, "col": 37, "row": 15, "type": "key", "kind": "barrier_1"},
-      {"level": 9, "col": 40, "row": 15, "type": "key", "kind": "barrier_1"},
-      {"level": 9, "col": 41, "row": 15, "type": "key", "kind": "barrier_1"},
+      {"level": 9, "col": 36, "row": 15, "type": "key", "kind": "behind trap 1"},
+      {"level": 9, "col": 37, "row": 15, "type": "key", "kind": "behind trap 1"},
+      {"level": 9, "col": 40, "row": 15, "type": "key", "kind": "behind trap 1"},
+      {"level": 9, "col": 41, "row": 15, "type": "key", "kind": "behind trap 1"},
       {"level": 9, "col": 36, "row": 16, "type": "single_shot"},
       {"level": 9, "col": 37, "row": 16, "type": "single_shot"},
       {"level": 9, "col": 40, "row": 16, "type": "single_shot"},
@@ -986,8 +984,8 @@
         "terrain": [],
         "walls": [],
         "barriers": [
-          {"c0": 38, "r0": 21, "c1": 39, "r1": 21, "kind": "barrier_1"},
-          {"c0": 39, "r0": 21, "c1": 40, "r1": 21, "kind": "barrier_1"}
+          {"c0": 38, "r0": 21, "c1": 39, "r1": 21, "kind": "behind trap 1"},
+          {"c0": 39, "r0": 21, "c1": 40, "r1": 21, "kind": "behind trap 1"}
         ],
         "erasers": [
           {"c0": 36, "r0": 6, "c1": 36, "r1": 7},
@@ -998,20 +996,20 @@
           {"c0": 36, "r0": 11, "c1": 36, "r1": 12}
         ],
         "light_bridges": [
-          {"col": 38, "row": 12, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 39, "row": 12, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 38, "row": 13, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 39, "row": 13, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 38, "row": 14, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 39, "row": 14, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 38, "row": 15, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 39, "row": 15, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 38, "row": 16, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 39, "row": 16, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 38, "row": 17, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 39, "row": 17, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 38, "row": 18, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 39, "row": 18, "kind": "bridge_1", "switch": "bridge_1"}
+          {"col": 38, "row": 12, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 39, "row": 12, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 38, "row": 13, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 39, "row": 13, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 38, "row": 14, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 39, "row": 14, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 38, "row": 15, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 39, "row": 15, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 38, "row": 16, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 39, "row": 16, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 38, "row": 17, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 39, "row": 17, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 38, "row": 18, "kind": "trap 1", "switch": "trap 1"},
+          {"col": 39, "row": 18, "kind": "trap 1", "switch": "trap 1"}
         ],
         "lights": []
       },

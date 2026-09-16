@@ -59,9 +59,10 @@ def _player_spawn_zone_body(zone: dict) -> str:
 
 
 def _checkpoint_body(zone: dict) -> str:
-    return _inline_object_body(
-        {"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "type": zone["type"]}
-    )
+    body = {"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "type": zone["type"]}
+    if "name" in zone:
+        body["name"] = zone["name"]
+    return _inline_object_body(body)
 
 
 def _pressure_plate_body(plate: dict) -> str:

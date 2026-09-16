@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from PySide6.QtWidgets import QDialog
+
 from editor_fixtures import WindowTestCase, qt_app
 from map_editor.control_catalogs import edit_catalog, validate_catalog
 from map_editor.dialogs.control_catalogs import ControlCatalogDialog, FireworksDialog
@@ -155,6 +157,24 @@ class ControlTests(unittest.TestCase):
         override.clear_button.click()
         self.assertNotIn("plate_color", plates.values()[0][0])
         plates.deleteLater()
+
+    def test_catalog_dialog_accepts_a_name_still_being_edited(self):
+        dialog = ControlCatalogDialog(
+            None,
+            "Pressure Plate Kinds",
+            "switch_kinds",
+            [{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}],
+        )
+        item = dialog.table.item(0, 0)
+        dialog.table.setCurrentItem(item)
+        dialog.table.editItem(item)
+        dialog.table.cellWidget(0, 0).setText("gate")
+        dialog.accept()
+        self.assertEqual(dialog.result(), QDialog.DialogCode.Accepted)
+        entries, renames = dialog.values()
+        self.assertEqual(entries[0]["id"], "gate")
+        self.assertEqual(renames, {"door": "gate"})
+        dialog.deleteLater()
 
     def map_folder(self, directory, name, settings, layout):
         path = Path(directory) / name / "layout.json"

@@ -111,6 +111,8 @@ class ControlCatalogDialog(QDialog):
         return entries, renames
 
     def accept(self):
+        # OK takes no focus on macOS, so a name still being typed is committed here.
+        self.table.setCurrentItem(None)
         try:
             validate_catalog(self.catalog, self.values()[0])
         except ValueError as exc:

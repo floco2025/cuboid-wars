@@ -128,6 +128,7 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
     let server = fixtures::server_config();
     let checkpoint = Checkpoint {
         kind: CheckpointKind::Individual,
+        name: None,
         carrier: CarrierId::WORLD,
         level: 0,
         min_x: 10.0,
@@ -201,6 +202,7 @@ fn simultaneous_invincible_rescues_take_distinct_spots() {
     let server = fixtures::server_config();
     let checkpoint = Checkpoint {
         kind: CheckpointKind::Individual,
+        name: None,
         carrier: CarrierId::WORLD,
         level: 0,
         min_x: 10.0,

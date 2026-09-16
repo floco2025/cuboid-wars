@@ -2,7 +2,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 
 use super::execute::{AdminOutcome, run_admin_command};
 use crate::{
-    actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns},
+    actors::{ActorMap, ActorSpawner, PendingActorSpawns},
     combat::PendingExplosions,
     config::{PowerUpsConfig, ServerGameplayConfig},
     map::WeatherState,
@@ -26,7 +26,7 @@ pub struct AdminContext<'w> {
     pub celestial_clock: ResMut<'w, CelestialClockAnchor>,
     pub pending_explosions: ResMut<'w, PendingExplosions>,
     pub invincibility: ResMut<'w, Invincibility>,
-    pub actor_respawn_timers: ResMut<'w, ActorRespawnTimers>,
+    pub actor_spawner: ResMut<'w, ActorSpawner>,
     pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
     pub power_ups: Res<'w, PowerUpsConfig>,
     pub key_kind_table: Res<'w, BarrierKindTable>,
@@ -57,8 +57,7 @@ pub fn handle_admin_message(
             id,
             admin,
             player_data,
-            &world.gameplay_config,
-            &world.map_config,
+            world,
             pending_actor_spawns,
             quest_board,
             &msg.command,

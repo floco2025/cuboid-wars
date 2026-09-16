@@ -154,6 +154,10 @@ struct WorldArgs {
     )]
     spawn: Option<Position>,
 
+    /// Start every player at the named checkpoint, which becomes their respawn point.
+    #[arg(long, value_name = "NAME", conflicts_with_all = ["join", "spawn"])]
+    checkpoint: Option<String>,
+
     #[arg(long, conflicts_with = "join", value_parser = clap::value_parser!(u32).range(1..))]
     server_hz: Option<u32>,
 
@@ -172,6 +176,7 @@ impl WorldArgs {
             god: self.god,
             peace: self.peace,
             initial_spawn: self.spawn,
+            checkpoint: self.checkpoint.clone(),
             network: NetworkOverrides {
                 server_hz: self.server_hz,
                 update_hz: self.update_hz,

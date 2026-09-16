@@ -23,6 +23,7 @@ use crate::{
 fn checkpoint(min_x: f32) -> Checkpoint {
     Checkpoint {
         kind: CheckpointKind::Individual,
+        name: None,
         carrier: CarrierId::WORLD,
         level: 0,
         min_x,
@@ -33,7 +34,7 @@ fn checkpoint(min_x: f32) -> Checkpoint {
     }
 }
 
-fn floor(c: Checkpoint) -> Floor {
+fn floor(c: &Checkpoint) -> Floor {
     Floor {
         x1: c.min_x,
         x2: c.max_x,
@@ -50,7 +51,7 @@ fn app(mode: PlayerRespawnMode) -> App {
     let mut app = respawn_app(mode, ActorRespawnScope::Dead);
     let checkpoints = vec![checkpoint(10.0), checkpoint(20.0)];
     let layout = MapLayout {
-        floors: checkpoints.iter().copied().map(floor).collect(),
+        floors: checkpoints.iter().map(floor).collect(),
         checkpoints,
         ..default()
     };
@@ -171,7 +172,7 @@ fn deaths_preserve_checkpoints_clear_equipment_and_retry_blocked_group_or_indivi
                 .is_dead()
         );
         let layout = MapLayout {
-            floors: vec![floor(checkpoint(10.0))],
+            floors: vec![floor(&checkpoint(10.0))],
             ..default()
         };
         app.insert_resource(CollisionWorld::from_map_layout(&layout));
@@ -242,7 +243,7 @@ fn checkpoint_spawns_follow_carriers_and_avoid_players_and_barriers() {
     let mut c = checkpoint(0.0);
     c.carrier = CarrierId(1);
     let mut layout = MapLayout {
-        floors: vec![floor(c)],
+        floors: vec![floor(&c)],
         carriers: vec![Carrier {
             switch_inverted: false,
 

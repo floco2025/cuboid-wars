@@ -61,6 +61,7 @@ runs a dedicated server.
 ```bash
 cargo run --release                                    # single-player
 cargo run --release -- --god --peace                   # invincible players and peaceful enemies
+cargo run --release -- --map obby --checkpoint "hall"  # start at a named checkpoint
 cargo run --release -- --host                          # play and accept joiners on 127.0.0.1:8080
 cargo run --release -- --host 0.0.0.0:8080             # accept joiners from the LAN
 cargo run --release -- --join 192.168.1.100:8080 --name "Alice"

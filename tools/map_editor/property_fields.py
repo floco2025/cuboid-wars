@@ -51,6 +51,7 @@ def fields_for(window, name):
     elif name == "player_spawn_zones":
         add("levels", "Levels", "positive_int")
     elif name == "checkpoints":
+        add("name", "Name", "optional_text")
         add("type", "Type", "choice", CHECKPOINT_TYPE_LABELS.items())
     elif name == "items":
         choice("type", "Item", ITEM_TYPES)

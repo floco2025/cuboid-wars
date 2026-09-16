@@ -4,7 +4,7 @@ use super::handle_login_message;
 use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
     network::{SharedWorld, handlers::CharacterQueries},
-    players::{CheckpointId, PlayerCheckpoint, PlayerInfo, PlayerMap, respawn_tests::respawn_app},
+    players::{CheckpointId, LoginStart, PlayerCheckpoint, PlayerInfo, PlayerMap, respawn_tests::respawn_app},
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog},
 };
@@ -23,6 +23,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         let mut app = respawn_app(mode, ActorRespawnScope::Dead);
         let checkpoint = Checkpoint {
             kind: CheckpointKind::GroupAny,
+            name: None,
             carrier: CarrierId(1),
             level: 0,
             min_x: 0.0,
@@ -154,7 +155,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
                 entity,
                 PlayerId(9),
                 CLogin { name: "Player".into() },
-                None,
+                LoginStart::default(),
                 &mut players,
                 &world,
                 &celestial_clock,

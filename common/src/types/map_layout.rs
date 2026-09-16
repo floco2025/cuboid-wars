@@ -251,9 +251,11 @@ pub enum CheckpointKind {
     GroupAll,
 }
 
-#[derive(Debug, Clone, Copy, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct Checkpoint {
     pub kind: CheckpointKind,
+    // Unique within its map definition; `--checkpoint` and `/checkpoint` refer to it.
+    pub name: Option<String>,
     pub carrier: CarrierId,
     pub level: u8,
     pub min_x: f32,

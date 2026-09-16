@@ -9,6 +9,7 @@ fn checkpoint_def(level: u32, col: i32, row: i32) -> CheckpointDef {
             rows: [row, row + 1],
         },
         kind: CheckpointKind::Individual,
+        name: None,
     }
 }
 
@@ -20,7 +21,7 @@ fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
     let compile = |map: &MapDef| compile_with(map, &no_nested(), &empty_kind_table(), &no_bridges());
     let (layout, config) = compile(&map).expect("checkpoint compilation failed");
     assert_eq!(layout.checkpoints.len(), 1);
-    let checkpoint = layout.checkpoints[0];
+    let checkpoint = &layout.checkpoints[0];
     assert_eq!(checkpoint.min_x, config.root_grid().geometry.cell_to_world_x(0));
     assert_eq!(checkpoint.max_x, config.root_grid().geometry.cell_to_world_x(1));
     map.checkpoints.push(checkpoint_def(0, 0, 0));
@@ -94,6 +95,31 @@ fn repeated_nested_checkpoints_have_separate_carriers_and_runtime_slots() {
     assert_eq!(layout.checkpoints.len(), 2);
     assert_ne!(layout.checkpoints[0].carrier, layout.checkpoints[1].carrier);
     assert_eq!(config.grids.len(), 3);
+}
+
+#[test]
+fn checkpoint_names_are_optional_trimmed_unique_and_compiled() {
+    let mut map = map_with_zones(4, vec![level(vec![[0, 0], [1, 0]])], Vec::new(), Vec::new(), Vec::new());
+    let named = |col, name: Option<&str>| CheckpointDef {
+        name: name.map(str::to_owned),
+        ..checkpoint_def(0, col, 0)
+    };
+    map.checkpoints = vec![named(0, Some("hall")), named(1, None)];
+    let (layout, _) = compile_with(&map, &no_nested(), &empty_kind_table(), &no_bridges())
+        .expect("named checkpoint compilation failed");
+    assert_eq!(layout.checkpoints[0].name.as_deref(), Some("hall"));
+    assert_eq!(layout.checkpoints[1].name, None);
+    for (name, message) in [
+        (" hall", "surrounding spaces"),
+        ("", "nonempty"),
+        ("hall", "already used"),
+    ] {
+        map.checkpoints[1].name = Some(name.to_owned());
+        let error = validate_map(&map)
+            .expect_err("bad checkpoint name accepted")
+            .to_string();
+        assert!(error.contains(message), "{error}");
+    }
 }
 
 #[test]

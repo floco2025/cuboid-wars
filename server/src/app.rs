@@ -1,11 +1,11 @@
 use std::{thread, time::Instant};
 
-use anyhow::{Result, bail};
+use anyhow::{Error, Result, bail};
 use bevy::prelude::*;
 
 use crate::{
     actors::{
-        ActorMap, ActorRespawnTimers, ActorSpawner, PendingActorSpawns, actors_plugin,
+        ActorMap, ActorSpawner, PendingActorSpawns, actors_plugin,
         navigation::{ActorTerritories, NavGraphs},
     },
     characters::characters_plugin,
@@ -15,7 +15,7 @@ use crate::{
     map::{GeneratedMap, MapFireworks, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
     network::{ClientLinks, Listener, LocalLink, network_plugin, register_local},
-    players::{InitialPlayerSpawn, Invincibility, PlayerMap, players_plugin},
+    players::{Invincibility, LoginStart, PlayerMap, checkpoint_named, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
     quests::{QuestBoard, QuestCatalog},
@@ -62,6 +62,8 @@ pub struct ServerAppOptions {
     pub god: bool,
     pub peace: bool,
     pub initial_spawn: Option<Position>,
+    // The name of the checkpoint every login starts at.
+    pub checkpoint: Option<String>,
     pub network: NetworkOverrides,
     // Only one Bevy `LogPlugin` may install per process; the app built first owns it.
     pub logging: bool,
@@ -158,6 +160,16 @@ fn build_server_app_with_loader(
         },
     };
 
+    let login_start = LoginStart {
+        spawn: options.initial_spawn,
+        checkpoint: options
+            .checkpoint
+            .as_deref()
+            .map(|name| checkpoint_named(&map_layout.checkpoints, name))
+            .transpose()
+            .map_err(Error::msg)?,
+    };
+
     let mut app = App::new();
     // Server time is tick time: every update advances `Time` by exactly one
     // tick, so delta-driven timers and tick-driven carriers agree and the
@@ -191,7 +203,7 @@ fn build_server_app_with_loader(
         .insert_resource(weather_state)
         .insert_resource(celestial_clock)
         .insert_resource(Invincibility(options.god))
-        .insert_resource(InitialPlayerSpawn(options.initial_spawn))
+        .insert_resource(login_start)
         .insert_resource(collision_world)
         .insert_resource(carriers)
         .insert_resource(map_config)
@@ -214,7 +226,6 @@ fn build_server_app_with_loader(
         .insert_resource(placed_items_config)
         .insert_resource(power_ups_config)
         .insert_resource(ActorSpawner::default())
-        .insert_resource(ActorRespawnTimers::default())
         .insert_resource(PendingActorSpawns::default())
         .insert_resource(ClientLinks::default())
         .insert_resource(ServerTick::default());

@@ -74,6 +74,7 @@ pub(super) fn compile_geometry(
         let level = level_tag(def.zone.level as usize);
         Checkpoint {
             kind: def.kind,
+            name: def.name.clone(),
             carrier,
             level,
             min_x: geometry.cell_to_world_x(def.zone.cols[0]),

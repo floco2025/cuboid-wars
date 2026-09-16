@@ -86,6 +86,24 @@ class CheckpointTests(unittest.TestCase):
             mutate(bad)
             self.assertTrue(any("checkpoints" in error for error in validate_map(bad, [], [])))
 
+    def test_names_are_kept_formatted_and_validated(self):
+        data = checkpoint_map()
+        data["checkpoints"][0]["name"] = "hall"
+        self.assertEqual(normalize_map(data)["checkpoints"][0]["name"], "hall")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "layout.json"
+            write_map(path, data)
+            self.assertIn('"name": "hall"', path.read_text())
+            self.assertEqual(read_map(path)["checkpoints"][0]["name"], "hall")
+        self.assertFalse(validate_map(data, [], []))
+        for name, message in ((" hall", "surrounding spaces"), ("", "nonempty")):
+            bad = copy.deepcopy(data)
+            bad["checkpoints"][0]["name"] = name
+            self.assertTrue(any(message in error for error in validate_map(bad, [], [])), name)
+        data["checkpoints"][0]["cols"] = [1, 2]
+        data["checkpoints"].append({"level": 0, "cols": [2, 4], "rows": [1, 4], "type": "individual", "name": "hall"})
+        self.assertTrue(any("already used" in error for error in validate_map(data, [], [])))
+
     def test_copy_paste_transform_levels_and_deletion_preserve_zone_semantics(self):
         data = checkpoint_map()
         region = TileRegion((1, 1, 4, 4), 0)
@@ -174,6 +192,16 @@ class CheckpointWindowTests(WindowTestCase):
         window.erase_group_rect(MODE_ERASE_CHECKPOINTS, (1, 1), (3, 3))
         self.assertEqual(window.map_data["checkpoints"], [])
         self.assertIsNone(window.selected_spawn_zone_ref)
+
+    def test_properties_edit_and_clear_the_checkpoint_name(self):
+        window = self.window
+        window.apply_change("Set up checkpoint", checkpoint_map())
+        for name, expected in (("hall", "hall"), ("", None)):
+            window.set_selected_spawn_zone(ZoneRef("checkpoints", 0))
+            window.edit_selected_spawn_zone_fields()
+            self.set_property("name", name)
+            window.properties_panel.apply_button.click()
+            self.assertEqual(window.map_data["checkpoints"][0].get("name"), expected)
 
     def test_toolbar_and_context_edit_checkpoint_type_with_undo(self):
         window = self.window

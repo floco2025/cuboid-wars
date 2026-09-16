@@ -195,8 +195,8 @@ impl ActorInfo {
 pub struct ActorMap {
     pub peaceful: bool,
     entries: HashMap<ActorId, ActorInfo>,
-    // Actor removal records the zone so its respawn timer starts at the lifecycle boundary.
-    vacated_spawn_zones: HashSet<usize>,
+    // One entry per removed actor: simultaneous deaths in a zone each owe its countdown.
+    vacated_spawn_zones: Vec<usize>,
 }
 
 impl ActorMap {
@@ -232,7 +232,7 @@ impl ActorMap {
 
     pub fn remove(&mut self, id: &ActorId) -> Option<ActorInfo> {
         let info = self.entries.remove(id)?;
-        self.vacated_spawn_zones.insert(info.spawn_zone_index);
+        self.vacated_spawn_zones.push(info.spawn_zone_index);
         Some(info)
     }
 
@@ -263,7 +263,7 @@ impl ActorMap {
     }
 
     pub(crate) fn drain_vacated_spawn_zones(&mut self) -> impl Iterator<Item = usize> + '_ {
-        self.vacated_spawn_zones.drain()
+        self.vacated_spawn_zones.drain(..)
     }
 
     pub(crate) fn forget_vacated_spawn_zones(&mut self) {
@@ -276,30 +276,17 @@ impl ActorMap {
     }
 }
 
-// Per-zone population accounting, keyed by zone index. A zone's wanted
-// population is its target for the logged-in players less `lost`, and a fill
-// leaves `cooling` slots to the countdown, so a join spawns only its new
-// slots and a rejoin never revives a permanent kill.
+// Per-zone slot accounting, keyed by zone index. A zone's population is its
+// target for the logged-in players; each vacated slot waits its own countdown
+// and the deficit fills at once, so a join spawns only its new slots and a
+// rejoin never revives a permanent kill or skips a countdown.
 #[derive(Resource, Default)]
 pub struct ActorSpawner {
     pub next_id: u32,
-    // Kills in a zone without a respawn time; only a reset forgives them.
-    pub(crate) lost: HashMap<usize, u32>,
-    // Kills a zone's running countdown owes; it fills them when it comes due.
-    pub(crate) cooling: HashMap<usize, u32>,
-}
-
-// Automatic respawn and reset work, keyed by zone index.
-#[derive(Resource, Default)]
-pub struct ActorRespawnTimers(pub(crate) HashMap<usize, ActorRespawnState>);
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum ActorRespawnState {
-    Cooldown(f32),
-    // A fill found no clear spot; nothing spawns here until the delay passes.
-    Blocked(f32),
-    Reset,
-    WaitingForSpace,
+    // The remaining delay of every vacated slot; `None` never refills.
+    pub(crate) refills: HashMap<usize, Vec<Option<f32>>>,
+    // Zones whose fill found no clear spot, warned once until a spawn succeeds.
+    pub(crate) blocked: HashSet<usize>,
 }
 
 // A spawn that has been decided (id, spot, and heading reserved) but whose

@@ -121,6 +121,22 @@ fn single_player_spawn_override_accepts_finite_world_coordinates_only() {
 }
 
 #[test]
+fn checkpoint_option_names_a_checkpoint_in_every_server_mode() {
+    for mode in [&[][..], &["--host"][..], &["--serve"][..]] {
+        let cli = parse(&[mode, &["--checkpoint", "hall 2"]].concat()).expect("checkpoint option rejected");
+        assert_eq!(cli.world.server_options().checkpoint.as_deref(), Some("hall 2"));
+    }
+    for conflicting in [&["--join"][..], &["--spawn", "1,2,3"][..]] {
+        assert_eq!(
+            parse(&[conflicting, &["--checkpoint", "hall"]].concat())
+                .expect_err("checkpoint option accepted with a conflicting option")
+                .kind(),
+            ErrorKind::ArgumentConflict
+        );
+    }
+}
+
+#[test]
 fn god_and_peace_enable_independently_in_every_server_mode() {
     let modes: [&[&str]; 3] = [&[], &["--host"], &["--serve"]];
     for mode in modes {

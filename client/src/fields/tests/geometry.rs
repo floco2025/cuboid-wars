@@ -5,6 +5,7 @@ use common::protocol::{BarrierId, CheckpointKind, SwitchId, Wall};
 fn checkpoint_perimeter_has_four_vertical_sides_and_an_open_top() {
     let checkpoint = Checkpoint {
         kind: CheckpointKind::Individual,
+        name: None,
         carrier: CarrierId::WORLD,
         level: 2,
         min_x: 1.0,

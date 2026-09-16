@@ -33,6 +33,7 @@ pub(crate) fn server_app_with_listener(overrides: NetworkOverrides, listener: Op
         god: false,
         peace: false,
         initial_spawn: None,
+        checkpoint: None,
         network: overrides,
         logging: false,
     };
@@ -56,7 +57,8 @@ pub(crate) fn server_app_with_options(options: ServerAppOptions, listener: Optio
                 {"col": 0, "row": 1, "all": "basement-floor"},
                 {"col": 1, "row": 1, "all": "basement-floor"}
             ]}],
-            "player_spawn_zones": [{"level": 0, "cols": [0, 2], "rows": [0, 2]}]
+            "player_spawn_zones": [{"level": 0, "cols": [0, 2], "rows": [0, 2]}],
+            "checkpoints": [{"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual", "name": "corner"}]
         }});
         fs::write(&path, source.to_string())?;
         let generated = generate_map_at(&path, name, hz, settings);

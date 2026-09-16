@@ -6,10 +6,7 @@ use crossbeam_channel::{Receiver, unbounded};
 
 use super::{PlayerMap, respawn::*};
 use crate::{
-    actors::{
-        ActorMap, ActorRespawnState, ActorRespawnTimers, ActorSpawner, PendingActorSpawns, actors_initial_spawn_system,
-        actors_pending_spawn_system, actors_respawn_system,
-    },
+    actors::{ActorMap, ActorSpawner, PendingActorSpawns, actors_pending_spawn_system, actors_respawn_system},
     combat::{DeathSource, PendingExplosions, kill_actor, kill_player},
     config::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, RespawnConfig, ServerGameplayConfig},
     map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
@@ -86,7 +83,6 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
         }))
         .init_resource::<Carriers>()
         .init_resource::<ActorMap>()
-        .init_resource::<ActorRespawnTimers>()
         .init_resource::<ActorSpawner>()
         .init_resource::<PendingActorSpawns>()
         .init_resource::<PendingExplosions>()
@@ -95,7 +91,7 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
         .init_resource::<PlateState>()
         .insert_resource(PortalAssignments::new(PortalMode::Both));
     configure_server_schedule(&mut app);
-    app.add_systems(Startup, actors_initial_spawn_system).add_systems(
+    app.add_systems(
         Update,
         (
             server_tick_advance_system.in_set(ServerSet::Prepare),
@@ -516,7 +512,6 @@ fn reset_refills_wait_for_space_even_for_movable_actors_without_automatic_respaw
     for kind in ["turret", "bruiser"] {
         let mut app = respawn_app(PlayerRespawnMode::Individual, ActorRespawnScope::Dead);
         app.world_mut().resource_mut::<PendingActorSpawns>().0.clear();
-        app.world_mut().resource_mut::<ActorRespawnTimers>().0.clear();
         let mut map = app.world_mut().resource_mut::<MapConfig>();
         map.actor_spawn_zones.truncate(1);
         map.actor_spawn_zones[0].kind = kind.into();
@@ -525,10 +520,7 @@ fn reset_refills_wait_for_space_even_for_movable_actors_without_automatic_respaw
         kill(&mut app, PlayerId(1));
         advance(&mut app, 2.0);
         assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
-        assert_eq!(
-            app.world().resource::<ActorRespawnTimers>().0[&0],
-            ActorRespawnState::WaitingForSpace
-        );
+        assert!(app.world().resource::<ActorSpawner>().blocked.contains(&0));
         advance(&mut app, 1.0);
         assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
         app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
@@ -537,6 +529,6 @@ fn reset_refills_wait_for_space_even_for_movable_actors_without_automatic_respaw
             .has_ramp = false;
         advance(&mut app, 0.0);
         assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 1);
-        assert!(app.world().resource::<ActorRespawnTimers>().0.is_empty());
+        assert!(!app.world().resource::<ActorSpawner>().blocked.contains(&0));
     }
 }

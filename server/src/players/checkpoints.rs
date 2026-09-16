@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use rand::RngExt;
 
 use super::PlayerMap;
-use crate::characters::sample_clear_position;
+use crate::characters::{sample_clear_position, spawn_face_yaw};
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::CHARACTER_CONTACT_OFFSET,
@@ -29,6 +29,45 @@ pub(crate) fn checkpoints_exist(layout: Res<MapLayout>) -> bool {
 pub struct PlayerCheckpoint {
     pub id: CheckpointId,
     pub facing: Vec3,
+}
+
+impl PlayerCheckpoint {
+    // A checkpoint saved without an entry: its centre, facing the map's origin like a spawn zone.
+    pub(crate) fn toward_origin(id: CheckpointId, checkpoints: &[Checkpoint], carriers: &Carriers) -> Self {
+        let checkpoint = &checkpoints[id.0];
+        let pose = carriers.pose(checkpoint.carrier);
+        let centre = pose.transform_position(&Position {
+            x: (checkpoint.min_x + checkpoint.max_x) / 2.0,
+            y: checkpoint.y,
+            z: (checkpoint.min_z + checkpoint.max_z) / 2.0,
+        });
+        Self {
+            id,
+            facing: pose.inverse_transform_vector(direction_from_yaw_pitch(spawn_face_yaw(&centre), 0.0)),
+        }
+    }
+}
+
+// The checkpoint a name refers to, for `--checkpoint` and `/checkpoint`.
+pub(crate) fn checkpoint_named(checkpoints: &[Checkpoint], name: &str) -> Result<CheckpointId, String> {
+    checkpoints
+        .iter()
+        .position(|checkpoint| checkpoint.name.as_deref() == Some(name))
+        .map(CheckpointId)
+        .ok_or_else(|| {
+            let names: Vec<_> = checkpoints
+                .iter()
+                .filter_map(|checkpoint| checkpoint.name.as_deref())
+                .collect();
+            if names.is_empty() {
+                format!("unknown checkpoint {name:?}: the map has no named checkpoints")
+            } else {
+                format!(
+                    "unknown checkpoint {name:?}: the map's named checkpoints are {}",
+                    names.join(", ")
+                )
+            }
+        })
 }
 
 pub(crate) fn players_checkpoints_system(

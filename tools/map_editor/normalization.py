@@ -159,9 +159,7 @@ def normalize_map(map_data: dict) -> dict:
         "grid_rows": rows,
         "actor_spawn_zones": actor_spawn_zones,
         "player_spawn_zones": player_spawn_zones,
-        "checkpoints": [
-            {**normalize_player_spawn_zone(z), "type": str(z.get("type", ""))} for z in map_data.get("checkpoints", [])
-        ],
+        "checkpoints": [normalize_checkpoint(z) for z in map_data.get("checkpoints", [])],
         "items": items,
         "pressure_plates": pressure_plates,
         "levels": levels,
@@ -393,6 +391,13 @@ def normalize_player_spawn_zone(zone: dict) -> dict:
     normalized = _normalize_zone_rect(zone)
     if zone.get("levels", 1) != 1:
         normalized["levels"] = copy.deepcopy(zone["levels"])
+    return normalized
+
+
+def normalize_checkpoint(zone: dict) -> dict:
+    normalized = {**normalize_player_spawn_zone(zone), "type": str(zone.get("type", ""))}
+    if "name" in zone:
+        normalized["name"] = str(zone["name"])
     return normalized
 
 

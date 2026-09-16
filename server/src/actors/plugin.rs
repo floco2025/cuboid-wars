@@ -10,7 +10,7 @@ use crate::{players::players_respawn_system, schedule::ServerSet};
 
 pub fn actors_plugin(app: &mut App) {
     app.init_resource::<AirHomes>();
-    app.add_systems(Startup, actors_initial_spawn_system).add_systems(
+    app.add_systems(
         Update,
         (
             // After the advance, so a spawn due this tick materializes now.

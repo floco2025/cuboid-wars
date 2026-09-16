@@ -8,7 +8,7 @@ use super::{
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
     missiles::{MissileMap, handle_missile_detonated, handle_missile_moves, handle_missile_shot_message},
-    players::{InitialPlayerSpawn, PlayerMap, handle_move_outcome, queue_player_movement},
+    players::{LoginStart, PlayerMap, handle_move_outcome, queue_player_movement},
     portals::{PortalAssignments, PortalMap, handle_portal_shot_message},
     projectiles::{PendingProjectileHits, handle_projectile_shot_message},
     quests::{QuestBoard, QuestCatalog},
@@ -18,7 +18,7 @@ use common::protocol::*;
 #[derive(SystemParam)]
 pub(super) struct ClientMessageContext<'w, 's> {
     pub(super) players: ResMut<'w, PlayerMap>,
-    initial_player_spawn: ResMut<'w, InitialPlayerSpawn>,
+    login_start: ResMut<'w, LoginStart>,
     time: Res<'w, Time>,
     pub(super) world: SharedWorld<'w>,
     queries: CharacterQueries<'w, 's>,
@@ -59,7 +59,10 @@ pub(super) fn route_client_message(
                 entity,
                 id,
                 message,
-                context.initial_player_spawn.0.take(),
+                LoginStart {
+                    spawn: context.login_start.spawn.take(),
+                    checkpoint: context.login_start.checkpoint,
+                },
                 &mut context.players,
                 &context.world,
                 &context.admin.celestial_clock,

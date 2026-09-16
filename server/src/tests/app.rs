@@ -1,13 +1,107 @@
 use super::fixtures::{connect, server_app, server_app_with_options};
 use super::*;
+use crate::players::CheckpointId;
 use common::{
     config::GameplayConfig,
     constants::{TICK_DURATION, TICK_SECS},
     protocol::{
-        CAdmin, CLogin, CMove, ClientMessage, ItemType, PlayerGeneration, PlayerId, PlayerMoveIntent,
+        CAdmin, CLogin, CMove, ClientMessage, ItemType, MapLayout, PlayerGeneration, PlayerId, PlayerMoveIntent,
         PlayerMovementState, Position, ServerMessage,
     },
 };
+use crossbeam_channel::Receiver;
+
+fn feed_texts(receiver: &Receiver<ServerMessage>) -> Vec<String> {
+    std::iter::from_fn(|| receiver.try_recv().ok())
+        .filter_map(|message| match message {
+            ServerMessage::Feed(feed) => Some(feed.spans.into_iter().map(|span| span.text).collect()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn saved_checkpoint(app: &App, id: PlayerId) -> Option<CheckpointId> {
+    app.world()
+        .resource::<PlayerMap>()
+        .get(&id)
+        .expect("logged-in player missing")
+        .session
+        .checkpoint
+        .map(|saved| saved.id)
+}
+
+#[test]
+fn checkpoint_option_starts_every_login_at_the_named_checkpoint_and_saves_it() {
+    let options = |checkpoint: &str| ServerAppOptions {
+        map: None,
+        god: false,
+        peace: false,
+        initial_spawn: None,
+        checkpoint: Some(checkpoint.to_owned()),
+        network: NetworkOverrides::default(),
+        logging: false,
+    };
+    let error = server_app_with_options(options("nowhere"), None)
+        .expect_err("unknown checkpoint accepted")
+        .to_string();
+    assert!(
+        error.contains("unknown checkpoint \"nowhere\"") && error.contains("corner"),
+        "{error}"
+    );
+
+    let mut app = server_app_with_options(options("corner"), None).expect("server app failed to initialize");
+    let (client, receiver) = connect(&mut app);
+    client
+        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
+        .expect("login failed");
+    app.update();
+    let relocation = std::iter::from_fn(|| receiver.try_recv().ok())
+        .find_map(|message| match message {
+            ServerMessage::PlayerRelocated(relocation) => Some(relocation),
+            _ => None,
+        })
+        .expect("login relocation missing");
+    let checkpoint = &app.world().resource::<MapLayout>().checkpoints[0];
+    let pos = relocation.player.movement.pos;
+    assert!(
+        (checkpoint.min_x..=checkpoint.max_x).contains(&pos.x)
+            && (checkpoint.min_z..=checkpoint.max_z).contains(&pos.z),
+        "{pos:?} is outside {checkpoint:?}"
+    );
+    assert_eq!(saved_checkpoint(&app, PlayerId(1)), Some(CheckpointId(0)));
+}
+
+#[test]
+fn checkpoint_command_reports_and_sets_the_senders_checkpoint() {
+    let mut app = server_app(NetworkOverrides::default()).expect("server app failed to initialize");
+    let (client, receiver) = connect(&mut app);
+    client
+        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
+        .expect("login failed");
+    app.update();
+    while receiver.try_recv().is_ok() {}
+    let reply = |app: &mut App, command: &str| {
+        client
+            .send(ClientMessage::Admin(CAdmin {
+                command: command.into(),
+            }))
+            .expect("admin command delivery failed");
+        app.update();
+        feed_texts(&receiver)
+    };
+    assert_eq!(reply(&mut app, "/checkpoint"), vec!["no checkpoint saved"]);
+    assert_eq!(
+        reply(&mut app, "/checkpoint nowhere"),
+        vec!["unknown checkpoint \"nowhere\": the map's named checkpoints are corner"]
+    );
+    assert_eq!(saved_checkpoint(&app, PlayerId(1)), None);
+    assert_eq!(
+        reply(&mut app, "/checkpoint corner"),
+        vec!["checkpoint set to \"corner\""]
+    );
+    assert_eq!(saved_checkpoint(&app, PlayerId(1)), Some(CheckpointId(0)));
+    assert_eq!(reply(&mut app, "/checkpoint"), vec!["checkpoint: corner"]);
+}
 
 #[test]
 fn startup_god_and_peace_share_the_console_state() {
@@ -19,6 +113,7 @@ fn startup_god_and_peace_share_the_console_state() {
                     god,
                     peace,
                     initial_spawn: None,
+                    checkpoint: None,
                     network: NetworkOverrides::default(),
                     logging: false,
                 },
@@ -67,6 +162,7 @@ fn initial_spawn_override_places_the_first_single_player_body_exactly() {
             god: false,
             peace: false,
             initial_spawn: Some(expected),
+            checkpoint: None,
             network: NetworkOverrides::default(),
             logging: false,
         },

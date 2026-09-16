@@ -4,8 +4,9 @@ use crate::{
     map::{CellGrid, EdgeGrid, LevelGrid},
     players::PlayerInfo,
 };
-use bevy::ecs::system::RunSystemOnce;
+use bevy::{ecs::system::RunSystemOnce, time::TimeUpdateStrategy};
 use common::protocol::{ActorId, Carrier, CarrierId, MapLayout, PlayerId, SwitchId};
+use std::time::Duration;
 
 fn spawn_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
     spawn_app_for(IMMOVABLE, cols, counts, respawn_secs)
@@ -69,14 +70,26 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
         .init_resource::<Carriers>()
         .init_resource::<ActorMap>()
         .init_resource::<PlayerMap>()
-        .init_resource::<ActorRespawnTimers>()
         .init_resource::<ActorSpawner>()
         .init_resource::<PendingActorSpawns>()
         .init_resource::<ServerTick>()
         .init_resource::<PlateState>()
-        .add_systems(Startup, actors_initial_spawn_system)
         .add_systems(Update, (actors_pending_spawn_system, actors_respawn_system).chain());
     app
+}
+
+fn blocked(app: &App, zone_idx: usize) -> bool {
+    app.world().resource::<ActorSpawner>().blocked.contains(&zone_idx)
+}
+
+// The remaining delays of zone 0's vacated slots.
+fn refills(app: &App) -> Vec<Option<f32>> {
+    app.world()
+        .resource::<ActorSpawner>()
+        .refills
+        .get(&0)
+        .cloned()
+        .unwrap_or_default()
 }
 
 fn reset(app: &mut App, scope: ActorRespawnScope) {
@@ -85,18 +98,8 @@ fn reset(app: &mut App, scope: ActorRespawnScope) {
             move |mut commands: Commands,
                   mut actors: ResMut<ActorMap>,
                   mut pending: ResMut<PendingActorSpawns>,
-                  mut spawner: ResMut<ActorSpawner>,
-                  mut timers: ResMut<ActorRespawnTimers>,
-                  map_config: Res<MapConfig>| {
-                reset_actors(
-                    &mut commands,
-                    &mut actors,
-                    &mut pending,
-                    &mut spawner,
-                    &mut timers,
-                    &map_config,
-                    scope,
-                );
+                  mut spawner: ResMut<ActorSpawner>| {
+                reset_actors(&mut commands, &mut actors, &mut pending, &mut spawner, scope);
             },
         )
         .expect("reset system failed");
@@ -112,10 +115,7 @@ fn overlapping_zones_reserve_pending_and_live_centers_then_fill_a_vacancy() {
     let first_id = pending[0].actor_id;
     let freed_pos = pending[0].pos;
     let due_tick = pending[0].due_tick;
-    assert_eq!(
-        app.world().resource::<ActorRespawnTimers>().0[&1],
-        ActorRespawnState::WaitingForSpace
-    );
+    assert!(blocked(&app, 1));
     for _ in 0..10 {
         app.update();
     }
@@ -125,10 +125,7 @@ fn overlapping_zones_reserve_pending_and_live_centers_then_fill_a_vacancy() {
     app.update();
     assert_eq!(app.world().resource::<ActorMap>().values().count(), 2);
     assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
-    assert_eq!(
-        app.world().resource::<ActorRespawnTimers>().0[&1],
-        ActorRespawnState::WaitingForSpace
-    );
+    assert!(blocked(&app, 1));
     let removed = app
         .world_mut()
         .resource_mut::<ActorMap>()
@@ -140,7 +137,7 @@ fn overlapping_zones_reserve_pending_and_live_centers_then_fill_a_vacancy() {
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].zone_idx, 1);
     assert_eq!(pending[0].pos, freed_pos);
-    assert!(!app.world().resource::<ActorRespawnTimers>().0.contains_key(&1));
+    assert!(!blocked(&app, 1));
 }
 
 #[test]
@@ -149,16 +146,13 @@ fn blocked_initial_immovable_spawn_retries_even_when_respawns_are_disabled() {
     let player = app.world_mut().spawn((PlayerMarker, Position::default())).id();
     app.update();
     assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
-    assert_eq!(
-        app.world().resource::<ActorRespawnTimers>().0[&0],
-        ActorRespawnState::WaitingForSpace
-    );
+    assert!(blocked(&app, 0));
     app.world_mut().despawn(player);
     app.update();
     let pending = &app.world().resource::<PendingActorSpawns>().0;
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].pos, Position::default());
-    assert!(app.world().resource::<ActorRespawnTimers>().0.is_empty());
+    assert!(!blocked(&app, 0));
 }
 
 #[test]
@@ -170,17 +164,14 @@ fn blocked_movable_spawn_waits_for_space_when_respawns_are_disabled() {
         .has_ramp = true;
     app.update();
     assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
-    assert_eq!(
-        app.world().resource::<ActorRespawnTimers>().0[&0],
-        ActorRespawnState::WaitingForSpace
-    );
+    assert!(blocked(&app, 0));
     app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
         .cells
         .rows[0][0]
         .has_ramp = false;
     app.update();
     assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 1);
-    assert!(app.world().resource::<ActorRespawnTimers>().0.is_empty());
+    assert!(!blocked(&app, 0));
 }
 
 #[test]
@@ -234,46 +225,79 @@ fn blocked_reset_refills_retry_as_soon_as_space_clears() {
             1,
             "scope {scope:?}"
         );
-        assert!(app.world().resource::<ActorRespawnTimers>().0.is_empty());
+        assert!(!blocked(&app, 0));
     }
 }
 
 #[test]
-fn blocked_automatic_movable_spawn_keeps_its_retry_delay() {
-    let mut app = spawn_app_for(CONTACT, 1, &[1], Some(90.0));
-    app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
-        .cells
-        .rows[0][0]
-        .has_ramp = true;
+fn a_blocked_fill_retries_every_tick_and_warns_once_per_blockage() {
+    let mut app = spawn_app_for(CONTACT, 1, &[1], Some(0.0));
+    set_ramps(&mut app, true);
+    for _ in 0..3 {
+        app.update();
+        assert_eq!(pending_count(&app), 0);
+        assert!(blocked(&app, 0), "the blockage is remembered so it warns once");
+    }
+    set_ramps(&mut app, false);
     app.update();
-    assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
-    app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
-        .cells
-        .rows[0][0]
-        .has_ramp = false;
+    assert_eq!(pending_count(&app), 1, "the next tick with a clear spot fills");
+    assert!(!blocked(&app, 0), "a successful spawn re-arms the warning");
+    materialize_pending(&mut app);
+    set_ramps(&mut app, true);
+    destroy_one(&mut app);
     app.update();
-    assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+    assert!(blocked(&app, 0), "a later blockage warns again");
 }
 
 #[test]
-fn respawn_timer_starts_at_the_configured_delay() {
-    let mut timers = ActorRespawnTimers::default();
-    arm_actor_respawn(&mut timers, 3, 2.0);
-
-    assert!(tick_actor_respawns(&mut timers, 1.0).is_empty());
-    assert_eq!(tick_actor_respawns(&mut timers, 1.0), vec![3]);
+fn each_death_waits_its_own_full_delay() {
+    let mut app = spawn_app(2, &[2], Some(1.0));
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(100)));
+    app.update();
+    materialize_pending(&mut app);
+    destroy_one(&mut app);
+    for _ in 0..3 {
+        app.update();
+    }
+    destroy_one(&mut app);
+    app.update();
+    let waits = refills(&app);
+    assert_eq!(waits.len(), 2);
+    assert!(
+        waits[0].expect("first slot counts down") < waits[1].expect("second slot counts down"),
+        "the second death does not join the first countdown: {waits:?}"
+    );
+    for _ in 0..10 {
+        app.update();
+        if pending_count(&app) == 1 {
+            break;
+        }
+    }
+    assert_eq!(pending_count(&app), 1, "the first slot refills alone");
+    assert_eq!(refills(&app).len(), 1, "the second slot keeps waiting");
+    for _ in 0..10 {
+        app.update();
+        if pending_count(&app) == 2 {
+            break;
+        }
+    }
+    assert_eq!(pending_count(&app), 2);
+    assert!(refills(&app).is_empty());
 }
 
 #[test]
-fn another_vacancy_does_not_restart_an_active_zone_timer() {
-    let mut timers = ActorRespawnTimers::default();
-    arm_actor_respawn(&mut timers, 3, 2.0);
-    assert!(tick_actor_respawns(&mut timers, 1.0).is_empty());
-
-    arm_actor_respawn(&mut timers, 3, 2.0);
-
-    assert_eq!(timers.0[&3], ActorRespawnState::Cooldown(1.0));
-    assert_eq!(tick_actor_respawns(&mut timers, 1.0), vec![3]);
+fn deaths_in_the_same_tick_each_wait_for_their_delay() {
+    let mut app = spawn_app(3, &[3], Some(1000.0));
+    app.update();
+    materialize_pending(&mut app);
+    destroy_one(&mut app);
+    destroy_one(&mut app);
+    app.update();
+    assert_eq!(pending_count(&app), 0, "both vacancies wait for their delay");
+    assert_eq!(refills(&app).len(), 2);
+    expire_countdown(&mut app);
+    app.update();
+    assert_eq!(pending_count(&app), 2, "the expired delays refill both");
 }
 
 fn pending_spawn(id: u32, due_tick: u32) -> PendingActorSpawn {
@@ -369,14 +393,14 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
     let mut beam = pending_spawn(2, 60);
     beam.zone_idx = 1;
     let mut pending = PendingActorSpawns(vec![contact, beam]);
-    let mut timers = ActorRespawnTimers::default();
-    timers.0.insert(0, ActorRespawnState::Cooldown(60.0));
-    timers.0.insert(1, ActorRespawnState::Cooldown(120.0));
+    let mut spawner = ActorSpawner::default();
+    spawner.refills.insert(0, vec![Some(60.0)]);
+    spawner.refills.insert(1, vec![Some(120.0)]);
 
     let count = expedite_actor_respawns(
         &ActorMap::default(),
         &mut pending,
-        &mut timers,
+        &mut spawner,
         &map_config,
         1,
         100,
@@ -386,8 +410,8 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
     assert_eq!(count, 2);
     assert_eq!(pending.0[0].due_tick, 100);
     assert_eq!(pending.0[1].due_tick, 60);
-    assert_eq!(timers.0[&0], ActorRespawnState::Cooldown(0.0));
-    assert_eq!(timers.0[&1], ActorRespawnState::Cooldown(120.0));
+    assert_eq!(spawner.refills[&0], vec![Some(0.0)]);
+    assert_eq!(spawner.refills[&1], vec![Some(120.0)]);
 }
 
 #[test]
@@ -439,10 +463,6 @@ fn set_switch(app: &mut App, active: bool) {
     plates.active_switches = if active { vec![GUARDS] } else { Vec::new() };
 }
 
-fn zone_state(app: &App) -> Option<ActorRespawnState> {
-    app.world().resource::<ActorRespawnTimers>().0.get(&0).copied()
-}
-
 fn pending_count(app: &App) -> usize {
     app.world().resource::<PendingActorSpawns>().0.len()
 }
@@ -478,10 +498,17 @@ fn destroy_one(app: &mut App) {
 }
 
 fn expire_countdown(app: &mut App) {
-    app.world_mut()
-        .resource_mut::<ActorRespawnTimers>()
-        .0
-        .insert(0, ActorRespawnState::Cooldown(0.0));
+    for secs in app
+        .world_mut()
+        .resource_mut::<ActorSpawner>()
+        .refills
+        .entry(0)
+        .or_default()
+        .iter_mut()
+        .flatten()
+    {
+        *secs = 0.0;
+    }
 }
 
 #[test]
@@ -491,16 +518,10 @@ fn a_switched_zone_spawns_nothing_until_its_switch_turns_on() {
         app.update();
     }
     assert_eq!(pending_count(&app), 0, "no initial fill");
-    assert_eq!(
-        zone_state(&app),
-        Some(ActorRespawnState::Reset),
-        "due, waiting for the switch"
-    );
 
     set_switch(&mut app, true);
     app.update();
     assert_eq!(pending_count(&app), 2, "turning on fills on the next pass");
-    assert_eq!(zone_state(&app), None);
     app.update();
     assert_eq!(pending_count(&app), 2, "an active full zone queues nothing more");
 }
@@ -512,7 +533,6 @@ fn an_activation_fills_the_zone_at_once_whatever_its_respawn_time() {
     set_switch(&mut app, true);
     app.update();
     assert_eq!(pending_count(&app), 2);
-    assert_eq!(zone_state(&app), None);
 }
 
 #[test]
@@ -524,13 +544,13 @@ fn switching_off_and_on_does_not_restart_a_countdown() {
     materialize_pending(&mut app);
     destroy_one(&mut app);
     app.update();
-    assert!(matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(secs)) if secs > 999.0));
+    assert!(matches!(refills(&app).as_slice(), [Some(secs)] if *secs > 999.0));
     set_switch(&mut app, false);
     app.update();
     assert!(
-        matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(secs)) if secs > 999.0),
+        matches!(refills(&app).as_slice(), [Some(secs)] if *secs > 999.0),
         "switching off keeps the countdown: {:?}",
-        zone_state(&app)
+        refills(&app)
     );
     expire_countdown(&mut app);
     app.update();
@@ -542,7 +562,7 @@ fn switching_off_and_on_does_not_restart_a_countdown() {
         1,
         "the switch fills the due zone without a fresh countdown"
     );
-    assert_eq!(zone_state(&app), None);
+    assert!(refills(&app).is_empty());
 }
 
 #[test]
@@ -559,7 +579,6 @@ fn a_kill_while_switched_off_arms_the_countdown() {
         app.update();
     }
     assert_eq!(pending_count(&app), 0, "the vacancy waits for the switch");
-    assert!(matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(_))));
     set_switch(&mut app, true);
     app.update();
     assert_eq!(pending_count(&app), 1, "turning on refills the vacancy at once");
@@ -588,7 +607,6 @@ fn a_reset_leaves_a_switched_off_zone_waiting_and_refills_an_active_one() {
     reset(&mut app, ActorRespawnScope::All);
     app.update();
     assert_eq!(pending_count(&app), 0);
-    assert_eq!(zone_state(&app), Some(ActorRespawnState::Reset));
 
     set_switch(&mut app, true);
     app.update();
@@ -619,10 +637,10 @@ fn expediting_respawns_makes_a_switched_off_zone_due_for_its_switch() {
         .run_system_once(
             |actors: Res<ActorMap>,
              mut pending: ResMut<PendingActorSpawns>,
-             mut timers: ResMut<ActorRespawnTimers>,
+             mut spawner: ResMut<ActorSpawner>,
              map_config: Res<MapConfig>,
              tick: Res<ServerTick>| {
-                expedite_actor_respawns(&actors, &mut pending, &mut timers, &map_config, 1, tick.0, None)
+                expedite_actor_respawns(&actors, &mut pending, &mut spawner, &map_config, 1, tick.0, None)
             },
         )
         .expect("expedite system failed");
@@ -640,7 +658,6 @@ fn an_inverted_zone_fills_at_boot_while_its_switch_is_off_and_holds_once_it_turn
     app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch_inverted = true;
     app.update();
     assert_eq!(pending_count(&app), 2);
-    assert_eq!(zone_state(&app), None);
     materialize_pending(&mut app);
     set_switch(&mut app, true);
     app.update();
@@ -661,11 +678,9 @@ fn an_inverted_zone_that_boots_switched_on_waits_for_the_switch_to_turn_off() {
     set_switch(&mut app, true);
     app.update();
     assert_eq!(pending_count(&app), 0);
-    assert_eq!(zone_state(&app), Some(ActorRespawnState::Reset));
     set_switch(&mut app, false);
     app.update();
     assert_eq!(pending_count(&app), 2);
-    assert_eq!(zone_state(&app), None);
 }
 
 #[test]
@@ -684,7 +699,7 @@ fn a_zone_without_a_respawn_time_never_refills_even_when_toggled() {
         app.update();
     }
     assert_eq!(pending_count(&app), 0);
-    assert_eq!(zone_state(&app), None);
+    assert_eq!(refills(&app), vec![None], "the slot is lost for good");
 }
 
 #[test]
@@ -795,9 +810,9 @@ fn joins_add_only_new_slots_without_refilling_deaths_or_skipping_cooldowns() {
         app.update();
         assert_eq!(pending_count(&app), 2, "only the two added slots can spawn");
         if respawn_secs.is_some() {
-            assert!(matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(remaining)) if remaining > 900.0));
+            assert!(matches!(refills(&app).as_slice(), [Some(remaining)] if *remaining > 900.0));
         } else {
-            assert_eq!(zone_state(&app), None);
+            assert_eq!(refills(&app), vec![None]);
         }
         materialize_pending(&mut app);
         assert_eq!(live_count(&app), 4);
@@ -913,10 +928,9 @@ fn blocked_join_slots_are_discarded_on_departure_without_enabling_respawns() {
     add_player(&mut app, 2, true);
     app.update();
     assert_eq!(pending_count(&app), 0);
-    assert_eq!(zone_state(&app), Some(ActorRespawnState::WaitingForSpace));
+    assert!(blocked(&app, 0));
     leave_player(&mut app, 2);
     app.update();
-    assert_eq!(zone_state(&app), None, "nothing is owed once the slots are gone");
     destroy_one(&mut app);
     app.update();
     assert_eq!(pending_count(&app), 0);
@@ -955,7 +969,7 @@ fn set_ramps(app: &mut App, has_ramp: bool) {
 }
 
 #[test]
-fn a_blocked_join_waits_out_the_respawn_time_like_a_blocked_refill() {
+fn a_blocked_join_fills_the_tick_a_spot_clears() {
     let mut app = spawn_app_for(CONTACT, 3, &[1], Some(90.0));
     app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].count = vec![1, 3];
     add_player(&mut app, 1, true);
@@ -965,11 +979,8 @@ fn a_blocked_join_waits_out_the_respawn_time_like_a_blocked_refill() {
     add_player(&mut app, 2, true);
     app.update();
     assert_eq!(pending_count(&app), 0);
-    assert!(matches!(zone_state(&app), Some(ActorRespawnState::Blocked(remaining)) if remaining > 80.0));
+    assert!(blocked(&app, 0));
     set_ramps(&mut app, false);
-    app.update();
-    assert_eq!(pending_count(&app), 0, "a blocked join retries after the respawn time");
-    expire_countdown(&mut app);
     app.update();
     assert_eq!(pending_count(&app), 2);
 }

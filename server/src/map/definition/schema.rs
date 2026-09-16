@@ -371,4 +371,6 @@ pub(crate) struct CheckpointDef {
     pub(crate) zone: ZoneDef,
     #[serde(rename = "type")]
     pub(crate) kind: CheckpointKind,
+    #[serde(default)]
+    pub(crate) name: Option<String>,
 }

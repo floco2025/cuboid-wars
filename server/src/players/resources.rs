@@ -17,9 +17,13 @@ pub type PlayerStateQuery<'w, 's> =
 #[derive(Resource)]
 pub struct Invincibility(pub bool);
 
-// A review launch's `--spawn`, consumed by the first login.
-#[derive(Resource, Debug, Clone, Copy)]
-pub(crate) struct InitialPlayerSpawn(pub Option<Position>);
+// Where logins start: a review launch's `--spawn`, consumed by the first login,
+// and the `--checkpoint` every login begins at and keeps as its respawn point.
+#[derive(Resource, Debug, Clone, Copy, Default)]
+pub(crate) struct LoginStart {
+    pub spawn: Option<Position>,
+    pub checkpoint: Option<CheckpointId>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerQuestState {

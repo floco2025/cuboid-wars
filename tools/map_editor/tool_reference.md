@@ -72,7 +72,7 @@ Choose a tool in the left palette. **Place / Erase** switches between placing th
 
 A checkpoint is a rectangle of flat accessible floor that players respawn in once they have landed in it. Checkpoints may overlap spawn zones but not each other; Map → Check Map reports overlaps and cells without flat floor.
 
-- **Checkpoint** — Choose Type in the toolbar, then drag a rectangle. Individual saves the entrant's own respawn point, Group — any saves everyone's when one player enters, and Group — all waits until every player has visited. Select it to move it, resize with its handles, or change its type in Properties; Delete removes it.
+- **Checkpoint** — Choose Type in the toolbar, then drag a rectangle. Individual saves the entrant's own respawn point, Group — any saves everyone's when one player enters, and Group — all waits until every player has visited. Select it to move it, resize with its handles, or change its type or name in Properties; Delete removes it. A name shows on the canvas in place of "checkpoint", must be unique in the map, and lets the game start or respawn there (`--checkpoint <name>` at launch, `/checkpoint <name>` in the console).
 - **Erase Checkpoints** — Drag a rectangle to remove every checkpoint it touches on the current level.
 
 ## Walls

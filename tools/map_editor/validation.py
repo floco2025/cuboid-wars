@@ -570,6 +570,12 @@ def _validate_checkpoints(data: dict, errors: ValidationErrors) -> None:
         _validate_zone_rect(zone, label, data, errors)
         if zone.get("type") not in CHECKPOINT_TYPE_LABELS:
             errors.append(f"{label} has an unknown checkpoint type {zone.get('type')!r}")
+        name = zone.get("name")
+        if name is not None:
+            if not isinstance(name, str) or not name.strip() or name != name.strip():
+                errors.append(f"{label} name must be nonempty with no surrounding spaces")
+            elif any(other.get("name") == name for other in data["checkpoints"][:index]):
+                errors.append(f"{label} name {name!r} is already used by another checkpoint")
         level = zone["level"]
         if not 0 <= level < len(data["levels"]):
             continue

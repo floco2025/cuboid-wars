@@ -8,14 +8,12 @@ use crate::{
     actors::{ActorMap, PendingActorSpawns, expedite_actor_respawns},
     combat::{DeathSource, kill_player},
     config::ServerGameplayConfig,
-    map::MapConfig,
-    network::{broadcast_firework_show, broadcast_to_all},
-    players::{PlayerMap, PlayerStateQuery},
+    network::{SharedWorld, broadcast_firework_show, broadcast_to_all},
+    players::{PlayerCheckpoint, PlayerMap, PlayerStateQuery, checkpoint_named},
     quests::{QuestBoard, QuestCatalog, complete_quest, unlock_quest},
 };
 use common::{
     celestial::{CelestialClockAnchor, CelestialCycleSettings, LocalTime},
-    config::GameplayConfig,
     protocol::{
         BarrierKindId, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope, SPlayerStatus,
         ServerMessage,
@@ -35,8 +33,7 @@ pub(super) fn run_admin_command(
     sender: PlayerId,
     admin: &mut AdminContext,
     player_data: &PlayerStateQuery,
-    gameplay_config: &GameplayConfig,
-    map_config: &MapConfig,
+    world: &SharedWorld,
     pending_actor_spawns: &mut PendingActorSpawns,
     quest_board: &mut QuestBoard,
     command: &str,
@@ -120,8 +117,8 @@ pub(super) fn run_admin_command(
             let count = expedite_actor_respawns(
                 actors,
                 pending_actor_spawns,
-                &mut admin.actor_respawn_timers,
-                map_config,
+                &mut admin.actor_spawner,
+                &world.map_config,
                 players.logged_in_count(),
                 admin.server_tick.0,
                 kind.as_deref(),
@@ -153,6 +150,33 @@ pub(super) fn run_admin_command(
             } else {
                 Private(text)
             }
+        }
+        AdminCommand::CheckpointStatus => {
+            let Some(info) = players.get(&sender) else {
+                return Private("sender not found".to_owned());
+            };
+            Private(match info.session.checkpoint {
+                Some(saved) => format!(
+                    "checkpoint: {}",
+                    world.map_layout.checkpoints[saved.id.0]
+                        .name
+                        .clone()
+                        .unwrap_or_else(|| format!("#{}", saved.id.0))
+                ),
+                None => "no checkpoint saved".to_owned(),
+            })
+        }
+        AdminCommand::SetCheckpoint(name) => {
+            let checkpoints = &world.map_layout.checkpoints;
+            let id = match checkpoint_named(checkpoints, &name) {
+                Ok(id) => id,
+                Err(message) => return Private(message),
+            };
+            let Some(info) = players.get_mut(&sender) else {
+                return Private("sender not found".to_owned());
+            };
+            info.session.checkpoint = Some(PlayerCheckpoint::toward_origin(id, checkpoints, &world.carriers));
+            Private(format!("checkpoint set to {name:?}"))
         }
         AdminCommand::GiveKeys => {
             let Some(info) = players.get_mut(&sender) else {
@@ -226,7 +250,7 @@ pub(super) fn run_admin_command(
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };
-            let max = gameplay_config.missiles.max_missiles;
+            let max = world.gameplay_config.missiles.max_missiles;
             let missiles = info.add_missiles(max, max);
             let status = SPlayerStatus {
                 collected: Some(ItemType::MissilePack),

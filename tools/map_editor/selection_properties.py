@@ -147,13 +147,12 @@ class SelectionProperties(QDockWidget):
                 if value is _MIXED:
                     widget.setPlaceholderText("Mixed / unchanged")
                 else:
-                    text = (
-                        ", ".join(map(str, value))
-                        if field.kind == "counts" and isinstance(value, list)
-                        else "Never"
-                        if value is None
-                        else str(value)
-                    )
+                    if field.kind == "counts" and isinstance(value, list):
+                        text = ", ".join(map(str, value))
+                    elif value is None:
+                        text = "Never" if field.kind == "respawn" else ""
+                    else:
+                        text = str(value)
                     widget.setText(text)
                 widget.textEdited.connect(lambda _text, key=field.key: self.mark_changed(key))
             if field.key == ("count",):
@@ -218,6 +217,8 @@ class SelectionProperties(QDockWidget):
                 return widget.currentText()
             return widget.currentData()
         text = widget.text().strip()
+        if field.kind == "optional_text":
+            return text or None
         if field.kind == "counts":
             try:
                 value = [int(part.strip()) for part in text.split(",")]
@@ -253,7 +254,7 @@ class SelectionProperties(QDockWidget):
                         continue
                     if len(key) == 2:
                         entry[key[0]][key[1]] = value
-                    elif value is None and key[0] in ("switch", "kind"):
+                    elif value is None and key[0] in ("switch", "kind", "name"):
                         entry.pop(key[0], None)
                     else:
                         entry[key[0]] = value

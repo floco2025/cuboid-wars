@@ -4,8 +4,8 @@ use crate::{
     characters::spawn_face_yaw,
     network::{FeedAudience, FeedEvent, emit_feed},
     players::{
-        PlayerMap, PlayerSpawn, enter_group_respawn, place_player_body, player_spawn_destination,
-        spawn_zone_destination,
+        LoginStart, PlayerCheckpoint, PlayerMap, PlayerSpawn, enter_group_respawn, place_player_body,
+        player_spawn_destination, spawn_zone_destination,
     },
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
@@ -33,7 +33,7 @@ pub(super) fn handle_login_message(
     entity: Entity,
     id: PlayerId,
     message: CLogin,
-    initial_spawn: Option<Position>,
+    start: LoginStart,
     players: &mut PlayerMap,
     world: &SharedWorld,
     celestial_clock: &CelestialClockAnchor,
@@ -43,13 +43,16 @@ pub(super) fn handle_login_message(
     portal_assignments: &mut PortalAssignments,
     portals: &mut PortalMap,
 ) {
-    let shared_checkpoint = players.shared_checkpoint;
+    let saved_checkpoint = start
+        .checkpoint
+        .map(|id| PlayerCheckpoint::toward_origin(id, &world.map_layout.checkpoints, &world.carriers))
+        .or(players.shared_checkpoint);
     let Some(player_info) = players.get_mut(&id) else {
         error!("registered player#{} missing during login", id.0);
         return;
     };
     player_info.connection.logged_in = true;
-    player_info.session.checkpoint = shared_checkpoint;
+    player_info.session.checkpoint = saved_checkpoint;
     player_info.connection.name = sanitize_player_name(&message.name, id);
     let channel = player_info.connection.channel.clone();
     debug!("{} authenticated", players.describe(&id));
@@ -89,7 +92,7 @@ pub(super) fn handle_login_message(
         .map(|(pos, _, _)| *pos)
         .collect();
     let physics = world.gameplay_config.player.physics();
-    let spawn = if let Some(pos) = initial_spawn {
+    let spawn = if let Some(pos) = start.spawn {
         PlayerSpawn {
             pos,
             face_yaw: spawn_face_yaw(&pos),
@@ -103,12 +106,12 @@ pub(super) fn handle_login_message(
             &world.collision_world,
             &occupied_positions,
             physics,
-            shared_checkpoint,
+            saved_checkpoint,
         )
         .unwrap_or_else(|| {
             // A joining player gets a body now; the blocked checkpoint stays saved for the next respawn.
             info!(
-                "{}: the shared checkpoint is blocked, spawning in a zone instead",
+                "{}: the saved checkpoint is blocked, spawning in a zone instead",
                 players.describe(&id)
             );
             spawn_zone_destination(

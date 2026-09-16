@@ -771,6 +771,17 @@ fn validate_checkpoints(map_def: &MapDef) -> Result<()> {
     for (index, checkpoint) in map_def.checkpoints.iter().enumerate() {
         let label = format!("checkpoints[{index}]");
         validate_zone_placement(checkpoint, &label, map_def)?;
+        if let Some(name) = &checkpoint.name {
+            if name.trim().is_empty() || name != name.trim() {
+                return Err(anyhow!("{label}: name must be nonempty and have no surrounding spaces"));
+            }
+            if map_def.checkpoints[..index]
+                .iter()
+                .any(|other| other.name.as_deref() == Some(name))
+            {
+                return Err(anyhow!("{label}: name {name:?} is already used by another checkpoint"));
+            }
+        }
         let zone = &checkpoint.zone;
         let floors: BTreeSet<_> = map_def.levels[zone.level as usize]
             .floors
