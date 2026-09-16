@@ -28,8 +28,19 @@ impl CollisionWorld {
         physics: CharacterPhysicsConfig,
         open: &[BarrierId],
     ) -> bool {
-        let start = self.ground_route_position(start, physics, open);
-        let target = self.ground_route_position(target, physics, open);
+        let start = self.ground_route_position(start, physics, open, CHARACTER_STEP_HEIGHT);
+        let target = self.ground_route_position(target, physics, open, CHARACTER_STEP_HEIGHT);
+        self.character_route_sweep_clear(start, target, physics, open)
+            || self.character_ground_steps_clear(start, target, physics, open)
+    }
+
+    fn character_route_sweep_clear(
+        &self,
+        start: Position,
+        target: Position,
+        physics: CharacterPhysicsConfig,
+        open: &[BarrierId],
+    ) -> bool {
         let translation = Vector::new(target.x - start.x, target.y - start.y, target.z - start.z);
         let horizontal = translation.with_y(0.0);
         let controller = character_controller();
@@ -68,11 +79,71 @@ impl CollisionWorld {
         false
     }
 
+    fn character_ground_steps_clear(
+        &self,
+        start: Position,
+        target: Position,
+        physics: CharacterPhysicsConfig,
+        open: &[BarrierId],
+    ) -> bool {
+        // A descending diagonal sweep pushes into a landing's edge and slides sideways.
+        // Retry with horizontal control and ground following, as the walking motor does.
+        let horizontal = Vector::new(target.x - start.x, 0.0, target.z - start.z);
+        let distance = horizontal.length();
+        if distance <= PHYSICS_EPSILON {
+            return false;
+        }
+        let step_length = physics
+            .movement_collider
+            .radius()
+            .min(CHARACTER_STEP_HEIGHT / CHARACTER_MAX_SLOPE.tan());
+        let max_steps = (distance / step_length).ceil() as usize * 2 + 4;
+        let controller = character_controller();
+        let shape = character_movement_shape(physics);
+        let mut position = start;
+        for _ in 0..max_steps {
+            let remaining = Vector::new(target.x - position.x, 0.0, target.z - position.z);
+            if remaining.length_squared() <= 0.05 * 0.05 {
+                return (position.y - target.y).abs() <= CHARACTER_STEP_HEIGHT
+                    && !self.character_penetrates_solid(&position, physics, open);
+            }
+            let movement = self.move_character(
+                1.0,
+                &controller,
+                &shape,
+                &character_movement_pose(&position, physics),
+                remaining.clamp_length_max(step_length),
+                open,
+                &[],
+                |_| {},
+            );
+            if movement.translation.with_y(0.0).length_squared() <= PHYSICS_EPSILON * PHYSICS_EPSILON {
+                return false;
+            }
+            position.x += movement.translation.x;
+            position.y += movement.translation.y;
+            position.z += movement.translation.z;
+            position = self.ground_route_position(
+                position,
+                physics,
+                open,
+                (position.y - target.y).max(CHARACTER_STEP_HEIGHT),
+            );
+            let offset = Vector::new(position.x - start.x, 0.0, position.z - start.z);
+            let lateral = offset - horizontal * (offset.dot(horizontal) / horizontal.length_squared());
+            if lateral.length_squared() > 0.05 * 0.05 {
+                return false;
+            }
+        }
+        false
+    }
+
     fn ground_route_position(
         &self,
         mut position: Position,
         physics: CharacterPhysicsConfig,
         open: &[BarrierId],
+        max_drop: f32,
     ) -> Position {
         let lift = physics.movement_collider.radius() + CHARACTER_STEP_HEIGHT;
         let mut pose = character_movement_pose(&position, physics);
@@ -80,7 +151,7 @@ impl CollisionWorld {
         let Some(hit) = self.ground_hit(
             &character_movement_shape(physics),
             &pose,
-            lift + CHARACTER_CONTACT_OFFSET,
+            lift + max_drop + CHARACTER_CONTACT_OFFSET,
             0.0,
             open,
             &[],
@@ -93,7 +164,9 @@ impl CollisionWorld {
         let adjustment = lift - hit.t + CHARACTER_CONTACT_OFFSET / hit.normal.y;
         // Graph heights describe surfaces; an upright capsule's rounded base stands higher on a slope.
         let slope_clearance = physics.movement_collider.radius() * (hit.normal.y.recip() - 1.0);
-        if adjustment.abs() <= CHARACTER_STEP_HEIGHT + slope_clearance + CHARACTER_CONTACT_OFFSET * 2.0 {
+        if adjustment <= CHARACTER_STEP_HEIGHT + slope_clearance + CHARACTER_CONTACT_OFFSET * 2.0
+            && adjustment >= -max_drop - CHARACTER_CONTACT_OFFSET * 2.0
+        {
             position.y += adjustment;
         }
         position

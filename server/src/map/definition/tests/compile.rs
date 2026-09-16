@@ -71,6 +71,67 @@ fn compiled_ramps_support_actor_routes_and_movement_in_both_directions() {
     }
 }
 
+#[test]
+fn off_center_routes_into_a_walled_ramp_keep_moving_past_the_crest() {
+    let upper = (0..4)
+        .flat_map(|row| (0..4).map(move |col| [col, row]))
+        .filter(|&[col, row]| col != 0 || row == 0 || row == 3)
+        .collect();
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 1], [0, 2], [0, 3]]), level(upper)],
+        Vec::new(),
+        vec![player_zone(0, 0, 3)],
+        vec![ramp([0, 3], [1, 1], 0)],
+    );
+    for tier in &mut map_def.levels {
+        tier.walls.push(WallDef {
+            c0: 0,
+            r0: 0,
+            c1: 0,
+            r1: 4,
+            materials: FaceMaterials::uniform("test"),
+        });
+    }
+    map_def.levels[0].walls.push(WallDef {
+        c0: 1,
+        r0: 1,
+        c1: 1,
+        r1: 3,
+        materials: FaceMaterials::uniform("test"),
+    });
+    let (layout, config) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
+        .expect("trench ramp failed to compile");
+    let geometry = config.root_grid().geometry;
+    let graphs = NavGraphs::new(&config);
+    let carriers = Carriers::from_layout(&layout);
+    let world = CollisionWorld::from_map_layout(&layout);
+    let navigation = GroundNavigation {
+        graphs: &graphs,
+        carriers: &carriers,
+        carrier: CarrierId::WORLD,
+        kind: CONTACT,
+        world: &world,
+        physics: test_kinds::physics(CONTACT),
+        open: &[],
+    };
+    let target = Position {
+        x: geometry.cell_center_x(0),
+        y: 0.0,
+        z: geometry.cell_center_z(3),
+    };
+    for col_offset in [0.0, 0.3, 0.6, 0.9, 1.2, 1.5, 2.0] {
+        for row_offset in [-0.5, 0.0, 0.5, 0.8, 1.0, 1.2, 1.5] {
+            let start = Position {
+                x: geometry.cell_center_x(0) + col_offset * geometry.cell_size(),
+                y: LEVEL_HEIGHT,
+                z: geometry.cell_center_z(0) + row_offset * geometry.cell_size(),
+            };
+            walk_ramp_route(&navigation, start, target);
+        }
+    }
+}
+
 fn walk_ramp_route(navigation: &GroundNavigation<'_>, start: Position, target: Position) {
     let settings = map_settings();
     let mut route = navigation
