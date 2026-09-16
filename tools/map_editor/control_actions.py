@@ -8,8 +8,7 @@ from .dialogs.control_catalogs import ControlCatalogDialog, FireworksDialog
 
 
 class ControlActionsMixin:
-    def build_control_menu(self):
-        menu = self.menuBar().addMenu("&Map")
+    def build_control_menu(self, menu):
         for catalog, title in (
             ("switch_kinds", "Pressure Plate Kinds"),
             ("barrier_kinds", "Barrier Kinds"),

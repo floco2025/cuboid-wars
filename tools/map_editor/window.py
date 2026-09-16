@@ -113,6 +113,7 @@ class EditorWindow(
         # prompt; the kinds start on the map's first listed kind.
         self.recent_barrier_controls = {}
         self.recent_bridge_controls = {}
+        self.recent_checkpoint_name: str = ""
         self.recent_checkpoint_type: str = "individual"
         self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: list[int] = [DEFAULT_ACTOR_COUNT]
@@ -358,22 +359,21 @@ class EditorWindow(
         self.build_selection_actions(edit_menu)
         self.add_menu_action(edit_menu, "Review &Repairs...", None, self.review_repairs)
         edit_menu.addSeparator()
-        self.add_menu_action(edit_menu, "New Nested Map...", None, self.new_nested_map)
-        self.rename_nested_action = self.add_menu_action(
-            edit_menu, "Rename Nested Map...", None, self.rename_nested_map
-        )
-        self.delete_nested_action = self.add_menu_action(edit_menu, "Delete Nested Map", None, self.delete_nested_map)
-        edit_menu.addSeparator()
-        self.add_menu_action(edit_menu, "Resi&ze Map...", None, self.resize_map)
-        edit_menu.addSeparator()
-        self.add_menu_action(edit_menu, "&Add Level", None, self.add_level)
-        self.add_menu_action(edit_menu, "Re&name Level...", None, self.rename_level)
-        self.add_menu_action(edit_menu, "Re&move Level", None, self.remove_level)
-        edit_menu.addSeparator()
         self.add_menu_action(edit_menu, "Auto-Place &Lights...", None, self.open_auto_place_lights_dialog)
         self.add_menu_action(edit_menu, "&Clear Lights On Level", None, self.clear_lights_on_current_level)
 
-        self.build_control_menu()
+        map_menu = self.menuBar().addMenu("&Map")
+        self.add_menu_action(map_menu, "New Nested Map...", None, self.new_nested_map)
+        self.rename_nested_action = self.add_menu_action(map_menu, "Rename Nested Map...", None, self.rename_nested_map)
+        self.delete_nested_action = self.add_menu_action(map_menu, "Delete Nested Map", None, self.delete_nested_map)
+        map_menu.addSeparator()
+        self.add_menu_action(map_menu, "Resi&ze Map...", None, self.resize_map)
+        self.add_menu_action(map_menu, "&Add Level", None, self.add_level)
+        self.add_menu_action(map_menu, "Re&name Level...", None, self.rename_level)
+        self.add_menu_action(map_menu, "Re&move Level", None, self.remove_level)
+        map_menu.addSeparator()
+        self.build_control_menu(map_menu)
+
         view_menu = self.menuBar().addMenu("&View")
         self.add_menu_action(view_menu, "Next Level", QKeySequence(Qt.Key.Key_PageUp), self.next_level)
         self.add_menu_action(view_menu, "Previous Level", QKeySequence(Qt.Key.Key_PageDown), self.previous_level)

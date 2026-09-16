@@ -2,10 +2,11 @@ import copy
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QComboBox
+from PySide6.QtWidgets import QComboBox, QLineEdit
 
 from editor_fixtures import EditorHost, WindowTestCase, floor
 from map_editor.constants import (
@@ -167,6 +168,59 @@ class CheckpointTests(unittest.TestCase):
 
 
 class CheckpointWindowTests(WindowTestCase):
+    def test_toolbar_name_is_used_at_placement_and_survives_undo_and_save(self):
+        window = self.window
+        data = checkpoint_map()
+        data["checkpoints"] = []
+        window.doc.replace_with_new(data)
+        window.set_mode(MODE_CHECKPOINT)
+        name = window.tool_settings.findChild(QLineEdit)
+        name.setFocus()
+        QTest.keyClicks(name, "  Upper hall  ")
+        self.assertEqual(window.map_data["checkpoints"], [])
+        window.set_mode(MODE_SELECT)
+        window.set_mode(MODE_CHECKPOINT)
+        self.assertEqual(window.tool_settings.findChild(QLineEdit).text(), "  Upper hall  ")
+        canvas = window.canvas
+        start = canvas.viewport.from_grid(QPointF(1.5, 1.5)).toPoint()
+        end = canvas.viewport.from_grid(QPointF(2.5, 2.5)).toPoint()
+        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=start)
+        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=end)
+        expected = [{"level": 0, "cols": [1, 3], "rows": [1, 3], "type": "individual", "name": "Upper hall"}]
+        self.assertEqual(window.map_data["checkpoints"], expected)
+        self.assertEqual(window.undo_stack.count(), 1)
+        window.undo_stack.undo()
+        self.assertEqual(window.map_data["checkpoints"], [])
+        window.undo_stack.redo()
+        self.assertEqual(window.map_data["checkpoints"], expected)
+        window.doc.write(self.path)
+        self.assertEqual(read_map(self.path)["checkpoints"], expected)
+
+    def test_duplicate_placement_name_can_be_corrected_or_cleared_before_placing(self):
+        window = self.window
+        data = checkpoint_map()
+        data["checkpoints"] = []
+        window.doc.replace_with_new(data)
+        window.set_mode(MODE_CHECKPOINT)
+        name = window.tool_settings.findChild(QLineEdit)
+        name.setText("hall")
+        self.click(1, 1)
+        before = copy.deepcopy(window.map_data)
+        with patch.object(window, "notify") as notify:
+            self.click(2, 1)
+        self.assertIn("already in use", notify.call_args.args[0])
+        self.assertEqual(window.map_data, before)
+        self.assertEqual(window.undo_stack.count(), 1)
+        self.assertEqual(name.text(), "hall")
+        name.setText("landing")
+        self.click(2, 1)
+        name.setText("   ")
+        self.click(3, 1)
+        names = {tuple(zone["cols"]): zone.get("name") for zone in window.map_data["checkpoints"]}
+        self.assertEqual(names, {(1, 2): "hall", (2, 3): "landing", (3, 4): None})
+        self.assertEqual(window.undo_stack.count(), 3)
+        self.assertFalse(window.validate(window.map_data))
+
     def test_named_checkpoint_copies_get_fresh_names_and_moves_keep_names(self):
         window = self.window
         for objects in (False, True):

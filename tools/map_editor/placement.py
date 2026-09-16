@@ -118,6 +118,12 @@ class PlacementMixin:
         }
         if list_name == CHECKPOINT_LIST:
             new_zone["type"] = self.recent_checkpoint_type
+            name = self.recent_checkpoint_name.strip()
+            if name:
+                if any(zone.get("name") == name for zone in self.map_data[CHECKPOINT_LIST]):
+                    self.notify(f"Checkpoint name {name!r} is already in use. Choose another name or leave it blank.")
+                    return
+                new_zone["name"] = name
         else:
             new_zone["levels"] = min(self.recent_player_spawn_levels, len(self.map_data["levels"]) - self.current_level)
         after[list_name].append(new_zone)

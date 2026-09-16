@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSizePolicy,
     QSpinBox,
@@ -68,6 +69,9 @@ class ToolSettings(QWidget):
                 widget.setToolTip(widget.currentText())
                 if attribute == "current_material":
                     widget.setToolTip(portal_label(self.window.texture_catalog.get(value, False)))
+            elif isinstance(widget, QLineEdit):
+                if widget.text() != value:
+                    widget.setText(value)
             else:
                 if attribute in ("recent_player_spawn_levels", "selection_levels"):
                     widget.setMaximum(max(1, len(self.window.map_data["levels"]) - self.window.current_level))
@@ -164,6 +168,13 @@ class ToolSettings(QWidget):
             field(label, box)
 
         def checkpoint_controls():
+            name = QLineEdit(window.recent_checkpoint_name)
+            name.setPlaceholderText("Optional")
+            name.setToolTip("Optional checkpoint name, unique within this map.")
+            name.setMaximumWidth(150)
+            name.textChanged.connect(lambda text: setattr(window, "recent_checkpoint_name", text))
+            self.bindings.append((name, "recent_checkpoint_name"))
+            field("Name", name)
             box = CompactComboBox()
             for kind, label in CHECKPOINT_TYPE_LABELS.items():
                 box.addItem(label, kind)
