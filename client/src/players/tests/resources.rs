@@ -80,3 +80,21 @@ fn apply_status_updates_status_fields_only() {
     assert_eq!(info.held_keys, status.held_keys);
     assert_eq!(info.missiles, status.missiles);
 }
+
+#[test]
+fn checkpoint_cues_and_snapshots_share_wrap_aware_ordering() {
+    for tick in [10_u32, u32::MAX - 1] {
+        let mut player = snapshot_player();
+        let mut info = PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player, tick);
+        info.apply_checkpoint(Some(4), tick.wrapping_add(2));
+        info.apply_snapshot(&player, tick.wrapping_add(1));
+        assert_eq!(info.checkpoint, Some(4));
+        player.checkpoint = Some(5);
+        info.apply_snapshot(&player, tick.wrapping_add(3));
+        info.apply_checkpoint(Some(4), tick.wrapping_add(2));
+        assert_eq!(info.checkpoint, Some(5));
+        player.checkpoint = None;
+        info.apply_snapshot(&player, tick.wrapping_add(4));
+        assert_eq!(info.checkpoint, None);
+    }
+}

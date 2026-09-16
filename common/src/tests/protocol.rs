@@ -20,7 +20,7 @@ fn barrier_kind_cap() -> u16 {
 #[test]
 fn the_checkpoint_cue_rides_the_reliable_lane() {
     assert_eq!(
-        ServerMessage::CheckpointReached(SCheckpointReached { checkpoint: 0 }).lane(),
+        ServerMessage::CheckpointReached(SCheckpointReached { tick: 0, checkpoint: 0 }).lane(),
         Lane::Reliable
     );
 }

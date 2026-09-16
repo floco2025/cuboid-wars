@@ -330,7 +330,12 @@ fn entries(app: &mut App, entries: &[(u32, usize)]) {
             )
         })
         .collect();
-    apply_checkpoint_entries(&mut app.world_mut().resource_mut::<PlayerMap>(), &checkpoints, entered);
+    apply_checkpoint_entries(
+        &mut app.world_mut().resource_mut::<PlayerMap>(),
+        &checkpoints,
+        entered,
+        42,
+    );
 }
 
 fn disconnect(app: &mut App, id: u32) {
@@ -725,5 +730,19 @@ fn simultaneous_shared_entries_activate_on_consecutive_ticks() {
         saved(&app, PlayerId(2)),
         Some(CheckpointId(1)),
         "and nothing flips back"
+    );
+}
+
+#[test]
+fn checkpoint_names_must_identify_one_placed_checkpoint() {
+    let mut first = checkpoint(0.0);
+    first.name = Some("hall".into());
+    let mut second = first.clone();
+    second.carrier = CarrierId(1);
+    assert_eq!(super::checkpoint_named(&[first.clone()], "hall"), Ok(CheckpointId(0)));
+    assert!(
+        super::checkpoint_named(&[first, second], "hall")
+            .expect_err("ambiguous name accepted")
+            .contains("ambiguous")
     );
 }

@@ -138,7 +138,7 @@ fn sync_player(
         }
     }
     if let Some(info) = context.players.get_mut(&id) {
-        info.apply_snapshot(player);
+        info.apply_snapshot(player, tick);
         commands.entity(info.entity).insert(player.health);
     }
 }

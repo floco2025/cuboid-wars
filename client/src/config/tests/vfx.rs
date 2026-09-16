@@ -5,6 +5,8 @@ use serde_json::json;
 fn invalid_visual_controls_report_their_config_paths() {
     for (path, invalid) in [
         ("pickups.emissive_brightness", -1.0),
+        ("checkpoints.flag_emissive_brightness", -1.0),
+        ("checkpoints.paint_emissive_brightness", -1.0),
         ("fields.emissive_brightness", -1.0),
         ("fields.rail_emissive_brightness", -1.0),
         ("fields.opacity", 1.1),
@@ -17,7 +19,8 @@ fn invalid_visual_controls_report_their_config_paths() {
         ("erasers.opacity", 1.1),
     ] {
         let mut value = json!({
-            "pickups": { "emissive_brightness": 1.0 },
+            "checkpoints": { "flag_emissive_brightness": 0.0, "paint_emissive_brightness": 0.0 },
+        "pickups": { "emissive_brightness": 1.0 },
             "fields": { "emissive_brightness": 2.0, "rail_emissive_brightness": 1.0, "opacity": 0.5, "passable_opacity": 0.1, "fade_secs": 0.25 },
             "erasers": { "emissive_brightness": 3.0, "rail_emissive_brightness": 1.0, "opacity": 0.2 }
         });
@@ -38,6 +41,7 @@ fn invalid_visual_controls_report_their_config_paths() {
 #[test]
 fn emission_and_opacity_can_be_zero() {
     let config: VfxConfig = serde_json::from_value(json!({
+        "checkpoints": { "flag_emissive_brightness": 0.0, "paint_emissive_brightness": 0.0 },
         "pickups": { "emissive_brightness": 0.0 },
         "fields": { "emissive_brightness": 0.0, "rail_emissive_brightness": 0.0, "opacity": 0.0, "passable_opacity": 0.0, "fade_secs": 0.25 },
         "erasers": { "emissive_brightness": 0.0, "rail_emissive_brightness": 0.0, "opacity": 0.0 }

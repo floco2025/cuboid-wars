@@ -4,7 +4,7 @@ use common::protocol::MapLayout;
 use super::{FieldMeshes, KindVisual, PaneVisual, VisualField, field_pane_mesh};
 use crate::{constants::FIELD_EDGE_FADE_WIDTH, materials::FieldMaterial};
 
-// A plain field (erasers, checkpoints): scaled unit panes and rails in one look.
+// An eraser: scaled unit panes and rails in one look.
 pub(crate) fn spawn_field_visual(
     parent: &mut ChildSpawnerCommands,
     meshes: &FieldMeshes,
@@ -26,7 +26,7 @@ pub(crate) fn spawn_field_visual(
     );
 }
 
-// A barrier or bridge surface: one patterned pane mesh per rect on the shared
+// A barrier or bridge surface: one patterned pane mesh on the shared
 // field material, and the kind's rails. `root` is the surface entity's
 // transform under its carrier, which the pane pattern coordinates follow.
 #[expect(
@@ -45,13 +45,16 @@ pub(crate) fn spawn_patterned_surface(
     thickness: f32,
     root: &Transform,
 ) {
-    for rect in panels {
-        let local = Rect {
+    let local: Vec<_> = panels
+        .iter()
+        .map(|rect| Rect {
             min: rect.min - center,
             max: rect.max - center,
-        };
+        })
+        .collect();
+    if !local.is_empty() {
         parent.spawn((
-            Mesh3d(meshes.add(field_pane_mesh(local, root, FIELD_EDGE_FADE_WIDTH))),
+            Mesh3d(meshes.add(field_pane_mesh(&local, root, FIELD_EDGE_FADE_WIDTH))),
             MeshMaterial3d(surface.clone()),
             NotShadowCaster,
         ));

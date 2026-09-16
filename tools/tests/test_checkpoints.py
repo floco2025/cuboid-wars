@@ -167,6 +167,37 @@ class CheckpointTests(unittest.TestCase):
 
 
 class CheckpointWindowTests(WindowTestCase):
+    def test_named_checkpoint_copies_get_fresh_names_and_moves_keep_names(self):
+        window = self.window
+        for objects in (False, True):
+            for operation in ("copy", "cut", "duplicate", "move"):
+                with self.subTest(objects=objects, operation=operation):
+                    data = checkpoint_map()
+                    data["checkpoints"][0]["name"] = "hall"
+                    data["levels"][0]["floors"] += [floor(c, r) for c in range(4, 7) for r in range(4, 7)]
+                    window.apply_change("Set up named checkpoint", data)
+                    window.set_mode(MODE_SELECT)
+                    if objects:
+                        window.set_selected_spawn_zone(ZoneRef("checkpoints", 0))
+                    else:
+                        window.set_tile_selection((1, 1, 4, 4))
+                    if operation in ("copy", "cut"):
+                        getattr(window, f"{operation}_selection")()
+                        window.set_tile_selection((4, 4, 5, 5))
+                        window.paste_selection()
+                    else:
+                        self.assertTrue(window.begin_transfer(duplicate=operation == "duplicate"))
+                        window.pending_block.destination = (4, 4)
+                        window.commit_pending_block()
+                        self.assertIsNone(window.pending_block)
+                    expected = {"hall", "hall 2"} if operation in ("copy", "duplicate") else {"hall"}
+                    self.assertEqual({c["name"] for c in window.map_data["checkpoints"]}, expected)
+                    self.assertEqual(len(window.map_data["checkpoints"]), len(expected))
+                    self.assertFalse(window.added_issues(window.map_data))
+                    window.undo_stack.undo()
+                    window.undo_stack.redo()
+                    self.assertEqual({c["name"] for c in window.map_data["checkpoints"]}, expected)
+
     def test_place_select_resize_undo_and_render(self):
         window = self.window
         data = checkpoint_map()

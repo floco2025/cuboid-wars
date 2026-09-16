@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use std::{collections::HashMap, f32::consts::PI};
 
-use common::protocol::{BarrierKindId, Player, PlayerGeneration, PlayerId, PowerUpKind, SPlayerStatus};
+use common::protocol::{
+    BarrierKindId, Player, PlayerGeneration, PlayerId, PowerUpKind, SPlayerStatus, sequence_is_newer,
+};
 
 use super::LocalMovementReports;
 
@@ -31,6 +33,7 @@ pub struct PlayerInfo {
     // The saved respawn point, an index into `MapLayout.checkpoints`; the
     // reached cue sets it early and the snapshot keeps it current.
     pub checkpoint: Option<u16>,
+    pub checkpoint_tick: u32,
 }
 
 impl PlayerInfo {
@@ -48,19 +51,27 @@ impl PlayerInfo {
             last_movement_tick: tick,
             spawn_tick: tick,
             checkpoint: None,
+            checkpoint_tick: tick,
         };
-        info.apply_snapshot(player);
+        info.apply_snapshot(player, tick);
         info
     }
 
-    pub fn apply_snapshot(&mut self, player: &Player) {
+    pub fn apply_snapshot(&mut self, player: &Player, tick: u32) {
         self.score = player.score;
         self.name.clone_from(&player.name);
         self.power_ups = player.power_ups;
         self.stunned = player.stunned;
         self.held_keys.clone_from(&player.held_keys);
         self.missiles = player.missiles;
-        self.checkpoint = player.checkpoint;
+        self.apply_checkpoint(player.checkpoint, tick);
+    }
+
+    pub fn apply_checkpoint(&mut self, checkpoint: Option<u16>, tick: u32) {
+        if tick == self.checkpoint_tick || sequence_is_newer(tick, self.checkpoint_tick) {
+            self.checkpoint = checkpoint;
+            self.checkpoint_tick = tick;
+        }
     }
 
     pub fn apply_status(&mut self, status: &SPlayerStatus) {

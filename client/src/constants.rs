@@ -350,32 +350,25 @@ pub const ITEM_MISSILE_COLOR: Color = Color::srgb(0.95, 0.45, 0.10); // Orange (
 // Checkpoints
 // ============================================================================
 
-// Every checkpoint zone shows a thin floor outline and a flag at its centre;
-// the pennant is white until the zone is the player's saved respawn point.
 pub const CHECKPOINT_COLOR: Color = Color::srgb(1.0, 0.7, 0.12);
 pub const CHECKPOINT_UNCLAIMED_COLOR: Color = Color::srgb(0.92, 0.92, 0.9);
 pub const CHECKPOINT_POLE_COLOR: Color = Color::srgb(0.32, 0.33, 0.36);
-pub const CHECKPOINT_CLAIMED_EMISSIVE: f32 = 0.35;
 pub const CHECKPOINT_POLE_HEIGHT: f32 = 2.4;
 pub const CHECKPOINT_POLE_RADIUS: f32 = 0.035;
-// The pennant's length from the hoist and its height at the hoist (m); the
-// group pennant hangs below it at this scale.
-pub const CHECKPOINT_PENNANT_LENGTH: f32 = 0.9;
-pub const CHECKPOINT_PENNANT_HEIGHT: f32 = 0.45;
-pub const CHECKPOINT_PENNANT_GAP: f32 = 0.08;
-pub const CHECKPOINT_GROUP_PENNANT_SCALE: f32 = 0.6;
-pub const CHECKPOINT_PENNANT_SEGMENTS: usize = 8;
-// Flutter amplitude at the tip (m) and wave speed (rad/s), along `GRASS_WIND_DIRECTION_DEGREES`.
-pub const CHECKPOINT_FLAG_WIND_STRENGTH: f32 = 0.1;
-pub const CHECKPOINT_FLAG_WIND_SPEED: f32 = 6.0;
-// The cloth: a darker hem as a fraction of the pennant's local height, a
-// darker hoist band as a fraction of its length, and the weave's contrast.
-pub const CHECKPOINT_PENNANT_HEM: f32 = 0.08;
-pub const CHECKPOINT_PENNANT_HOIST: f32 = 0.08;
-pub const CHECKPOINT_PENNANT_WEAVE: f32 = 0.12;
-// The outline strip's width and its height above the floor (m).
+pub const CHECKPOINT_BASE_SIZE: f32 = 0.28;
+pub const CHECKPOINT_BASE_HEIGHT: f32 = 0.06;
+pub const CHECKPOINT_BADGE_SIZE: f32 = 0.34;
+pub const CHECKPOINT_PENNANT_LENGTH: f32 = 1.2;
+pub const CHECKPOINT_PENNANT_HEIGHT: f32 = 0.7;
+pub const CHECKPOINT_PENNANT_GAP: f32 = 0.16;
+pub const CHECKPOINT_PENNANT_SEGMENTS: usize = 16;
+pub const CHECKPOINT_FLAG_WIND_STRENGTH: f32 = 0.045;
+pub const CHECKPOINT_FLAG_WIND_SPEED: f32 = 2.4;
+pub const CHECKPOINT_PENNANT_HEM: f32 = 0.045;
+pub const CHECKPOINT_PENNANT_HOIST: f32 = 0.055;
+pub const CHECKPOINT_PENNANT_WEAVE: f32 = 0.08;
 pub const CHECKPOINT_OUTLINE_WIDTH: f32 = 0.12;
-pub const CHECKPOINT_OUTLINE_HEIGHT: f32 = 0.02;
+pub const CHECKPOINT_PAINT_OFFSET: f32 = 0.002;
 
 // ============================================================================
 // Missiles

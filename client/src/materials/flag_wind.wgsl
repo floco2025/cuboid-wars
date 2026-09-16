@@ -100,7 +100,7 @@ const UP: vec3<f32> = vec3<f32>(0.0, 1.0, 0.0);
 const WAVE_FREQUENCY: f32 = 7.0;
 const GUST_FLUTTER: f32 = 1.5;
 // How far the tip sags in still air, as a fraction of the cloth length.
-const CALM_DROOP: f32 = 0.35;
+const CALM_DROOP: f32 = 0.18;
 // Sideways ripple relative to the vertical one.
 const CROSS_RIPPLE: f32 = 0.6;
 // The step (m) along the cloth that samples the wave's slope for the normal.
@@ -118,7 +118,7 @@ fn cloth_position(local: vec3<f32>, base_xz: vec2<f32>, time: f32) -> vec3<f32> 
     let reach = clamp(local.x / flag_cloth.x, 0.0, 1.0);
     let gust = gust_strength(base_xz, along, time);
     let phase = fract(dot(base_xz, vec2(0.37, 0.71))) * TAU;
-    let t = time * flag_wind.w * mix(0.8, 1.4, gust) + phase;
+    let t = time * flag_wind.w + phase + gust * 0.4;
     let ripple = flag_wind.z * reach * mix(1.0, 1.0 + GUST_FLUTTER, gust);
     let lift = ripple * sin(local.x * WAVE_FREQUENCY - t);
     let side = ripple * CROSS_RIPPLE * sin(local.x * WAVE_FREQUENCY * 0.7 - t * 1.3);
@@ -144,7 +144,11 @@ fn cloth_shade(uv: vec2<f32>, metres: vec2<f32>) -> vec4<f32> {
     let weave = cos(phase.x) * cos(phase.y) * visibility;
     let hem = 1.0 - smoothstep(0.0, flag_cloth.y, min(uv.y, 1.0 - uv.y));
     let hoist = 1.0 - smoothstep(flag_cloth.z, flag_cloth.z * 1.3, uv.x);
-    let tint = (1.0 + flag_cloth.w * weave) * mix(1.0, TRIM_TINT, max(hem, hoist));
+    let symbol = (metres - vec2<f32>(flag_cloth.x * 0.43, -0.35)) / 0.20;
+    let ring = abs(length(symbol) - 0.74) < 0.16 && !(symbol.x > 0.25 && symbol.y > 0.25);
+    let arrow = symbol.x > 0.35 && symbol.x < 1.0 && abs(symbol.y - 0.42) < (symbol.x - 0.35) * 0.8;
+    let emblem = select(1.0, 0.10, ring || arrow);
+    let tint = emblem * (1.0 + flag_cloth.w * weave) * mix(1.0, TRIM_TINT, max(hem, hoist));
     let relief = vec2<f32>(-sin(phase.x) * cos(phase.y), -cos(phase.x) * sin(phase.y)) * visibility;
     return vec4<f32>(tint, -0.15 * weave, relief);
 }

@@ -79,6 +79,7 @@ fn player_info(entity: Entity, name: &str) -> PlayerInfo {
         last_movement_tick: 0,
         spawn_tick: 0,
         checkpoint: None,
+        checkpoint_tick: 0,
     }
 }
 

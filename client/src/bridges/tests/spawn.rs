@@ -7,10 +7,10 @@ fn pane_corners_match_the_collision_footprint_at_the_walking_surface() {
     let center = surface.center();
     let transform = bridge_transform(center, 5.0);
     let mesh = field_pane_mesh(
-        Rect {
+        &[Rect {
             min: surface.min - center,
             max: surface.max - center,
-        },
+        }],
         &transform,
         0.25,
     );
@@ -18,7 +18,7 @@ fn pane_corners_match_the_collision_footprint_at_the_walking_surface() {
         .attribute(Mesh::ATTRIBUTE_POSITION)
         .and_then(|a| a.as_float3())
         .expect("pane positions missing");
-    let corners: Vec<Vec3> = positions[..4]
+    let corners: Vec<Vec3> = positions
         .iter()
         .map(|p| transform.transform_point(Vec3::from_array(*p)))
         .collect();

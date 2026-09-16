@@ -1,4 +1,5 @@
 mod assets;
+mod checkpoint_paint;
 mod checkpoints;
 mod erasers;
 mod fade;

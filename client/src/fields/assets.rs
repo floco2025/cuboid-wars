@@ -1,13 +1,13 @@
 use bevy::{asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology};
 
+use super::surface::surface_edges;
+
 use crate::{
     constants::{FIELD_FRAME_BODY_TINT, FIELD_FRAME_METALLIC, FIELD_FRAME_ROUGHNESS},
     vfx::{translucent_kind_material, with_white_vertex_colors},
 };
 
-// The unit quad the plain fields (erasers, checkpoints) scale into their panes
-// and the unit cube every field scales into its frame rails; barrier and
-// bridge panes are built per rect by `field_pane_mesh`.
+// Erasers scale the unit quad; barriers and bridges use `field_pane_mesh`.
 #[derive(Resource)]
 pub struct FieldMeshes {
     pub panel: Handle<Mesh>,
@@ -84,48 +84,73 @@ impl KindVisual {
     }
 }
 
-// A pane at `rect` in its root's frame (the +Z face of the root): an outer
-// ring at the rails and an inner quad inset by `fade_width`, so `UV_1.x` runs
-// 0 → 1 from the frame inward, and `UV_0` is the position on the pane plane in
-// the carrier's frame in metres, like every map mesh, so the pattern is
-// continuous across neighbouring panes and rides a carrier.
-pub(crate) fn field_pane_mesh(rect: Rect, root: &Transform, fade_width: f32) -> Mesh {
-    let inset = fade_width.min(rect.width() / 2.0).min(rect.height() / 2.0);
-    let inner = Rect {
-        min: rect.min + inset,
-        max: rect.max - inset,
-    };
-    let corners = |r: Rect| {
-        [
-            [r.min.x, r.min.y],
-            [r.max.x, r.min.y],
-            [r.max.x, r.max.y],
-            [r.min.x, r.max.y],
-        ]
-    };
-    let mut positions = Vec::with_capacity(8);
-    let mut pattern = Vec::with_capacity(8);
-    let mut band = Vec::with_capacity(8);
-    for (ring, edge) in [(rect, 0.0), (inner, 1.0)] {
-        for [x, y] in corners(ring) {
-            let carrier_pos = root.translation + root.rotation * Vec3::new(x, y, 0.0);
-            positions.push([x, y, 0.0]);
-            pattern.push([
-                carrier_pos.dot(root.rotation * Vec3::X),
-                carrier_pos.dot(root.rotation * Vec3::Y),
-            ]);
-            band.push([edge, 0.0]);
+// UV_1 measures distance to the union's outline; mesh partitions do not create rims.
+pub(crate) fn field_pane_mesh(surfaces: &[Rect], root: &Transform, fade_width: f32) -> Mesh {
+    let edges = surface_edges(surfaces);
+    let mut positions = Vec::new();
+    let mut pattern = Vec::new();
+    let mut band = Vec::new();
+    let mut indices = Vec::new();
+    for rect in surfaces {
+        let nearby: Vec<_> = edges
+            .iter()
+            .filter(|edge| {
+                edge.max.x >= rect.min.x - fade_width
+                    && edge.min.x <= rect.max.x + fade_width
+                    && edge.max.y >= rect.min.y - fade_width
+                    && edge.min.y <= rect.max.y + fade_width
+            })
+            .collect();
+        let coordinates = |axis: usize| {
+            let mut values = vec![rect.min[axis], rect.max[axis]];
+            if rect.max[axis] - rect.min[axis] < 2.0 * fade_width {
+                values.push(rect.center()[axis]);
+            }
+            for edge in &nearby {
+                for end in [edge.min[axis], edge.max[axis]] {
+                    for offset in [-fade_width, 0.0, fade_width] {
+                        let value = end + offset;
+                        if value > rect.min[axis] && value < rect.max[axis] {
+                            values.push(value);
+                        }
+                    }
+                }
+            }
+            values.sort_by(f32::total_cmp);
+            values.dedup();
+            values
+        };
+        let xs = coordinates(0);
+        let ys = coordinates(1);
+        let start = positions.len() as u32;
+        for &y in &ys {
+            for &x in &xs {
+                let point = Vec2::new(x, y);
+                let distance = edges
+                    .iter()
+                    .map(|edge| (point - point.clamp(edge.min, edge.max)).abs().max_element())
+                    .fold(f32::INFINITY, f32::min);
+                let carrier_pos = root.translation + root.rotation * Vec3::new(x, y, 0.0);
+                positions.push([x, y, 0.0]);
+                pattern.push([
+                    carrier_pos.dot(root.rotation * Vec3::X),
+                    carrier_pos.dot(root.rotation * Vec3::Y),
+                ]);
+                band.push([(distance / fade_width).min(1.0), 0.0]);
+            }
+        }
+        let columns = xs.len() as u32;
+        for row in 0..ys.len() as u32 - 1 {
+            for column in 0..columns - 1 {
+                let i = start + row * columns + column;
+                indices.extend([i, i + 1, i + columns + 1, i, i + columns + 1, i + columns]);
+            }
         }
     }
-    let mut indices = Vec::with_capacity(30);
-    for i in 0..4u32 {
-        let j = (i + 1) % 4;
-        indices.extend([i, j, 4 + j, i, 4 + j, 4 + i]);
-    }
-    indices.extend([4, 5, 6, 4, 6, 7]);
+    let normals = vec![[0.0, 0.0, 1.0]; positions.len()];
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; 8]);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, pattern);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_1, band);
     mesh.insert_indices(Indices::U32(indices));

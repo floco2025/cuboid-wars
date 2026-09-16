@@ -13,7 +13,7 @@ use common::{
     physics::{CharacterSupport, CollisionWorld, grounding_diagnostics},
     protocol::{
         BarrierId, Checkpoint, CheckpointKind, FaceYaw, MapLayout, PlayerId, PlayerMarker, Position,
-        SCheckpointReached, ServerMessage,
+        SCheckpointReached, ServerMessage, ServerTick,
     },
 };
 
@@ -50,29 +50,37 @@ impl PlayerCheckpoint {
 
 // The checkpoint a name refers to, for `--checkpoint` and `/checkpoint`.
 pub(crate) fn checkpoint_named(checkpoints: &[Checkpoint], name: &str) -> Result<CheckpointId, String> {
-    checkpoints
+    let mut matches = checkpoints
         .iter()
-        .position(|checkpoint| checkpoint.name.as_deref() == Some(name))
-        .map(CheckpointId)
-        .ok_or_else(|| {
-            let names: Vec<_> = checkpoints
-                .iter()
-                .filter_map(|checkpoint| checkpoint.name.as_deref())
-                .collect();
-            if names.is_empty() {
-                format!("unknown checkpoint {name:?}: the map has no named checkpoints")
-            } else {
-                format!(
-                    "unknown checkpoint {name:?}: the map's named checkpoints are {}",
-                    names.join(", ")
-                )
-            }
-        })
+        .enumerate()
+        .filter(|(_, checkpoint)| checkpoint.name.as_deref() == Some(name));
+    if let Some((index, _)) = matches.next() {
+        return if matches.next().is_some() {
+            Err(format!(
+                "ambiguous checkpoint {name:?}: more than one placed checkpoint has this name"
+            ))
+        } else {
+            Ok(CheckpointId(index))
+        };
+    }
+    let names: Vec<_> = checkpoints
+        .iter()
+        .filter_map(|checkpoint| checkpoint.name.as_deref())
+        .collect();
+    Err(if names.is_empty() {
+        format!("unknown checkpoint {name:?}: the map has no named checkpoints")
+    } else {
+        format!(
+            "unknown checkpoint {name:?}: the map's named checkpoints are {}",
+            names.join(", ")
+        )
+    })
 }
 
 pub(crate) fn players_checkpoints_system(
     mut players: ResMut<PlayerMap>,
     map: Res<MapLayout>,
+    tick: Res<ServerTick>,
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
     gameplay: Res<GameplayConfig>,
@@ -119,13 +127,14 @@ pub(crate) fn players_checkpoints_system(
             ));
         }
     }
-    apply_checkpoint_entries(&mut players, &map.checkpoints, entered);
+    apply_checkpoint_entries(&mut players, &map.checkpoints, entered, tick.0);
 }
 
 pub(super) fn apply_checkpoint_entries(
     players: &mut PlayerMap,
     checkpoints: &[Checkpoint],
     mut entered: Vec<(PlayerId, PlayerCheckpoint)>,
+    tick: u32,
 ) {
     let previous: Vec<_> = players
         .iter()
@@ -222,6 +231,7 @@ pub(super) fn apply_checkpoint_entries(
                 .channel
                 .send(ServerMessage::CheckpointReached(SCheckpointReached {
                     checkpoint: checkpoint_index(saved.id),
+                    tick,
                 }));
         }
     }

@@ -38,7 +38,7 @@ pub(super) fn handle_checkpoint_reached_message(
 ) {
     let my_player_id = context.my_player_id.0;
     if let Some(info) = context.players.get_mut(&my_player_id) {
-        info.checkpoint = Some(message.checkpoint);
+        info.apply_checkpoint(Some(message.checkpoint), message.tick);
     }
     play_sound(
         commands,

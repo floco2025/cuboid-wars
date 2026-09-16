@@ -8,6 +8,7 @@ from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPen
 
 from .block_transforms import transform_block
+from .checkpoint_names import name_checkpoint_copies
 from .object_selection import block_fits, copy_objects, selected_data, paste_objects, refs_for_block
 from .constants import MODE_SELECT
 from .regions import copy_region, delete_region, paste_region
@@ -51,6 +52,8 @@ class SelectionTransferMixin:
         except ValueError as error:
             self.notify(str(error))
             return False
+        if duplicate:
+            block = name_checkpoint_copies(block, self.map_data)
         self.pending_block = BlockTransfer(block, region, duplicate, region.rect[:2], refs)
         if point is not None:
             self.pending_block.dragging = True

@@ -10,6 +10,7 @@ from PySide6.QtCore import QMimeData
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication
 
+from .checkpoint_names import name_checkpoint_copies
 from .constants import MODE_SELECT
 from .normalization import normalize_map
 from .regions import copy_region, delete_region, paste_region
@@ -155,7 +156,7 @@ class SelectionActionsMixin:
         col, row = self.selection.anchor
         level = self.current_level - self.clipboard_view_offset if self.clipboard_objects else self.current_level
         try:
-            block = self.tile_clipboard
+            block = name_checkpoint_copies(self.tile_clipboard, self.map_data)
             after = (
                 paste_objects(self.map_data, block, (col, row), level)
                 if self.clipboard_objects

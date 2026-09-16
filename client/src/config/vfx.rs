@@ -8,13 +8,15 @@ pub struct VfxConfig {
     pub pickups: PickupVfxConfig,
     pub fields: FieldVfxConfig,
     pub erasers: EraserVfxConfig,
+    pub checkpoints: CheckpointVfxConfig,
 }
 
 impl VfxConfig {
     pub(super) fn validate(&self) -> Result<()> {
         self.pickups.validate()?;
         self.fields.validate()?;
-        self.erasers.validate()
+        self.erasers.validate()?;
+        self.checkpoints.validate()
     }
 }
 
@@ -66,6 +68,25 @@ impl EraserVfxConfig {
         validate_non_negative_finite(self.emissive_brightness, "vfx.erasers.emissive_brightness")?;
         validate_non_negative_finite(self.rail_emissive_brightness, "vfx.erasers.rail_emissive_brightness")?;
         validate_unit_ratio(self.opacity, "vfx.erasers.opacity")
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct CheckpointVfxConfig {
+    pub flag_emissive_brightness: f32,
+    pub paint_emissive_brightness: f32,
+}
+
+impl CheckpointVfxConfig {
+    fn validate(&self) -> Result<()> {
+        validate_non_negative_finite(
+            self.flag_emissive_brightness,
+            "vfx.checkpoints.flag_emissive_brightness",
+        )?;
+        validate_non_negative_finite(
+            self.paint_emissive_brightness,
+            "vfx.checkpoints.paint_emissive_brightness",
+        )
     }
 }
 

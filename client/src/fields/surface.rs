@@ -2,8 +2,26 @@ use bevy::prelude::*;
 use common::protocol::{CarrierId, Floor, MapLayout};
 
 pub(crate) fn surface_frame_rects(surfaces: &[Rect], thickness: f32) -> Vec<Rect> {
-    let half = thickness / 2.0;
     let mut frame = Vec::new();
+    for edge in surface_edges(surfaces) {
+        let rail = Rect {
+            min: edge.min - thickness / 2.0,
+            max: edge.max + thickness / 2.0,
+        };
+        let mut parts = vec![rail];
+        for existing in &frame {
+            parts = parts
+                .into_iter()
+                .flat_map(|part| subtract_rect(part, *existing))
+                .collect();
+        }
+        frame.extend(parts);
+    }
+    frame
+}
+
+pub(super) fn surface_edges(surfaces: &[Rect]) -> Vec<Rect> {
+    let mut edges = Vec::new();
     for (index, surface) in surfaces.iter().enumerate() {
         for axis in [0, 1] {
             let normal = 1 - axis;
@@ -28,25 +46,17 @@ pub(crate) fn surface_frame_rects(surfaces: &[Rect], thickness: f32) -> Vec<Rect
                         .collect();
                 }
                 for (min, max) in spans {
-                    let mut rail = Rect::default();
-                    rail.min[axis] = min - half;
-                    rail.max[axis] = max + half;
-                    rail.min[normal] = edge - half;
-                    rail.max[normal] = edge + half;
-                    // Assign each corner once so adjoining rails never have overlapping faces.
-                    let mut parts = vec![rail];
-                    for existing in &frame {
-                        parts = parts
-                            .into_iter()
-                            .flat_map(|part| subtract_rect(part, *existing))
-                            .collect();
-                    }
-                    frame.extend(parts);
+                    let mut line = Rect::default();
+                    line.min[axis] = min;
+                    line.max[axis] = max;
+                    line.min[normal] = edge;
+                    line.max[normal] = edge;
+                    edges.push(line);
                 }
             }
         }
     }
-    frame
+    edges
 }
 
 pub(crate) fn clip_surface_rects(

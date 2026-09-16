@@ -614,6 +614,7 @@ pub struct SEquipmentErased;
 // and the flag; `Player.checkpoint` in the snapshot is the system of record.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SCheckpointReached {
+    pub tick: u32,
     // An index into `MapLayout.checkpoints`.
     pub checkpoint: u16,
 }
