@@ -11,25 +11,25 @@ const CONFIG: FieldVfxConfig = FieldVfxConfig {
 
 #[test]
 fn fade_targets_follow_open_barriers_and_powered_bridges() {
-    let plates = PlateState {
+    let switch_state = SwitchState {
         open_barriers: vec![BarrierId(3)],
         powered_bridges: vec![BridgeId(1)],
         ..Default::default()
     };
     assert_eq!(
-        fade_target(&plates, FieldKind::Barrier(BarrierId(3)), CONFIG),
+        fade_target(&switch_state, FieldKind::Barrier(BarrierId(3)), CONFIG),
         CONFIG.passable_opacity
     );
     assert_eq!(
-        fade_target(&plates, FieldKind::Barrier(BarrierId(0)), CONFIG),
+        fade_target(&switch_state, FieldKind::Barrier(BarrierId(0)), CONFIG),
         CONFIG.opacity
     );
     assert_eq!(
-        fade_target(&plates, FieldKind::Bridge(BridgeId(1)), CONFIG),
+        fade_target(&switch_state, FieldKind::Bridge(BridgeId(1)), CONFIG),
         CONFIG.opacity
     );
     assert_eq!(
-        fade_target(&plates, FieldKind::Bridge(BridgeId(0)), CONFIG),
+        fade_target(&switch_state, FieldKind::Bridge(BridgeId(0)), CONFIG),
         CONFIG.passable_opacity
     );
 }

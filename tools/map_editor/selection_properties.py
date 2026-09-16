@@ -39,6 +39,7 @@ class SelectionProperties(QDockWidget):
         self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea)
         self.refs = []
         self.signature = None
+        self.field_signature = None
         self.widgets = {}
         self.fields = {}
         self.changed_keys = set()
@@ -76,9 +77,17 @@ class SelectionProperties(QDockWidget):
     def set_selection(self, refs):
         if self.applying:
             return
-        signature = (id(self.window.map_data), tuple(refs))
+        signature = (
+            self.window.path,
+            self.window.doc.active_map,
+            tuple(refs),
+            [copy.deepcopy(ref.get(self.window.map_data)) for ref in refs],
+        )
         if signature == self.signature:
-            return
+            # A refresh must not replace a draft, its cursor, or its undo
+            # history. Updated catalog choices appear after Apply or Revert.
+            if self.changed_keys or self.field_signature == self.current_field_signature():
+                return
         self.signature = signature
         self.refs = list(refs)
         previous = self.group.currentData()
@@ -98,12 +107,18 @@ class SelectionProperties(QDockWidget):
         name = self.group.currentData()
         return [ref for ref in self.refs if name is None or ref.name == name]
 
+    def current_field_signature(self):
+        names = dict.fromkeys(ref.name for ref in self.refs)
+        return ([fields_for(self.window, name) for name in names], dict(self.window.texture_catalog))
+
     def rebuild(self, *_):
+        self.field_signature = self.current_field_signature()
         refs = self.targets()
         self.summary.setText(f"{len(refs)} selected" if refs else "Select an object or drag a selection.")
         self.error.hide()
         self.changed_keys.clear()
         self.widgets.clear()
+        self.labels = {}
         self.fields.clear()
         self.apply_button.setEnabled(False)
         form_body = QWidget()
@@ -159,6 +174,10 @@ class SelectionProperties(QDockWidget):
                 widget.setToolTip("Counts for one, two, three, etc. players. The last count repeats.")
             elif field.kind == "respawn":
                 widget.setToolTip("Seconds before refilling a slot; Never fills it once.")
+            elif field.key == ("pause_secs",):
+                widget.setToolTip("Pause at each end of the cycle.")
+            elif field.key == ("phase_secs",):
+                widget.setToolTip("Start this far into the cycle.")
             elif field.key[0] in ("from_nudge", "to_nudge"):
                 widget.setToolTip(
                     "Floor thicknesses upward" if field.key[1] == 1 else "Wall widths across columns (X) or rows (Z)"
@@ -173,6 +192,7 @@ class SelectionProperties(QDockWidget):
             self.widgets[field.key] = widget
             self.fields[field.key] = field
             form.addRow(field.label, widget)
+            self.labels[field.key] = form.labelForField(widget)
         face_keys = [field.key for field in fields if field.key[0] in FACES]
         self.material_source = {}
         if face_keys:
@@ -293,6 +313,11 @@ class SelectionProperties(QDockWidget):
         if ("switch_inverted",) in self.widgets:
             switch = self.widgets[("switch",)].currentData()
             self.widgets[("switch_inverted",)].setEnabled(switch is not None)
+        if ("motion",) in self.widgets:
+            cycle = self.widgets[("motion",)].currentData() != "follow_switch"
+            for key in ("pause_secs", "phase_secs"):
+                self.widgets[(key,)].setEnabled(cycle)
+                self.labels[(key,)].setEnabled(cycle)
 
     def set_material_choice(self, key, value):
         box = self.widgets[key]

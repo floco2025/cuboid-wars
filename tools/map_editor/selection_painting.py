@@ -45,6 +45,10 @@ def paint_selection(canvas, painter, cell):
     else:
         for ref in selection.objects:
             entry = ref.get(window.map_data)
+            if ref.name == "nested_maps":
+                if window.pending_block is None and (gesture is None or gesture.kind != "handle"):
+                    canvas.paint_nested_map(painter, entry, cell, window.current_level, color=QColor("#38bdf8"))
+                continue
             lower, upper = record_levels(entry, ref.level)
             if lower <= window.current_level <= upper:
                 paint_outline(painter, ref.name, entry, cell)
@@ -63,7 +67,17 @@ def paint_selection(canvas, painter, cell):
     painter.setPen(QPen(QColor("#0f172a"), 1))
     size = c.SPAWN_ZONE_HANDLE_PIXELS
     for handle in canvas.input.handles():
+        if handle.ref.name == "nested_maps" and window.pending_block is not None:
+            continue
         x, y = handle.point
+        if (
+            handle.ref.name == "nested_maps"
+            and gesture is not None
+            and gesture.kind == "handle"
+            and handle == gesture.handle
+        ):
+            col, row = canvas.input.clamped_cell(gesture.current)
+            x, y = col + 0.5, row + 0.5
         painter.drawRect(QRectF(x * cell - size / 2, y * cell - size / 2, size, size))
     if gesture is not None and gesture.kind == "handle":
         rect = canvas.input.zone_preview()
@@ -79,9 +93,7 @@ def paint_selection(canvas, painter, cell):
         else:
             col, row = canvas.input.clamped_cell(gesture.current)
             entry = {**gesture.original, gesture.handle.name: [col, row]}
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(QPen(QColor("#f8fafc"), 2, Qt.PenStyle.DashLine))
-            paint_outline(painter, "nested_maps", entry, cell)
+            canvas.paint_nested_map(painter, entry, cell, window.current_level, color=QColor("#f8fafc"))
     if gesture is not None and gesture.kind in ("box", "add_box") and gesture.moved:
         name = line[1][0].name if line is not None and line[1] else gesture.object_type
         if name is not None:

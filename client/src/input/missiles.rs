@@ -12,7 +12,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
-    protocol::{CMissileShot, ClientMessage, MapSettings, MissileMovementState, PlateState},
+    protocol::{CMissileShot, ClientMessage, MapSettings, MissileMovementState, SwitchState},
 };
 
 use super::WeaponMode;
@@ -21,7 +21,7 @@ use super::WeaponMode;
 pub struct MissileInputWorld<'w> {
     gameplay_config: Res<'w, GameplayConfig>,
     collision_world: Res<'w, CollisionWorld>,
-    plates: Res<'w, PlateState>,
+    switch_state: Res<'w, SwitchState>,
     map_settings: Res<'w, MapSettings>,
 }
 
@@ -44,7 +44,7 @@ pub fn input_missile_system(
     let MissileInputWorld {
         gameplay_config,
         collision_world,
-        plates,
+        switch_state,
         map_settings,
     } = world;
     if local_player_info.is_dead || *mode != WeaponMode::Missile {
@@ -64,7 +64,7 @@ pub fn input_missile_system(
             aim.origin,
             aim.direction * MISSILE_SPAWN_OFFSET,
             MISSILE_RADIUS,
-            &plates.open_barriers,
+            &switch_state.open_barriers,
         )
     {
         play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
@@ -92,7 +92,7 @@ pub fn input_missile_system(
         speed * 0.5,
         MISSILE_RADIUS,
         &collision_world,
-        &plates.open_barriers,
+        &switch_state.open_barriers,
         &mut rand::rng(),
     );
     to_server.send(ClientMessage::MissileShot(CMissileShot {

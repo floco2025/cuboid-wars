@@ -4,7 +4,7 @@ mod pressure_plates;
 mod spawn;
 
 pub use assets::{BarrierAssets, build_barrier_assets};
-pub use common::protocol::PlateState;
+pub use common::protocol::SwitchState;
 pub use keys::KeyKinds;
 pub use pressure_plates::{
     LockedSwitches, PlateSwitchMarker, PressurePlateMarker, pressure_plates_spawn_system,

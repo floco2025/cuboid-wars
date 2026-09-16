@@ -9,7 +9,8 @@ from PySide6.QtWidgets import QApplication, QMenu
 from . import constants as c
 from .elements import ElementRef, element_refs, refs_for_hit, refs_in_region, refs_on_grid_line
 from .geometry import rect_from_cells, zone_handle_centers
-from .normalization import normalize_map
+from .nesting import nested_map_label, nested_map_rest_points
+from .normalization import nested_map_spans_level, normalize_map
 from .placement_input import CLICK_TOOLS, RELEASE_TOOLS
 from .regions import TileRegion
 from .selection import Selection
@@ -110,7 +111,42 @@ class CanvasInput:
                         for end, level in (("from", "level"), ("to", "to_level"))
                     ):
                         return [ref]
+        nested = self.nested_map_at(point)
+        if nested is not None:
+            return [nested]
         return refs_for_hit(self.window.map_data, self.window.current_level, self.window.hit_at(point))
+
+    def nested_map_at(self, point):
+        tolerance = self.canvas.pick_tolerance()
+        metrics = self.canvas.fontMetrics()
+        cell = self.canvas.cell_size()
+        entries = self.window.map_data.get("nested_maps", [])
+        for index in reversed(range(len(entries))):
+            entry = entries[index]
+            shape = self.window.nested_map_shape(entry["map"])
+            if shape is None or not nested_map_spans_level(entry, self.window.current_level, shape.level_count):
+                continue
+            ref = ElementRef("nested_maps", index)
+            for (x, y), nudge in zip(
+                nested_map_rest_points(entry, self.window.wall_width_cells), (entry["from_nudge"], entry["to_nudge"])
+            ):
+                right, bottom = x + shape.grid_cols, y + shape.grid_rows
+                if not (
+                    x - tolerance <= point.x() <= right + tolerance and y - tolerance <= point.y() <= bottom + tolerance
+                ):
+                    continue
+                border = (
+                    min(abs(point.x() - x), abs(point.x() - right), abs(point.y() - y), abs(point.y() - bottom))
+                    <= tolerance
+                )
+                label = nested_map_label(entry["map"], nudge)
+                on_label = (
+                    abs(point.x() - (x + right) / 2) <= metrics.horizontalAdvance(label) / cell / 2
+                    and abs(point.y() - (y + bottom) / 2) <= metrics.height() / cell / 2
+                )
+                if border or on_label or ref in self.window.selection.objects:
+                    return ref
+        return None
 
     def target(self, point, hits):
         if not self.window.selection.contains(point, hits):
@@ -169,7 +205,7 @@ class CanvasInput:
                 # group its box covers, so the pressed object stays as it was.
                 kind = "add_box"
             elif hits:
-                kind = "move" if initial.contains(point, hits) else "box"
+                kind = "move" if initial.contains(point, hits) or hits[0].name == "nested_maps" else "box"
                 self.target(point, hits)
             else:
                 self.window.set_selection(Selection(anchor=self.cell(point)))

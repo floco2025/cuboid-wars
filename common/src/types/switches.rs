@@ -5,15 +5,15 @@ use super::{
     HexColor, MapLayout, MapSettings,
     kind_table::{KindId, KindTable},
 };
-use crate::config::PressureSwitchConfig;
+use crate::config::SwitchConfig;
 
-// Index into the root layout's pressure plate kind catalog, shared by plates and targets.
+// Index into the root layout's switch catalog, shared by plates and targets.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 pub struct SwitchId(pub u16);
 
 impl KindId for SwitchId {
     const MAX: Option<usize> = None;
-    const CONFIG_KEY: &'static str = "switch_kinds";
+    const CONFIG_KEY: &'static str = "switches";
     const NOUN: &'static str = "switch";
 
     fn from_index(index: u16) -> Self {
@@ -27,20 +27,20 @@ impl KindId for SwitchId {
 
 pub type SwitchTable = KindTable<SwitchId>;
 
-// One entry of the root layout's `switch_kinds` catalog.
+// One entry of the root layout's `switches` catalog.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize)]
 pub struct SwitchDef {
     pub id: String,
     #[serde(default)]
-    pub plate_color: Option<HexColor>,
+    pub color: Option<HexColor>,
     #[serde(flatten)]
-    pub policy: PressureSwitchConfig,
+    pub policy: SwitchConfig,
 }
 
 impl MapSettings {
-    pub fn pressure_plate_color(&self, switch: SwitchId, layout: &MapLayout) -> Option<HexColor> {
+    pub fn switch_color(&self, switch: SwitchId, layout: &MapLayout) -> Option<HexColor> {
         let def = self.switches.get(usize::from(switch.0))?;
-        def.plate_color.or_else(|| {
+        def.color.or_else(|| {
             self.barrier_kinds
                 .iter()
                 .enumerate()

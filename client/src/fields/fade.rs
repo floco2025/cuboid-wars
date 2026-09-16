@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::{physics::FieldKind, protocol::PlateState};
+use common::{physics::FieldKind, protocol::SwitchState};
 
 use crate::{
     config::{ClientSettings, FieldVfxConfig},
@@ -33,7 +33,7 @@ impl FieldSurfaces {
 pub(crate) fn fields_fade_system(
     time: Res<Time>,
     client_settings: Res<ClientSettings>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     surfaces: Res<FieldSurfaces>,
     mut materials: ResMut<Assets<FieldMaterial>>,
 ) {
@@ -47,7 +47,7 @@ pub(crate) fn fields_fade_system(
         };
         let Some(next) = fade_step(
             alpha,
-            fade_target(&plates, surface.state, config),
+            fade_target(&switch_state, surface.state, config),
             time.delta_secs(),
             config.fade_secs,
         ) else {
@@ -62,10 +62,10 @@ pub(crate) fn fields_fade_system(
 }
 
 // A closed barrier or powered bridge shows at `opacity`, a passable one at `passable_opacity`.
-pub(crate) fn fade_target(plates: &PlateState, state: FieldKind, config: FieldVfxConfig) -> f32 {
+pub(crate) fn fade_target(switch_state: &SwitchState, state: FieldKind, config: FieldVfxConfig) -> f32 {
     let solid = match state {
-        FieldKind::Barrier(id) => !plates.open_barriers.contains(&id),
-        FieldKind::Bridge(id) => plates.powered_bridges.contains(&id),
+        FieldKind::Barrier(id) => !switch_state.open_barriers.contains(&id),
+        FieldKind::Bridge(id) => switch_state.powered_bridges.contains(&id),
     };
     if solid { config.opacity } else { config.passable_opacity }
 }

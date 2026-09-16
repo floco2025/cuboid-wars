@@ -3,7 +3,7 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     map::Carriers,
     physics::{CharacterMovePlan, CollisionWorld},
-    protocol::{ActorMarker, MapSettings, PlateState, PlayerId, PlayerMarker, Position},
+    protocol::{ActorMarker, MapSettings, PlayerId, PlayerMarker, Position, SwitchState},
 };
 
 use crate::{
@@ -20,7 +20,7 @@ pub fn characters_movement_system(
     gameplay_config: Res<GameplayConfig>,
     map_settings: Res<MapSettings>,
     players: Res<PlayerMap>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     carriers: Res<Carriers>,
     actors: Res<ActorMap>,
     territories: Res<ActorTerritories>,
@@ -50,7 +50,7 @@ pub fn characters_movement_system(
         delta,
         &collision_world,
         &map_settings,
-        &plates,
+        &switch_state,
         &carriers,
         &actors,
         &territories,
@@ -63,6 +63,6 @@ pub fn characters_movement_system(
         &actors,
         &planned_moves,
         &collision_world,
-        &plates.open_barriers,
+        &switch_state.open_barriers,
     );
 }

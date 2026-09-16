@@ -2,7 +2,7 @@ use crate::test_fixtures;
 use bevy::{gltf::GltfMaterialName, prelude::*};
 use common::protocol::{
     Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, CarrierId, HexColor, KindDef, LightBridge, MapLayout,
-    PlateState, PressurePlate, SwitchDef, SwitchId,
+    PressurePlate, SwitchDef, SwitchId, SwitchState,
 };
 
 use super::{animation::PlatePlayback, *};
@@ -34,7 +34,7 @@ fn pose(world: &World, root: Entity, name: &str) -> Transform {
 fn switch(id: &str, color: Option<HexColor>) -> SwitchDef {
     SwitchDef {
         id: id.to_owned(),
-        plate_color: color,
+        color,
         policy: Default::default(),
     }
 }
@@ -105,7 +105,7 @@ fn model_tracks_switches_colors_locks_and_layout_replacement() {
             .insert_resource(CarrierEntities::new(vec![carrier]))
             .insert_resource(CarrierStoreys::from_layout(&layout))
             .insert_resource(layout)
-            .insert_resource(PlateState {
+            .insert_resource(SwitchState {
                 active_switches: vec![SwitchId(0)],
                 ..default()
             })
@@ -204,13 +204,13 @@ fn model_tracks_switches_colors_locks_and_layout_replacement() {
             .angle_between(pose(app.world(), roots[1], &name).rotation);
         assert!((angle - std::f32::consts::PI).abs() < 0.001);
     }
-    app.world_mut().resource_mut::<PlateState>().active_switches.clear();
+    app.world_mut().resource_mut::<SwitchState>().active_switches.clear();
     for _ in 0..3 {
         app.update();
     }
     let middle = pose(app.world(), roots[0], "PressurePlatePanel").translation.y;
     assert!(middle > pressed.translation.y && middle < initial.translation.y);
-    app.world_mut().resource_mut::<PlateState>().active_switches = vec![SwitchId(0)];
+    app.world_mut().resource_mut::<SwitchState>().active_switches = vec![SwitchId(0)];
     app.update();
     let reversed = pose(app.world(), roots[0], "PressurePlatePanel").translation.y;
     assert!(reversed < middle && reversed > pressed.translation.y);
@@ -220,7 +220,7 @@ fn model_tracks_switches_colors_locks_and_layout_replacement() {
     assert_eq!(pose(app.world(), roots[0], "PressurePlatePanel"), pressed);
     assert_eq!(pose(app.world(), roots[3], "PressurePlatePanel"), pressed);
     assert_eq!(pose(app.world(), roots[1], "PressurePlatePanel"), initial);
-    app.world_mut().resource_mut::<PlateState>().active_switches.clear();
+    app.world_mut().resource_mut::<SwitchState>().active_switches.clear();
     app.world_mut().resource_mut::<LockedSwitches>().0.clear();
     for _ in 0..20 {
         app.update();

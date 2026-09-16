@@ -7,8 +7,8 @@ use common::{
         player_control_velocity,
     },
     protocol::{
-        ActorMarker, BarrierKindId, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
-        PowerUpKind,
+        ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind,
+        SwitchState,
     },
 };
 
@@ -22,7 +22,7 @@ pub(crate) fn plan_player_moves(
     map_settings: &MapSettings,
     gameplay_config: &GameplayConfig,
     players: &PlayerMap,
-    plates: &PlateState,
+    switch_state: &SwitchState,
     portal_set: &PortalSet,
     carriers: &Carriers,
     local_dead: bool,
@@ -77,7 +77,7 @@ pub(crate) fn plan_player_moves(
             delta,
             has_low_gravity,
             held_keys,
-            open_kinds: &plates.open_barriers,
+            open_kinds: &switch_state.open_barriers,
             knockback,
             airborne_momentum: &mut airborne_momentum,
             collision_world,

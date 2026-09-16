@@ -3,11 +3,11 @@ use super::*;
 #[test]
 fn sorted_lookups_find_switches_and_runs() {
     let running = CarrierRun {
-        running: true,
+        active: true,
         run_ticks: 5,
         since_tick: 10,
     };
-    let mut state = PlateState {
+    let mut state = SwitchState {
         active_switches: vec![SwitchId(3), SwitchId(1)],
         open_barriers: vec![BarrierId(2), BarrierId(0)],
         powered_bridges: vec![BridgeId(1)],
@@ -22,7 +22,7 @@ fn sorted_lookups_find_switches_and_runs() {
     assert_eq!(state.carrier_run(CarrierId(1)), Some(CarrierRun::STOPPED));
     assert_eq!(state.carrier_run(CarrierId(3)), None);
     let bytes = bincode::encode_to_vec(&state, bincode::config::standard()).expect("plate state encoding failed");
-    let (decoded, _): (PlateState, _) =
+    let (decoded, _): (SwitchState, _) =
         bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("plate state decoding failed");
     assert_eq!(decoded, state);
 }

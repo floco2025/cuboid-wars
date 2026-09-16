@@ -16,8 +16,8 @@ use common::{
     math::PHYSICS_EPSILON,
     physics::{CharacterSupport, CollisionWorld, grounding_diagnostics},
     protocol::{
-        ActorId, ActorMarker, ItemType, MapItems, PlateState, PlayerId, PlayerMarker, Position, SActorBeam,
-        ServerMessage, ServerTick,
+        ActorId, ActorMarker, ItemType, MapItems, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage,
+        ServerTick, SwitchState,
     },
 };
 
@@ -47,7 +47,7 @@ pub fn actors_behavior_system(
     tick: Res<ServerTick>,
     players: Res<PlayerMap>,
     collision_world: Res<CollisionWorld>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     nav_graphs: Res<NavGraphs>,
@@ -90,8 +90,13 @@ pub fn actors_behavior_system(
         }
         let kind_config = server_gameplay_config.expect_actor(&info.spawn_kind);
         if !character.immovable && !carriers.is_static() {
-            let grounding =
-                grounding_diagnostics(&collision_world, pos, character.physics(), &plates.open_barriers, &[]);
+            let grounding = grounding_diagnostics(
+                &collision_world,
+                pos,
+                character.physics(),
+                &switch_state.open_barriers,
+                &[],
+            );
             if grounding.supported
                 && let Some(hit) = grounding.hit
                 && hit.carrier != info.carrier
@@ -119,7 +124,7 @@ pub fn actors_behavior_system(
                     *pos,
                     pose.transform_position(&next.position),
                     character.physics(),
-                    &plates.open_barriers,
+                    &switch_state.open_barriers,
                 )
             }) {
                 info.set_route(None);
@@ -164,7 +169,7 @@ pub fn actors_behavior_system(
             carriers: &carriers,
             carrier: info.carrier,
             collision_world: &collision_world,
-            open_barriers: &plates.open_barriers,
+            open_barriers: &switch_state.open_barriers,
             kind_config,
             players_armed: map_items.contains(ItemType::SingleShotPowerUp)
                 || map_items.contains(ItemType::MultiShotPowerUp)

@@ -50,7 +50,7 @@ pub struct MissileMovementParams<'w, 's> {
     world: Res<'w, CollisionWorld>,
     carriers: Res<'w, Carriers>,
     graph: Res<'w, AirGraph>,
-    plates: Res<'w, PlateState>,
+    switch_state: Res<'w, SwitchState>,
     gameplay: Res<'w, GameplayConfig>,
     settings: Res<'w, MapSettings>,
     blast_radii: Res<'w, BlastRadii>,
@@ -137,7 +137,7 @@ pub fn missiles_movement_system(
             &params.graph,
             &params.carriers,
             &params.world,
-            &params.plates.open_barriers,
+            &params.switch_state.open_barriers,
             *pos,
             target,
             velocity.0,
@@ -168,7 +168,7 @@ pub fn missiles_movement_system(
         // swept into geometry would fly out the far side unguided.
         if params
             .world
-            .projectile_start_blocked(origin, MISSILE_RADIUS, &params.plates.open_barriers)
+            .projectile_start_blocked(origin, MISSILE_RADIUS, &params.switch_state.open_barriers)
         {
             consider(0.0);
         }
@@ -179,7 +179,7 @@ pub fn missiles_movement_system(
             origin,
             translation,
             MISSILE_RADIUS,
-            &params.plates.open_barriers,
+            &params.switch_state.open_barriers,
         ) {
             consider(hit.t);
         }
@@ -197,7 +197,7 @@ pub fn missiles_movement_system(
                 impact,
                 params.blast_radii.missile,
                 &params.world,
-                &params.plates.open_barriers,
+                &params.switch_state.open_barriers,
                 bodies.iter().map(|(target, pos, _, physics)| (*target, *pos, *physics)),
             );
             params

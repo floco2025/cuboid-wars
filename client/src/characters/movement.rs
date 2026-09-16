@@ -12,7 +12,7 @@ use common::{
     config::GameplayConfig,
     map::Carriers,
     physics::{CharacterMovePlan, CollisionWorld, PortalSet},
-    protocol::{ActorId, ActorMarker, MapSettings, PlateState, PlayerMarker, Position},
+    protocol::{ActorId, ActorMarker, MapSettings, PlayerMarker, Position, SwitchState},
 };
 
 // Run at the start of each fixed tick, before `characters_movement_system`,
@@ -39,7 +39,7 @@ pub fn characters_movement_system(
     players: Res<PlayerMap>,
     local: Res<LocalPlayerInfo>,
     actors: Res<ActorMap>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     portal_set: Res<PortalSet>,
     carriers: Res<Carriers>,
     mut players_query: PlayerMovementQuery,
@@ -55,7 +55,7 @@ pub fn characters_movement_system(
         &map_settings,
         &gameplay_config,
         &players,
-        &plates,
+        &switch_state,
         &portal_set,
         &carriers,
         local.is_dead,

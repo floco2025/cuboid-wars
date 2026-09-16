@@ -7,7 +7,7 @@ use crate::{
 use bevy::ecs::system::RunSystemOnce;
 use common::{
     config::{NetworkConfig, UpdateCadence},
-    protocol::{Carrier, MapLayout, PlateState, PlayerGeneration, PlayerMove},
+    protocol::{Carrier, MapLayout, PlayerGeneration, PlayerMove, SwitchState},
 };
 use std::f32::consts::PI;
 
@@ -61,6 +61,7 @@ fn shown(buffer: &mut RemotePlayerMotion, delta_ticks: f64) -> PlayerMovementSta
 
 fn moving_platforms() -> Carriers {
     let platform = Carrier {
+        motion: Default::default(),
         switch_inverted: false,
 
         parent: CarrierId::WORLD,
@@ -116,7 +117,7 @@ fn delayed_riders_follow_platform_stops_reversals_and_nested_motion_between_tick
             let mut buffer = seeded(rider(0), timing(hz));
             let mut cadence = UpdateCadence::new(hz, 30);
             for tick in 1..180 {
-                carriers.advance(tick, &PlateState::default());
+                carriers.advance(tick, &SwitchState::default());
                 if cadence.ready() && !(45..90).contains(&tick) {
                     buffer.push(rider(tick));
                 }
@@ -142,7 +143,7 @@ fn a_rider_from_a_snapshot_follows_the_platform_before_the_first_movement_report
     movement.carrier = CarrierId(2);
     let mut buffer = RemotePlayerMotion::new(movement, timing(30));
     for tick in 1..70 {
-        carriers.advance(tick, &PlateState::default());
+        carriers.advance(tick, &SwitchState::default());
         let shown = buffer.advance(1.0, &carriers, 0.5, 1.0 / 30.0).0;
         assert_eq!(
             shown.pos,
@@ -156,7 +157,7 @@ fn a_rider_from_a_snapshot_follows_the_platform_before_the_first_movement_report
 #[test]
 fn boarding_and_leaving_interpolate_world_positions_across_coordinate_frames() {
     let mut carriers = moving_platforms();
-    carriers.advance(30, &PlateState::default());
+    carriers.advance(30, &SwitchState::default());
     for (from, to) in [(CarrierId::WORLD, CarrierId(1)), (CarrierId(1), CarrierId::WORLD)] {
         let mut left = sample(1, 117.0, 0);
         let mut right = sample(4, 118.0, 0);
@@ -182,7 +183,7 @@ fn boarding_and_leaving_interpolate_world_positions_across_coordinate_frames() {
 #[test]
 fn a_portal_crossing_cuts_between_different_carrier_frames() {
     let mut carriers = moving_platforms();
-    carriers.advance(30, &PlateState::default());
+    carriers.advance(30, &SwitchState::default());
     let mut left = sample(1, 1.0, 0);
     left.movement.carrier = CarrierId(1);
     let mut right = sample(4, 2.0, 1);

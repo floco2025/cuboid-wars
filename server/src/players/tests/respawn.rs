@@ -21,8 +21,9 @@ use common::{
     map::Carriers,
     physics::CollisionWorld,
     protocol::{
-        ActorId, CarrierId, Health, MapLayout, Missile, MissileMovementState, PlateState, PlayerDeathEffect, PlayerId,
-        PlayerMarker, PortalMode, Position, QuestId, ServerMessage, ServerTick, server_tick_advance_system,
+        ActorId, CarrierId, Health, MapLayout, Missile, MissileMovementState, PlayerDeathEffect, PlayerId,
+        PlayerMarker, PortalMode, Position, QuestId, ServerMessage, ServerTick, SwitchState,
+        server_tick_advance_system,
     },
 };
 
@@ -88,7 +89,7 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
         .init_resource::<PendingExplosions>()
         .init_resource::<MissileMap>()
         .init_resource::<ServerTick>()
-        .init_resource::<PlateState>()
+        .init_resource::<SwitchState>()
         .insert_resource(PortalAssignments::new(PortalMode::Both));
     configure_server_schedule(&mut app);
     app.add_systems(

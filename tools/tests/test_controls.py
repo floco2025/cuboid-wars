@@ -23,12 +23,12 @@ class ControlTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = qt_app()
 
-    def test_switch_kind_policies_are_validated(self):
+    def test_switch_policies_are_validated(self):
         good = [
             {"id": "lobby", "activation": "auto", "reset_on_player_death": "never"},
             {"id": "finale", "activation": "momentary", "reset_on_player_death": "all", "held": "everyone"},
         ]
-        validate_catalog("switch_kinds", good)
+        validate_catalog("switches", good)
         for bad, message in [
             ([{"id": " lobby", "activation": "auto", "reset_on_player_death": "never"}], "no surrounding spaces"),
             (good + [good[0]], "unique"),
@@ -36,25 +36,25 @@ class ControlTests(unittest.TestCase):
             ([{"id": "a", "activation": "auto", "reset_on_player_death": "always"}], "reset_on_player_death must be"),
             ([{"id": "a", "activation": "auto", "reset_on_player_death": "never", "held": "all"}], "held must be"),
             (
-                [{"id": "a", "activation": "auto", "reset_on_player_death": "never", "plate_color": "red"}],
+                [{"id": "a", "activation": "auto", "reset_on_player_death": "never", "color": "red"}],
                 "color must look like",
             ),
             ([{"activation": "auto", "reset_on_player_death": "never"}], "nonempty"),
             ({}, "expected a list"),
         ]:
             with self.assertRaisesRegex(ValueError, message):
-                validate_catalog("switch_kinds", bad)
+                validate_catalog("switches", bad)
 
     def root(self):
         root = empty_map(3, 3)
-        root["switch_kinds"] = [{"id": "lobby", "activation": "auto", "reset_on_player_death": "never"}]
+        root["switches"] = [{"id": "lobby", "activation": "auto", "reset_on_player_death": "never"}]
         root["barrier_kinds"] = [{"id": "green", "color": "#22cc33"}]
         root["bridge_kinds"] = []
         root["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green", "switch": "lobby"}]
         root["items"] = [{"col": 1, "row": 1, "level": 0, "type": "key", "kind": "green"}]
         root["pressure_plates"] = [{"col": col, "row": 2, "level": 0, "switch": "lobby"} for col in (0, 2)]
         nested = copy.deepcopy(root)
-        for catalog in ("switch_kinds", "barrier_kinds", "bridge_kinds"):
+        for catalog in ("switches", "barrier_kinds", "bridge_kinds"):
             nested.pop(catalog)
         root["nested_geometry"] = {"room": nested}
         root["fireworks"] = {"switch": "lobby", "cooldown_secs": 2}
@@ -69,7 +69,7 @@ class ControlTests(unittest.TestCase):
             self.assertNotIn("key_kind", geometry["levels"][0]["barriers"][0])
         after = edit_catalog(
             after,
-            "switch_kinds",
+            "switches",
             [{"id": "entrance", "activation": "auto", "reset_on_player_death": "never"}],
             {"lobby": "entrance"},
         )
@@ -78,25 +78,25 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(after["nested_geometry"]["room"]["levels"][0]["barriers"][0]["switch"], "entrance")
         self.assertEqual(root["items"][0]["kind"], "green")
 
-    def test_used_kinds_cannot_be_deleted(self):
-        for catalog in ("switch_kinds", "barrier_kinds"):
+    def test_used_catalog_entries_cannot_be_deleted(self):
+        for catalog in ("switches", "barrier_kinds"):
             with self.assertRaisesRegex(ValueError, "still assigned"):
                 edit_catalog(self.root(), catalog, [], {})
 
-    def test_deleting_a_kind_another_is_renamed_to_is_refused_while_a_swap_passes(self):
+    def test_deleting_an_entry_another_is_renamed_to_is_refused_while_a_swap_passes(self):
         root = self.root()
-        root["switch_kinds"].append({"id": "b", "activation": "toggle", "reset_on_player_death": "never"})
+        root["switches"].append({"id": "b", "activation": "toggle", "reset_on_player_death": "never"})
         root["pressure_plates"][1]["switch"] = "b"
         with self.assertRaisesRegex(ValueError, "'b' is still assigned"):
             edit_catalog(
                 root,
-                "switch_kinds",
+                "switches",
                 [{"id": "b", "activation": "auto", "reset_on_player_death": "never"}],
                 {"lobby": "b"},
             )
         swapped = edit_catalog(
             root,
-            "switch_kinds",
+            "switches",
             [
                 {"id": "b", "activation": "auto", "reset_on_player_death": "never"},
                 {"id": "lobby", "activation": "toggle", "reset_on_player_death": "never"},
@@ -111,9 +111,9 @@ class ControlTests(unittest.TestCase):
         entry = {"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green", "switch": "lobby", "switch_inverted": True}
         dialog = FieldPropertiesDialog(None, "Edit Barrier", ["green"], ["lobby", "door"], [entry])
         self.assertEqual(dialog.values(), {"kind": "green"})
-        dialog.control.kind.setCurrentIndex(dialog.control.kind.findData("door"))
+        dialog.control.switch.setCurrentIndex(dialog.control.switch.findData("door"))
         self.assertEqual(dialog.values(), {"kind": "green", "switch": "door"})
-        dialog.control.kind.setCurrentIndex(dialog.control.kind.findData(""))
+        dialog.control.switch.setCurrentIndex(dialog.control.switch.findData(""))
         self.assertEqual(dialog.values(), {"kind": "green", "switch": None})
         dialog.deleteLater()
         data = empty_map(2, 2)
@@ -122,7 +122,7 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(cleared["levels"][0]["barriers"], [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green"}])
         bare = FieldPropertiesDialog(None, "Edit Barrier", ["green"], ["lobby"], [cleared["levels"][0]["barriers"][0]])
         self.assertEqual(bare.values(), {"kind": "green"})
-        bare.control.kind.setCurrentIndex(bare.control.kind.findData("lobby"))
+        bare.control.switch.setCurrentIndex(bare.control.switch.findData("lobby"))
         bare.control.response.setCurrentIndex(bare.control.response.findData("Off"))
         self.assertEqual(bare.values(), {"kind": "green", "switch": "lobby", "switch_inverted": True})
         bare.deleteLater()
@@ -143,26 +143,26 @@ class ControlTests(unittest.TestCase):
         self.assertNotEqual(entries[1]["color"], entries[0]["color"])
         self.assertEqual(renames, {})
         dialog.deleteLater()
-        plates = ControlCatalogDialog(
+        switches = ControlCatalogDialog(
             None,
-            "Pressure Plate Kinds",
-            "switch_kinds",
+            "Switches",
+            "switches",
             [{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}],
         )
-        override = plates.table.cellWidget(0, 4)
+        override = switches.table.cellWidget(0, 4)
         self.assertEqual((override.color, override.button.text()), (None, "Inherit"))
         override.set_color("#9b5de5")
-        self.assertEqual(plates.values()[0][0]["plate_color"], "#9b5de5")
-        self.assertTrue(override.clear_button.isVisibleTo(plates))
+        self.assertEqual(switches.values()[0][0]["color"], "#9b5de5")
+        self.assertTrue(override.clear_button.isVisibleTo(switches))
         override.clear_button.click()
-        self.assertNotIn("plate_color", plates.values()[0][0])
-        plates.deleteLater()
+        self.assertNotIn("color", switches.values()[0][0])
+        switches.deleteLater()
 
     def test_catalog_dialog_accepts_a_name_still_being_edited(self):
         dialog = ControlCatalogDialog(
             None,
-            "Pressure Plate Kinds",
-            "switch_kinds",
+            "Switches",
+            "switches",
             [{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}],
         )
         item = dialog.table.item(0, 0)
@@ -205,7 +205,7 @@ class ControlTests(unittest.TestCase):
             for path, text in settings.items():
                 self.assertEqual(path.with_name("settings.json").read_text(), text)
 
-    def test_bulk_controls_preserve_mixed_appearance_and_choose_one_plate_kind(self):
+    def test_bulk_controls_preserve_mixed_appearance_and_choose_one_switch(self):
         dialog = FieldPropertiesDialog(
             None,
             "Fields",
@@ -215,7 +215,7 @@ class ControlTests(unittest.TestCase):
         )
         self.assertNotIn("kind", dialog.values())
         self.assertNotIn("switch", dialog.values())
-        dialog.control.kind.setCurrentIndex(dialog.control.kind.findData("b"))
+        dialog.control.switch.setCurrentIndex(dialog.control.switch.findData("b"))
         dialog.control.response.setCurrentIndex(dialog.control.response.findData("Off"))
         self.assertEqual(dialog.values(), {"switch": "b", "switch_inverted": True})
         dialog.deleteLater()
@@ -244,7 +244,7 @@ class ControlTests(unittest.TestCase):
 class ControlWindowTests(WindowTestCase):
     def test_catalog_renames_and_deletions_follow_into_the_toolbar_defaults(self):
         window = self.window
-        window.doc.root_data["switch_kinds"] = [
+        window.doc.root_data["switches"] = [
             {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ("lobby", "door")
         ]
         window.switch_ids = ["lobby", "door"]
@@ -263,19 +263,19 @@ class ControlWindowTests(WindowTestCase):
         with patch(
             "map_editor.control_actions.ControlCatalogDialog.prompt", return_value=(renamed, {"lobby": "entrance"})
         ):
-            window.edit_control_catalog("switch_kinds", "Pressure Plate Kinds")
+            window.edit_control_catalog("switches", "Switches")
         self.assertEqual(window.recent_barrier_controls, {"switch": "entrance", "switch_inverted": True})
         self.assertEqual(window.recent_actor_spawn_switch, "entrance")
         self.assertEqual(window.recent_nested_map.switch, "entrance")
         self.assertEqual(window.recent_pressure_plate_switch, "door")
         deleted = [{"id": "entrance", "activation": "toggle", "reset_on_player_death": "never"}]
         with patch("map_editor.control_actions.ControlCatalogDialog.prompt", return_value=(deleted, {})):
-            window.edit_control_catalog("switch_kinds", "Pressure Plate Kinds")
+            window.edit_control_catalog("switches", "Switches")
         self.assertEqual(window.recent_bridge_controls, {})
         self.assertEqual(window.recent_pressure_plate_switch, "entrance")
         self.assertEqual(window.switches, ["entrance"])
         with patch("map_editor.control_actions.ControlCatalogDialog.prompt", return_value=([], {})):
-            window.edit_control_catalog("switch_kinds", "Pressure Plate Kinds")
+            window.edit_control_catalog("switches", "Switches")
         self.assertEqual(window.recent_barrier_controls, {})
         self.assertEqual(window.recent_actor_spawn_switch, "")
         self.assertFalse(window.recent_actor_spawn_inverted)

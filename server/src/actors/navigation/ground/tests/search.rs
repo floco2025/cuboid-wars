@@ -148,6 +148,7 @@ fn routes_cross_connected_carriers_but_cannot_cross_an_air_gap() {
         };
         let layout = MapLayout {
             carriers: vec![Carrier {
+                motion: Default::default(),
                 parent: CarrierId::WORLD,
                 level: 0,
                 levels: 1,

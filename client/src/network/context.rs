@@ -91,7 +91,7 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) banner: ResMut<'w, HudBanner>,
     pub(super) feed: ResMut<'w, MessageFeed>,
     pub(super) firework_show: ResMut<'w, FireworkShow>,
-    pub(super) plates: ResMut<'w, PlateState>,
+    pub(super) switch_state: ResMut<'w, SwitchState>,
     pub(super) locked_switches: ResMut<'w, LockedSwitches>,
     pub(super) shared_checkpoint: ResMut<'w, SharedCheckpoint>,
     pub(super) weather_intensity: ResMut<'w, WeatherIntensity>,

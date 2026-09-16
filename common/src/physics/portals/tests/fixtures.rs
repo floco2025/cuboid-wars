@@ -20,7 +20,7 @@ use crate::{
     config::{
         CharacterPhysicsConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig, gameplay::load_test_gameplay,
     },
-    protocol::{PlateState, TextureSettings},
+    protocol::{SwitchState, TextureSettings},
 };
 
 pub(crate) const CAP: f32 = 22.5;
@@ -94,6 +94,7 @@ pub(crate) fn moving_projectile_portals(
     obstacles: &[Wall],
 ) -> (CollisionWorld, PortalSet) {
     let carrier = Carrier {
+        motion: Default::default(),
         switch_inverted: false,
 
         parent: CarrierId::WORLD,
@@ -308,6 +309,7 @@ pub(crate) fn tile_wall_layout(beside_floor: bool) -> MapLayout {
             },
         ],
         carriers: vec![Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,
@@ -341,14 +343,14 @@ pub(crate) fn tile_wall_layout(beside_floor: bool) -> MapLayout {
 pub(crate) fn tile_world(layout: &MapLayout, tick: u32) -> (CollisionWorld, Carriers) {
     let mut world = CollisionWorld::from_map_layout(layout);
     let mut carriers = Carriers::from_layout(layout);
-    carriers.advance(tick.wrapping_sub(1), &PlateState::default());
-    carriers.advance(tick, &PlateState::default());
+    carriers.advance(tick.wrapping_sub(1), &SwitchState::default());
+    carriers.advance(tick, &SwitchState::default());
     world.set_carrier_poses(&carriers);
     (world, carriers)
 }
 
 pub(crate) fn advance_tile(world: &mut CollisionWorld, carriers: &mut Carriers, set: &mut PortalSet, tick: u32) {
-    carriers.advance(tick, &PlateState::default());
+    carriers.advance(tick, &SwitchState::default());
     world.set_carrier_poses(carriers);
     set.refresh(carriers);
 }

@@ -11,7 +11,7 @@ use crate::{
 };
 use common::{
     physics::FieldKind,
-    protocol::{MapLayout, PlateState},
+    protocol::{MapLayout, SwitchState},
 };
 
 #[derive(Component)]
@@ -27,7 +27,7 @@ pub fn bridges_spawn_system(
     client_settings: Res<ClientSettings>,
     field_meshes: Res<FieldMeshes>,
     bridge_assets: Res<BridgeAssets>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     carrier_entities: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -54,7 +54,7 @@ pub fn bridges_spawn_system(
         let color = bridge_assets.field_color(bridge.id);
         let material = materials.add(field_material(
             color,
-            fade_target(&plates, state, config),
+            fade_target(&switch_state, state, config),
             config.emissive_brightness,
         ));
         surfaces.0.push(FieldSurface {

@@ -4,7 +4,7 @@ use bincode::{Decode, Encode};
 
 use crate::{
     math::sequence_is_newer,
-    protocol::{Carrier, CarrierId, MapLayout, PlateState, Position},
+    protocol::{Carrier, CarrierId, CarrierMotion, MapLayout, Position, SwitchState},
 };
 
 // A carrier's placement in world space. Translation only for now; a
@@ -72,57 +72,77 @@ impl CarrierPose {
     }
 }
 
-// How far a switched carrier has run: the run ticks it had at `since_tick`
-// and whether it has been running since. A pure function of the tick once
-// replicated, so both sides place the carrier from the shared clock and
-// this small value; a flip changes only the value, never the pose it was
-// at. Absent from `PlateState`, a switched carrier rests at run 0.
+// Cycle counts running ticks; FollowSwitch counts travel ticks from end 1.
+// Anchoring that value at each switch change keeps both peers on the same
+// path and lets FollowSwitch reverse without a position jump or a pause.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct CarrierRun {
-    pub running: bool,
+    pub active: bool,
     pub run_ticks: u32,
     pub since_tick: u32,
 }
 
 impl CarrierRun {
     pub const STOPPED: Self = Self {
-        running: false,
+        active: false,
         run_ticks: 0,
         since_tick: 0,
     };
 
-    // A stamp newer than the tick (a client whose clock trails the server's)
-    // adds nothing yet rather than wrapping.
     #[must_use]
-    pub fn run_ticks_at(&self, tick: u32) -> u32 {
-        if !self.running || sequence_is_newer(self.since_tick, tick) {
-            self.run_ticks
-        } else {
-            self.run_ticks.wrapping_add(tick.wrapping_sub(self.since_tick))
+    pub fn initial(carrier: &Carrier) -> Self {
+        Self {
+            active: carrier.switch_inverted,
+            run_ticks: if carrier.motion == CarrierMotion::FollowSwitch && carrier.switch_inverted {
+                carrier.travel_ticks
+            } else {
+                0
+            },
+            since_tick: 0,
         }
     }
 
-    // The run after its switch flips at `tick`; unchanged when it did not,
-    // since re-stamping would park a trailing client's carrier again.
+    // A trailing client's clock must not turn a future stamp into a full
+    // wrap's worth of travel.
     #[must_use]
-    pub fn set_running(self, running: bool, tick: u32) -> Self {
-        if running == self.running {
+    pub fn run_ticks_at(&self, tick: u32, carrier: &Carrier) -> u32 {
+        let elapsed = if sequence_is_newer(self.since_tick, tick) {
+            0
+        } else {
+            tick.wrapping_sub(self.since_tick)
+        };
+        match carrier.motion {
+            CarrierMotion::Cycle => self.run_ticks.wrapping_add(if self.active { elapsed } else { 0 }),
+            CarrierMotion::FollowSwitch if self.active => {
+                self.run_ticks.saturating_add(elapsed).min(carrier.travel_ticks)
+            }
+            CarrierMotion::FollowSwitch => self.run_ticks.saturating_sub(elapsed),
+        }
+    }
+
+    #[must_use]
+    pub fn set_active(self, active: bool, tick: u32, carrier: &Carrier) -> Self {
+        // Re-stamping an unchanged input would park a trailing client again.
+        if active == self.active {
             return self;
         }
         Self {
-            running,
-            run_ticks: self.run_ticks_at(tick),
+            active,
+            run_ticks: self.run_ticks_at(tick, carrier),
             since_tick: tick,
         }
     }
 }
 
 // Where a carrier's origin is in its parent's frame after `run_ticks` of
-// motion: out along the path, held, back, held. A free carrier's run ticks
+// motion, interpreted according to its motion mode. A free carrier's run ticks
 // are the shared tick; a switched one's come from its `CarrierRun`.
 #[must_use]
 pub fn carrier_offset_at(carrier: &Carrier, run_ticks: u32) -> Vec3 {
     let travel = carrier.travel_ticks;
+    if carrier.motion == CarrierMotion::FollowSwitch {
+        return Vec3::from(carrier.from).lerp(Vec3::from(carrier.to), run_ticks.min(travel) as f32 / travel as f32);
+    }
     let cycle = 2 * (travel + carrier.pause_ticks);
     let phase = run_ticks.wrapping_add(carrier.phase_ticks) % cycle;
     let progress = if phase < travel {
@@ -140,7 +160,7 @@ pub fn carrier_offset_at(carrier: &Carrier, run_ticks: u32) -> Vec3 {
 // Every carrier with its world pose at the last two ticks, in layout order.
 // Built once from the layout on both sides and advanced right before
 // character movement (`carriers_advance_system`), switched carriers from
-// the runs the plate state carries. The default is the static world: no
+// the runs the switch state carries. The default is the static world: no
 // carriers, every id but `WORLD` unknown.
 #[derive(Resource, Default)]
 pub struct Carriers {
@@ -166,11 +186,14 @@ impl Carriers {
                 index + 1,
                 carrier.parent.0
             );
+            let run_ticks = if carrier.switch.is_some() {
+                CarrierRun::initial(carrier).run_ticks_at(0, carrier)
+            } else {
+                0
+            };
             let pose = carriers
                 .pose(carrier.parent)
-                .then(&CarrierPose::from_translation(carrier_offset_at(carrier, 0)));
-            // Run 0 on both a free and a switched carrier: the tick-0 pose and the
-            // stopped pose a client holds until its first snapshot coincide.
+                .then(&CarrierPose::from_translation(carrier_offset_at(carrier, run_ticks)));
             carriers.carried.push(CarrierRuntime {
                 carrier: *carrier,
                 previous: pose,
@@ -204,12 +227,15 @@ impl Carriers {
 
     // Parents precede children, so each world pose composes from a parent
     // already at this tick.
-    pub fn advance(&mut self, tick: u32, plates: &PlateState) {
+    pub fn advance(&mut self, tick: u32, switch_state: &SwitchState) {
         for index in 0..self.carried.len() {
             let carrier = self.carried[index].carrier;
             let id = CarrierId::from_carried_index(index);
             let run_ticks = if carrier.switch.is_some() {
-                plates.carrier_run(id).unwrap_or(CarrierRun::STOPPED).run_ticks_at(tick)
+                switch_state
+                    .carrier_run(id)
+                    .unwrap_or_else(|| CarrierRun::initial(&carrier))
+                    .run_ticks_at(tick, &carrier)
             } else {
                 tick
             };

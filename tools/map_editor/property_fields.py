@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from .constants import CHECKPOINT_TYPE_LABELS, FACES, ITEM_TYPES, TERRAIN_FACES
+from .nesting import MOTION_LABELS
 
 
 @dataclass(frozen=True)
@@ -67,24 +68,26 @@ def fields_for(window, name):
         add("levels", "Storeys", "positive_int")
         choice("side", "Side", ("N", "S", "E", "W"))
     elif name == "nested_maps":
-        choice("map", "Geometry", window.nested_map_names())
+        choice("map", "Map", window.nested_map_names())
+        add("motion", "Motion", "choice", MOTION_LABELS.items())
+        add("travel_secs", "Travel time (s)", "positive")
+        add("pause_secs", "Cycle pause (s)", "nonnegative")
+        add("phase_secs", "Cycle phase (s)", "nonnegative")
+    if name in ("barriers", "light_bridges", "actor_spawn_zones", "nested_maps", "pressure_plates"):
+        values = window.switches if name == "pressure_plates" else [None, *window.switches]
+        choice("switch", "Switch", values, window.switch_colors)
+        if name != "pressure_plates":
+            add("switch_inverted", "Respond when", "choice", [(False, "On"), (True, "Off")])
+    if name == "nested_maps":
         add(
             "to_level",
-            "End level",
+            "End 2 level",
             "choice",
             [(i, level.get("name") or f"Level {i}") for i, level in enumerate(window.map_data["levels"])],
         )
-        add("travel_secs", "Travel (s)", "positive")
-        add("pause_secs", "Pause (s)", "nonnegative")
-        add("phase_secs", "Phase (s)", "nonnegative")
-        for end, label in (("from_nudge", "Start"), ("to_nudge", "End")):
+        for end, label in (("from_nudge", "Nudge end 1"), ("to_nudge", "Nudge end 2")):
             for axis, letter in enumerate(("X", "Y", "Z")):
                 add((end, axis), f"{label} {letter}", "number")
-    if name in ("barriers", "light_bridges", "actor_spawn_zones", "nested_maps", "pressure_plates"):
-        values = window.switches if name == "pressure_plates" else [None, *window.switches]
-        choice("switch", "Plate kind", values, window.plate_colors)
-        if name != "pressure_plates":
-            add("switch_inverted", "Respond when", "choice", [(False, "On"), (True, "Off")])
     return fields
 
 
@@ -96,6 +99,8 @@ def property_value(entry, key):
         return entry.get(key[0], entry.get("all", ""))
     if key[0] == "switch_inverted":
         return entry.get(key[0], False)
+    if key[0] == "motion":
+        return entry.get(key[0], "cycle")
     if key[0] == "levels":
         return entry.get(key[0], 1)
     if key[0] == "roam_distance":

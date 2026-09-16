@@ -6,7 +6,7 @@ use common::{
     constants::{CHARACTER_CARRIER_RIDE_TOLERANCE, TICK_SECS},
     map::Carriers,
     physics::{CharacterEnvironment, CharacterStep, CollisionWorld, LadderMode, step_character_movement},
-    protocol::{CarrierId, MapLayout, MapSettings, PlateState, Position},
+    protocol::{CarrierId, MapLayout, MapSettings, Position, SwitchState},
 };
 use rand::random;
 
@@ -55,17 +55,17 @@ fn every_carrier_carries_a_standing_player_through_its_cycle() {
     let layout = carrier_fixture(map_settings);
     let mut world = CollisionWorld::from_map_layout(&layout);
     let mut carriers = Carriers::from_layout(&layout);
-    let plates = PlateState::default();
+    let switch_state = SwitchState::default();
 
     for (index, carrier) in layout.carriers.iter().enumerate() {
         let id = CarrierId::from_carried_index(index);
-        carriers.advance(0, &plates);
+        carriers.advance(0, &switch_state);
         world.set_carrier_poses(&carriers);
         let mut pos = Position::from(carriers.pose(id).translation);
         let mut vertical_velocity = 0.0;
         let cycle = 2 * (carrier.travel_ticks + carrier.pause_ticks);
         for tick in 1..=cycle {
-            carriers.advance(tick, &plates);
+            carriers.advance(tick, &switch_state);
             world.set_carrier_poses(&carriers);
             let step = step_character_movement(
                 CharacterStep {

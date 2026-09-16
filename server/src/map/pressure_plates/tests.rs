@@ -2,14 +2,12 @@ use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use crossbeam_channel::{Receiver, unbounded};
 use std::collections::{HashMap, HashSet};
 
-use super::{
-    switches::PressureSwitches,
-    system::{player_on_plate, presser_of_switch},
-};
+use super::system::{player_on_plate, presser_of_switch};
 use crate::{
     actors::{ActorMap, ActorSpawner, PendingActorSpawns},
     combat::{DeathSource, PendingExplosions, kill_player},
     config::{PlayerRespawnMode, QuestKind, RespawnConfig, ServerGameplayConfig, WeatherMode},
+    map::switches::{SwitchInput, Switches},
     map::{
         CellGrid, EdgeGrid, FireworksConfig, LevelGrid, MapConfig, MapFireworks, PlayerSpawnZone, PressurePlateRuntime,
         WeatherState, map_plugin,
@@ -24,14 +22,14 @@ use crate::{
     test_geometry::{CELL, LEVEL_HEIGHT, geometry},
 };
 use common::{
-    config::{DeathTrigger, PressureSwitchActivation, PressureSwitchConfig, SwitchHold},
+    config::{DeathTrigger, SwitchActivation, SwitchConfig, SwitchHold},
     constants::FIREWORK_SHOW_SECS,
     map::{CarrierRun, Carriers, MapGeometry},
     physics::CollisionWorld,
     protocol::{
         Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, Carrier, CarrierId, HexColor, KindDef, LightBridge,
-        MapLayout, MapSettings, PlateState, PlayerId, PlayerMarker, PortalMode, Position, QuestId, QuestScope,
-        ServerMessage, ServerTick, SwitchDef, SwitchId, SwitchTable, server_tick_advance_system,
+        MapLayout, MapSettings, PlayerId, PlayerMarker, PortalMode, Position, QuestId, QuestScope, ServerMessage,
+        ServerTick, SwitchDef, SwitchId, SwitchState, SwitchTable, server_tick_advance_system,
     },
 };
 
@@ -198,10 +196,10 @@ fn spare_plate() -> PressurePlateRuntime {
     }
 }
 
-fn switch_def(id: &str, policy: PressureSwitchConfig) -> SwitchDef {
+fn switch_def(id: &str, policy: SwitchConfig) -> SwitchDef {
     SwitchDef {
         id: id.to_owned(),
-        plate_color: None,
+        color: None,
         policy,
     }
 }
@@ -209,17 +207,17 @@ fn switch_def(id: &str, policy: PressureSwitchConfig) -> SwitchDef {
 fn harness_settings(config: &ServerGameplayConfig) -> MapSettings {
     let mut settings = config.maps[&config.default_map].settings.clone();
     settings.switches = vec![
-        switch_def("lobby", PressureSwitchConfig::default()),
-        switch_def("skyway", PressureSwitchConfig::default()),
+        switch_def("lobby", SwitchConfig::default()),
+        switch_def("skyway", SwitchConfig::default()),
         switch_def(
             "fireworks",
-            PressureSwitchConfig {
-                activation: PressureSwitchActivation::Momentary,
+            SwitchConfig {
+                activation: SwitchActivation::Momentary,
                 reset_on_player_death: DeathTrigger::Never,
                 held: SwitchHold::Everyone,
             },
         ),
-        switch_def("spare", PressureSwitchConfig::default()),
+        switch_def("spare", SwitchConfig::default()),
     ];
     settings.barrier_kinds = vec![kind("lobby", "lobby")];
     settings.bridge_kinds = vec![kind("skyway", "skyway")];
@@ -300,7 +298,7 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
             switch: "fireworks".to_owned(),
             cooldown_secs: FIREWORK_COOLDOWN_SECS,
         })))
-        .insert_resource(PlateState::default())
+        .insert_resource(SwitchState::default())
         .init_resource::<ServerTick>()
         .add_plugins(map_plugin);
     configure_server_schedule(&mut app);
@@ -367,20 +365,20 @@ fn step_onto_second_plate(app: &mut App, entity: Entity) {
 }
 
 fn open_kinds(app: &App) -> Vec<BarrierId> {
-    app.world().resource::<PlateState>().open_barriers.clone()
+    app.world().resource::<SwitchState>().open_barriers.clone()
 }
 
 fn powered_kinds(app: &App) -> Vec<BridgeId> {
-    app.world().resource::<PlateState>().powered_bridges.clone()
+    app.world().resource::<SwitchState>().powered_bridges.clone()
 }
 
 fn active_switches(app: &App) -> Vec<SwitchId> {
-    app.world().resource::<PlateState>().active_switches.clone()
+    app.world().resource::<SwitchState>().active_switches.clone()
 }
 
 fn carrier_run(app: &App) -> CarrierRun {
     app.world()
-        .resource::<PlateState>()
+        .resource::<SwitchState>()
         .carrier_run(CarrierId(1))
         .expect("switched carrier missing from the plate state")
 }
@@ -525,12 +523,12 @@ fn an_everyone_toggle_flips_on_the_thresholds_rising_edge() {
     );
     install_switches(
         &mut app,
-        PressureSwitchConfig {
-            activation: PressureSwitchActivation::Toggle,
+        SwitchConfig {
+            activation: SwitchActivation::Toggle,
             reset_on_player_death: DeathTrigger::Never,
             held: SwitchHold::Everyone,
         },
-        PressureSwitchConfig::default(),
+        SwitchConfig::default(),
     );
     let (first, _) = standing_player(&mut app, 1);
     let (second, _) = standing_player(&mut app, 2);
@@ -568,12 +566,12 @@ fn an_everyone_toggle_flips_when_a_death_lowers_its_threshold() {
         );
         install_switches(
             &mut app,
-            PressureSwitchConfig {
-                activation: PressureSwitchActivation::Toggle,
+            SwitchConfig {
+                activation: SwitchActivation::Toggle,
                 reset_on_player_death: trigger,
                 held: SwitchHold::Everyone,
             },
-            PressureSwitchConfig::default(),
+            SwitchConfig::default(),
         );
         let (holder, _) = standing_player(&mut app, 1);
         let (other, _) = standing_player(&mut app, 2);
@@ -711,7 +709,7 @@ fn a_barrier_plate_never_powers_a_bridge_kind() {
 fn one_switch_opens_a_barrier_kind_and_powers_a_bridge_kind_together() {
     let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
     app.world_mut().resource_mut::<MapLayout>().light_bridges[0].switch = Some(LOBBY_SWITCH);
-    let switches = PressureSwitches::from_world(app.world_mut());
+    let switches = Switches::from_world(app.world_mut());
     app.insert_resource(switches);
 
     let (entity, _rx) = standing_player(&mut app, 1);
@@ -745,6 +743,7 @@ fn a_plate_whose_switch_has_no_targets_still_clicks_and_feeds() {
 fn switched_carrier_layout() -> MapLayout {
     MapLayout {
         carriers: vec![Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,
@@ -764,7 +763,7 @@ fn switched_carrier_layout() -> MapLayout {
 #[test]
 fn a_switch_starts_and_stops_its_carrier_run() {
     let mut app = app_with_layout(catalog(Vec::new()), vec![lobby_plate()], switched_carrier_layout());
-    configure_switches(&mut app, PressureSwitchActivation::Momentary, DeathTrigger::Never);
+    configure_switches(&mut app, SwitchActivation::Momentary, DeathTrigger::Never);
     app.update();
     assert_eq!(carrier_run(&app), CarrierRun::STOPPED);
 
@@ -774,7 +773,7 @@ fn a_switch_starts_and_stops_its_carrier_run() {
     assert_eq!(
         carrier_run(&app),
         CarrierRun {
-            running: true,
+            active: true,
             run_ticks: 0,
             since_tick: started,
         }
@@ -793,7 +792,7 @@ fn a_switch_starts_and_stops_its_carrier_run() {
     assert_eq!(
         carrier_run(&app),
         CarrierRun {
-            running: false,
+            active: false,
             run_ticks: 6,
             since_tick: started + 6,
         }
@@ -803,7 +802,7 @@ fn a_switch_starts_and_stops_its_carrier_run() {
     app.update();
     let resumed = carrier_run(&app);
     assert_eq!(
-        (resumed.running, resumed.run_ticks, resumed.since_tick),
+        (resumed.active, resumed.run_ticks, resumed.since_tick),
         (true, 6, started + 7)
     );
 }
@@ -811,20 +810,108 @@ fn a_switch_starts_and_stops_its_carrier_run() {
 #[test]
 fn a_death_reset_stops_the_carrier() {
     let mut app = app_with_layout(catalog(Vec::new()), vec![lobby_plate()], switched_carrier_layout());
-    configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Any);
+    configure_switches(&mut app, SwitchActivation::Toggle, DeathTrigger::Any);
     let (entity, _) = standing_player(&mut app, 1);
     standing_player(&mut app, 2);
     app.update();
     step_off(&mut app, entity);
     app.update();
     app.update();
-    assert!(carrier_run(&app).running);
+    assert!(carrier_run(&app).active);
     die(&mut app, 1);
     app.update();
     let run = carrier_run(&app);
-    assert!(!run.running);
+    assert!(!run.active);
     assert_eq!(run.run_ticks, 3);
     assert_eq!(run.since_tick, tick(&app));
+}
+
+#[test]
+fn carriers_on_one_switch_can_cycle_or_follow_independently() {
+    let mut layout = switched_carrier_layout();
+    layout.carriers.push(Carrier {
+        motion: common::protocol::CarrierMotion::FollowSwitch,
+        ..layout.carriers[0]
+    });
+    let mut app = app_with_layout(catalog(Vec::new()), vec![lobby_plate()], layout);
+    app.add_systems(
+        Update,
+        common::physics::carriers_advance_system.in_set(ServerSet::Movement),
+    );
+    configure_switches(&mut app, SwitchActivation::Momentary, DeathTrigger::Never);
+    let (entity, _) = standing_player(&mut app, 1);
+    app.update();
+    for _ in 0..20 {
+        app.update();
+    }
+    step_off(&mut app, entity);
+    app.update();
+    let carriers = app.world().resource::<Carriers>();
+    let stopped = carriers.pose(CarrierId(1));
+    assert!(stopped.translation.x > 1.0);
+    assert!((stopped.translation - carriers.pose(CarrierId(2)).translation).length() < 1e-5);
+    for _ in 0..30 {
+        app.update();
+    }
+    let carriers = app.world().resource::<Carriers>();
+    assert_eq!(carriers.pose(CarrierId(1)), stopped);
+    assert_eq!(carriers.pose(CarrierId(2)).translation, Vec3::ZERO);
+    step_on(&mut app, entity);
+    app.update();
+    for id in [CarrierId(1), CarrierId(2)] {
+        assert!(
+            app.world()
+                .resource::<SwitchState>()
+                .carrier_run(id)
+                .expect("carrier run")
+                .active
+        );
+    }
+    for _ in 0..140 {
+        app.update();
+    }
+    assert_eq!(app.world().resource::<Carriers>().pose(CarrierId(2)).translation.x, 4.0);
+    step_off(&mut app, entity);
+    app.update();
+    for _ in 0..10 {
+        app.update();
+    }
+    let returning = app.world().resource::<Carriers>().pose(CarrierId(2)).translation.x;
+    assert!(returning > 0.0 && returning < 4.0);
+    step_on(&mut app, entity);
+    app.update();
+    let reversed = app.world().resource::<Carriers>().pose(CarrierId(2)).translation.x;
+    assert!((reversed - returning + 4.0 / 60.0).abs() < 1e-5);
+    app.update();
+    assert!(app.world().resource::<Carriers>().pose(CarrierId(2)).translation.x > reversed);
+}
+
+#[test]
+fn an_inverted_carrier_returns_when_its_switch_turns_on() {
+    let mut layout = switched_carrier_layout();
+    layout.carriers[0].motion = common::protocol::CarrierMotion::FollowSwitch;
+    layout.carriers[0].switch_inverted = true;
+    let mut app = app_with_layout(catalog(Vec::new()), vec![lobby_plate()], layout);
+    app.add_systems(
+        Update,
+        common::physics::carriers_advance_system.in_set(ServerSet::Movement),
+    );
+    configure_switches(&mut app, SwitchActivation::Momentary, DeathTrigger::Never);
+    for _ in 0..10 {
+        app.update();
+    }
+    assert!(app.world().resource::<Carriers>().pose(CarrierId(1)).translation.x > 0.5);
+    standing_player(&mut app, 1);
+    app.update();
+    assert!(!carrier_run(&app).active);
+    assert_eq!(carrier_run(&app).run_ticks, 60);
+    for _ in 0..65 {
+        app.update();
+    }
+    assert_eq!(
+        app.world().resource::<Carriers>().pose(CarrierId(1)).translation,
+        Vec3::ZERO
+    );
 }
 
 #[test]
@@ -866,8 +953,8 @@ fn solo_switches_start_from_the_plates_held_when_the_partner_leaves() {
     assert!(switch_lines(&drain(&mut rx), "lobby").is_empty());
 }
 
-fn configure_switches(app: &mut App, activation: PressureSwitchActivation, trigger: DeathTrigger) {
-    let switch = PressureSwitchConfig {
+fn configure_switches(app: &mut App, activation: SwitchActivation, trigger: DeathTrigger) {
+    let switch = SwitchConfig {
         activation,
         reset_on_player_death: trigger,
         held: SwitchHold::Any,
@@ -876,12 +963,12 @@ fn configure_switches(app: &mut App, activation: PressureSwitchActivation, trigg
 }
 
 // Rebuilds the switches with the lobby and skyway policies.
-fn install_switches(app: &mut App, lobby: PressureSwitchConfig, skyway: PressureSwitchConfig) {
+fn install_switches(app: &mut App, lobby: SwitchConfig, skyway: SwitchConfig) {
     let mut settings = app.world().resource::<MapSettings>().clone();
     settings.switches[usize::from(LOBBY_SWITCH.0)].policy = lobby;
     settings.switches[usize::from(SKYWAY_SWITCH.0)].policy = skyway;
     app.insert_resource(settings);
-    let switches = PressureSwitches::from_world(app.world_mut());
+    let switches = Switches::from_world(app.world_mut());
     app.insert_resource(switches);
 }
 
@@ -900,9 +987,9 @@ fn die(app: &mut App, id: u32) {
 
 #[test]
 fn momentary_needs_any_matching_plate_and_never_opens_for_missing_holders() {
-    for activation in [PressureSwitchActivation::Momentary, PressureSwitchActivation::Auto] {
+    for activation in [SwitchActivation::Momentary, SwitchActivation::Auto] {
         for count in [1, 2, 4] {
-            if activation == PressureSwitchActivation::Auto && count == 1 {
+            if activation == SwitchActivation::Auto && count == 1 {
                 continue;
             }
             let mut app = app(
@@ -951,7 +1038,7 @@ fn momentary_needs_any_matching_plate_and_never_opens_for_missing_holders() {
 #[test]
 fn explicit_toggles_persist_through_joins_disconnects_and_an_empty_server() {
     let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-    configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Never);
+    configure_switches(&mut app, SwitchActivation::Toggle, DeathTrigger::Never);
     let (first, _) = standing_player(&mut app, 1);
     app.update();
     step_off(&mut app, first);
@@ -977,7 +1064,7 @@ fn explicit_toggles_persist_through_joins_disconnects_and_an_empty_server() {
 #[test]
 fn two_players_on_one_plate_produce_one_toggle_until_everyone_releases_it() {
     let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-    configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Never);
+    configure_switches(&mut app, SwitchActivation::Toggle, DeathTrigger::Never);
     let (first, _) = standing_player(&mut app, 1);
     app.update();
     let (second, _) = standing_player(&mut app, 2);
@@ -1004,7 +1091,7 @@ fn toggle_death_policies_distinguish_solo_any_and_all_across_ticks() {
     ] {
         for count in [1, 2] {
             let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-            configure_switches(&mut app, PressureSwitchActivation::Toggle, trigger);
+            configure_switches(&mut app, SwitchActivation::Toggle, trigger);
             for id in 1..=count {
                 standing_player(&mut app, id);
             }
@@ -1027,7 +1114,7 @@ fn toggle_death_policies_distinguish_solo_any_and_all_across_ticks() {
 
 #[test]
 fn group_death_resets_all_switches_and_momentary_holders_before_snapshot() {
-    for activation in [PressureSwitchActivation::Toggle, PressureSwitchActivation::Momentary] {
+    for activation in [SwitchActivation::Toggle, SwitchActivation::Momentary] {
         let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
         configure_switches(&mut app, activation, DeathTrigger::All);
         app.insert_resource(PlayerMap::new(RespawnConfig {
@@ -1054,7 +1141,7 @@ fn group_death_resets_all_switches_and_momentary_holders_before_snapshot() {
 #[test]
 fn death_reset_beats_a_press_after_movement_and_requires_a_fresh_press() {
     let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-    configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Any);
+    configure_switches(&mut app, SwitchActivation::Toggle, DeathTrigger::Any);
     let (first, _) = standing_player(&mut app, 1);
     let (survivor, _) = standing_player(&mut app, 2);
     step_off(&mut app, survivor);
@@ -1087,7 +1174,7 @@ fn death_reset_beats_a_press_after_movement_and_requires_a_fresh_press() {
 #[test]
 fn auto_toggles_reset_on_solo_death_but_explicit_momentary_ignores_reset_policy() {
     let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-    configure_switches(&mut app, PressureSwitchActivation::Auto, DeathTrigger::Solo);
+    configure_switches(&mut app, SwitchActivation::Auto, DeathTrigger::Solo);
     let (entity, _) = standing_player(&mut app, 1);
     app.update();
     step_off(&mut app, entity);
@@ -1098,7 +1185,7 @@ fn auto_toggles_reset_on_solo_death_but_explicit_momentary_ignores_reset_policy(
     assert_switches(&app, false);
 
     let mut app = self::app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-    configure_switches(&mut app, PressureSwitchActivation::Momentary, DeathTrigger::Any);
+    configure_switches(&mut app, SwitchActivation::Momentary, DeathTrigger::Any);
     standing_player(&mut app, 1);
     standing_player(&mut app, 2);
     app.update();
@@ -1111,7 +1198,7 @@ fn auto_toggles_reset_on_solo_death_but_explicit_momentary_ignores_reset_policy(
 fn all_reset_follows_the_last_survivor_departure_and_solo_uses_counts_at_the_event() {
     for trigger in [DeathTrigger::All, DeathTrigger::Solo] {
         let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-        configure_switches(&mut app, PressureSwitchActivation::Toggle, trigger);
+        configure_switches(&mut app, SwitchActivation::Toggle, trigger);
         standing_player(&mut app, 1);
         let (partner, _) = standing_player(&mut app, 2);
         app.update();
@@ -1121,7 +1208,7 @@ fn all_reset_follows_the_last_survivor_departure_and_solo_uses_counts_at_the_eve
         assert_switches(&app, trigger == DeathTrigger::Solo);
     }
     let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-    configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Solo);
+    configure_switches(&mut app, SwitchActivation::Toggle, DeathTrigger::Solo);
     standing_player(&mut app, 1);
     app.update();
     die(&mut app, 1);
@@ -1140,7 +1227,7 @@ fn toggle_logout_policies_distinguish_solo_any_and_all() {
     ] {
         for count in [1, 2] {
             let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-            configure_switches(&mut app, PressureSwitchActivation::Toggle, trigger);
+            configure_switches(&mut app, SwitchActivation::Toggle, trigger);
             let (first, _) = standing_player(&mut app, 1);
             let second = (count == 2).then(|| standing_player(&mut app, 2).0);
             app.update();
@@ -1162,7 +1249,7 @@ fn toggle_logout_policies_distinguish_solo_any_and_all() {
 
 #[test]
 fn logout_reset_wins_over_a_held_plate_until_a_fresh_press() {
-    for activation in [PressureSwitchActivation::Toggle, PressureSwitchActivation::Auto] {
+    for activation in [SwitchActivation::Toggle, SwitchActivation::Auto] {
         let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
         configure_switches(&mut app, activation, DeathTrigger::Any);
         let (first, _) = standing_player(&mut app, 1);
@@ -1194,7 +1281,7 @@ fn logout_reset_wins_over_a_held_plate_until_a_fresh_press() {
 fn bridge_collision_loses_power_on_the_death_or_logout_tick() {
     for logout in [false, true] {
         let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-        configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::All);
+        configure_switches(&mut app, SwitchActivation::Toggle, DeathTrigger::All);
         app.insert_resource(CollisionWorld::from_map_layout(&MapLayout {
             light_bridges: vec![LightBridge {
                 id: Default::default(),
@@ -1250,13 +1337,13 @@ fn switches_choose_independent_activation_and_death_policies() {
     let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
     install_switches(
         &mut app,
-        PressureSwitchConfig {
-            activation: PressureSwitchActivation::Toggle,
+        SwitchConfig {
+            activation: SwitchActivation::Toggle,
             reset_on_player_death: DeathTrigger::Any,
             held: SwitchHold::Any,
         },
-        PressureSwitchConfig {
-            activation: PressureSwitchActivation::Momentary,
+        SwitchConfig {
+            activation: SwitchActivation::Momentary,
             ..Default::default()
         },
     );
@@ -1288,7 +1375,7 @@ fn a_different_plate_of_the_switch_can_toggle_it_while_the_first_stays_held() {
             },
         ],
     );
-    configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Never);
+    configure_switches(&mut app, SwitchActivation::Toggle, DeathTrigger::Never);
     standing_player(&mut app, 1);
     app.update();
     assert_switches(&app, true);
@@ -1302,7 +1389,7 @@ fn a_different_plate_of_the_switch_can_toggle_it_while_the_first_stays_held() {
 fn toggle_switches_reset_before_a_dead_player_respawns() {
     let config = catalog(vec![]);
     let mut app = app(config.clone(), vec![lobby_plate(), skyway_plate()]);
-    configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::All);
+    configure_switches(&mut app, SwitchActivation::Toggle, DeathTrigger::All);
     app.world_mut()
         .resource_mut::<MapConfig>()
         .player_spawn_zones
@@ -1369,35 +1456,36 @@ fn same_kind_fields_and_an_inverted_carrier_respond_per_target() {
         opposite.switch_inverted = true;
         layout.light_bridges.push(opposite);
     }
-    configure_switches(&mut app, PressureSwitchActivation::Momentary, DeathTrigger::Never);
+    configure_switches(&mut app, SwitchActivation::Momentary, DeathTrigger::Never);
     app.update();
     assert_eq!(open_kinds(&app), [BarrierId(1)]);
     assert_eq!(powered_kinds(&app), [BridgeId(1)]);
-    assert!(carrier_run(&app).running);
+    assert!(carrier_run(&app).active);
     let (player, _) = standing_player(&mut app, 1);
     app.update();
     assert_eq!(open_kinds(&app), [LOBBY]);
     assert_eq!(powered_kinds(&app), [SKYWAY]);
-    assert!(!carrier_run(&app).running);
+    assert!(!carrier_run(&app).active);
     step_off(&mut app, player);
     app.update();
     assert_eq!(open_kinds(&app), [BarrierId(1)]);
     assert_eq!(powered_kinds(&app), [BridgeId(1)]);
-    assert!(carrier_run(&app).running);
+    assert!(carrier_run(&app).active);
 }
 
 #[test]
 fn fireworks_are_never_due_before_their_plate_is_pressed() {
     let mut app = app(catalog(vec![]), vec![]);
-    let mut switches = PressureSwitches::from_world(app.world_mut());
+    let mut switches = Switches::from_world(app.world_mut());
     assert!(!switches.fireworks_due(0, &[]));
-    let plates = [PressurePlateRuntime {
-        switch: FIREWORKS_SWITCH,
-        ..lobby_plate()
-    }];
-    switches.update(1, 1, HashSet::new(), &plates, 1);
+    let mut inputs = vec![SwitchInput::default(); 4];
+    switches.update(1, &inputs, 1);
     assert!(!switches.fireworks_due(1, &[]));
-    switches.update(1, 1, HashSet::from([0]), &plates, 2);
+    inputs[usize::from(FIREWORKS_SWITCH.0)] = SwitchInput {
+        occupied: true,
+        presses: 1,
+    };
+    switches.update(1, &inputs, 2);
     assert!(!switches.fireworks_due(2, &[FIREWORKS_SWITCH]));
     assert!(switches.fireworks_due(2, &[]));
 }

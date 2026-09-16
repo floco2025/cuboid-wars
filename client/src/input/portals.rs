@@ -16,8 +16,8 @@ use common::{
         CollisionWorld, PortalPlacement, PortalPlacementFailure, compute_portal_placement, portal_placement_overlaps,
     },
     protocol::{
-        CPortalShot, ClientMessage, MapLayout, MapSettings, PlateState, PlayerId, Portal, PortalAccess, PortalEnd,
-        PortalPairId, PortalShotResult,
+        CPortalShot, ClientMessage, MapLayout, MapSettings, PlayerId, Portal, PortalAccess, PortalEnd, PortalPairId,
+        PortalShotResult, SwitchState,
     },
 };
 
@@ -39,7 +39,7 @@ pub struct PortalInputWorld<'w> {
     carriers: Res<'w, Carriers>,
     map_layout: Res<'w, MapLayout>,
     map_settings: Res<'w, MapSettings>,
-    plates: Res<'w, PlateState>,
+    switch_state: Res<'w, SwitchState>,
     portals: Res<'w, PortalMap>,
     players: Res<'w, PlayerMap>,
     gameplay_config: Res<'w, GameplayConfig>,
@@ -97,7 +97,7 @@ pub fn input_portal_system(
         &world.collision_world,
         &world.map_layout,
         &world.carriers,
-        &world.plates.open_barriers,
+        &world.switch_state.open_barriers,
         &world.map_settings.textures,
     );
     let existing = world.portals.wire_portals();

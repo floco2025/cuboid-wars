@@ -169,7 +169,7 @@
           "death_blast": { "radius": 6.0, "max_damage": 75.0 }
         },
         "turret": {
-          "beam_dps": 500.0,
+          "beam_dps": 20.0,
           "death_blast": { "radius": 6.0, "max_damage": 75.0 }
         }
       }

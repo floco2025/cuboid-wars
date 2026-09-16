@@ -2,8 +2,8 @@ use super::{MAX_NAME_CHARS, sanitize_player_name};
 use crate::config::fixtures;
 use common::celestial::{CelestialClockAnchor, CelestialCycleSettings};
 use common::protocol::{
-    BarrierKindId, HexColor, ItemType, KindDef, MapBootstrap, MapItems, MapLayout, MapSettings, PlateState,
-    PlayerBootstrap, PlayerId, PortalAccess, SInit, ServerMessage, WorldBootstrap,
+    BarrierKindId, HexColor, ItemType, KindDef, MapBootstrap, MapItems, MapLayout, MapSettings, PlayerBootstrap,
+    PlayerId, PortalAccess, SInit, ServerMessage, SwitchState, WorldBootstrap,
 };
 
 #[test]
@@ -72,7 +72,7 @@ fn init_message_round_trips_complete_bootstrap() {
             id: PlayerId(7),
             portal_access: PortalAccess::None,
         },
-        plates: PlateState::default(),
+        switch_state: SwitchState::default(),
         locked_switches: Vec::new(),
         world: WorldBootstrap {
             network: Default::default(),

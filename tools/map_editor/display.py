@@ -44,7 +44,7 @@ def pressure_plate_label(plate: dict) -> str:
     return f"Pressure plate: {plate.get('switch') or '(missing switch)'}"
 
 
-def switch_plate_color(colors: dict[str, str], switch: str | None) -> QColor:
+def switch_color(colors: dict[str, str], switch: str | None) -> QColor:
     return QColor(colors.get(switch, UNKNOWN_SWITCH_PLATE_COLOR))
 
 

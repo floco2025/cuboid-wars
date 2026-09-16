@@ -31,7 +31,7 @@ from .constants import (
     ZONE_MODES,
 )
 from .symbols import ITEM_SYMBOLS, paint_item_symbol
-from .nesting import nested_map_label, nested_map_rest_points
+from .nesting import nested_map_label, nested_map_rest_points, nested_map_shape
 from .normalization import ladder_spans_level, light_placement_error, nested_map_spans_level, plate_cell_error
 
 from .display import (
@@ -39,7 +39,7 @@ from .display import (
     DRAG_PREVIEW_COLORS,
     DRAG_PREVIEW_FALLBACK,
     NESTED_MAP_COLOR,
-    switch_plate_color,
+    switch_color,
     WALL_HIGHLIGHT_WIDTH,
     WALL_PEN_WIDTH,
     face_color,
@@ -331,7 +331,7 @@ class CanvasPaintingMixin:
                 self._paint_pressure_plate(painter, cell, plate)
 
     def _paint_pressure_plate(self, painter: QPainter, cell: float, plate: dict) -> None:
-        color = switch_plate_color(self.window.plate_colors, plate.get("switch"))
+        color = switch_color(self.window.switch_colors, plate.get("switch"))
         painter.save()
         painter.translate((plate["col"] + 0.5) * cell, (plate["row"] + 0.5) * cell)
         painter.scale(cell * 0.5, cell * 0.5)
@@ -521,6 +521,7 @@ class CanvasPaintingMixin:
         cell: float,
         storeys: int,
         dim: bool = False,
+        color=None,
     ) -> None:
         # One language: a square at each end of the nested map's travel,
         # numbered 1 (where it rests at phase zero) and 2, a band over the
@@ -528,7 +529,7 @@ class CanvasPaintingMixin:
         # end on another storey. It goes back and forth, so nothing points
         # one way. An end is "here" on any of the map's own `storeys` above
         # the storey it rests on.
-        color = NESTED_MAP_COLOR
+        color = color or NESTED_MAP_COLOR
         inset = cell * 0.12
         tile = cell - 2 * inset
         scale = 0.5 if dim else 1.0
@@ -573,23 +574,47 @@ class CanvasPaintingMixin:
         # A nested map paints on every storey it reaches: the storeys its
         # ends rest on plus its own, so the whole building is visible from
         # each floor it passes.
-        for entry in self.window.map_data.get("nested_maps", []):
-            shape = self.window.nested_map_shape(entry["map"])
-            storeys = shape.level_count if shape else 1
-            if not nested_map_spans_level(entry, level_idx, storeys):
+        pending = self.window.pending_block
+        moving = (
+            {ref.index for ref in self.window.selection_refs() if ref.name == "nested_maps"}
+            if pending is not None and not pending.duplicate
+            else set()
+        )
+        for index, entry in enumerate(self.window.map_data.get("nested_maps", [])):
+            if index in moving:
                 continue
-            start, end = tuple(entry["from"]), tuple(entry["to"])
-            self.paint_motion_span(painter, start, end, entry["level"], entry["to_level"], level_idx, cell, storeys)
-            # The footprints sit where the map rests: each anchor nudged.
-            rest_start, rest_end = nested_map_rest_points(entry, self.window.wall_width_cells)
-            name = entry["map"]
+            gesture = self.input.gesture
+            if gesture is not None and gesture.kind == "handle" and gesture.handle.ref.name == "nested_maps":
+                if entry == gesture.original:
+                    continue
+            self.paint_nested_map(painter, entry, cell, level_idx)
+
+    def paint_nested_map(self, painter, entry, cell, level_idx, *, color=None):
+        shape = self.preview_nested_map_shape(entry["map"])
+        storeys = shape.level_count if shape else 1
+        if not nested_map_spans_level(entry, level_idx, storeys):
+            return
+        painter.save()
+        start, end = tuple(entry["from"]), tuple(entry["to"])
+        self.paint_motion_span(
+            painter, start, end, entry["level"], entry["to_level"], level_idx, cell, storeys, color=color
+        )
+        rest_start, rest_end = nested_map_rest_points(entry, self.window.wall_width_cells)
+        name = entry["map"]
+        self._paint_nested_map_footprint(
+            painter, rest_start, name, cell, label=nested_map_label(name, entry["from_nudge"]), color=color
+        )
+        if end != start or rest_end != rest_start:
             self._paint_nested_map_footprint(
-                painter, rest_start, name, cell, label=nested_map_label(name, entry["from_nudge"])
+                painter, rest_end, name, cell, dashed=True, label=nested_map_label(name, entry["to_nudge"]), color=color
             )
-            if end != start or rest_end != rest_start:
-                self._paint_nested_map_footprint(
-                    painter, rest_end, name, cell, dashed=True, label=nested_map_label(name, entry["to_nudge"])
-                )
+        painter.restore()
+
+    def preview_nested_map_shape(self, name):
+        pending = self.window.pending_block
+        if pending is not None and name in pending.additions:
+            return nested_map_shape(pending.additions[name])
+        return self.window.nested_map_shape(name)
 
     def _paint_nested_map_footprint(
         self,
@@ -600,15 +625,16 @@ class CanvasPaintingMixin:
         dashed: bool = False,
         dim: bool = False,
         label: str | None = None,
+        color=None,
     ) -> None:
         # The nested map's grid with its cell (0, 0) on the anchor, outlined
         # solid where it starts and dashed where it arrives, named in the
         # middle. An unknown map is a red single cell asking to be fixed.
-        shape = self.window.nested_map_shape(name) if name else None
+        shape = self.preview_nested_map_shape(name) if name else None
         if shape is None:
             cols, rows, color, label = 1, 1, QColor(248, 113, 113), f"{name or '?'}?"
         else:
-            cols, rows, color = shape.grid_cols, shape.grid_rows, QColor(NESTED_MAP_COLOR)
+            cols, rows, color = shape.grid_cols, shape.grid_rows, QColor(color or NESTED_MAP_COLOR)
             label = label or name
         color.setAlpha(120 if dim else 230)
         rect = QRectF(anchor[0] * cell + 2, anchor[1] * cell + 2, cols * cell - 4, rows * cell - 4)

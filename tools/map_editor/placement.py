@@ -216,7 +216,7 @@ class PlacementMixin:
             self.switches,
             [{"kind": kind, **controls}],
             kind_colors=self.barrier_kind_colors if barrier else self.bridge_kind_colors,
-            switch_colors=self.plate_colors,
+            switch_colors=self.switch_colors,
         )
         if values is not None:
             defaults = merge_record({"kind": kind, **controls}, values)
@@ -226,7 +226,7 @@ class PlacementMixin:
 
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
         switch = self.placement_kind(
-            "Place Pressure Plate", self.switches, self.recent_pressure_plate_switch, "switch", self.plate_colors
+            "Place Pressure Plate", self.switches, self.recent_pressure_plate_switch, "switch", self.switch_colors
         )
         if switch is None:
             return

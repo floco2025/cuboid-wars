@@ -3,7 +3,7 @@ use bevy_ecs::prelude::{Res, ResMut};
 use super::CollisionWorld;
 use crate::{
     map::Carriers,
-    protocol::{PlateState, ServerTick},
+    protocol::{ServerTick, SwitchState},
 };
 
 // Puts every carrier at its pose for this tick, in the runtime state and in
@@ -13,13 +13,13 @@ use crate::{
 // standing, and the movement step sees them where they are now.
 pub fn carriers_advance_system(
     tick: Res<ServerTick>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     mut carriers: ResMut<Carriers>,
     mut collision_world: ResMut<CollisionWorld>,
 ) {
     if carriers.is_static() {
         return;
     }
-    carriers.advance(tick.0, &plates);
+    carriers.advance(tick.0, &switch_state);
     collision_world.set_carrier_poses(&carriers);
 }

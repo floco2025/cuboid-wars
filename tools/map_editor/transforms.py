@@ -173,3 +173,27 @@ def remove_level_data(map_data: dict, removed: int) -> dict:
     after = remap_levels(map_data, removed, remove=True)
     after["levels"].pop(removed)
     return after
+
+
+def edit_levels_data(map_data: dict, levels: list[tuple[int | None, str]]) -> dict:
+    if not levels:
+        raise ValueError("A map needs at least one level.")
+    kept = [original for original, _ in levels if original is not None]
+    if kept != sorted(set(kept)) or any(index < 0 or index >= len(map_data["levels"]) for index in kept):
+        raise ValueError("Existing levels must stay in their original order.")
+    after = copy.deepcopy(map_data)
+    # Derive geometry from the final rows so adding then removing a new row
+    # cannot leave behind a deleted ramp or an expanded spawn zone.
+    if kept:
+        for index in reversed(range(len(map_data["levels"]))):
+            if index not in kept:
+                after = remove_level_data(after, index)
+    else:
+        after["levels"] = []
+        for name in GLOBAL_LISTS:
+            after[name] = []
+    for index, (original, name) in enumerate(levels):
+        if original is None:
+            after = insert_level_data(after, index, remove_crossing_ramps=True)
+        after["levels"][index]["name"] = name.strip() or f"Level {index}"
+    return after

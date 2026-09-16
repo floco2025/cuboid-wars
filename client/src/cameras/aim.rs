@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::CollisionWorld,
-    protocol::{BarrierId, FaceYaw, PlateState, Position},
+    protocol::{BarrierId, FaceYaw, Position, SwitchState},
 };
 
 const AIM_DISTANCE: f32 = 1000.0;
@@ -25,7 +25,7 @@ pub fn camera_aim_system(
     me: Res<MyPlayerId>,
     world: Res<CollisionWorld>,
     config: Res<GameplayConfig>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
 ) {
     let Ok(position) = local_player.single() else {
         return;
@@ -58,7 +58,7 @@ pub fn camera_aim_system(
             camera.translation,
             crosshair_direction(camera, projection, crosshair_height_offset),
             eye,
-            &plates.open_barriers,
+            &switch_state.open_barriers,
             candidates,
         )
     };

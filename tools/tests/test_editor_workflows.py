@@ -1,4 +1,5 @@
 import copy
+import json
 from unittest.mock import patch
 
 from PySide6.QtCore import QPointF, Qt
@@ -197,11 +198,74 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [4, 6])
         self.assertTrue(window.properties_panel.error.isHidden())
 
+    def test_autosave_save_and_ui_refresh_preserve_unapplied_properties(self):
+        window = self.window
+        data = copy.deepcopy(window.map_data)
+        data["actor_spawn_zones"] = [
+            {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": [2, 4], "respawn_secs": None}
+        ]
+        window.apply_change("Add actor zone", data)
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        panel = window.properties_panel
+        field = panel.widgets[("count",)]
+        self.edit_text(field, "4, ")
+        field.setSelection(0, 1)
+        for refresh in (window._tick_autosave, window.save, window.refresh_ui):
+            with self.subTest(refresh=refresh.__name__):
+                refresh()
+                QTest.qWait(250)
+                self.assertIs(panel.widgets[("count",)], field)
+                self.assertEqual(field.text(), "4, ")
+                self.assertEqual(field.selectedText(), "4")
+                self.assertTrue(field.hasFocus())
+                self.assertTrue(panel.apply_button.isEnabled())
+                self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [2, 4])
+        self.edit_text(field, "4, 6")
+        panel.apply_button.click()
+        self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [4, 6])
+        window.undo_stack.undo()
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.assertEqual(panel.widgets[("count",)].text(), "2, 4")
+        window.undo_stack.redo()
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.assertEqual(panel.widgets[("count",)].text(), "4, 6")
+
+    def test_catalog_reload_preserves_invalid_drafts_until_revert(self):
+        window = self.window
+        data = copy.deepcopy(window.map_data)
+        data["actor_spawn_zones"] = [
+            {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": [2, 4], "respawn_secs": None}
+        ]
+        window.apply_change("Add actor zone", data)
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        panel = window.properties_panel
+        count = panel.widgets[("count",)]
+        self.edit_text(count, "4, ")
+        actor = panel.widgets[("kind",)]
+        self.edit_text(actor.lineEdit(), "unfinished")
+        gameplay = json.loads(self.global_path.read_text())
+        gameplay["actors"]["kinds"]["crawler"] = {"immovable": False}
+        self.global_path.write_text(json.dumps(gameplay))
+        window.reload_dependencies()
+        self.assertIn("crawler", window.actor_kinds)
+        self.assertIs(panel.widgets[("count",)], count)
+        self.assertIs(panel.widgets[("kind",)], actor)
+        self.assertEqual(count.text(), "4, ")
+        self.assertEqual(actor.currentText(), "unfinished")
+        panel.apply_button.click()
+        self.assertFalse(panel.error.isHidden())
+        self.assertEqual(count.text(), "4, ")
+        panel.rebuild()
+        self.assertEqual(panel.widgets[("count",)].text(), "2, 4")
+        self.assertEqual(panel.widgets[("kind",)].currentText(), "scuttler")
+        self.assertGreaterEqual(panel.widgets[("kind",)].findData("crawler"), 0)
+        self.assertFalse(panel.apply_button.isEnabled())
+
     def test_plate_links_include_other_levels_and_nested_geometry(self):
         data = empty_map(8, 8)
         data["player_spawn_zones"] = []
         data["levels"].append(empty_level(1))
-        data["switch_kinds"] = [{"id": "door", "activation": "momentary", "reset": "never", "hold": "any"}]
+        data["switches"] = [{"id": "door", "activation": "momentary", "reset": "never", "hold": "any"}]
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": "door"}]
         data["levels"][1]["barriers"] = [{"c0": 2, "r0": 2, "c1": 3, "r1": 2, "kind": "treasure", "switch": "door"}]

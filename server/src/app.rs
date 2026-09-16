@@ -28,7 +28,7 @@ use common::{
     map::Carriers,
     physics::CollisionWorld,
     protocol::{
-        MapBootstrap, MapSettings, MissileAirGrid, PlateState, Position, ServerTick, WorldBootstrap,
+        MapBootstrap, MapSettings, MissileAirGrid, Position, ServerTick, SwitchState, WorldBootstrap,
         server_tick_advance_system,
     },
 };
@@ -236,7 +236,7 @@ fn build_server_app_with_loader(
         .insert_resource(MissileMap::default())
         .insert_resource(PortalMap::default())
         .insert_resource(portal_assignments)
-        .insert_resource(PlateState::default());
+        .insert_resource(SwitchState::default());
 
     configure_server_schedule(&mut app);
     app.add_systems(Update, server_tick_advance_system.in_set(ServerSet::Prepare));

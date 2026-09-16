@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..nesting import NestedMotion, Nudge
+from ..nesting import MOTION_LABELS, NestedMotion, Nudge
 from .controls import SwitchControl
 
 
@@ -76,7 +76,11 @@ class MotionDialog(QDialog):
         if recent_map in map_names:
             self._map.setCurrentText(recent_map)
         self.control = SwitchControl(switches, switch, recent.switch_inverted if recent else False)
-        self._switch = self.control.kind
+        self._switch = self.control.switch
+        self._motion = QComboBox()
+        for value, label in MOTION_LABELS.items():
+            self._motion.addItem(label, value)
+        self._motion.setCurrentIndex(self._motion.findData(recent.motion if recent else "cycle"))
 
         self._to_level = QSpinBox()
         self._to_level.setRange(0, max(0, level_count - 1))
@@ -96,25 +100,31 @@ class MotionDialog(QDialog):
         self._from_nudge = [_nudge_spin_box(axis, value) for axis, value in zip("xyz", from_nudge)]
         self._to_nudge = [_nudge_spin_box(axis, value) for axis, value in zip("xyz", to_nudge)]
 
-        form = QFormLayout()
-        form.addRow("Map:", self._map)
-        form.addRow("To level:", self._to_level)
-        form.addRow("Travel time, end to end (s):", self._travel)
-        form.addRow("Pause at each end (s):", self._pause)
-        form.addRow("Phase offset from the start (s):", self._phase)
-        form.addRow("Nudge end 1 (x, z wall widths; y floor widths):", _row(self._from_nudge))
-        form.addRow("Nudge end 2 (x, z wall widths; y floor widths):", _row(self._to_nudge))
-        form.addRow(self.control)
+        self.form = QFormLayout()
+        self.form.addRow("Map:", self._map)
+        self.form.addRow("Motion:", self._motion)
+        self.form.addRow("Travel time (s):", self._travel)
+        self.form.addRow("Cycle pause (s):", self._pause)
+        self.form.addRow("Cycle phase (s):", self._phase)
+        self.form.addRow(self.control)
+        self.form.addRow("End 2 level:", self._to_level)
+        self.form.addRow("Nudge end 1 (x, z wall widths; y floor widths):", _row(self._from_nudge))
+        self.form.addRow("Nudge end 2 (x, z wall widths; y floor widths):", _row(self._to_nudge))
+        self._travel.setToolTip("Time to travel the full distance between the two ends.")
+        self._pause.setToolTip("Pause at each end of the cycle.")
+        self._phase.setToolTip("Start this far into the cycle.")
+        self._motion.currentIndexChanged.connect(self.sync_enabled)
+        self.sync_enabled()
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
-        layout.addLayout(form)
+        layout.addLayout(self.form)
         layout.addWidget(buttons)
 
-    def motion(self) -> tuple[int, float, float, float, Nudge, Nudge, str | None, bool]:
+    def motion(self) -> tuple[int, float, float, float, Nudge, Nudge, str | None, bool, str]:
         switch, inverted = self.control.state()
         return (
             self._to_level.value(),
@@ -125,7 +135,20 @@ class MotionDialog(QDialog):
             tuple(box.value() for box in self._to_nudge),
             switch,
             inverted,
+            self._motion.currentData(),
         )
+
+    def sync_enabled(self):
+        cycle = self._motion.currentData() == "cycle"
+        for widget in (self._pause, self._phase):
+            widget.setEnabled(cycle)
+            self.form.labelForField(widget).setEnabled(cycle)
+
+    def accept(self):
+        if self._motion.currentData() == "follow_switch" and not self.control.state()[0]:
+            QMessageBox.warning(self, self.windowTitle(), "Follow switch motion requires a switch.")
+            return
+        super().accept()
 
     @classmethod
     def prompt_nested(

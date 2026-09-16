@@ -14,7 +14,7 @@ use common::{
     config::GameplayConfig,
     math::PHYSICS_EPSILON,
     physics::CollisionWorld,
-    protocol::{ActorId, ActorMarker, Health, HitKind, PlateState, PlayerMarker, Position, SPlayerHit, ServerMessage},
+    protocol::{ActorId, ActorMarker, Health, HitKind, PlayerMarker, Position, SPlayerHit, ServerMessage, SwitchState},
 };
 
 // Cadence for the beam victim's `SPlayerHit` cue (camera shake + HUD
@@ -39,7 +39,7 @@ pub fn actors_beam_damage_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     invincibility: Res<Invincibility>,
     collision_world: Res<CollisionWorld>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     actor_positions: Query<&Position, (With<ActorMarker>, Without<PlayerMarker>)>,
     mut player_query: Query<(&Position, &mut Health), With<PlayerMarker>>,
     // Per-actor time before which no further hit cue is sent — beam-cue
@@ -85,7 +85,7 @@ pub fn actors_beam_damage_system(
         if !collision_world.attack_path_clear(
             Vec3::from(*actor_pos) + Vec3::Y * actor_config.beam_origin_y_offset(),
             target_center,
-            &plates.open_barriers,
+            &switch_state.open_barriers,
         ) {
             continue;
         }

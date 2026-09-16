@@ -34,6 +34,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         };
         let mut layout = MapLayout {
             carriers: vec![Carrier {
+                motion: Default::default(),
                 switch_inverted: false,
 
                 parent: CarrierId::WORLD,
@@ -71,7 +72,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         }
         layout.checkpoints.push(checkpoint);
         let mut carriers = Carriers::from_layout(&layout);
-        carriers.advance(15, &PlateState::default());
+        carriers.advance(15, &SwitchState::default());
         let mut collision = CollisionWorld::from_map_layout(&layout);
         collision.set_carrier_poses(&carriers);
         let settings = app.world().resource::<MapSettings>().clone();

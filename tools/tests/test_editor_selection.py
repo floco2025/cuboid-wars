@@ -265,8 +265,8 @@ class SelectHostTests(WindowTestCase):
         host = self.window
 
         self.pointer("mousePress", QPointF(5.5, 1.5), alternate=True)
-        self.assertEqual(host.canvas.input.gesture.kind, "box")
-        self.pointer("mouseRelease", QPointF(5.5, 4.5), alternate=True)
+        self.assertEqual(host.canvas.input.gesture.kind, "move")
+        self.pointer("mouseRelease", QPointF(5.5, 1.5), alternate=True)
         self.assertEqual(host.map_data["nested_maps"][0]["to"], [5, 1])
         self.pointer("mousePress", QPointF(5.5, 1.5), alternate=True)
         self.assertEqual(host.canvas.input.gesture.kind, "handle")
@@ -405,7 +405,7 @@ class SelectionWindowTests(WindowTestCase):
 
     def test_multilevel_paste_extends_map_and_undo_removes_added_levels(self):
         window = self.window
-        window.add_level()
+        window.apply_change("Add Level", insert_level_data(window.map_data, 1))
         window.set_level_index(0)
         self.click(1, 1)
         window.selection_scope_changed(2)
@@ -439,7 +439,7 @@ class SelectionWindowTests(WindowTestCase):
     def test_paste_accepts_a_block_whose_switch_plate_lies_outside_it(self):
         data = empty_map(8, 8)
         data["player_spawn_zones"] = []
-        data["switch_kinds"] = [{"id": "bridge_1", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["switches"] = [{"id": "bridge_1", "activation": "toggle", "reset_on_player_death": "never"}]
         data["bridge_kinds"] = [{"id": "bridge_1", "color": "#30d8ff"}]
         data["pressure_plates"] = [{"col": 6, "row": 6, "level": 0, "switch": "bridge_1"}]
         data["levels"][0]["floors"] = [{"col": 6, "row": 6, "all": DEFAULT_ALIAS}]

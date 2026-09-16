@@ -1,9 +1,8 @@
 use bevy::prelude::*;
 
 use super::{
-    pressure_plates::{
-        PressureSwitches, plate_state_sync_system, pressure_plates_system, pressure_switch_reset_system,
-    },
+    pressure_plates::{PressurePlateInputs, pressure_plates_system, switch_reset_system},
+    switches::{Switches, switch_state_sync_system},
     weather_system,
 };
 use crate::{
@@ -13,7 +12,8 @@ use crate::{
 use common::{physics::powered_bridges_sync_system, protocol::server_tick_advance_system};
 
 pub fn map_plugin(app: &mut App) {
-    app.init_resource::<PressureSwitches>()
+    app.init_resource::<Switches>()
+        .init_resource::<PressurePlateInputs>()
         .add_systems(
             Update,
             (
@@ -22,7 +22,7 @@ pub fn map_plugin(app: &mut App) {
                 // tick, so the tick must already have advanced.
                 (
                     pressure_plates_system,
-                    plate_state_sync_system,
+                    switch_state_sync_system,
                     powered_bridges_sync_system,
                 )
                     .chain()
@@ -33,8 +33,8 @@ pub fn map_plugin(app: &mut App) {
         .add_systems(
             Update,
             (
-                pressure_switch_reset_system,
-                plate_state_sync_system,
+                switch_reset_system,
+                switch_state_sync_system,
                 powered_bridges_sync_system,
             )
                 .chain()

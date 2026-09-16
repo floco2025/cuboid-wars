@@ -25,8 +25,8 @@ use common::{
     map::{CarrierPose, Carriers},
     physics::{CollisionWorld, character_hitbox_center, character_movement_center},
     protocol::{
-        ActorId, ActorMarker, ItemType, MapItems, PlateState, PlayerId, PlayerMarker, Position, SActorBeam,
-        ServerMessage, ServerTick,
+        ActorId, ActorMarker, ItemType, MapItems, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage,
+        ServerTick, SwitchState,
     },
 };
 use rand::{Rng, RngExt, rng};
@@ -40,7 +40,7 @@ pub(crate) fn flying_actors_behavior_system(
     tick: Res<ServerTick>,
     players: Res<PlayerMap>,
     world: Res<CollisionWorld>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     gameplay: Res<GameplayConfig>,
     config: Res<ServerGameplayConfig>,
     carriers: Res<Carriers>,
@@ -81,14 +81,14 @@ pub(crate) fn flying_actors_behavior_system(
                 physics,
                 range,
                 pose,
-                &plates.open_barriers,
+                &switch_state.open_barriers,
             )
         });
         if home.last_tick != Some(tick.0) {
             home.age += delta;
         }
         home.last_tick = Some(tick.0);
-        home.refresh(&world, pose, &plates.open_barriers);
+        home.refresh(&world, pose, &switch_state.open_barriers);
         let mut home_budget = share / 2;
         home.advance(&world, physics, &mut home_budget);
         let mut budget = share - share / 2 + home_budget;
@@ -111,7 +111,7 @@ pub(crate) fn flying_actors_behavior_system(
             kind_config: kind,
             player_physics: gameplay.player.physics(),
             collision_world: &world,
-            open_barriers: &plates.open_barriers,
+            open_barriers: &switch_state.open_barriers,
         };
         retarget_beam(info, &context);
         let mut flight = info.flight.take().unwrap_or_default();
@@ -139,7 +139,7 @@ pub(crate) fn flying_actors_behavior_system(
                 .normalize_or_zero();
                 let end = Vec3::from(*pos) + direction * home.spacing * 2.0;
                 if (task != Some(FlightTask::Roam) || home.path_contains(Vec3::from(*pos), end, pose))
-                    && world.character_flight_path_clear(*pos, end.into(), physics, &plates.open_barriers)
+                    && world.character_flight_path_clear(*pos, end.into(), physics, &switch_state.open_barriers)
                 {
                     flight.route.push_back(end.into());
                     flight.task = task;

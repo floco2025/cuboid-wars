@@ -58,7 +58,7 @@ fn app(hz: u32) -> (App, Receiver<ClientMessage>) {
         .init_resource::<MissileMap>()
         .init_resource::<PlayerMap>()
         .init_resource::<ActorMap>()
-        .init_resource::<PlateState>()
+        .init_resource::<SwitchState>()
         .add_systems(Update, missiles_movement_system);
     (app, receiver)
 }

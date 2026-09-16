@@ -12,7 +12,7 @@ use crate::{
 use common::{
     config::{GameplayConfig, HitboxConfig, NetworkConfig},
     physics::CollisionWorld,
-    protocol::{ActorId, ActorMarker, PlateState, PlayerId, Position, ServerTick},
+    protocol::{ActorId, ActorMarker, PlayerId, Position, ServerTick, SwitchState},
 };
 
 // Angular speeds (rad/s) of the endpoint wander's per-axis sines —
@@ -154,7 +154,7 @@ pub fn laser_beam_update_system(
     players: Res<PlayerMap>,
     gameplay_config: Res<GameplayConfig>,
     collision_world: Res<CollisionWorld>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     endpoints: Query<(&Transform, Option<&AimRig>), (Without<LaserBeam>, Without<AimJointMarker>)>,
     mut joints: Query<&mut Transform, With<AimJointMarker>>,
     mut beams: Query<(Entity, &LaserBeam, &mut Transform, &mut Visibility), Without<AimJointMarker>>,
@@ -202,7 +202,7 @@ pub fn laser_beam_update_system(
         }
         // Damage and beam clipping share the active-field filter.
         let length = collision_world
-            .attack_surface_along_ray(origin, direction, full_length, &plates.open_barriers)
+            .attack_surface_along_ray(origin, direction, full_length, &switch_state.open_barriers)
             .map_or(full_length, |hit| hit.point.distance(origin));
         let muzzle_distance = articulated.map_or(0.0, |(rig, frame)| rig.muzzle_distance(frame));
         let Some(pose) = beam_pose(origin, direction, length, muzzle_distance) else {

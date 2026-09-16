@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from .constants import NESTED_MAPS_LIST
 
 Nudge = tuple[float, float, float]
+MOTION_LABELS = {"cycle": "Cycle", "follow_switch": "Follow switch"}
 
 
 @dataclass(frozen=True)
@@ -21,9 +22,10 @@ class NestedMotion:
     phase_secs: float
     from_nudge: Nudge
     to_nudge: Nudge
-    # The switch that runs the motion; `None` runs it from the start.
+    # Follow switch requires this; a Cycle without it runs continuously.
     switch: str | None = None
     switch_inverted: bool = False
+    motion: str = "cycle"
 
     @classmethod
     def from_entry(cls, entry: dict) -> "NestedMotion":
@@ -37,11 +39,13 @@ class NestedMotion:
             tuple(entry["to_nudge"]),
             entry.get("switch") or None,
             entry.get("switch_inverted", False),
+            entry.get("motion", "cycle"),
         )
 
     def to_entry(self) -> dict:
         entry = {
             "map": self.map_name,
+            "motion": self.motion,
             "to_level": self.to_level,
             "travel_secs": self.travel_secs,
             "pause_secs": self.pause_secs,

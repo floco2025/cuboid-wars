@@ -3,7 +3,7 @@ use crate::{characters::PreviousTickPosition, players::PlayerMap, portals::porta
 use common::{
     map::Carriers,
     physics::{CharacterSupport, CollisionWorld, PortalSet},
-    protocol::{Carrier, CarrierId, MapLayout, PlateState, PlayerId, PlayerMarker, Portal, PortalEnd, PortalPairId},
+    protocol::{Carrier, CarrierId, MapLayout, PlayerId, PlayerMarker, Portal, PortalEnd, PortalPairId, SwitchState},
 };
 use crossbeam_channel::unbounded;
 use std::f32::consts::PI;
@@ -22,6 +22,7 @@ fn step(carrier: CarrierId, support: CharacterSupport) -> LocalMovementStep {
 fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_world_space() {
     let layout = MapLayout {
         carriers: vec![Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,
@@ -75,7 +76,7 @@ fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_worl
     let mut reports = 0;
     for tick in 1..=41 {
         let pos = app.world_mut().resource_scope(|_, mut carriers: Mut<Carriers>| {
-            carriers.advance(tick, &PlateState::default());
+            carriers.advance(tick, &SwitchState::default());
             carriers.pose(CarrierId(1)).transform_position(&local)
         });
         app.world_mut().entity_mut(entity).insert(pos);
@@ -107,6 +108,7 @@ fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_worl
 fn boarding_a_carrier_reports_immediately() {
     let layout = MapLayout {
         carriers: vec![Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,

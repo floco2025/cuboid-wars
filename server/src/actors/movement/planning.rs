@@ -7,7 +7,7 @@ use common::{
     config::CharacterPhysicsConfig,
     map::Carriers,
     physics::{CharacterMovePlan, CharacterSupport, CollisionWorld},
-    protocol::{ActorMoveIntent, MapSettings, PlateState, Position},
+    protocol::{ActorMoveIntent, MapSettings, Position, SwitchState},
 };
 
 use super::{
@@ -23,7 +23,7 @@ pub(crate) fn plan_actor_moves(
     delta: f32,
     collision_world: &CollisionWorld,
     map_settings: &MapSettings,
-    plates: &PlateState,
+    switch_state: &SwitchState,
     carriers: &Carriers,
     actors: &ActorMap,
     territories: &ActorTerritories,
@@ -88,7 +88,7 @@ pub(crate) fn plan_actor_moves(
             collision_world,
             planned_moves,
             actor_starts,
-            open_barriers: &plates.open_barriers,
+            open_barriers: &switch_state.open_barriers,
             map_settings,
             can_use_ladders: character.0.can_use_ladders,
             knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),

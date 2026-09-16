@@ -6,7 +6,7 @@ use common::{
     constants::TICK_SECS,
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{Carrier, CarrierId, Floor, Ladder, MapLayout, PlateState, Position, Wall},
+    protocol::{Carrier, CarrierId, Floor, Ladder, MapLayout, Position, SwitchState, Wall},
 };
 
 use super::{NavGraph, NavGraphs, NavNode, WaypointKind, ladders::LadderClimber};
@@ -306,6 +306,7 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
                 let mut fixture = Fixture::new(2, intermediate, false);
                 let links = fixture.links();
                 fixture.layout.carriers.push(Carrier {
+                    motion: Default::default(),
                     switch_inverted: false,
 
                     parent: CarrierId::WORLD,
@@ -338,7 +339,7 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
                             }
                             let Some(&waypoint) = remaining.front() else { break };
                             let intent = waypoint.movement_intent(&local, speed, TICK_SECS);
-                            carriers.advance(tick, &PlateState::default());
+                            carriers.advance(tick, &SwitchState::default());
                             world.set_carrier_poses(&carriers);
                             let step = step_actor_movement(ActorMovementStep {
                                 start: pos,

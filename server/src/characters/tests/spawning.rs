@@ -130,6 +130,7 @@ fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, A
         .push(CarrierGrid::new(CarrierId(1), geometry(2, 2), vec![nested]));
     let carriers = Carriers::from_layout(&MapLayout {
         carriers: vec![Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,

@@ -2,34 +2,35 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use common::{
-    config::{DeathTrigger, PressureSwitchConfig, SwitchHold},
+    config::{DeathTrigger, SwitchConfig, SwitchHold},
     constants::FIREWORK_SHOW_SECS,
     map::CarrierRun,
     protocol::{
-        BarrierId, BridgeId, CarrierId, MapLayout, MapSettings, PlateState, SwitchId, SwitchTable, sequence_is_newer,
+        BarrierId, BridgeId, Carrier, CarrierId, MapLayout, MapSettings, SwitchId, SwitchState, SwitchTable,
+        sequence_is_newer,
     },
 };
 
 use crate::{
     config::ServerGameplayConfig,
-    map::{FireworksConfig, MapFireworks, PressurePlateRuntime},
+    map::{FireworksConfig, MapFireworks},
     schedule::ticks_from_secs,
 };
 
 // One switch: its policy, whether it is on, and everything it drives.
-struct PressureSwitch {
-    config: PressureSwitchConfig,
+struct Switch {
+    config: SwitchConfig,
     active: bool,
     toggle: bool,
-    // Whether its plates met the hold rule last tick; an `everyone` toggle
+    // Whether its inputs met the hold rule last tick; an `everyone` toggle
     // flips on that rule's rising edge.
     occupied: bool,
     barriers: Vec<(BarrierId, bool)>,
     bridges: Vec<(BridgeId, bool)>,
-    carriers: Vec<(CarrierId, bool, CarrierRun)>,
+    carriers: Vec<(CarrierId, Carrier, CarrierRun)>,
 }
 
-impl PressureSwitch {
+impl Switch {
     fn update_mode(&mut self, logged_in: usize, occupied: bool, tick: u32) -> bool {
         let toggle = self.config.activation.is_toggle(logged_in);
         let changed = toggle != self.toggle;
@@ -47,8 +48,8 @@ impl PressureSwitch {
             return;
         }
         self.active = active;
-        for (_, inverted, run) in &mut self.carriers {
-            *run = run.set_running(active != *inverted, tick);
+        for (_, carrier, run) in &mut self.carriers {
+            *run = run.set_active(active != carrier.switch_inverted, tick, carrier);
         }
     }
 }
@@ -61,24 +62,19 @@ struct FireworkTarget {
     next_show_at: Option<u32>,
 }
 
-// Every switch of the map, plus the plates held last tick, which is what
-// makes a press fresh; only this file moves any of it.
 #[derive(Resource)]
-pub(crate) struct PressureSwitches {
-    switches: Vec<PressureSwitch>,
+pub(crate) struct Switches {
+    switches: Vec<Switch>,
     fireworks: Option<FireworkTarget>,
-    prev_held: HashSet<usize>,
 }
 
-// What one tick's occupancy changed, for the cues and feed lines.
-pub(crate) struct PlateEdges {
-    // Toggle switches flipped by a fresh press.
-    pub flipped: Vec<SwitchId>,
-    // The plates held on the previous tick.
-    pub prev_held: HashSet<usize>,
+#[derive(Default, Clone, Copy)]
+pub(crate) struct SwitchInput {
+    pub occupied: bool,
+    pub presses: usize,
 }
 
-impl FromWorld for PressureSwitches {
+impl FromWorld for Switches {
     fn from_world(world: &mut World) -> Self {
         Self::new(
             world.resource::<MapSettings>(),
@@ -90,7 +86,7 @@ impl FromWorld for PressureSwitches {
     }
 }
 
-impl PressureSwitches {
+impl Switches {
     pub fn new(
         settings: &MapSettings,
         switch_table: &SwitchTable,
@@ -98,10 +94,10 @@ impl PressureSwitches {
         fireworks: Option<&FireworksConfig>,
         server_hz: u32,
     ) -> Self {
-        let mut switches: Vec<PressureSwitch> = settings
+        let mut switches: Vec<Switch> = settings
             .switches
             .iter()
-            .map(|def| PressureSwitch {
+            .map(|def| Switch {
                 config: def.policy,
                 active: false,
                 toggle: def.policy.activation.is_toggle(0),
@@ -129,8 +125,8 @@ impl PressureSwitches {
             if let Some(switch) = carrier.switch {
                 switches[usize::from(switch.0)].carriers.push((
                     CarrierId::from_carried_index(index),
-                    carrier.switch_inverted,
-                    CarrierRun::STOPPED.set_running(carrier.switch_inverted, 0),
+                    *carrier,
+                    CarrierRun::initial(carrier),
                 ));
             }
         }
@@ -141,80 +137,56 @@ impl PressureSwitches {
             interval_ticks: ticks_from_secs(FIREWORK_SHOW_SECS + fireworks.cooldown_secs, server_hz),
             next_show_at: None,
         });
-        Self {
-            switches,
-            fireworks,
-            prev_held: HashSet::new(),
-        }
+        Self { switches, fireworks }
     }
 
-    // Advance every switch for this tick's occupancy; `held` becomes the
-    // previous tick's set for the next call.
-    pub fn update(
-        &mut self,
-        logged_in: usize,
-        alive: usize,
-        held: HashSet<usize>,
-        plates: &[PressurePlateRuntime],
-        tick: u32,
-    ) -> PlateEdges {
+    pub fn hold_rules(&self) -> impl Iterator<Item = SwitchHold> + '_ {
+        self.switches.iter().map(|switch| switch.config.held)
+    }
+
+    pub fn update(&mut self, logged_in: usize, inputs: &[SwitchInput], tick: u32) -> Vec<SwitchId> {
+        assert_eq!(inputs.len(), self.switches.len());
         let mut flipped = Vec::new();
-        let prev_held = &self.prev_held;
-        for (index, switch) in self.switches.iter_mut().enumerate() {
-            let id = SwitchId(index as u16);
-            let occupied = occupied(switch.config.held, id, &held, plates, alive);
-            let changed_mode = switch.update_mode(logged_in, occupied, tick);
+        for (index, (switch, input)) in self.switches.iter_mut().zip(inputs).enumerate() {
+            let changed_mode = switch.update_mode(logged_in, input.occupied, tick);
             if switch.toggle && !changed_mode {
                 let presses = match switch.config.held {
-                    SwitchHold::Any => held
-                        .difference(prev_held)
-                        .filter(|idx| plates[**idx].switch == id)
-                        .count(),
-                    SwitchHold::Everyone => usize::from(occupied && !switch.occupied),
+                    SwitchHold::Any => input.presses,
+                    SwitchHold::Everyone => usize::from(input.occupied && !switch.occupied),
                 };
                 for _ in 0..presses {
                     switch.set_active(!switch.active, tick);
-                    flipped.push(id);
+                    flipped.push(SwitchId(index as u16));
                 }
             }
-            switch.occupied = occupied;
+            switch.occupied = input.occupied;
         }
-        let prev_held = std::mem::replace(&mut self.prev_held, held);
-        PlateEdges { flipped, prev_held }
+        flipped
     }
 
-    // A death or logout reset: every toggle switch whose policy `triggered`
-    // goes off, and its plates held right now count as already pressed, so
-    // the reset wins even for a surviving holder until a fresh press. Every
-    // other switch keeps its last observed occupancy: the death may have
-    // lowered an `everyone` threshold to what the survivors hold, and the
-    // next update must still see that rising edge.
+    // Preserve unreset inputs' occupancy so the next update can still see
+    // an Everyone threshold crossed by a death or logout.
     pub fn reset(
         &mut self,
         triggered: impl Fn(DeathTrigger) -> bool,
         logged_in: usize,
-        alive: usize,
-        held: &HashSet<usize>,
-        plates: &[PressurePlateRuntime],
+        inputs: &[SwitchInput],
         tick: u32,
-    ) {
+    ) -> HashSet<SwitchId> {
+        assert_eq!(inputs.len(), self.switches.len());
         let mut reset = HashSet::new();
-        for (index, switch) in self.switches.iter_mut().enumerate() {
-            let id = SwitchId(index as u16);
-            let occupied = occupied(switch.config.held, id, held, plates, alive);
-            let changed_mode = switch.update_mode(logged_in, occupied, tick);
+        for (index, (switch, input)) in self.switches.iter_mut().zip(inputs).enumerate() {
+            let changed_mode = switch.update_mode(logged_in, input.occupied, tick);
             let reset_now = switch.toggle && triggered(switch.config.reset_on_player_death);
             if reset_now {
                 switch.set_active(false, tick);
-                reset.insert(id);
+                reset.insert(SwitchId(index as u16));
             }
             if reset_now || changed_mode {
-                switch.occupied = occupied;
+                switch.occupied = input.occupied;
             }
         }
-        let on_reset_switch = |idx: &usize| reset.contains(&plates[*idx].switch);
-        self.prev_held.retain(|idx| !on_reset_switch(idx));
-        self.prev_held.extend(held.iter().copied().filter(on_reset_switch));
+        reset
     }
 
     // Whether a show starts this tick: the fireworks switch is active and
@@ -234,8 +206,8 @@ impl PressureSwitches {
         true
     }
 
-    pub fn state(&self) -> PlateState {
-        let mut state = PlateState::default();
+    pub fn state(&self) -> SwitchState {
+        let mut state = SwitchState::default();
         for (index, switch) in self.switches.iter().enumerate() {
             if switch.active {
                 state.active_switches.push(SwitchId(index as u16));
@@ -263,20 +235,7 @@ impl PressureSwitches {
     }
 }
 
-// Whether a switch's plates hold it: `held` and `plates` index the same list.
-fn occupied(
-    hold: SwitchHold,
-    switch: SwitchId,
-    held: &HashSet<usize>,
-    plates: &[PressurePlateRuntime],
-    alive: usize,
-) -> bool {
-    let plate_count = plates.iter().filter(|plate| plate.switch == switch).count();
-    let held_count = held.iter().filter(|idx| plates[**idx].switch == switch).count();
-    hold.is_held(plate_count, held_count, alive)
-}
-
-pub(crate) fn plate_state_sync_system(switches: Res<PressureSwitches>, mut state: ResMut<PlateState>) {
+pub(crate) fn switch_state_sync_system(switches: Res<Switches>, mut state: ResMut<SwitchState>) {
     // Bridge collider sync reacts to changes, so equal states must not wake it.
     state.set_if_neq(switches.state());
 }

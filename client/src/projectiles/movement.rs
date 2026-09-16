@@ -4,8 +4,8 @@ use common::{
     math::PHYSICS_EPSILON,
     physics::{CollisionWorld, PortalSet},
     protocol::{
-        ActorId, ActorMarker, CProjectileHit, ClientMessage, FaceYaw, MapSettings, PlateState, PlayerId, PlayerMarker,
-        Position,
+        ActorId, ActorMarker, CProjectileHit, ClientMessage, FaceYaw, MapSettings, PlayerId, PlayerMarker, Position,
+        SwitchState,
     },
 };
 
@@ -35,7 +35,7 @@ pub struct ProjectileWorld<'w> {
     collision_world: Res<'w, CollisionWorld>,
     map_settings: Res<'w, MapSettings>,
     gameplay_config: Res<'w, GameplayConfig>,
-    plates: Res<'w, PlateState>,
+    switch_state: Res<'w, SwitchState>,
     portal_set: Res<'w, PortalSet>,
     bridge_assets: Res<'w, BridgeAssets>,
     players: Res<'w, PlayerMap>,
@@ -143,7 +143,7 @@ pub fn projectiles_movement_system(
                 &current_pos,
                 remaining_delta,
                 collision_world,
-                &world.plates.open_barriers,
+                &world.switch_state.open_barriers,
             );
             let portal_hop = world.portal_set.projectile_hop(
                 Vec3::from(current_pos),
@@ -176,7 +176,7 @@ pub fn projectiles_movement_system(
                         &current_pos,
                         remaining_delta,
                         collision_world,
-                        &world.plates.open_barriers,
+                        &world.switch_state.open_barriers,
                     );
                     assert!(hit, "field event missing its collision");
                     terminated = true;

@@ -2,7 +2,7 @@ use super::{
     super::variants::{ScorchStyle, scorch_variant},
     *,
 };
-use common::protocol::{Floor, PlateState, Ramp, Wall};
+use common::protocol::{Floor, Ramp, SwitchState, Wall};
 use rand::{SeedableRng, rngs::SmallRng};
 
 const WALL_HEIGHT: f32 = 3.0;
@@ -36,7 +36,7 @@ fn wall(x1: f32, z1: f32, x2: f32, z2: f32) -> Wall {
 
 fn carriers(layout: &MapLayout) -> Carriers {
     let mut carriers = Carriers::from_layout(layout);
-    carriers.advance(0, &PlateState::default());
+    carriers.advance(0, &SwitchState::default());
     carriers
 }
 

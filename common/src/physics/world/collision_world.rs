@@ -207,7 +207,7 @@ impl CollisionWorld {
     // Bridge power is world state, not per-query state: the powered bridges'
     // colliders join `BRIDGE_COLLISION_GROUP` and the rest leave every group,
     // so each surface query sees the current bridges without carrying the
-    // powered set. Both sides apply `PlateState` here whenever it changes
+    // powered set. Both sides apply `SwitchState` here whenever it changes
     // (`powered_bridges_sync_system`).
     pub fn set_powered_bridges(&mut self, powered: &[BridgeId]) {
         for (kind, handle) in &self.bridge_colliders {

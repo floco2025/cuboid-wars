@@ -61,10 +61,11 @@ fn flight_sweeps_block_walls_and_ceilings_and_slide_along_them() {
 
 #[test]
 fn flying_body_is_pushed_by_rising_geometry_and_crushed_only_when_pinned() {
-    use crate::protocol::{Carrier, PlateState};
+    use crate::protocol::{Carrier, SwitchState};
     for ceiling in [false, true] {
         let mut layout = MapLayout {
             carriers: vec![Carrier {
+                motion: Default::default(),
                 parent: CarrierId::WORLD,
                 level: 0,
                 levels: 1,
@@ -100,7 +101,7 @@ fn flying_body_is_pushed_by_rising_geometry_and_crushed_only_when_pinned() {
         let mut pos = Position::from(Vec3::Y);
         let mut crushed = false;
         for tick in 1..=40 {
-            carriers.advance(tick, &PlateState::default());
+            carriers.advance(tick, &SwitchState::default());
             world.set_carrier_poses(&carriers);
             let step = world.move_flying_character(pos, Vec3::ZERO, 1.0 / 30.0, wide_body(), &[], &carriers);
             pos = step.position;

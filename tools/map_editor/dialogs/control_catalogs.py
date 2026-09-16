@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
+    QHeaderView,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -25,17 +26,18 @@ class ControlCatalogDialog(QDialog):
         self.setWindowTitle(title)
         self.catalog = catalog
         self.fields = (
-            ["id", "color"]
-            if catalog != "switch_kinds"
-            else ["id", "activation", "reset_on_player_death", "held", "plate_color"]
+            ["id", "color"] if catalog != "switches" else ["id", "activation", "reset_on_player_death", "held", "color"]
         )
         labels = (
             ["Name", "Color"]
-            if catalog != "switch_kinds"
-            else ["Name", "Activation", "Reset on player death", "Held", "Color override"]
+            if catalog != "switches"
+            else ["Name", "Activation", "Reset on player death", "Held", "Color"]
         )
         self.table = QTableWidget(0, len(self.fields))
         self.table.setHorizontalHeaderLabels(labels)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for entry in entries:
             self.add_entry(entry, entry["id"])
         add = QPushButton("Add")
@@ -43,7 +45,7 @@ class ControlCatalogDialog(QDialog):
             lambda: self.add_entry(
                 {
                     "id": "",
-                    "color": self.fresh_color(),
+                    **({"color": self.fresh_color()} if self.catalog != "switches" else {}),
                     "activation": "momentary",
                     "reset_on_player_death": "never",
                     "held": "any",
@@ -62,7 +64,7 @@ class ControlCatalogDialog(QDialog):
         layout.addWidget(self.table)
         layout.addLayout(row)
         layout.addWidget(buttons)
-        self.resize(820 if catalog == "switch_kinds" else 460, 360)
+        self.resize(820 if catalog == "switches" else 460, 360)
 
     # New kinds start apart on the hue wheel rather than all white.
     def fresh_color(self):
@@ -85,8 +87,8 @@ class ControlCatalogDialog(QDialog):
                     box.addItem(value)
                 box.setCurrentText(value)
                 self.table.setCellWidget(row, column, box)
-            elif field in ("color", "plate_color"):
-                self.table.setCellWidget(row, column, ColorSwatch(value, optional=field == "plate_color"))
+            elif field == "color":
+                self.table.setCellWidget(row, column, ColorSwatch(value, optional=self.catalog == "switches"))
             else:
                 item = QTableWidgetItem(value)
                 if field == "id":
@@ -131,12 +133,12 @@ class FireworksDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Fireworks")
         current = current or {}
-        self.kind = choice(switches, current.get("switch"), optional=True)
+        self.switch = choice(switches, current.get("switch"), optional=True)
         self.cooldown = QDoubleSpinBox()
         self.cooldown.setRange(0, 86400)
         self.cooldown.setValue(current.get("cooldown_secs", 0))
         form = QFormLayout()
-        form.addRow("Pressure plate kind:", self.kind)
+        form.addRow("Switch:", self.switch)
         form.addRow("Cooldown between shows (s):", self.cooldown)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -146,5 +148,5 @@ class FireworksDialog(QDialog):
         layout.addWidget(buttons)
 
     def value(self):
-        kind = self.kind.currentData()
-        return {"switch": kind, "cooldown_secs": self.cooldown.value()} if kind else None
+        switch = self.switch.currentData()
+        return {"switch": switch, "cooldown_secs": self.cooldown.value()} if switch else None

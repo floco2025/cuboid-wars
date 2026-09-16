@@ -187,7 +187,7 @@ pub fn build_client_app(
         .insert_resource(LastPlayerMovesTick::default())
         .insert_resource(ServerTick::default())
         .insert_resource(TickSync::default())
-        .insert_resource(bootstrap.plates.clone())
+        .insert_resource(bootstrap.switch_state.clone())
         .insert_resource(LockedSwitches(bootstrap.locked_switches.clone()))
         .insert_resource(CameraViewMode::default())
         .insert_resource(LevelFocusEnabled::default())

@@ -6,7 +6,7 @@ use common::{
     config::{NetworkConfig, UpdateCadence},
     map::Carriers,
     physics::{CharacterSupport, CharacterVerticalVelocity},
-    protocol::{ActorMoveIntent, ActorMovementState, Carrier, CarrierId, FaceYaw, MapLayout, PlateState, Position},
+    protocol::{ActorMoveIntent, ActorMovementState, Carrier, CarrierId, FaceYaw, MapLayout, Position, SwitchState},
 };
 
 use super::{ActorAnimationVelocity, RemoteActorMotion, interpolate_remote_actors_system};
@@ -177,6 +177,7 @@ fn rendering_holds_reported_bodies_despite_movement_intent_and_vertical_velocity
 #[test]
 fn buffered_actors_follow_stopping_reversing_and_nested_platforms_without_wheel_travel() {
     let platform = Carrier {
+        motion: Default::default(),
         switch_inverted: false,
 
         parent: CarrierId::WORLD,
@@ -213,7 +214,7 @@ fn buffered_actors_follow_stopping_reversing_and_nested_platforms_without_wheel_
             let mut buffer = RemoteActorMotion::new(0, state, timing(hz));
             let mut cadence = UpdateCadence::new(hz, 30);
             for tick in 1..180 {
-                carriers.advance(tick, &PlateState::default());
+                carriers.advance(tick, &SwitchState::default());
                 if cadence.ready() && !(45..90).contains(&tick) {
                     buffer.push(tick, state);
                 }

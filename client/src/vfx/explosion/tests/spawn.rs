@@ -1,6 +1,6 @@
 use super::{super::scorch::ScorchMark, *};
 use crate::{map::GrassBurn, test_fixtures::WALL_HEIGHT};
-use common::protocol::{Carrier, CarrierId, Floor, MapLayout, PlateState, Wall};
+use common::protocol::{Carrier, CarrierId, Floor, MapLayout, SwitchState, Wall};
 
 #[test]
 fn density_scales_particle_count_and_zero_disables_it() {
@@ -17,7 +17,7 @@ fn density_scales_particle_count_and_zero_disables_it() {
 fn explode(map_layout: &MapLayout, center: Vec3, blast_radius: f32) -> (World, Vec<Entity>, Assets<Mesh>) {
     let mut collision_world = CollisionWorld::from_map_layout(map_layout);
     let mut carriers = Carriers::from_layout(map_layout);
-    carriers.advance(0, &PlateState::default());
+    carriers.advance(0, &SwitchState::default());
     collision_world.set_carrier_poses(&carriers);
     let mut meshes = Assets::<Mesh>::default();
     let mut materials = Assets::<StandardMaterial>::default();
@@ -185,6 +185,7 @@ fn marks_on_a_carrier_hang_under_it_in_its_frame() {
         walls: vec![wall(CarrierId(1))],
         floors: vec![floor(CarrierId(1))],
         carriers: vec![Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,

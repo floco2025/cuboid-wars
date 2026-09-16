@@ -12,7 +12,7 @@ from .checkpoint_names import name_checkpoint_copies
 from .object_selection import block_fits, copy_objects, selected_data, paste_objects, refs_for_block
 from .constants import MODE_SELECT
 from .regions import copy_region, delete_region, paste_region
-from .transforms import record_levels, record_lists
+from .transforms import record_levels, record_lists, translate_entry
 from .selection_painting import paint_outline, paint_caption
 
 
@@ -193,6 +193,15 @@ class SelectionTransferMixin:
             painter.setBrush(Qt.BrushStyle.NoBrush)
         for (level, name), entries in record_lists(pending.block):
             for entry in entries:
+                if name == "nested_maps":
+                    self.canvas.paint_nested_map(
+                        painter,
+                        translate_entry(name, entry, col, row, pending.source.level),
+                        cell,
+                        self.current_level,
+                        color=color,
+                    )
+                    continue
                 lower, upper = record_levels(entry, level)
                 if not lower <= self.current_level - pending.source.level <= upper:
                     continue

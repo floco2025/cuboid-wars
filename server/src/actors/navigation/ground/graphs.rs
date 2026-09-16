@@ -2,7 +2,7 @@ use bevy::prelude::{DetectChanges, Res, ResMut, Resource};
 use common::{
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{BarrierId, BridgeId, CarrierId, MapLayout, MapSettings, PlateState},
+    protocol::{BarrierId, BridgeId, CarrierId, MapLayout, MapSettings, SwitchState},
 };
 
 use crate::{config::ServerGameplayConfig, map::MapConfig};
@@ -122,9 +122,9 @@ impl NavGraphs {
 // Applies the powered bridges to the navigation graphs, as
 // `powered_bridges_sync_system` does to the collision world, so the
 // behaviour that follows plans over this tick's bridges.
-pub fn nav_bridges_sync_system(plates: Res<PlateState>, mut graphs: ResMut<NavGraphs>) {
-    if plates.is_changed() {
-        graphs.set_powered_bridges(&plates.powered_bridges);
+pub fn nav_bridges_sync_system(switch_state: Res<SwitchState>, mut graphs: ResMut<NavGraphs>) {
+    if switch_state.is_changed() {
+        graphs.set_powered_bridges(&switch_state.powered_bridges);
     }
 }
 

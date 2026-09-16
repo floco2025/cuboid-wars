@@ -3,7 +3,7 @@ use crate::{
     constants::MISSILE_RADIUS,
     test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
-use common::protocol::{Barrier, BarrierId, BarrierKindId, Carrier, Floor, MapLayout, PlateState, Position, Wall};
+use common::protocol::{Barrier, BarrierId, BarrierKindId, Carrier, Floor, MapLayout, Position, SwitchState, Wall};
 
 fn map(cols: i32, rows: i32, levels: usize) -> AirGraph {
     AirGraph {
@@ -194,6 +194,7 @@ fn routes_into_a_shifted_room_keep_clear_of_its_walls_floor_and_roof() {
             },
         ],
         carriers: vec![Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,
@@ -211,7 +212,7 @@ fn routes_into_a_shifted_room_keep_clear_of_its_walls_floor_and_roof() {
     let mut carriers = Carriers::from_layout(&layout);
     let mut world = world(&layout);
     for tick in [0, 30, 60, 90, 120, 180, 240] {
-        carriers.advance(tick, &PlateState::default());
+        carriers.advance(tick, &SwitchState::default());
         world.set_carrier_poses(&carriers);
         let target = carriers.pose(CarrierId(1)).transform_point(Vec3::new(2.0, 1.0, 1.0));
         for offset in [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z] {

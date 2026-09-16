@@ -12,7 +12,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
-    protocol::{CProjectileShot, ClientMessage, MapSettings, PlateState, Position},
+    protocol::{CProjectileShot, ClientMessage, MapSettings, Position, SwitchState},
 };
 
 use super::WeaponMode;
@@ -22,7 +22,7 @@ use super::WeaponMode;
 #[derive(SystemParam)]
 pub struct ShooterContext<'w> {
     pub my_player_id: Res<'w, MyPlayerId>,
-    pub plates: Res<'w, PlateState>,
+    pub switch_state: Res<'w, SwitchState>,
     pub map_settings: Res<'w, MapSettings>,
 }
 
@@ -88,7 +88,7 @@ pub fn input_shooting_system(
             &gameplay_config,
             shooter.map_settings.movement.projectile_speed,
             &collision_world,
-            &shooter.plates.open_barriers,
+            &shooter.switch_state.open_barriers,
             shooter.my_player_id.0,
             MuzzleCheck::Enforced,
         ) > 0

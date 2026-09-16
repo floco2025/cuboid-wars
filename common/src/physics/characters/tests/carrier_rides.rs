@@ -26,6 +26,50 @@ const SLIDE_PER_TICK: f32 = 4.0 / 60.0;
 const RISE_PER_TICK: f32 = LEVEL_HEIGHT / 60.0;
 
 #[test]
+fn a_rider_stays_on_a_carrier_when_deactivation_reverses_it_home() {
+    use crate::{
+        map::CarrierRun,
+        protocol::{SwitchId, SwitchState},
+    };
+
+    for (mut carrier, floor) in [slider(), lift()] {
+        carrier.switch = Some(SwitchId(0));
+        carrier.motion = crate::protocol::CarrierMotion::FollowSwitch;
+        let layout = MapLayout {
+            carriers: vec![carrier],
+            floors: vec![floor],
+            ..Default::default()
+        };
+        let mut carriers = Carriers::from_layout(&layout);
+        let mut world = CollisionWorld::from_map_layout(&layout);
+        let mut run = CarrierRun::initial(&carrier).set_active(true, 0, &carrier);
+        let mut position = Position::default();
+        let mut vertical_velocity = 0.0;
+        for tick in 1..=80 {
+            if tick == 30 {
+                run = run.set_active(false, tick, &carrier);
+            }
+            let switch_state = SwitchState {
+                carrier_runs: vec![(TILE, run)],
+                ..Default::default()
+            };
+            carriers.advance(tick, &switch_state);
+            world.set_carrier_poses(&carriers);
+            let step = ride(&world, &carriers, position, vertical_velocity, Vec3::ZERO, TICK_SECS);
+            position = step.position;
+            vertical_velocity = step.vertical_velocity;
+            assert!(
+                (Vec3::from(position) - carriers.pose(TILE).translation).length() < 0.01,
+                "tick {tick}: rider at {position:?}, carrier at {:?}",
+                carriers.pose(TILE)
+            );
+            assert_eq!(step.support, CharacterSupport::Ground);
+        }
+        assert_eq!(carriers.pose(TILE).translation, Vec3::ZERO);
+    }
+}
+
+#[test]
 fn rider_slides_with_the_tile() {
     let (world, carriers) = carried_world(slider(), &[], &[], 1);
     let step = ride(&world, &carriers, Position::default(), 0.0, Vec3::ZERO, TICK_SECS);

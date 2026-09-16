@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::{CollisionWorld, character_hitbox_center},
-    protocol::{ActorId, ActorMarker, BarrierId, Health, PlateState, PlayerMarker, Position},
+    protocol::{ActorId, ActorMarker, BarrierId, Health, PlayerMarker, Position, SwitchState},
 };
 
 use crate::{actors::ActorMap, characters::character_surface_distance, config::ServerGameplayConfig};
@@ -21,7 +21,7 @@ pub(super) fn contact_explosions_system(
     gameplay: Res<GameplayConfig>,
     config: Res<ServerGameplayConfig>,
     collision: Res<CollisionWorld>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     players: Query<(Entity, &Position), With<PlayerMarker>>,
     actor_positions: Query<(Entity, &ActorId, &Position), With<ActorMarker>>,
 ) {
@@ -53,7 +53,7 @@ pub(super) fn contact_explosions_system(
         &players,
         &contact_actors,
         &collision,
-        &plates.open_barriers,
+        &switch_state.open_barriers,
     );
 }
 

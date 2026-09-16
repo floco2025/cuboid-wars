@@ -95,12 +95,63 @@ class EditorInputTests(WindowTestCase):
         data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1])]
         self.window.doc.replace_with_new(data)
         self.click_at(5.5, 1.5)
-        self.drag((5.5, 1.5), (5.5, 4.5))
+        canvas = self.window.canvas
+        edge = self.point(7, 4.75)
+        edge.setX(edge.x() - 2)
+        before = canvas.grab().toImage().pixelColor(edge)
+        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=self.point(5.5, 1.5))
+        QTest.mouseMove(canvas, self.point(5.5, 4.5))
+        self.assertEqual(self.window.map_data["nested_maps"][0]["to"], [5, 1])
+        self.assertNotEqual(canvas.grab().toImage().pixelColor(edge), before)
+        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=self.point(5.5, 4.5))
         entry = self.window.map_data["nested_maps"][0]
         self.assertEqual((entry["from"], entry["to"]), ([1, 1], [5, 4]))
         self.assertEqual(len(self.window.canvas.input.handles()), 2)
         self.window.undo_stack.undo()
         self.assertEqual(self.window.map_data["nested_maps"][0]["to"], [5, 1])
+
+    def test_dragging_a_platform_label_or_outline_moves_its_full_footprints(self):
+        window = self.window
+        data = empty_map(12, 12)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["floors"] = [floor(3, 1)]
+        child = empty_map(3, 2)
+        child["player_spawn_zones"] = []
+        data["nested_geometry"] = {"platform": child}
+        data["nested_maps"] = [{**nested("platform", 0, [1, 1], [6, 1]), "from_nudge": [1, 0, 0]}]
+        window.doc.replace_with_new(data)
+        before = copy.deepcopy(window.map_data)
+        canvas = window.canvas
+        self.assertEqual(canvas.input.hits(QPointF(3.4, 1.5)), [ElementRef("floors", 0, 0)])
+        nudge = window.wall_width_cells
+        for start in ((2.5 + nudge, 2), (4 + nudge, 1.75)):
+            with self.subTest(start=start):
+                window.clear_selection()
+                end = (start[0], start[1] + 3)
+                edge = self.point(4 + nudge, 4.75)
+                edge.setX(edge.x() - 2)
+                original_pixel = canvas.grab().toImage().pixelColor(edge)
+                QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=self.point(*start))
+                QTest.mouseMove(canvas, self.point(*end))
+                self.assertEqual(canvas.input.gesture.kind, "move")
+                self.assertIsNotNone(window.pending_block)
+                self.assertEqual(window.map_data, before)
+                self.assertNotEqual(canvas.grab().toImage().pixelColor(edge), original_pixel)
+                QTest.keyClick(canvas, Qt.Key.Key_Escape)
+                QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=self.point(*end))
+                self.assertIsNone(window.pending_block)
+                self.assertEqual(window.map_data, before)
+                self.assertEqual(window.undo_stack.count(), 0)
+                window.clear_selection()
+                self.drag(start, end)
+                entry = window.map_data["nested_maps"][0]
+                self.assertEqual((entry["from"], entry["to"]), ([1, 4], [6, 4]))
+                self.assertEqual(entry["from_nudge"], [1, 0, 0])
+                self.assertEqual(window.map_data["levels"], before["levels"])
+                self.assertEqual(window.undo_stack.count(), 1)
+                window.undo_stack.undo()
+                self.assertEqual(window.map_data, before)
+                window.undo_stack.clear()
 
     def test_text_editing_shortcuts_do_not_delete_or_copy_map_objects(self):
         before = self.zone_map()

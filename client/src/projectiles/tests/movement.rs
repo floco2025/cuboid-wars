@@ -51,7 +51,7 @@ fn app() -> (App, Receiver<ClientMessage>) {
         .insert_resource(MyPlayerId(PlayerId(1)))
         .init_resource::<PlayerMap>()
         .init_resource::<ActorMap>()
-        .init_resource::<PlateState>()
+        .init_resource::<SwitchState>()
         .init_resource::<PortalSet>()
         .init_resource::<LastBounceSound>()
         .init_resource::<ParticleClouds>()

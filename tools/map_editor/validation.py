@@ -281,7 +281,7 @@ def validate_document(
     definitions = root.get("nested_geometry", {})
     errors = ValidationErrors()
     try:
-        for catalog in ("switch_kinds", "barrier_kinds", "bridge_kinds"):
+        for catalog in ("switches", "barrier_kinds", "bridge_kinds"):
             validate_catalog(catalog, root.get(catalog, []))
     except (ValueError, TypeError, AttributeError) as exc:
         errors.append(str(exc))
@@ -290,7 +290,7 @@ def validate_document(
         errors.append("fireworks must be an object or null")
     elif fireworks is not None:
         if not fireworks.get("switch"):
-            errors.append("fireworks requires a pressure plate kind")
+            errors.append("fireworks requires a switch")
         if "switch_inverted" in fireworks:
             errors.append("fireworks has no On/Off response; remove switch_inverted")
         _validate_switch_target(
@@ -313,7 +313,7 @@ def validate_document(
         if name is not None and not MAP_NAME_RE.fullmatch(name):
             errors.append(f"{label}: use only ASCII letters, digits, '_' or '-' in the name", map_name=name)
         if name is not None and any(
-            geometry.get(key) for key in ("switch_kinds", "barrier_kinds", "bridge_kinds", "fireworks")
+            geometry.get(key) for key in ("switches", "barrier_kinds", "bridge_kinds", "fireworks")
         ):
             errors.append(f"{label}: control definitions belong in the outer map", map_name=name)
         if name is not None and "nested_geometry" in geometry:
@@ -400,6 +400,11 @@ def _validate_nested_maps(
             errors.append(f"{label} needs a positive travel time")
         if entry["pause_secs"] < 0 or entry["phase_secs"] < 0:
             errors.append(f"{label} has a negative pause or phase")
+        motion = entry.get("motion", "cycle")
+        if motion not in ("cycle", "follow_switch"):
+            errors.append(f"{label} motion must be cycle or follow_switch")
+        elif motion == "follow_switch" and not entry.get("switch"):
+            errors.append(f"{label} Follow switch motion requires a switch")
         for end in ("from_nudge", "to_nudge"):
             nudge = entry[end]
             if not (

@@ -55,7 +55,7 @@ from .tool_settings import ToolSettings
 from .workflow import WorkflowMixin
 from .selection_transfer import SelectionTransferMixin
 from .selection_properties import SelectionProperties
-from .plate_connections import ConnectionOverlay
+from .switch_connections import ConnectionOverlay
 from .tool_catalog import MODE_TO_TOOL
 from .tool_palette import ToolPalette
 from .validation import ValidationErrors, placed_definitions, plated_switches, validate_document, validate_map
@@ -287,7 +287,7 @@ class EditorWindow(
             self.wall_width_cells,
             self.texture_catalog,
             self.switches,
-            self.plate_colors,
+            self.switch_colors,
             grid_cell_size=self.grid_cell_size,
             level_height=self.level_height,
         )
@@ -302,14 +302,12 @@ class EditorWindow(
         self.barrier_kind_colors = catalogs.barrier_kind_colors
         self.bridge_kind_colors = catalogs.bridge_kind_colors
         self.switch_ids = list(catalogs.switches)
-        self.plate_colors = dict(catalogs.plate_colors)
+        self.switch_colors = dict(catalogs.switch_colors)
         self.wall_width_cells = catalogs.wall_width_cells
         self.grid_cell_size = catalogs.grid_cell_size
         self.level_height = catalogs.level_height
         self.texture_catalog = catalogs.texture_catalog
         self.materials_catalog = list(catalogs.texture_catalog)
-        if hasattr(self, "properties_panel"):
-            self.properties_panel.signature = None
         if self.current_material not in catalogs.texture_catalog:
             self.current_material = next(iter(catalogs.texture_catalog), "")
 
@@ -368,9 +366,7 @@ class EditorWindow(
         self.delete_nested_action = self.add_menu_action(map_menu, "Delete Nested Map", None, self.delete_nested_map)
         map_menu.addSeparator()
         self.add_menu_action(map_menu, "Resi&ze Map...", None, self.resize_map)
-        self.add_menu_action(map_menu, "&Add Level", None, self.add_level)
-        self.add_menu_action(map_menu, "Re&name Level...", None, self.rename_level)
-        self.add_menu_action(map_menu, "Re&move Level", None, self.remove_level)
+        self.add_menu_action(map_menu, "Edit &Levels…", None, self.edit_levels)
         map_menu.addSeparator()
         self.build_control_menu(map_menu)
 

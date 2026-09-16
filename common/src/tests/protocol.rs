@@ -208,7 +208,7 @@ fn hotel_sized_snapshot_takes_the_retransmitted_channel() {
         spawning_actors: Vec::new(),
         items: (0..74).map(item).collect(),
         missiles: Vec::new(),
-        plates: PlateState::default(),
+        switch_state: SwitchState::default(),
         quests: Vec::new(),
         shared_checkpoint: None,
         locked_switches: Vec::new(),

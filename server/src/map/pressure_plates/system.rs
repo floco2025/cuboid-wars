@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 
-use super::switches::{PlateEdges, PressureSwitches};
+use super::inputs::{PlateEdges, PressurePlateInputs};
+use crate::map::switches::Switches;
 
 use crate::{
     config::{FeedConfig, ServerGameplayConfig},
@@ -13,7 +14,7 @@ use crate::{
 use common::{
     map::{Carriers, MapGeometry},
     protocol::{
-        PlateState, PlayerId, PlayerMarker, Position, SPressurePlate, ServerMessage, ServerTick, SwitchId, SwitchTable,
+        PlayerId, PlayerMarker, Position, SPressurePlate, ServerMessage, ServerTick, SwitchId, SwitchState, SwitchTable,
     },
 };
 
@@ -53,8 +54,9 @@ pub(crate) fn pressure_plates_system(
     switch_table: Res<SwitchTable>,
     tick: Res<ServerTick>,
     positions: Query<&Position, With<PlayerMarker>>,
-    plates_state: Res<PlateState>,
-    mut switches: ResMut<PressureSwitches>,
+    switch_state: Res<SwitchState>,
+    mut switches: ResMut<Switches>,
+    mut inputs: ResMut<PressurePlateInputs>,
 ) {
     let mut logged_in: usize = 0;
     let mut alive: usize = 0;
@@ -76,12 +78,12 @@ pub(crate) fn pressure_plates_system(
         quest_board.locked_switches(),
     );
     let held: HashSet<usize> = holders.keys().copied().collect();
-    let edges = switches.update(logged_in, alive, held.clone(), plates, tick.0);
+    let edges = inputs.update(&mut switches, logged_in, alive, held.clone(), plates, tick.0);
 
     // Edge-triggered cues: at most one press and one release cue per tick,
     // regardless of how many plates flipped — the messages carry no plate
     // identity, so collapsing simultaneous flips is lossless. Persistent state
-    // lives in `PlateState` + snapshot; these are pure click/clunk SFX.
+    // lives in `SwitchState` + snapshot; these are pure click/clunk SFX.
     if held.difference(&edges.prev_held).next().is_some() {
         broadcast_to_all(&players, ServerMessage::PressurePlate(SPressurePlate { pressed: true }));
     }
@@ -98,7 +100,7 @@ pub(crate) fn pressure_plates_system(
         switch_table: &switch_table,
         plates,
     }
-    .emit(&holders, &edges, &plates_state, &switches.state());
+    .emit(&holders, &edges, &switch_state, &switches.state());
 
     if switches.fireworks_due(tick.0, quest_board.locked_switches()) {
         broadcast_firework_show(&players);
@@ -130,7 +132,7 @@ impl PlateFeed<'_> {
             .to_owned()
     }
 
-    fn emit(&self, holders: &HashMap<usize, PlayerId>, edges: &PlateEdges, before: &PlateState, after: &PlateState) {
+    fn emit(&self, holders: &HashMap<usize, PlayerId>, edges: &PlateEdges, before: &SwitchState, after: &SwitchState) {
         let held: HashSet<usize> = holders.keys().copied().collect();
         let held_per_switch = held_count_per_switch(&held, self.plates);
         let prev_held_per_switch = held_count_per_switch(&edges.prev_held, self.plates);
@@ -178,14 +180,15 @@ impl PlateFeed<'_> {
     }
 }
 
-pub(crate) fn pressure_switch_reset_system(
+pub(crate) fn switch_reset_system(
     map_config: Res<MapConfig>,
     carriers: Res<Carriers>,
     mut players: ResMut<PlayerMap>,
     positions: Query<&Position, With<PlayerMarker>>,
     quest_board: Res<QuestBoard>,
     tick: Res<ServerTick>,
-    mut switches: ResMut<PressureSwitches>,
+    mut switches: ResMut<Switches>,
+    mut inputs: ResMut<PressurePlateInputs>,
 ) {
     let resets = players.take_resets();
     if resets.is_empty() {
@@ -205,7 +208,8 @@ pub(crate) fn pressure_switch_reset_system(
         quest_board.locked_switches(),
     );
     let held: HashSet<_> = holders.keys().copied().collect();
-    switches.reset(
+    inputs.reset(
+        &mut switches,
         |trigger| {
             resets
                 .iter()

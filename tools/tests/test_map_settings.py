@@ -13,7 +13,7 @@ from map_editor.catalogs import (
     list_map_names,
     load_map_settings,
     map_layout_path,
-    plate_colors,
+    switch_colors,
     map_name_from_path,
     map_settings_path,
 )
@@ -68,23 +68,23 @@ class MapSettingsTests(ConfigTestCase):
             with self.assertRaisesRegex(ValueError, "hotel/settings.json"):
                 load_map_settings("hotel")
 
-    def test_plate_colors_follow_targets_and_explicit_switch_colors(self):
+    def test_switch_colors_follow_targets_and_explicit_switch_colors(self):
         data = empty_map(3, 3)
         data["barrier_kinds"] = [{"id": "green", "color": "#22cc33"}]
         data["bridge_kinds"] = [{"id": "cyan", "color": "#30d8ff"}]
-        data["switch_kinds"] = [
+        data["switches"] = [
             {"id": "door"},
             {"id": "bridge"},
-            {"id": "show", "plate_color": "#9b5de5"},
+            {"id": "show", "color": "#9b5de5"},
             {"id": "other"},
         ]
         data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green", "switch": "door"}]
         data["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "kind": "cyan", "switch": "bridge"}]
         barriers, bridges = kind_colors(data, "barrier_kinds"), kind_colors(data, "bridge_kinds")
-        colors = plate_colors(data, barriers, bridges)
+        colors = switch_colors(data, barriers, bridges)
         self.assertEqual(colors, {"door": "#22cc33", "bridge": "#30d8ff", "show": "#9b5de5", "other": "#2c99bc"})
-        data["switch_kinds"][0]["plate_color"] = "#ffaa00"
-        self.assertEqual(plate_colors(data, barriers, bridges)["door"], "#ffaa00")
+        data["switches"][0]["color"] = "#ffaa00"
+        self.assertEqual(switch_colors(data, barriers, bridges)["door"], "#ffaa00")
 
     def test_layout_identity_comes_from_the_folder(self):
         self.assertEqual(map_name_from_path(map_layout_path("hotel")), "hotel")

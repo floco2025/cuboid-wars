@@ -204,6 +204,7 @@ fn carrier_from_motion(
     let to = end2 + Vec3::from(motion.to_nudge) * nudge_scale;
     Carrier {
         switch_inverted: motion.switch_inverted,
+        motion: motion.motion,
         parent,
         level: level.min(to_level),
         levels: level.abs_diff(to_level),

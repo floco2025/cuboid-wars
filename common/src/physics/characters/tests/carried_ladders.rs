@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     constants::{LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, TICK_SECS},
-    protocol::{Carrier, CarrierId, PlateState},
+    protocol::{Carrier, CarrierId, SwitchState},
 };
 
 const CARRIER: CarrierId = CarrierId(1);
@@ -22,6 +22,7 @@ impl Climber {
     fn new(travel: Vec3, phase_ticks: u32, height: f32) -> Self {
         let layout = MapLayout {
             carriers: vec![Carrier {
+                motion: Default::default(),
                 switch_inverted: false,
 
                 parent: CarrierId::WORLD,
@@ -93,7 +94,7 @@ impl Climber {
 
     fn step_with_mode(&mut self, control_velocity: Vec3, ladder_mode: LadderMode) -> CharacterMovementResult {
         self.tick += 1;
-        self.carriers.advance(self.tick, &PlateState::default());
+        self.carriers.advance(self.tick, &SwitchState::default());
         self.world.set_carrier_poses(&self.carriers);
         let result = step_character_movement(
             CharacterStep {

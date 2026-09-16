@@ -6,7 +6,7 @@ use crate::{
     constants::TICK_SECS,
     map::Carriers,
     physics::characters::character_movement_pose,
-    protocol::{BarrierId, BridgeId, PlateState},
+    protocol::{BarrierId, BridgeId, SwitchState},
 };
 
 #[test]
@@ -22,7 +22,7 @@ fn carrier_colliders_follow_the_carrier_pose() {
 
     assert!(probe(&world, 0.0).is_some(), "the tile starts at its first end");
     let mut carriers = Carriers::from_layout(&layout);
-    carriers.advance(60, &PlateState::default());
+    carriers.advance(60, &SwitchState::default());
     world.set_carrier_poses(&carriers);
     assert!(probe(&world, 0.0).is_none(), "the tile left its first end");
     assert!(probe(&world, 8.0).is_some(), "the tile arrived at its second end");
@@ -158,6 +158,7 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
                 vec![]
             },
             carriers: vec![Carrier {
+                motion: Default::default(),
                 switch_inverted: false,
 
                 parent: CarrierId::WORLD,
@@ -174,7 +175,7 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         };
         let mut world = CollisionWorld::from_map_layout(&layout);
         let mut carriers = Carriers::from_layout(&layout);
-        carriers.advance(1, &PlateState::default());
+        carriers.advance(1, &SwitchState::default());
         world.set_carrier_poses(&carriers);
         let handles: Vec<_> = world.colliders.iter().map(|(handle, _)| handle).collect();
         for powered in [false, true] {

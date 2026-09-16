@@ -24,7 +24,7 @@
 // 1. Bootstrap (reliable): starting the connection.
 //
 //    The client sends `CLogin`; the server replies with `SInit`, containing
-//    the player's ID, gameplay settings, map, and the plates' current state.
+//    the player's ID, gameplay settings, map, and the current switch state.
 //    This happens once per connection. `SInit` is the server's first
 //    reliable message.
 //
@@ -37,7 +37,7 @@
 // 2. State (unreliable): the current picture, sent repeatedly.
 //
 //    `SSnapshot` lists the players, actors, items, missiles, and shared world
-//    state, such as plates, quests, weather, and portals. It is sent at
+//    state, such as switches, quests, weather, and portals. It is sent at
 //    `network.snapshot_hz`. The client uses the entity lists to create missing entities
 //    and remove absent ones. `spawning_actors` lets it show an actor's arrival
 //    effect during the warning period before that actor exists.
@@ -350,9 +350,9 @@ pub struct SInit {
     // before its first ping or snapshot arrives.
     pub current_tick: u32,
     pub celestial_clock: CelestialClockAnchor,
-    // What the plates hold and which switches a quest still locks at login,
+    // The switch state and which switches a quest still locks at login,
     // so an inverted target is right at rest before the first snapshot.
-    pub plates: PlateState,
+    pub switch_state: SwitchState,
     pub locked_switches: Vec<SwitchId>,
 }
 
@@ -404,13 +404,13 @@ pub struct SSnapshot {
     pub items: Vec<(ItemId, Item)>,
     // Seeds joining observers and repeats the latest owner samples.
     pub missiles: Vec<(MissileId, Missile)>,
-    // What the pressure plates hold right now: the active switches, the
-    // open barrier kinds (the client hides them; the server unions them with
+    // The current switch state: the active switches, the
+    // open barrier instances (the client hides them; the server unions them with
     // each player's `held_keys` for the collision filter), the powered
-    // bridge kinds (solid and lit on both sides), and each switched
+    // bridge instances (solid and lit on both sides), and each switched
     // carrier's run (both sides place it from that and the tick). Empty on
-    // maps with no plates.
-    pub plates: PlateState,
+    // maps with no switches.
+    pub switch_state: SwitchState,
     // Unlocked `shared` / `everyone` quests. Completed quests stay listed
     // for the session so late joiners and clients that missed updates catch up.
     pub quests: Vec<QuestGroupStatus>,

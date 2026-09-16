@@ -10,7 +10,7 @@ from .dialogs.control_catalogs import ControlCatalogDialog, FireworksDialog
 class ControlActionsMixin:
     def build_control_menu(self, menu):
         for catalog, title in (
-            ("switch_kinds", "Pressure Plate Kinds"),
+            ("switches", "Switches"),
             ("barrier_kinds", "Barrier Kinds"),
             ("bridge_kinds", "Bridge Kinds"),
         ):
@@ -42,7 +42,7 @@ class ControlActionsMixin:
             name = renames.get(name, name)
             return name if name in remaining else None
 
-        if catalog == "switch_kinds":
+        if catalog == "switches":
             for attribute in ("recent_barrier_controls", "recent_bridge_controls"):
                 controls = getattr(self, attribute)
                 switch = follow(controls["switch"]) if controls.get("switch") else None

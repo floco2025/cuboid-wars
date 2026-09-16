@@ -132,7 +132,7 @@ class LightsMixin:
             self.notify("Clear Lights: this level has no lights.")
             return
         # Wiping every light on a level is one menu click away — sanity-prompt
-        # in line with Remove Level. Undo recovers but the modal makes the
+        # in line with level editing. Undo recovers but the modal makes the
         # action's blast radius visible.
         response = QMessageBox.question(
             self,

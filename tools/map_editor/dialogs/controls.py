@@ -51,36 +51,36 @@ class SwitchControl(QWidget):
         super().__init__()
         self.mixed = mixed
         self.initial = (None if mixed else current or None, None if response_mixed else inverted)
-        self.kind = choice(switches, current, optional=True, mixed=mixed, colors=colors)
+        self.switch = choice(switches, current, optional=True, mixed=mixed, colors=colors)
         self.response = choice(
             ["On", "Off"], None if response_mixed else "Off" if inverted else "On", mixed=response_mixed
         )
         form = QFormLayout(self)
         form.setContentsMargins(0, 0, 0, 0)
-        form.addRow("Pressure plate kind:", self.kind)
+        form.addRow("Switch:", self.switch)
         form.addRow("Respond when:", self.response)
-        self.kind.currentIndexChanged.connect(self.sync_enabled)
+        self.switch.currentIndexChanged.connect(self.sync_enabled)
         self.sync_enabled()
 
     def sync_enabled(self):
-        self.response.setEnabled(self.kind.currentData() != "")
+        self.response.setEnabled(self.switch.currentData() != "")
 
     def state(self):
-        """The selected plate kind, `None` for none, and whether it responds Off."""
-        return self.kind.currentData() or None, self.response.currentData() == "Off"
+        """The selected switch, `None` for none, and whether it responds Off."""
+        return self.switch.currentData() or None, self.response.currentData() == "Off"
 
     def values(self):
         """What changed from the initial selection: `switch` None clears the
         assignment, an absent key leaves the records' value alone."""
-        kind, inverted = self.state()
-        initial_kind, initial_inverted = self.initial
+        switch, inverted = self.state()
+        initial_switch, initial_inverted = self.initial
         result = {}
-        if self.kind.currentData() == "":
-            if self.mixed or initial_kind is not None:
+        if self.switch.currentData() == "":
+            if self.mixed or initial_switch is not None:
                 result["switch"] = None
             return result
-        if kind is not None and kind != initial_kind:
-            result["switch"] = kind
+        if switch is not None and switch != initial_switch:
+            result["switch"] = switch
         if self.response.currentData() is not None and inverted != initial_inverted:
             result["switch_inverted"] = inverted
         return result

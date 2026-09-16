@@ -12,15 +12,15 @@ use common::{
     map::Carriers,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
     protocol::{
-        ActorAnchor, ActorId, ActorMoveIntent, Carrier, CarrierId, MapLayout, MapSettings, PlateState, Position,
-        ServerTick,
+        ActorAnchor, ActorId, ActorMoveIntent, Carrier, CarrierId, MapLayout, MapSettings, Position, ServerTick,
+        SwitchState,
     },
 };
 
 fn step(
     world: Res<CollisionWorld>,
     settings: Res<MapSettings>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     carriers: Res<Carriers>,
     actors: Res<ActorMap>,
     mut query: ActorMovementQuery,
@@ -34,7 +34,7 @@ fn step(
         1.0 / 30.0,
         &world,
         &settings,
-        &plates,
+        &switch_state,
         &carriers,
         &actors,
         &crate::actors::navigation::ActorTerritories::default(),
@@ -42,7 +42,7 @@ fn step(
         &mut query,
         &mut planned,
     );
-    apply_actor_moves(&mut query, &actors, &planned, &world, &plates.open_barriers);
+    apply_actor_moves(&mut query, &actors, &planned, &world, &switch_state.open_barriers);
 }
 
 #[test]
@@ -51,6 +51,7 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
     let settings = server.maps[&server.default_map].settings.clone();
     let layout = MapLayout {
         carriers: vec![Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,
@@ -81,7 +82,7 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
         .init_resource::<ActorMap>()
         .init_resource::<ActorSpawner>()
         .init_resource::<PlayerMap>()
-        .init_resource::<PlateState>()
+        .init_resource::<SwitchState>()
         .init_resource::<ServerTick>()
         .insert_resource(PendingActorSpawns(vec![PendingActorSpawn {
             actor_id: ActorId(1),
@@ -108,7 +109,7 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
     for tick in 0..130 {
         app.world_mut()
             .resource_mut::<Carriers>()
-            .advance(tick, &PlateState::default());
+            .advance(tick, &SwitchState::default());
         app.update();
         let expected = anchor.world_position(app.world().resource::<Carriers>());
         assert_eq!(

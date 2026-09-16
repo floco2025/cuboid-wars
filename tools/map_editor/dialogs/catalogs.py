@@ -49,7 +49,7 @@ class ActorSpawnFieldsDialog(QDialog):
         self.count_control = SpawnCountControl(count)
         self._respawn_spin = RespawnSpinBox(respawn_secs)
         self.control = SwitchControl(switches, switch, inverted)
-        self._switch_combo = self.control.kind
+        self._switch_combo = self.control.switch
         self.volume = SpawnVolumeControl(level_names or ["Level 0"], level, levels, roam_distance)
 
         form = QFormLayout()
@@ -112,7 +112,7 @@ class ActorSpawnFieldsDialog(QDialog):
 
 class KindDialog(QDialog):
     """Modal dialog asking which id to use from one of the map's catalogs
-    (barrier kinds, bridge kinds, or pressure plate kinds).
+    (barrier kinds, bridge kinds, or switches).
     `noun` names one entry of that catalog in the empty-catalog warning.
     Returns the chosen id string on accept, None on cancel."""
 

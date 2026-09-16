@@ -13,7 +13,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
-    protocol::{ActorMarker, FaceYaw, HomingTarget, PlateState, PlayerMarker, Position},
+    protocol::{ActorMarker, FaceYaw, HomingTarget, PlayerMarker, Position, SwitchState},
 };
 
 type LockCandidateQuery<'w, 's> = Query<
@@ -38,7 +38,7 @@ pub fn lock_on_system(
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     weapon_mode: Res<WeaponMode>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
 ) {
     let new_lock = compute_lock(
         &input,
@@ -52,7 +52,7 @@ pub fn lock_on_system(
         &collision_world,
         &gameplay_config,
         &weapon_mode,
-        &plates,
+        &switch_state,
     );
     // Write only on change so `ui_crosshair_lock_system`'s `is_changed()` gate works.
     lock.set_if_neq(LockOnTarget(new_lock));
@@ -71,7 +71,7 @@ fn compute_lock(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     weapon_mode: &WeaponMode,
-    plates: &PlateState,
+    switch_state: &SwitchState,
 ) -> Option<HomingTarget> {
     if input.released || local_player_info.is_dead || console.open || *weapon_mode != WeaponMode::Missile {
         return None;
@@ -85,7 +85,7 @@ fn compute_lock(
         aim.origin,
         aim.direction * MISSILE_SPAWN_OFFSET,
         MISSILE_RADIUS,
-        &plates.open_barriers,
+        &switch_state.open_barriers,
     ) {
         return None;
     }

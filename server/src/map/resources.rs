@@ -3,7 +3,7 @@ use bevy::prelude::Resource;
 
 use common::{
     map::MapGeometry,
-    protocol::{BridgeId, CarrierId, ItemType, MapItems, PlateState, SwitchId},
+    protocol::{BridgeId, CarrierId, ItemType, MapItems, SwitchId, SwitchState},
 };
 
 // The selected map's fireworks switch and cooldown, `None` when no switch
@@ -12,7 +12,7 @@ use common::{
 pub struct MapFireworks(pub Option<FireworksConfig>);
 
 // Cell flags. A light bridge sets only `bridge`, the slab over the cell:
-// actor navigation walks it while the plates power it, and item, spawn,
+// actor navigation walks it while switches power it, and item, spawn,
 // and air-graph cells ignore it.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Cell {
@@ -148,11 +148,11 @@ impl ActorSpawnZone {
     }
 
     // Whether the zone may spawn now: always without a switch, otherwise
-    // while its pressure plate kind matches its On/Off response.
+    // while its switch matches its On/Off response.
     #[must_use]
-    pub fn is_enabled(&self, plates: &PlateState) -> bool {
+    pub fn is_enabled(&self, switch_state: &SwitchState) -> bool {
         self.switch
-            .is_none_or(|switch| plates.is_active(switch) != self.switch_inverted)
+            .is_none_or(|switch| switch_state.is_active(switch) != self.switch_inverted)
     }
 
     pub fn immovable_cells<'a>(&'a self, grid: &'a CarrierGrid) -> impl Iterator<Item = (u8, i32, i32)> + 'a {

@@ -21,6 +21,7 @@ fn actor_updates_repeat_full_state_at_the_configured_rate_in_the_carrier_frame()
     for hz in [1, 7, 10, 30] {
         let layout = MapLayout {
             carriers: vec![Carrier {
+                motion: Default::default(),
                 switch_inverted: false,
 
                 parent: CarrierId::WORLD,
@@ -83,7 +84,7 @@ fn actor_updates_repeat_full_state_at_the_configured_rate_in_the_carrier_frame()
             app.world_mut().resource_mut::<ServerTick>().0 = tick;
             app.world_mut()
                 .resource_mut::<Carriers>()
-                .advance(tick, &PlateState::default());
+                .advance(tick, &SwitchState::default());
             let pos = app
                 .world()
                 .resource::<Carriers>()

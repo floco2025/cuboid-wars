@@ -1,5 +1,5 @@
 use bevy::{gltf::GltfMaterialName, prelude::*, world_serialization::WorldInstanceReady};
-use common::protocol::{PlateState, SwitchId};
+use common::protocol::{SwitchId, SwitchState};
 
 use super::{PlateSwitchMarker, model::PressurePlateModel, spawn::PlateColor};
 use crate::config::AssetSet;
@@ -21,7 +21,7 @@ pub(super) fn pressure_plate_ready(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut model: ResMut<PressurePlateModel>,
     assets: Res<AssetSet>,
-    state: Res<PlateState>,
+    state: Res<SwitchState>,
 ) {
     let Ok((switch, color)) = roots.get(ready.entity) else {
         return;
@@ -79,7 +79,7 @@ pub(super) fn pressure_plate_ready(
 
 pub(crate) fn pressure_plates_animation_system(
     time: Res<Time>,
-    state: Res<PlateState>,
+    state: Res<SwitchState>,
     mut players: Query<(&PlatePlayback, &mut AnimationPlayer)>,
 ) {
     for (plate, mut player) in &mut players {

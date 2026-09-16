@@ -17,7 +17,7 @@ pub(crate) struct PlayerMovementStep<'a> {
     pub delta: f32,
     pub has_low_gravity: bool,
     pub held_keys: &'a [BarrierKindId],
-    // Barriers the pressure plates hold open (`PlateState`).
+    // Barriers switches hold open (`SwitchState`).
     pub open_kinds: &'a [BarrierId],
     pub knockback: &'a KnockbackVelocity,
     pub airborne_momentum: &'a mut AirborneMomentum,

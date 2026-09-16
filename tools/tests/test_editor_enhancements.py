@@ -161,7 +161,7 @@ class EditorEnhancementTests(WindowTestCase):
     def test_actor_properties_edit_first_level_counts_respawn_roam_and_controls_in_one_undo(self):
         window = self.window
         data = furnished_map()
-        data["switch_kinds"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
         window.switch_ids = ["barrier_1"]
         data["player_spawn_zones"] = []
         data["levels"] += [empty_level(1), empty_level(2)]
@@ -204,7 +204,7 @@ class EditorEnhancementTests(WindowTestCase):
     def test_nested_motion_fields_edit_together_and_validate_without_discarding_input(self):
         window = self.window
         data = furnished_map()
-        data["switch_kinds"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
         window.switch_ids = ["barrier_1"]
         data["levels"].append(empty_level(1))
         data["nested_geometry"] = {"room": empty_map(1, 1)}
@@ -212,6 +212,7 @@ class EditorEnhancementTests(WindowTestCase):
         window.doc.replace_with_new(data)
         before = copy.deepcopy(window.map_data)
         window.inspect_refs([ElementRef("nested_maps", 0)], show=True)
+        self.assertTrue(window.properties_panel.widgets[("pause_secs",)].isEnabled())
         values = {
             "to_level": 1,
             "travel_secs": 0,
@@ -219,6 +220,7 @@ class EditorEnhancementTests(WindowTestCase):
             "phase_secs": 1,
             "switch": "barrier_1",
             "switch_inverted": True,
+            "motion": "follow_switch",
         }
         values.update({(end, axis): 0.25 * (axis + 1) for end in ("from_nudge", "to_nudge") for axis in range(3)})
         for key, value in values.items():
@@ -236,13 +238,29 @@ class EditorEnhancementTests(WindowTestCase):
         self.assertEqual(entry["from_nudge"], [0.25, 0.5, 0.75])
         self.assertEqual(entry["to_nudge"], entry["from_nudge"])
         self.assertEqual((entry["switch"], entry["switch_inverted"]), ("barrier_1", True))
+        self.assertEqual(entry["motion"], "follow_switch")
+        self.assertFalse(panel.widgets[("pause_secs",)].isEnabled())
+        self.assertFalse(panel.widgets[("phase_secs",)].isEnabled())
         window.undo_stack.undo()
         self.assertEqual(window.map_data, before)
+        window.undo_stack.redo()
+        window.inspect_refs([ElementRef("nested_maps", 0)], show=True)
+        self.set_property("switch", None)
+        panel.apply_button.click()
+        self.assertTrue(panel.error.isVisible())
+        self.assertEqual(window.map_data["nested_maps"][0]["switch"], "barrier_1")
+        self.set_property("motion", "cycle")
+        self.assertTrue(panel.widgets[("pause_secs",)].isEnabled())
+        self.assertTrue(panel.widgets[("phase_secs",)].isEnabled())
+        panel.apply_button.click()
+        entry = window.map_data["nested_maps"][0]
+        self.assertNotIn("switch", entry)
+        self.assertEqual((entry["pause_secs"], entry["phase_secs"]), (2, 1))
 
     def test_connections_are_opt_in_and_follow_the_current_selection(self):
         window = self.window
         data = furnished_map()
-        data["switch_kinds"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
         window.switch_ids = ["barrier_1"]
         data["levels"][0]["barriers"] = [
             {"c0": 3, "r0": 3, "c1": 4, "r1": 3, "kind": "barrier_1", "switch": "barrier_1"}
@@ -339,7 +357,7 @@ class EditorEnhancementTests(WindowTestCase):
         window = self.window
         data = empty_map(8, 8)
         data["player_spawn_zones"] = []
-        data["switch_kinds"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
         window.switch_ids = ["barrier_1"]
         data["nested_geometry"] = {"room": empty_map(1, 1)}
         data["nested_maps"] = [{**nested("room", 0, [3, 3], [5, 5]), "switch": "barrier_1", "switch_inverted": True}]

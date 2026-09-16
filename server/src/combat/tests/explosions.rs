@@ -21,7 +21,7 @@ use common::{
     },
     protocol::{
         ActorAnchor, ActorId, ActorMarker, Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, CarrierId,
-        Health, LightBridge, MapLayout, PlateState, PlayerId, PlayerMarker, Position, SPlayerDeath, ServerMessage,
+        Health, LightBridge, MapLayout, PlayerId, PlayerMarker, Position, SPlayerDeath, ServerMessage, SwitchState,
     },
 };
 
@@ -44,7 +44,7 @@ fn test_app() -> App {
         .insert_resource(server)
         .insert_resource(quest_catalog)
         .insert_resource(collision_world)
-        .init_resource::<PlateState>()
+        .init_resource::<SwitchState>()
         .insert_resource(Carriers::default())
         .insert_resource(NavGraphs::new(&MapConfig::for_grid(Vec::new(), geometry(1, 1))))
         .insert_resource(PlayerMap::default())
@@ -512,10 +512,10 @@ fn field_world(bridge: bool) -> CollisionWorld {
 }
 
 fn power_field(app: &mut App, bridge: bool, active: bool) {
-    let mut plates = app.world_mut().resource_mut::<PlateState>();
-    plates.open_barriers = if active { vec![] } else { vec![BarrierId(0)] };
+    let mut switch_state = app.world_mut().resource_mut::<SwitchState>();
+    switch_state.open_barriers = if active { vec![] } else { vec![BarrierId(0)] };
     let powered = if bridge && active { vec![BridgeId(0)] } else { vec![] };
-    plates.powered_bridges = powered.clone();
+    switch_state.powered_bridges = powered.clone();
     app.world_mut()
         .resource_mut::<CollisionWorld>()
         .set_powered_bridges(&powered);
@@ -659,7 +659,7 @@ fn queue_missile_blast(app: &mut App, shooter: PlayerId, pos: Position) {
                 victim,
                 radius,
                 world.resource::<CollisionWorld>(),
-                &world.resource::<PlateState>().open_barriers,
+                &world.resource::<SwitchState>().open_barriers,
             )?;
             Some(MissileBlastHit {
                 target,

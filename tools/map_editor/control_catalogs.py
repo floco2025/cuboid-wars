@@ -12,7 +12,7 @@ def geometries(root: dict):
 
 def references(root: dict, catalog: str):
     for geometry in geometries(root):
-        if catalog == "switch_kinds":
+        if catalog == "switches":
             for name in ("pressure_plates", "actor_spawn_zones", "nested_maps"):
                 for entry in geometry.get(name, []):
                     yield entry, "switch"
@@ -23,17 +23,17 @@ def references(root: dict, catalog: str):
         for level in geometry["levels"]:
             for name in ("barriers", "light_bridges"):
                 for entry in level.get(name, []):
-                    if catalog == "switch_kinds":
+                    if catalog == "switches":
                         yield entry, "switch"
                     elif (catalog, name) in (("barrier_kinds", "barriers"), ("bridge_kinds", "light_bridges")):
                         yield entry, "kind"
-    if catalog == "switch_kinds" and root.get("fireworks"):
+    if catalog == "switches" and root.get("fireworks"):
         yield root["fireworks"], "switch"
 
 
 def validate_catalog(catalog: str, entries: list[dict]) -> None:
     if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
-        raise ValueError(f"{catalog}: expected a list of kind definitions")
+        raise ValueError(f"{catalog}: expected a list of definitions")
     if catalog == "barrier_kinds" and len(entries) > 256:
         raise ValueError("barrier_kinds: at most 256 kinds fit in the key inventory")
     seen = set()
@@ -42,12 +42,12 @@ def validate_catalog(catalog: str, entries: list[dict]) -> None:
         if not isinstance(name, str) or not name.strip() or name != name.strip() or name in seen:
             raise ValueError(f"{catalog}: names must be nonempty, unique, and have no surrounding spaces")
         seen.add(name)
-        color = entry.get("plate_color") if catalog == "switch_kinds" else entry.get("color")
+        color = entry.get("color")
         if color is not None and (not isinstance(color, str) or not HEX_COLOR.fullmatch(color)):
             raise ValueError(f"{name}: color must look like #rrggbb")
-        if catalog != "switch_kinds" and color is None:
+        if catalog != "switches" and color is None:
             raise ValueError(f"{name}: a color is required")
-        if catalog == "switch_kinds":
+        if catalog == "switches":
             for field, choices in (
                 ("activation", SWITCH_ACTIVATIONS),
                 ("reset_on_player_death", SWITCH_RESETS),

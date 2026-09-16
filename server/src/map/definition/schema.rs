@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Deserializer, de};
 
-use common::protocol::{CheckpointKind, FaceMaterials, KindDef, SwitchDef, TERRAIN_MATERIAL};
+use common::protocol::{CarrierMotion, CheckpointKind, FaceMaterials, KindDef, SwitchDef, TERRAIN_MATERIAL};
 
 use crate::config::deserialize_required_option;
 
@@ -17,7 +17,7 @@ pub(crate) struct MapFile {
 pub(crate) struct MapSource {
     pub(crate) geometry: MapDef,
     pub(crate) nested_geometry: HashMap<String, MapDef>,
-    pub(crate) switch_kinds: Vec<SwitchDef>,
+    pub(crate) switches: Vec<SwitchDef>,
     pub(crate) barrier_kinds: Vec<KindDef>,
     pub(crate) bridge_kinds: Vec<KindDef>,
     pub(crate) fireworks: Option<FireworksConfig>,
@@ -56,7 +56,7 @@ pub(crate) struct MapDef {
     pub(crate) nested_maps: Vec<NestedMapDef>,
     // Root only: `load` rejects them on nested geometry.
     #[serde(default)]
-    pub(crate) switch_kinds: Vec<SwitchDef>,
+    pub(crate) switches: Vec<SwitchDef>,
     #[serde(default)]
     pub(crate) barrier_kinds: Vec<KindDef>,
     #[serde(default)]
@@ -76,6 +76,8 @@ pub(crate) struct MapDef {
 // extends half past its line), so a nudge of one width and a hair back
 // along the travel keeps a floor clear of the one it meets. `switch` names
 // the map switch that runs the motion; without one it runs from the start.
+// `motion` defaults to Cycle. FollowSwitch requires a switch and targets
+// end 2 while its response matches, end 1 otherwise, ignoring cycle timing.
 // Top-level like ramps and ladders because it may cross storeys.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct MotionDef {
@@ -97,6 +99,8 @@ pub(crate) struct MotionDef {
     pub(crate) switch: Option<String>,
     #[serde(default)]
     pub(crate) switch_inverted: bool,
+    #[serde(default)]
+    pub(crate) motion: CarrierMotion,
 }
 
 impl MotionDef {

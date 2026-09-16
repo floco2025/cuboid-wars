@@ -70,6 +70,7 @@ fn repeated_nested_checkpoints_have_separate_carriers_and_runtime_slots() {
         .map(|col| NestedMapDef {
             map: "platform".into(),
             motion: MotionDef {
+                motion: Default::default(),
                 switch_inverted: false,
 
                 level: 0,

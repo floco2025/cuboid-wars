@@ -275,7 +275,7 @@ class ToolSettings(QWidget):
             ),
             MODE_BARRIER: lambda: field_controls(True),
             MODE_PRESSURE_PLATE: lambda: combo(
-                "Switch", "recent_pressure_plate_switch", window.switches, colors=window.plate_colors
+                "Switch", "recent_pressure_plate_switch", window.switches, colors=window.switch_colors
             ),
             MODE_LIGHT_BRIDGE: lambda: field_controls(False),
             MODE_LIGHT: lambda: combo("Style", "recent_light_kind", window.wall_light_kinds, required=True),

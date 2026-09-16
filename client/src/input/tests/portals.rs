@@ -70,7 +70,7 @@ fn firing_sends_the_client_resolved_geometry_and_current_body_generation() {
             .init_resource::<CameraInputState>()
             .init_resource::<Carriers>()
             .init_resource::<PortalMap>()
-            .init_resource::<PlateState>()
+            .init_resource::<SwitchState>()
             .init_resource::<LocalPlayerInfo>()
             .init_resource::<ButtonInput<MouseButton>>()
             .add_systems(Update, input_portal_system);

@@ -152,7 +152,7 @@ def normalize_map(map_data: dict) -> dict:
     return {
         **{
             key: copy.deepcopy(map_data[key])
-            for key in ("switch_kinds", "barrier_kinds", "bridge_kinds", "fireworks")
+            for key in ("switches", "barrier_kinds", "bridge_kinds", "fireworks")
             if key in map_data
         },
         "grid_cols": cols,
@@ -329,6 +329,7 @@ def normalize_nested_map(entry: dict) -> dict:
         "from_nudge": [float(axis) for axis in entry.get("from_nudge", (0.0, 0.0, 0.0))],
         "to_nudge": [float(axis) for axis in entry.get("to_nudge", (0.0, 0.0, 0.0))],
     }
+    normalized["motion"] = copy.deepcopy(entry.get("motion", "cycle"))
     normalized.update(control_fields(entry))
     return normalized
 

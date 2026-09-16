@@ -5,7 +5,7 @@ use common::{
     physics::{CharacterSupport, CollisionWorld},
     protocol::{
         Barrier, BarrierKindId, Carrier, CarrierId, Checkpoint, CheckpointKind, FaceYaw, Floor, Health, MapLayout,
-        PlateState, PlayerId, Position, ServerMessage,
+        PlayerId, Position, ServerMessage, SwitchState,
     },
 };
 
@@ -245,6 +245,7 @@ fn checkpoint_spawns_follow_carriers_and_avoid_players_and_barriers() {
     let mut layout = MapLayout {
         floors: vec![floor(&c)],
         carriers: vec![Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,
@@ -282,7 +283,7 @@ fn checkpoint_spawns_follow_carriers_and_avoid_players_and_barriers() {
     let other =
         checkpoint_spawn_position(&c, &pose, &world, &[center], physics).expect("unoccupied checkpoint area rejected");
     assert!(other.horizontal_distance_sq(&center) >= physics.movement_collider.diameter.powi(2));
-    carriers.advance(15, &PlateState::default());
+    carriers.advance(15, &SwitchState::default());
     world.set_carrier_poses(&carriers);
     let moved_pose = carriers.pose(c.carrier);
     let moved = checkpoint_spawn_position(&c, &moved_pose, &world, &[], physics).expect("moving checkpoint rejected");

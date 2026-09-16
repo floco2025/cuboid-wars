@@ -160,6 +160,7 @@ fn stationary_nested_maps_do_not_restart_completed_home_samples() {
     let rest = Vec3::new(100.0, 0.0, 0.0).into();
     let layout = MapLayout {
         carriers: vec![Carrier {
+            motion: Default::default(),
             parent: CarrierId::WORLD,
             level: 0,
             levels: 1,
@@ -210,11 +211,12 @@ fn home_refresh_preserves_destinations_until_their_replacements_are_checked() {
 fn only_obstacle_motion_near_the_home_restarts_sampling() {
     use common::{
         map::Carriers,
-        protocol::{Carrier, PlateState, Wall},
+        protocol::{Carrier, SwitchState, Wall},
     };
     for near in [false, true] {
         let layout = MapLayout {
             carriers: vec![Carrier {
+                motion: Default::default(),
                 parent: CarrierId::WORLD,
                 level: 0,
                 levels: 1,
@@ -250,7 +252,7 @@ fn only_obstacle_motion_near_the_home_restarts_sampling() {
         let initial_bounds = world.geometry_bounds();
         world.set_carrier_poses(&carriers);
         assert_eq!(world.geometry_revision(), revision);
-        carriers.advance(30, &PlateState::default());
+        carriers.advance(30, &SwitchState::default());
         world.set_carrier_poses(&carriers);
         assert_ne!(world.geometry_bounds(), initial_bounds);
         home.age = 1.0;

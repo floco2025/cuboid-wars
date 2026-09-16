@@ -45,7 +45,7 @@ SWITCH_HOLDS = ("any", "everyone")
 
 
 def switch_entries(root: dict) -> list[dict]:
-    entries = root.get("switch_kinds", [])
+    entries = root.get("switches", [])
     return (
         [entry for entry in entries if isinstance(entry, dict) and isinstance(entry.get("id"), str)]
         if isinstance(entries, list)
@@ -53,7 +53,7 @@ def switch_entries(root: dict) -> list[dict]:
     )
 
 
-def plate_colors(root: dict, barriers: dict[str, str], bridges: dict[str, str]) -> dict[str, str]:
+def switch_colors(root: dict, barriers: dict[str, str], bridges: dict[str, str]) -> dict[str, str]:
     from .validation import placed_definitions
 
     with ASSETS_PATH.open(encoding="utf-8") as handle:
@@ -70,7 +70,7 @@ def plate_colors(root: dict, barriers: dict[str, str], bridges: dict[str, str]) 
     ]
 
     def override(entry):
-        color = entry.get("plate_color")
+        color = entry.get("color")
         return color if isinstance(color, str) and HEX_COLOR.fullmatch(color) else None
 
     return {
@@ -197,7 +197,7 @@ class MapCatalogs:
     texture_catalog: dict[str, bool]
     # The switch ids in catalog order.
     switches: list[str] = field(default_factory=list)
-    plate_colors: dict[str, str] = field(default_factory=dict)
+    switch_colors: dict[str, str] = field(default_factory=dict)
     grid_cell_size: float = 0.0
     level_height: float = 0.0
 
@@ -210,7 +210,7 @@ class MapCatalogs:
             barrier_kind_colors=barriers,
             bridge_kind_colors=bridges,
             switches=[entry["id"] for entry in switch_entries(root)],
-            plate_colors=plate_colors(root, barriers, bridges),
+            switch_colors=switch_colors(root, barriers, bridges),
         )
 
     @classmethod

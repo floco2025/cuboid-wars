@@ -66,7 +66,7 @@ pub(super) fn handle_login_message(
         world: (*world.world_bootstrap).clone(),
         current_tick: world.tick.0,
         celestial_clock: *celestial_clock,
-        plates: (*world.plates).clone(),
+        switch_state: (*world.switch_state).clone(),
         locked_switches: quest_board.locked_switches().to_vec(),
     });
     if let Err(error) = channel.send(init_message) {

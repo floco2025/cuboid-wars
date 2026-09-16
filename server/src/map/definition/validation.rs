@@ -581,6 +581,9 @@ fn validate_motion(motion: &MotionDef, map_def: &MapDef) -> Result<()> {
     if !(motion.phase_secs.is_finite() && motion.phase_secs >= 0.0) {
         return Err(anyhow!("phase_secs must not be negative, got {}", motion.phase_secs));
     }
+    if motion.motion == common::protocol::CarrierMotion::FollowSwitch && motion.switch.is_none() {
+        return Err(anyhow!("follow_switch motion requires a switch"));
+    }
     if motion.switch.as_deref() == Some("") {
         return Err(anyhow!("switch must not be empty"));
     }

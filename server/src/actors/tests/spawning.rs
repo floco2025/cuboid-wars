@@ -73,7 +73,7 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
         .init_resource::<ActorSpawner>()
         .init_resource::<PendingActorSpawns>()
         .init_resource::<ServerTick>()
-        .init_resource::<PlateState>()
+        .init_resource::<SwitchState>()
         .add_systems(Update, (actors_pending_spawn_system, actors_respawn_system).chain());
     app
 }
@@ -316,6 +316,7 @@ fn pending_spawn(id: u32, due_tick: u32) -> PendingActorSpawn {
 #[test]
 fn a_pending_spawn_on_a_carrier_materializes_where_the_carrier_is_now() {
     let carrier = Carrier {
+        motion: Default::default(),
         switch_inverted: false,
 
         parent: CarrierId::WORLD,
@@ -341,7 +342,7 @@ fn a_pending_spawn_on_a_carrier_materializes_where_the_carrier_is_now() {
     spawn.pos = Position { x: 1.0, y: 0.0, z: 2.0 };
     assert_eq!(spawn.world_position(&carriers), Position { x: 1.0, y: 0.0, z: 2.0 });
 
-    carriers.advance(6, &PlateState::default());
+    carriers.advance(6, &SwitchState::default());
 
     assert_eq!(spawn.world_position(&carriers), Position { x: 7.0, y: 0.0, z: 2.0 });
 }
@@ -459,8 +460,8 @@ fn switched_app(respawn_secs: Option<f32>, count: u32) -> App {
 }
 
 fn set_switch(app: &mut App, active: bool) {
-    let mut plates = app.world_mut().resource_mut::<PlateState>();
-    plates.active_switches = if active { vec![GUARDS] } else { Vec::new() };
+    let mut switch_state = app.world_mut().resource_mut::<SwitchState>();
+    switch_state.active_switches = if active { vec![GUARDS] } else { Vec::new() };
 }
 
 fn pending_count(app: &App) -> usize {

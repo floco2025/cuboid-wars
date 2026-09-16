@@ -7,8 +7,8 @@ mod missiles;
 mod movement;
 mod network;
 mod portals;
-mod pressure_switch;
 mod projectiles;
+mod switch;
 mod validation;
 
 pub use actors::{ActorGameplayConfig, ActorLocomotion};
@@ -22,6 +22,6 @@ pub use missiles::MissilesConfig;
 pub use movement::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig};
 pub use network::{NetworkConfig, UpdateCadence};
 pub use portals::PortalsConfig;
-pub use pressure_switch::{PressureSwitchActivation, PressureSwitchConfig, SwitchHold};
 pub use projectiles::{MultiShotConfig, MultiShotPatternConfig, ProjectilesConfig};
+pub use switch::{SwitchActivation, SwitchConfig, SwitchHold};
 pub use validation::{validate_non_negative_finite, validate_positive_finite};

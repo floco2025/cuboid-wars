@@ -96,6 +96,7 @@ pub(crate) fn wide_body() -> CharacterPhysicsConfig {
 pub(crate) fn slider_layout() -> MapLayout {
     MapLayout {
         carriers: vec![Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,

@@ -7,7 +7,7 @@ use crate::{
     test_fixtures,
 };
 use bevy::camera::visibility::RenderLayers;
-use common::protocol::{CarrierId, FaceYaw, MapLayout, PlateState, PlayerId, Wall};
+use common::protocol::{CarrierId, FaceYaw, MapLayout, PlayerId, SwitchState, Wall};
 use std::time::Duration;
 
 fn world(wall: bool) -> CollisionWorld {
@@ -51,7 +51,7 @@ fn app() -> (App, Entity, f32) {
         .init_resource::<CameraAim>()
         .init_resource::<PlayerMap>()
         .init_resource::<ActorMap>()
-        .init_resource::<PlateState>()
+        .init_resource::<SwitchState>()
         .insert_resource(MyPlayerId(PlayerId(1)))
         .add_systems(
             Update,

@@ -11,7 +11,7 @@ use crate::{
 };
 use common::{
     physics::FieldKind,
-    protocol::{MapLayout, MapSettings, PlateState},
+    protocol::{MapLayout, MapSettings, SwitchState},
 };
 
 #[derive(Component)]
@@ -28,7 +28,7 @@ pub fn barriers_spawn_system(
     client_settings: Res<ClientSettings>,
     field_meshes: Res<FieldMeshes>,
     barrier_assets: Res<BarrierAssets>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     carrier_entities: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -58,7 +58,7 @@ pub fn barriers_spawn_system(
         let color = barrier_assets.base_color(kind);
         let material = materials.add(field_material(
             color,
-            fade_target(&plates, state, config),
+            fade_target(&switch_state, state, config),
             config.emissive_brightness,
         ));
         surfaces.0.push(FieldSurface {

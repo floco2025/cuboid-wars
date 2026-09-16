@@ -28,6 +28,7 @@ impl Fixture {
         let settings = config.maps["hotel"].settings.clone();
         let layout = MapLayout {
             carriers: vec![Carrier {
+                motion: Default::default(),
                 switch_inverted: false,
 
                 parent: CarrierId::WORLD,
@@ -49,7 +50,7 @@ impl Fixture {
         let mut world = World::new();
         world.insert_resource(CollisionWorld::from_map_layout(&layout));
         let mut carriers = Carriers::from_layout(&layout);
-        carriers.advance(17, &PlateState::default());
+        carriers.advance(17, &SwitchState::default());
         world.insert_resource(carriers);
         world.insert_resource(layout.clone());
         world.insert_resource(settings.clone());
@@ -69,7 +70,7 @@ impl Fixture {
         world.insert_resource(CelestialClockAnchor::initial(&settings.celestial, 0));
         world.insert_resource(config);
         world.init_resource::<ServerTick>();
-        world.init_resource::<PlateState>();
+        world.init_resource::<SwitchState>();
         let mut players = PlayerMap::default();
         let mut assignments = PortalAssignments::new(mode);
         let mut receivers = Vec::new();

@@ -5,7 +5,14 @@ from editor_fixtures import DEFAULT_ALIAS, faces, floor, nested
 from map_editor.editing import paint_floors
 from map_editor.erasing import erase_cell_rect
 from map_editor.normalization import empty_level, empty_map, normalize_map
-from map_editor.transforms import insert_level_data, record_lists, remove_level_data, resize_map_data, translate_map
+from map_editor.transforms import (
+    edit_levels_data,
+    insert_level_data,
+    record_lists,
+    remove_level_data,
+    resize_map_data,
+    translate_map,
+)
 
 KIND = "treasure"
 BRIDGE_KIND = "skyway"
@@ -49,6 +56,32 @@ class ResizeTests(unittest.TestCase):
 
 
 class LevelTests(unittest.TestCase):
+    def test_batch_level_changes_remap_spans_and_keep_original_geometry(self):
+        data = empty_map(6, 6)
+        data["levels"] += [empty_level(1), empty_level(2)]
+        data["levels"][2]["floors"] = [floor(1, 1)]
+        data["actor_spawn_zones"] = [{"level": 0, "levels": 3, "cols": [0, 2], "rows": [0, 2], "kind": "turret"}]
+        data["ladders"] = [{"lower_level": 0, "levels": 2, "col": 3, "row": 3, "side": "N"}]
+        data["nested_maps"] = [nested("cabin", 0, [1, 1], [3, 1], 2)]
+        before = copy.deepcopy(data)
+        after = edit_levels_data(data, [(0, "Ground"), (None, "Landing"), (1, "Middle"), (2, "Roof")])
+        self.assertEqual(after["ladders"][0]["levels"], 3)
+        self.assertEqual(after["actor_spawn_zones"][0]["levels"], 4)
+        self.assertEqual(after["nested_maps"][0]["to_level"], 3)
+        self.assertEqual(after["levels"][3]["floors"], data["levels"][2]["floors"])
+        self.assertEqual(data, before)
+
+    def test_replacing_all_levels_removes_geometry_but_keeps_map_catalogs(self):
+        data = empty_map(6, 6)
+        data["levels"] += [empty_level(1)]
+        data["levels"][0]["floors"] = [floor(1, 1)]
+        data["actor_spawn_zones"] = [{"level": 0, "levels": 2, "cols": [0, 2], "rows": [0, 2], "kind": "turret"}]
+        data["switches"] = [{"id": "lift", "activation": "momentary", "reset_on_player_death": "never"}]
+        after = edit_levels_data(data, [(None, "New")])
+        self.assertEqual(after["levels"], [{**empty_level(0), "name": "New"}])
+        self.assertEqual(after["actor_spawn_zones"], [])
+        self.assertEqual(after["switches"], data["switches"])
+
     def test_remove_level_drops_spanning_nested_maps_and_renumbers_the_rest(self) -> None:
         data = empty_map(6, 6)
         data["levels"].append({**empty_level(1), "floors": [floor(0, 0)]})

@@ -17,8 +17,8 @@ use common::{
     map::Carriers,
     physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, character_positions_intersect},
     protocol::{
-        ActorAnchor, ActorMarker, ActorMoveIntent, BarrierId, FaceYaw, Health, MapSettings, PlateState, PlayerMarker,
-        Position, ServerTick, sequence_is_newer,
+        ActorAnchor, ActorMarker, ActorMoveIntent, BarrierId, FaceYaw, Health, MapSettings, PlayerMarker, Position,
+        ServerTick, SwitchState, sequence_is_newer,
     },
 };
 
@@ -58,7 +58,7 @@ pub fn actors_respawn_system(
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
     server_gameplay_config: Res<ServerGameplayConfig>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     tick: Res<ServerTick>,
     players: Query<&Position, With<PlayerMarker>>,
     actor_positions: Query<(&Position, &ActorCharacter), (With<ActorMarker>, Without<PlayerMarker>)>,
@@ -109,11 +109,11 @@ pub fn actors_respawn_system(
         collision_world: &collision_world,
         config: &server_gameplay_config,
         tick: tick.0,
-        open: &plates.open_barriers,
+        open: &switch_state.open_barriers,
     };
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
         // A zone its switch holds back keeps its deficit and fills the tick the switch allows.
-        if !zone.is_enabled(&plates) {
+        if !zone.is_enabled(&switch_state) {
             continue;
         }
         let waiting = planner
@@ -273,7 +273,7 @@ pub fn actors_pending_spawn_system(
     map_settings: Res<MapSettings>,
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     bodies: Query<(&Position, Option<&ActorCharacter>), Or<(With<PlayerMarker>, With<ActorMarker>)>>,
 ) {
     let due = take_due_spawns(&mut pending.0, tick.0);
@@ -294,7 +294,7 @@ pub fn actors_pending_spawn_system(
         let character = &server_gameplay_config.expect_actor(&spawn.kind).character;
         let pos = spawn.world_position(&carriers);
         if character.flies()
-            && (collision_world.character_overlaps_solid(&pos, character.physics(), &plates.open_barriers)
+            && (collision_world.character_overlaps_solid(&pos, character.physics(), &switch_state.open_barriers)
                 || occupied
                     .iter()
                     .any(|(other, physics)| character_positions_intersect(&pos, character.physics(), other, *physics)))

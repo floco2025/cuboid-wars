@@ -41,10 +41,10 @@ pub(crate) fn generate_map_at(
         .with_context(|| format!("invalid barrier_kinds in {}", path.display()))?;
     let bridge_kinds = BridgeKindTable::from_defs(&source.bridge_kinds)
         .with_context(|| format!("invalid bridge_kinds in {}", path.display()))?;
-    let switch_table = SwitchTable::from_switch_defs(&source.switch_kinds)
-        .with_context(|| format!("invalid switch_kinds in {}", path.display()))?;
+    let switch_table = SwitchTable::from_switch_defs(&source.switches)
+        .with_context(|| format!("invalid switches in {}", path.display()))?;
     let mut settings = settings.clone();
-    settings.switches = source.switch_kinds;
+    settings.switches = source.switches;
     settings.barrier_kinds = source.barrier_kinds;
     settings.bridge_kinds = source.bridge_kinds;
     let map_def = source.geometry;

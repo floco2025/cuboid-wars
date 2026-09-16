@@ -37,7 +37,7 @@ fn movement_app(layout: MapLayout) -> (App, Entity) {
         .init_resource::<PlayerMap>()
         .init_resource::<ActorMap>()
         .init_resource::<crate::actors::navigation::ActorTerritories>()
-        .init_resource::<PlateState>()
+        .init_resource::<SwitchState>()
         .init_resource::<ServerTick>()
         .add_systems(
             Update,
@@ -89,6 +89,7 @@ fn player_info(app: &App) -> &PlayerInfo {
 fn carrier_local_reports_relay_unchanged_while_the_server_places_the_rider_with_the_platform() {
     let layout = MapLayout {
         carriers: vec![Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,
@@ -124,7 +125,7 @@ fn carrier_local_reports_relay_unchanged_while_the_server_places_the_rider_with_
     for tick in [1, 15, 30, 40, 55, 70, 80] {
         app.world_mut()
             .resource_mut::<Carriers>()
-            .advance(tick, &PlateState::default());
+            .advance(tick, &SwitchState::default());
         app.update();
         let expected = app
             .world()
@@ -149,7 +150,7 @@ fn carrier_local_reports_relay_unchanged_while_the_server_places_the_rider_with_
     for tick in [81, 90, 100] {
         app.world_mut()
             .resource_mut::<Carriers>()
-            .advance(tick, &PlateState::default());
+            .advance(tick, &SwitchState::default());
         app.update();
         assert_eq!(
             *app.world().get::<Position>(entity).expect("player position missing"),

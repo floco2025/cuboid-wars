@@ -131,9 +131,9 @@ pub struct Eraser {
     pub carrier: CarrierId,
 }
 
-// A plate-powered walkway: one merged rectangle of same-kind cells, a thin
+// A switch-powered walkway: one merged rectangle of same-kind cells, a thin
 // slab whose standing surface is `y`. Solid and lit only while its instance is
-// powered (`PlateState.powered_bridges`, applied to the collider by
+// powered (`SwitchState.powered_bridges`, applied to the collider by
 // `CollisionWorld::set_powered_bridges`).
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct LightBridge {
@@ -163,18 +163,26 @@ impl LightBridge {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CarrierMotion {
+    #[default]
+    Cycle,
+    FollowSwitch,
+}
+
 // A rigid group of map records that slides between two poses. Every record
 // naming this carrier is in its local frame; the carrier's origin sits at
-// `from` in its parent's frame at end 1 and at `to` at end 2, out, held,
-// back, held (`map::carrier_offset_at`, a pure function of its run ticks:
-// the shared tick for a free carrier, the ticks its switch has kept it
-// running for a switched one, replicated in `PlateState.carrier_runs`).
+// `from` in its parent's frame at end 1 and at `to` at end 2.
+// `map::CarrierRun` owns Cycle and FollowSwitch timing, replicated in
+// `SwitchState.carrier_runs`; free cycles use the shared tick.
 // `level` is the parent storey its local level 0 sits on and `levels` the
 // storeys the motion spans, for level focus. Parents precede their children
 // in `MapLayout.carriers`. A moving tile is a nested one-cell map.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Carrier {
     pub switch_inverted: bool,
+    pub motion: CarrierMotion,
     pub parent: CarrierId,
     pub level: u8,
     pub levels: u8,
@@ -213,7 +221,7 @@ pub struct Ladder {
 // client never needs `MapGeometry` to position the visual marker. The
 // server keeps the original (col, row) on its own runtime mirror for
 // plate-occupancy tests. Clients receive what the switches hold via
-// `SSnapshot.plates`.
+// `SSnapshot.switch_state`.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct PressurePlate {
     pub level: u8,
@@ -357,7 +365,7 @@ pub struct MapSettings {
 
     // The root layout's ordered catalogs, filled by map generation rather
     // than read from settings.json: `switches` assigns this map's stable
-    // `SwitchId` values, each with its plates' policy; `barrier_kinds` its
+    // `SwitchId` values, each with its activation policy; `barrier_kinds` its
     // `BarrierKindId` values, shared by barriers and keys; `bridge_kinds`
     // its `BridgeKindId` values. Each is empty when the map has none.
     #[serde(skip)]

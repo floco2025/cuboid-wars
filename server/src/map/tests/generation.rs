@@ -22,7 +22,7 @@ impl TestMap {
                 {"col": 1, "row": 0, "all": "basement-floor"}
             ]}],
             "player_spawn_zones": [{"level": 0, "cols": [0, 1], "rows": [0, 1]}],
-            "switch_kinds": [
+            "switches": [
                 {"id": "lobby", "activation": "toggle", "reset_on_player_death": "never"},
                 {"id": "fireworks", "activation": "momentary", "reset_on_player_death": "never"}
             ],
@@ -118,16 +118,16 @@ fn duplicate_barrier_kinds_are_rejected_naming_the_layout() {
 }
 
 #[test]
-fn duplicate_switch_kinds_are_rejected_naming_the_layout() {
+fn duplicate_switches_are_rejected_naming_the_layout() {
     let hotel = TestMap::new(|map| {
-        let lobby = map["switch_kinds"][0].clone();
-        map["switch_kinds"]
+        let lobby = map["switches"][0].clone();
+        map["switches"]
             .as_array_mut()
-            .expect("switch_kinds is an array")
+            .expect("switches is an array")
             .push(lobby);
     });
     let error = hotel.error();
-    assert!(error.contains("switch_kinds") && error.contains("duplicate"), "{error}");
+    assert!(error.contains("switches") && error.contains("duplicate"), "{error}");
     assert!(error.contains("layout.json"), "{error}");
 }
 
@@ -141,9 +141,9 @@ fn fireworks_must_name_a_catalogued_switch_with_a_plate_and_a_finite_cooldown() 
         (|map| map["fireworks"]["cooldown_secs"] = json!(-1.0), "cooldown_secs"),
         (
             |map| {
-                map["switch_kinds"]
+                map["switches"]
                     .as_array_mut()
-                    .expect("switch_kinds is an array")
+                    .expect("switches is an array")
                     .push(json!({"id": "spare", "activation": "toggle", "reset_on_player_death": "never"}));
                 map["fireworks"]["switch"] = json!("spare");
             },

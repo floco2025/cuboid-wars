@@ -42,7 +42,7 @@ pub(crate) fn compile_settings(kinds: &BarrierKindTable, bridges: &BridgeKindTab
         switches: switch_ids
             .map(|id| SwitchDef {
                 id,
-                plate_color: None,
+                color: None,
                 policy: Default::default(),
             })
             .collect(),
@@ -229,7 +229,7 @@ pub(crate) fn map_with_zones(
         ramps,
         ladders: Vec::new(),
         nested_maps: Vec::new(),
-        switch_kinds: Vec::new(),
+        switches: Vec::new(),
         barrier_kinds: Vec::new(),
         bridge_kinds: Vec::new(),
         fireworks: None,

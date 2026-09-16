@@ -9,7 +9,7 @@ use common::{
         CharacterSupport, CharacterVerticalVelocity, CollisionWorld, GroundingDiagnostics, PortalSet,
         grounding_diagnostics,
     },
-    protocol::{ActorMarker, FaceYaw, PlateState, PlayerId, Position},
+    protocol::{ActorMarker, FaceYaw, PlayerId, Position, SwitchState},
 };
 
 use super::BoundsMode;
@@ -119,7 +119,7 @@ pub(crate) fn refresh_grounding_debug_system(
     mode: Res<BoundsMode>,
     world: Res<CollisionWorld>,
     portals: Res<PortalSet>,
-    plates: Res<PlateState>,
+    switch_state: Res<SwitchState>,
     players: Res<PlayerMap>,
     roots: Query<(&ChildOf, &CharacterBounds)>,
     characters: Query<
@@ -147,7 +147,7 @@ pub(crate) fn refresh_grounding_debug_system(
         let keys = player
             .and_then(|id| players.get(id))
             .map_or(&[][..], |p| p.held_keys.as_slice());
-        let passable = world.passable_barriers(keys, &plates.open_barriers);
+        let passable = world.passable_barriers(keys, &switch_state.open_barriers);
         let excluded = if player.is_some() {
             portals.collision_exclusions(Vec3::from(*pos), bounds.physics)
         } else {

@@ -8,7 +8,7 @@ pub(super) use crate::{
 };
 use crate::{
     config::gameplay::load_test_gameplay,
-    protocol::{Carrier, CarrierId, PlateState},
+    protocol::{Carrier, CarrierId, SwitchState},
 };
 pub(super) use bevy_math::Vec3;
 
@@ -252,8 +252,8 @@ pub(crate) fn collision_world_with(walls: &[Wall], floors: &[Floor], ramps: &[Ra
 pub(crate) fn world_at(layout: &MapLayout, tick: u32) -> (CollisionWorld, Carriers) {
     let mut world = CollisionWorld::from_map_layout(layout);
     let mut carriers = Carriers::from_layout(layout);
-    carriers.advance(tick.wrapping_sub(1), &PlateState::default());
-    carriers.advance(tick, &PlateState::default());
+    carriers.advance(tick.wrapping_sub(1), &SwitchState::default());
+    carriers.advance(tick, &SwitchState::default());
     world.set_carrier_poses(&carriers);
     (world, carriers)
 }
@@ -282,6 +282,7 @@ pub(crate) const TILE: CarrierId = CarrierId(1);
 pub(crate) fn slider() -> (Carrier, Floor) {
     (
         Carrier {
+            motion: Default::default(),
             switch_inverted: false,
 
             parent: CarrierId::WORLD,

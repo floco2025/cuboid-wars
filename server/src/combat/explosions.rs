@@ -6,8 +6,8 @@ use common::{
     constants::KNOCKBACK_CLAMP_RATIO,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, blast_hit, character_hitbox_center},
     protocol::{
-        ActorId, ActorMarker, BarrierId, Health, HitTarget, MapSettings, MissileBlastHit, PlateState, PlayerId,
-        PlayerMarker, Position, SPlayerKnockback, ServerMessage,
+        ActorId, ActorMarker, BarrierId, Health, HitTarget, MapSettings, MissileBlastHit, PlayerId, PlayerMarker,
+        Position, SPlayerKnockback, ServerMessage, SwitchState,
     },
 };
 
@@ -55,7 +55,7 @@ pub struct ExplosionContext<'w, 's> {
     quest_catalog: Res<'w, QuestCatalog>,
     invincibility: Res<'w, Invincibility>,
     collision_world: Res<'w, CollisionWorld>,
-    plates: Res<'w, PlateState>,
+    switch_state: Res<'w, SwitchState>,
     player_query: PlayerBlastQuery<'w, 's>,
     actor_query: ActorBlastQuery<'w, 's>,
 }
@@ -127,7 +127,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
             &context.map_settings.movement,
             context.invincibility.0,
             &context.collision_world,
-            &context.plates.open_barriers,
+            &context.switch_state.open_barriers,
             &context.players,
             &context.actors,
             &mut context.player_query,

@@ -6,8 +6,8 @@ use super::DeathTrigger;
 // One switch's policy: how its plates activate it, what holds it, and which
 // player deaths reset a toggle.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode, Deserialize)]
-pub struct PressureSwitchConfig {
-    pub activation: PressureSwitchActivation,
+pub struct SwitchConfig {
+    pub activation: SwitchActivation,
     pub reset_on_player_death: DeathTrigger,
     #[serde(default)]
     pub held: SwitchHold,
@@ -15,14 +15,14 @@ pub struct PressureSwitchConfig {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum PressureSwitchActivation {
+pub enum SwitchActivation {
     Momentary,
     Toggle,
     #[default]
     Auto,
 }
 
-impl PressureSwitchActivation {
+impl SwitchActivation {
     pub fn is_toggle(self, logged_in: usize) -> bool {
         match self {
             Self::Momentary => false,
@@ -56,5 +56,5 @@ impl SwitchHold {
 }
 
 #[cfg(test)]
-#[path = "tests/pressure_switch.rs"]
+#[path = "tests/switch.rs"]
 mod tests;

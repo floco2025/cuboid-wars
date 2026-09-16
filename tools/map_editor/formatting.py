@@ -83,8 +83,8 @@ def _catalog_lines(key: str, entries) -> list[str]:
 def format_map_file(wrapper: dict) -> str:
     map_data = wrapper["map"]
     lines = ["{", '  "map": {']
-    if "switch_kinds" in map_data:
-        lines.append(f'    "switch_kinds": {json.dumps(map_data["switch_kinds"])},')
+    if "switches" in map_data:
+        lines.append(f'    "switches": {json.dumps(map_data["switches"])},')
     for key in ("barrier_kinds", "bridge_kinds"):
         if key in map_data:
             lines.extend(_catalog_lines(key, map_data[key]))
@@ -223,6 +223,7 @@ def _nested_map_body(entry: dict) -> str:
         "to_nudge": entry["to_nudge"],
     }
     body.update(control_fields(entry))
+    body["motion"] = entry.get("motion", "cycle")
     return _inline_object_body(body)
 
 

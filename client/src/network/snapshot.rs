@@ -44,7 +44,7 @@ pub(super) fn handle_snapshot_message(
     sync_portals(commands, context, &message.portals);
 
     // Stable equality keeps identical snapshots from waking the visibility systems.
-    context.plates.set_if_neq(message.plates);
+    context.switch_state.set_if_neq(message.switch_state);
     context
         .locked_switches
         .set_if_neq(LockedSwitches(message.locked_switches));

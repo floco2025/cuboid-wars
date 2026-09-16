@@ -3,8 +3,8 @@ use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
     protocol::{
-        ActorId, ActorMarker, CarrierId, FaceYaw, Health, MapLayout, PlateState, Player, PlayerId, PlayerMoveIntent,
-        Position, Wall,
+        ActorId, ActorMarker, CarrierId, FaceYaw, Health, MapLayout, Player, PlayerId, PlayerMoveIntent, Position,
+        SwitchState, Wall,
     },
 };
 
@@ -205,7 +205,7 @@ fn beam_follows_the_muzzle_without_turning_the_base_or_bypassing_cover() {
     app.init_resource::<Time>()
         .init_resource::<ActorMap>()
         .init_resource::<PlayerMap>()
-        .init_resource::<PlateState>()
+        .init_resource::<SwitchState>()
         .insert_resource(gameplay)
         .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
         .add_systems(

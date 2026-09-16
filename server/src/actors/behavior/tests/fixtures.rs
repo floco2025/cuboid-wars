@@ -32,7 +32,7 @@ pub(super) use common::{
     physics::{CharacterSupport, CollisionWorld},
     protocol::{
         ActorBeam, ActorId, ActorMarker, Barrier, BarrierKindId, BridgeId, Carrier, CarrierId, Health, MapItems,
-        MapLayout, PlateState, PlayerId, PlayerMarker, Position, ServerMessage, ServerTick, Wall,
+        MapLayout, PlayerId, PlayerMarker, Position, ServerMessage, ServerTick, SwitchState, Wall,
     },
 };
 
@@ -123,6 +123,7 @@ impl Fixture {
         if let Some(rest) = rest {
             map.grids.push(CarrierGrid::new(carrier, geometry, levels(1)));
             layout.carriers.push(Carrier {
+                motion: Default::default(),
                 switch_inverted: false,
 
                 parent: CarrierId::WORLD,
@@ -245,7 +246,7 @@ pub(crate) fn actor_app(kind: &str, health: f32) -> (App, Entity, Receiver<Serve
         .init_resource::<ActorMap>()
         .init_resource::<PlayerMap>()
         .init_resource::<MapItems>()
-        .init_resource::<PlateState>()
+        .init_resource::<SwitchState>()
         .init_resource::<ServerTick>()
         .init_resource::<Time>()
         .init_resource::<PendingExplosions>()

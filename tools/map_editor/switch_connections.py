@@ -1,4 +1,4 @@
-"""Optional canvas visualization of selected pressure-plate relationships."""
+"""Optional canvas visualization of selected switch relationships."""
 
 from dataclasses import dataclass
 

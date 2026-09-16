@@ -1,8 +1,8 @@
-mod switches;
+mod inputs;
 mod system;
 
 #[cfg(test)]
 mod tests;
 
-pub(super) use switches::{PressureSwitches, plate_state_sync_system};
-pub(super) use system::{pressure_plates_system, pressure_switch_reset_system};
+pub(super) use inputs::PressurePlateInputs;
+pub(super) use system::{pressure_plates_system, switch_reset_system};

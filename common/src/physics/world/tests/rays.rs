@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     map::Carriers,
-    protocol::{BarrierId, FaceMaterials, PlateState},
+    protocol::{BarrierId, FaceMaterials, SwitchState},
 };
 
 #[test]
@@ -208,7 +208,7 @@ fn support_material_follows_a_moving_carrier() {
     layout.floor_materials = vec![FaceMaterials::uniform("steel")];
     let mut world = CollisionWorld::from_map_layout(&layout);
     let mut carriers = Carriers::from_layout(&layout);
-    carriers.advance(60, &PlateState::default());
+    carriers.advance(60, &SwitchState::default());
     world.set_carrier_poses(&carriers);
     assert!(
         world

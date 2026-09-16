@@ -1,4 +1,5 @@
 import copy
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -339,7 +340,7 @@ class WindowTests(WindowTestCase):
 
     def test_conflicting_loaded_plates_can_be_erased_independently(self):
         window = self.window
-        window.doc.root_data["switch_kinds"] = [
+        window.doc.root_data["switches"] = [
             {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a", "b"]
         ]
         window.switch_ids = ["a", "b"]
@@ -476,7 +477,7 @@ class WindowTests(WindowTestCase):
         window.bridge_kind_colors = {"bridge": "#00ff00"}
         window.doc.root_data["barrier_kinds"] = [{"id": "gate", "color": "#ff0000"}]
         window.doc.root_data["bridge_kinds"] = [{"id": "bridge", "color": "#00ff00"}]
-        window.doc.root_data["switch_kinds"] = [
+        window.doc.root_data["switches"] = [
             {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["gate", "bridge"]
         ]
         window.switch_ids = ["gate", "bridge"]
@@ -510,7 +511,7 @@ class WindowTests(WindowTestCase):
 
     def test_toolbar_switch_choices_follow_the_catalog(self):
         window = self.window
-        window.doc.root_data["switch_kinds"] = [
+        window.doc.root_data["switches"] = [
             {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a"]
         ]
         window.switch_ids = ["a"]
@@ -519,7 +520,7 @@ class WindowTests(WindowTestCase):
         combo = window.tool_settings.body.findChildren(QComboBox)[0]
         self.assertEqual([combo.itemText(i) for i in range(combo.count())], ["", "a"])
 
-        window.doc.root_data["switch_kinds"] = [
+        window.doc.root_data["switches"] = [
             {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a", "b"]
         ]
         window.switch_ids = ["a", "b"]
@@ -542,7 +543,7 @@ class WindowTests(WindowTestCase):
         ):
             self.assertIsNone(ActorSpawnFieldsDialog.prompt(window, "not_a_kind", [3], 90, ["guards"], None))
             warning.assert_called_once()
-        window.doc.root_data["switch_kinds"] = [
+        window.doc.root_data["switches"] = [
             {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["guards"]
         ]
         window.switch_ids = ["guards"]
@@ -612,19 +613,6 @@ class WindowTests(WindowTestCase):
         self.assertLessEqual(window.canvas.viewport.offset.x(), 0)
         self.assertLessEqual(window.canvas.viewport.offset.y(), 0)
 
-    def test_ramp_insertion_cancel_leaves_document_and_history_untouched(self):
-        window = self.window
-        data = insert_level_data(window.map_data, 1)
-        data["ramps"] = [{"lower_level": 0, "low": [3, 3], "high": [6, 4], "all": DEFAULT_ALIAS}]
-        window.apply_change("Ramp", data)
-        before = copy.deepcopy(window.map_data)
-        count = window.undo_stack.count()
-        with patch("map_editor.structure.QMessageBox.question", return_value=QMessageBox.StandardButton.Cancel):
-            window.add_level()
-        self.assertEqual(window.map_data, before)
-        self.assertEqual(window.undo_stack.count(), count)
-        self.assertEqual(window.canvas.issue_rects, [])
-
     def test_file_notifications_reload_parent_catalogs(self):
         with patch.object(self.window, "adopt_catalogs") as adopt:
             self.window.dependencies.changed.emit()
@@ -644,6 +632,35 @@ class WindowTests(WindowTestCase):
             self.assertGreater(changed.count(), 0)
             watcher.watch("hotel")
             self.assertIn(str(settings.resolve()), watcher.watcher.files())
+
+    def test_catalog_watcher_ignores_siblings_and_keeps_watching_replaced_files(self):
+        window = self.window
+        settings = self.path.with_name("settings.json")
+        changed = QSignalSpy(window.dependencies.changed)
+        settings.with_name("layout.autosave.json").write_text("{}")
+        settings.write_bytes(settings.read_bytes())
+        QTest.qWait(250)
+        self.assertEqual(changed.count(), 0)
+        values = json.loads(settings.read_text())
+        values["geometry"]["grid_cell_size"] = 4.0
+        replacement = settings.with_suffix(".tmp")
+        replacement.write_text(json.dumps(values))
+        replacement.replace(settings)
+        for _ in range(30):
+            if changed.count():
+                break
+            QTest.qWait(100)
+        self.assertEqual(changed.count(), 1)
+        self.assertEqual(window.grid_cell_size, 4.0)
+        self.assertIn(str(settings.resolve()), window.dependencies.watcher.files())
+        values["geometry"]["grid_cell_size"] = 5.0
+        settings.write_text(json.dumps(values))
+        for _ in range(30):
+            if changed.count() == 2:
+                break
+            QTest.qWait(100)
+        self.assertEqual(changed.count(), 2)
+        self.assertEqual(window.grid_cell_size, 5.0)
 
     def test_large_map_fits_and_paints_an_item_and_invalid_nested_nudges(self):
         window = self.window

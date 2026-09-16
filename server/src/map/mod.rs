@@ -14,6 +14,7 @@ mod pressure_plates;
 mod ramps;
 mod resources;
 mod segments;
+mod switches;
 mod trim;
 mod volume;
 mod walls;

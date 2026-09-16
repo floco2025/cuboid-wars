@@ -45,6 +45,7 @@ def floor(col: int, row: int) -> dict:
 def nested(map_name: str, level: int, start: list[int], end: list[int], to_level: int | None = None) -> dict:
     return {
         "map": map_name,
+        "motion": "cycle",
         "level": level,
         "from": start,
         "to": end,
