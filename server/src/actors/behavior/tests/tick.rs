@@ -7,6 +7,67 @@ fn grace_ticks() -> usize {
 }
 
 #[test]
+fn airborne_actor_pauses_new_and_pending_searches_until_supported() {
+    for pending in [false, true] {
+        let fixture = Fixture::new(CONTACT);
+        let start = fixture.pos(1, 2);
+        let target = fixture.pos(3, 2);
+        let (mut app, _, _) = actor_app(CONTACT, 5000.0);
+        let entity;
+        {
+            let mut actors = app.world_mut().resource_mut::<ActorMap>();
+            let info = actors.get_mut(&ActorId(1)).expect("actor missing");
+            entity = info.entity;
+            if pending {
+                info.ground.work = 1;
+                info.ground.route(
+                    &GroundNavigation {
+                        graphs: &fixture.graphs,
+                        carriers: &fixture.carriers,
+                        carrier: CarrierId::WORLD,
+                        kind: CONTACT,
+                        world: &fixture.collision_world,
+                        physics: fixture.gameplay.expect_actor(CONTACT).physics(),
+                        open: &[],
+                    },
+                    GroundTask::Pursue(PlayerId(7)),
+                    start,
+                    target,
+                    |_, _| None,
+                    |_, _| true,
+                    GroundSearchOptions::default(),
+                );
+                assert!(info.ground.pending(GroundTask::Pursue(PlayerId(7))));
+            }
+        }
+        app.world_mut().entity_mut(entity).insert(CharacterSupport::Airborne);
+        for _ in 1..grace_ticks() {
+            step_tick(&mut app);
+            let actors = app.world().resource::<ActorMap>();
+            let info = actors.get(&ActorId(1)).expect("actor missing");
+            assert!(info.route.is_none(), "airborne actor planned a ground route");
+            assert_eq!(info.ground.pending(GroundTask::Pursue(PlayerId(7))), pending);
+            assert_eq!(info.ground.work, 0);
+        }
+        app.world_mut().entity_mut(entity).insert(CharacterSupport::Ground);
+        for _ in 0..6 {
+            step_tick(&mut app);
+        }
+        let actors = app.world().resource::<ActorMap>();
+        let info = actors.get(&ActorId(1)).expect("actor missing");
+        assert!(info.route.is_some(), "landed actor did not resume pursuit");
+        assert!(matches!(
+            info.mode,
+            ActorMode::Engage {
+                target: PlayerId(7),
+                ..
+            }
+        ));
+        assert!(!info.ground.pending(GroundTask::Pursue(PlayerId(7))));
+    }
+}
+
+#[test]
 fn a_falling_actor_keeps_its_mode_while_firing() {
     let (mut app, _, _) = actor_app(BEAM, 5000.0);
     let entity = app
@@ -75,6 +136,10 @@ fn falling_actor_discards_routes_and_pending_searches_then_navigates_after_landi
             let info = actors.get(&ActorId(1)).expect("actor missing");
             if tick < grace_ticks() {
                 assert!(info.route.is_some(), "a brief hop dropped the ground route");
+                assert!(
+                    info.ground.pending(GroundTask::Return),
+                    "a brief hop discarded its search"
+                );
                 continue;
             }
             assert!(info.route.is_none(), "falling actor retained a ground route");

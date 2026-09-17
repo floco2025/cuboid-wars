@@ -33,8 +33,7 @@ use super::{
 const GROUND_WORK_PER_TICK: usize = 2048;
 
 pub(super) const AI_DECISION_INTERVAL_SECS: f32 = 0.1;
-// A ledge step or a ladder exit reads Airborne for a tick or two; only a
-// longer fall suspends navigation, so those keep their route and failure memory.
+// Brief ledge steps and ladder exits retain routes and search memory while airborne decisions pause.
 pub(super) const ACTOR_FALL_GRACE_SECS: f32 = 0.25;
 pub(super) const ROUTE_STALL_PROGRESS_DISTANCE: f32 = 0.5;
 pub(super) const ROUTE_STALL_TIMEOUT_SECS: f32 = 1.5;
@@ -78,11 +77,11 @@ pub fn actors_behavior_system(
         let airborne = !character.immovable && *support == CharacterSupport::Airborne;
         info.airborne_secs = if airborne { info.airborne_secs + delta } else { 0.0 };
         let falling = info.airborne_secs >= ACTOR_FALL_GRACE_SECS;
-        let stationary = character.immovable || falling;
+        let navigating = !character.immovable && !airborne;
         let share = GROUND_WORK_PER_TICK / count
             + usize::from((index + tick.0 as usize) % count < GROUND_WORK_PER_TICK % count);
-        info.ground.tick(delta, if stationary { 0 } else { share });
-        index += usize::from(!stationary);
+        info.ground.tick(delta, if navigating { share } else { 0 });
+        index += usize::from(navigating);
         // Falling below the home volume must not launch a ground search from the terrain beneath it.
         if falling {
             info.ground.clear();
@@ -119,18 +118,20 @@ pub fn actors_behavior_system(
         } else {
             let stalled = tick_runtime_state(info, local_pos, delta, kind_config, &player_states);
             drop_route_onto_lost_bridge(info, nav_graph);
-            if info.route.as_ref().and_then(ActorRoute::next).is_some_and(|next| {
-                !collision_world.character_ground_route_clear(
-                    *pos,
-                    pose.transform_position(&next.position),
-                    character.physics(),
-                    &switch_state.open_barriers,
-                )
-            }) {
+            if !airborne
+                && info.route.as_ref().and_then(ActorRoute::next).is_some_and(|next| {
+                    !collision_world.character_ground_route_clear(
+                        *pos,
+                        pose.transform_position(&next.position),
+                        character.physics(),
+                        &switch_state.open_barriers,
+                    )
+                })
+            {
                 info.set_route(None);
                 info.decision_timer = 0.0;
             }
-            stalled
+            stalled && !airborne
         };
         if stalled {
             info.decision_timer = 0.0;
@@ -187,7 +188,7 @@ pub fn actors_behavior_system(
                     shake_loose(info, &context, &mut rng);
                 } else if character.immovable {
                     decide_stationary_actor(info, &context);
-                } else if falling {
+                } else if airborne {
                     decide_falling_actor(info, &context);
                 } else {
                     match kind_config.attack {
