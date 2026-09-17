@@ -3,7 +3,9 @@
 from dataclasses import dataclass
 
 from .constants import CHECKPOINT_TYPE_LABELS, FACES, ITEM_TYPES, TERRAIN_FACES
-from .nesting import MOTION_LABELS
+from .nesting import MOTION_LABELS, MOTION_TOOLTIPS
+
+NUDGE_TOOLTIPS = ("Wall widths across columns (X) or rows (Z)", "Floor thicknesses upward")
 
 
 @dataclass(frozen=True)
@@ -14,12 +16,13 @@ class PropertyField:
     choices: tuple = ()
     # (value, "#rrggbb") pairs for the choices drawn with a colour swatch.
     colors: tuple = ()
+    tooltip: str = ""
 
 
 def fields_for(window, name):
     fields = []
 
-    def add(key, label, kind="text", choices=(), colors=None):
+    def add(key, label, kind="text", choices=(), colors=None, tooltip=""):
         fields.append(
             PropertyField(
                 (key,) if isinstance(key, str) else key,
@@ -27,6 +30,7 @@ def fields_for(window, name):
                 kind,
                 tuple(choices),
                 tuple((colors or {}).items()),
+                tooltip,
             )
         )
 
@@ -45,8 +49,8 @@ def fields_for(window, name):
         )
     if name == "actor_spawn_zones":
         choice("kind", "Actor", window.actor_kinds)
-        add("count", "Count", "counts")
-        add("respawn_secs", "Respawn (s)", "respawn")
+        add("count", "Count", "counts", tooltip="Counts for one, two, three, etc. players. The last count repeats.")
+        add("respawn_secs", "Respawn (s)", "respawn", tooltip="Seconds before refilling a slot; Never fills it once.")
         add("levels", "Levels", "positive_int")
         add("roam_distance", "Roam (m)", "nonnegative")
     elif name == "player_spawn_zones":
@@ -70,9 +74,9 @@ def fields_for(window, name):
     elif name == "nested_maps":
         choice("map", "Map", window.nested_map_names())
         add("motion", "Motion", "choice", MOTION_LABELS.items())
-        add("travel_secs", "Travel time (s)", "positive")
-        add("pause_secs", "Cycle pause (s)", "nonnegative")
-        add("phase_secs", "Cycle phase (s)", "nonnegative")
+        add("travel_secs", "Travel time (s)", "positive", tooltip=MOTION_TOOLTIPS["travel_secs"])
+        add("pause_secs", "Cycle pause (s)", "nonnegative", tooltip=MOTION_TOOLTIPS["pause_secs"])
+        add("phase_secs", "Cycle phase (s)", "nonnegative", tooltip=MOTION_TOOLTIPS["phase_secs"])
     if name in ("barriers", "light_bridges", "actor_spawn_zones", "nested_maps", "pressure_plates"):
         values = window.switches if name == "pressure_plates" else [None, *window.switches]
         choice("switch", "Switch", values, window.switch_colors)
@@ -87,7 +91,7 @@ def fields_for(window, name):
         )
         for end, label in (("from_nudge", "Nudge end 1"), ("to_nudge", "Nudge end 2")):
             for axis, letter in enumerate(("X", "Y", "Z")):
-                add((end, axis), f"{label} {letter}", "number")
+                add((end, axis), f"{label} {letter}", "number", tooltip=NUDGE_TOOLTIPS[axis == 1])
     return fields
 
 
@@ -99,8 +103,6 @@ def property_value(entry, key):
         return entry.get(key[0], entry.get("all", ""))
     if key[0] == "switch_inverted":
         return entry.get(key[0], False)
-    if key[0] == "motion":
-        return entry.get(key[0], "cycle")
     if key[0] == "levels":
         return entry.get(key[0], 1)
     if key[0] == "roam_distance":

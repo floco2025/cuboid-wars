@@ -28,7 +28,7 @@ from .geometry import (
     ramp_error,
     wall_endpoints_for_cell_side,
 )
-from .nesting import nested_map_cycle, nested_map_shape
+from .nesting import MOTION_LABELS, nested_map_cycle, nested_map_shape
 from .normalization import edge_key, item_cell_error, ladders_overlap, level_label, plate_cell_error
 from .transforms import record_levels, record_rect
 
@@ -400,9 +400,9 @@ def _validate_nested_maps(
             errors.append(f"{label} needs a positive travel time")
         if entry["pause_secs"] < 0 or entry["phase_secs"] < 0:
             errors.append(f"{label} has a negative pause or phase")
-        motion = entry.get("motion", "cycle")
-        if motion not in ("cycle", "follow_switch"):
-            errors.append(f"{label} motion must be cycle or follow_switch")
+        motion = entry["motion"]
+        if motion not in MOTION_LABELS:
+            errors.append(f"{label} motion must be {' or '.join(MOTION_LABELS)}")
         elif motion == "follow_switch" and not entry.get("switch"):
             errors.append(f"{label} Follow switch motion requires a switch")
         for end in ("from_nudge", "to_nudge"):

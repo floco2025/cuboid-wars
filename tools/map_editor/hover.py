@@ -25,6 +25,7 @@ from .constants import (
     NESTED_MAPS_LIST,
 )
 from .display import materials_summary, pressure_plate_label
+from .nesting import MOTION_LABELS, motion_uses_cycle
 from .normalization import edge_key, ladder_key, nested_map_key
 
 SIDE_LABELS = {"N": "North", "S": "South", "E": "East", "W": "West"}
@@ -103,12 +104,16 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
         entry = next(e for e in data[NESTED_MAPS_LIST] if nested_map_key(e) == value)
         label = f"Nested map: {entry['map']}\nLevel {entry['level']}"
         if (entry["level"], entry["from"], entry["from_nudge"]) != (entry["to_level"], entry["to"], entry["to_nudge"]):
+            motion = entry["motion"]
             label += f" → Level {entry['to_level']}"
-            label += f"\nTravel: {entry['travel_secs']:g} s · Pause: {entry['pause_secs']:g} s"
-            if entry["phase_secs"]:
-                label += f"\nPhase: {entry['phase_secs']:g} s"
+            label += f"\n{MOTION_LABELS.get(motion, motion)} · Travel: {entry['travel_secs']:g} s"
+            if motion_uses_cycle(motion):
+                label += f" · Pause: {entry['pause_secs']:g} s"
+                if entry["phase_secs"]:
+                    label += f"\nPhase: {entry['phase_secs']:g} s"
         if entry.get("switch"):
-            label += f"\nSwitch: {entry['switch']}"
+            response = "Off" if entry.get("switch_inverted") else "On"
+            label += f"\nSwitch: {entry['switch']} · Respond when {response}"
         return label
 
     return kind

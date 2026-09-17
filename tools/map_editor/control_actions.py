@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QDialog
 
 from .control_catalogs import edit_catalog
 from .dialogs.control_catalogs import ControlCatalogDialog, FireworksDialog
+from .nesting import DEFAULT_MOTION
 
 
 class ControlActionsMixin:
@@ -55,8 +56,13 @@ class ControlActionsMixin:
             motion = self.recent_nested_map
             if motion is not None and motion.switch:
                 switch = follow(motion.switch)
+                # Follow switch needs its switch, and the next placement
+                # reuses this default without a dialog to say so.
                 self.recent_nested_map = replace(
-                    motion, switch=switch, switch_inverted=bool(switch) and motion.switch_inverted
+                    motion,
+                    switch=switch,
+                    switch_inverted=bool(switch) and motion.switch_inverted,
+                    motion=motion.motion if switch else DEFAULT_MOTION,
                 )
         elif catalog == "barrier_kinds":
             self.recent_barrier_kind = follow(self.recent_barrier_kind) if self.recent_barrier_kind else None

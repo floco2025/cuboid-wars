@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..nesting import MOTION_LABELS, NestedMotion, Nudge
+from ..nesting import DEFAULT_MOTION, MOTION_LABELS, MOTION_TOOLTIPS, NestedMotion, Nudge, motion_uses_cycle
 from .controls import SwitchControl
 
 
@@ -80,7 +80,7 @@ class MotionDialog(QDialog):
         self._motion = QComboBox()
         for value, label in MOTION_LABELS.items():
             self._motion.addItem(label, value)
-        self._motion.setCurrentIndex(self._motion.findData(recent.motion if recent else "cycle"))
+        self._motion.setCurrentIndex(self._motion.findData(recent.motion if recent else DEFAULT_MOTION))
 
         self._to_level = QSpinBox()
         self._to_level.setRange(0, max(0, level_count - 1))
@@ -110,9 +110,9 @@ class MotionDialog(QDialog):
         self.form.addRow("End 2 level:", self._to_level)
         self.form.addRow("Nudge end 1 (x, z wall widths; y floor widths):", _row(self._from_nudge))
         self.form.addRow("Nudge end 2 (x, z wall widths; y floor widths):", _row(self._to_nudge))
-        self._travel.setToolTip("Time to travel the full distance between the two ends.")
-        self._pause.setToolTip("Pause at each end of the cycle.")
-        self._phase.setToolTip("Start this far into the cycle.")
+        self._travel.setToolTip(MOTION_TOOLTIPS["travel_secs"])
+        self._pause.setToolTip(MOTION_TOOLTIPS["pause_secs"])
+        self._phase.setToolTip(MOTION_TOOLTIPS["phase_secs"])
         self._motion.currentIndexChanged.connect(self.sync_enabled)
         self.sync_enabled()
 
@@ -139,7 +139,7 @@ class MotionDialog(QDialog):
         )
 
     def sync_enabled(self):
-        cycle = self._motion.currentData() == "cycle"
+        cycle = motion_uses_cycle(self._motion.currentData())
         for widget in (self._pause, self._phase):
             widget.setEnabled(cycle)
             self.form.labelForField(widget).setEnabled(cycle)

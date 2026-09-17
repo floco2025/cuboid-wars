@@ -254,7 +254,7 @@ class ControlWindowTests(WindowTestCase):
         window.recent_actor_spawn_inverted = True
         window.recent_pressure_plate_switch = "door"
         window.recent_nested_map = NestedMotion(
-            "tile", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lobby", True
+            "tile", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lobby", True, "follow_switch"
         )
         renamed = [
             {"id": "entrance", "activation": "toggle", "reset_on_player_death": "never"},
@@ -267,6 +267,7 @@ class ControlWindowTests(WindowTestCase):
         self.assertEqual(window.recent_barrier_controls, {"switch": "entrance", "switch_inverted": True})
         self.assertEqual(window.recent_actor_spawn_switch, "entrance")
         self.assertEqual(window.recent_nested_map.switch, "entrance")
+        self.assertEqual(window.recent_nested_map.motion, "follow_switch")
         self.assertEqual(window.recent_pressure_plate_switch, "door")
         deleted = [{"id": "entrance", "activation": "toggle", "reset_on_player_death": "never"}]
         with patch("map_editor.control_actions.ControlCatalogDialog.prompt", return_value=(deleted, {})):
@@ -282,3 +283,4 @@ class ControlWindowTests(WindowTestCase):
         self.assertIsNone(window.recent_pressure_plate_switch)
         self.assertIsNone(window.recent_nested_map.switch)
         self.assertFalse(window.recent_nested_map.switch_inverted)
+        self.assertEqual(window.recent_nested_map.motion, "cycle")

@@ -31,7 +31,13 @@ from .constants import (
     ZONE_MODES,
 )
 from .symbols import ITEM_SYMBOLS, paint_item_symbol
-from .nesting import nested_map_label, nested_map_rest_points, nested_map_shape
+from .nesting import (
+    nested_map_footprint,
+    nested_map_footprints,
+    nested_map_label,
+    nested_map_shape,
+    nested_map_starts_at_end_2,
+)
 from .normalization import ladder_spans_level, light_placement_error, nested_map_spans_level, plate_cell_error
 
 from .display import (
@@ -220,7 +226,7 @@ class CanvasPaintingMixin:
         if not (0 <= col < self.window.map_data["grid_cols"] and 0 <= row < self.window.map_data["grid_rows"]):
             return
         if mode == MODE_NESTED_MAP:
-            self._paint_nested_map_footprint(painter, (col, row), self.window.recent_nested_map_name(), cell, dim=True)
+            self._paint_nested_map_hover(painter, (col, row), cell)
             painter.setPen(Qt.PenStyle.NoPen)
             return
         if mode == MODE_PRESSURE_PLATE:
@@ -574,20 +580,13 @@ class CanvasPaintingMixin:
         # A nested map paints on every storey it reaches: the storeys its
         # ends rest on plus its own, so the whole building is visible from
         # each floor it passes.
-        pending = self.window.pending_block
-        moving = (
-            {ref.index for ref in self.window.selection_refs() if ref.name == "nested_maps"}
-            if pending is not None and not pending.duplicate
-            else set()
-        )
+        hidden = self.window.moving_nested_maps()
+        gesture = self.input.gesture
+        if gesture is not None and gesture.kind == "handle" and gesture.handle.ref.name == "nested_maps":
+            hidden.add(gesture.handle.ref.index)
         for index, entry in enumerate(self.window.map_data.get("nested_maps", [])):
-            if index in moving:
-                continue
-            gesture = self.input.gesture
-            if gesture is not None and gesture.kind == "handle" and gesture.handle.ref.name == "nested_maps":
-                if entry == gesture.original:
-                    continue
-            self.paint_nested_map(painter, entry, cell, level_idx)
+            if index not in hidden:
+                self.paint_nested_map(painter, entry, cell, level_idx)
 
     def paint_nested_map(self, painter, entry, cell, level_idx, *, color=None):
         shape = self.preview_nested_map_shape(entry["map"])
@@ -599,14 +598,28 @@ class CanvasPaintingMixin:
         self.paint_motion_span(
             painter, start, end, entry["level"], entry["to_level"], level_idx, cell, storeys, color=color
         )
-        rest_start, rest_end = nested_map_rest_points(entry, self.window.wall_width_cells)
-        name = entry["map"]
-        self._paint_nested_map_footprint(
-            painter, rest_start, name, cell, label=nested_map_label(name, entry["from_nudge"]), color=color
+        name, known = entry["map"], shape is not None
+        ends = list(
+            zip(
+                nested_map_footprints(entry, shape, self.window.wall_width_cells),
+                (entry["from_nudge"], entry["to_nudge"]),
+            )
         )
-        if end != start or rest_end != rest_start:
+        if nested_map_starts_at_end_2(entry):
+            ends.reverse()
+        (home, home_nudge), (away, away_nudge) = ends
+        self._paint_nested_map_footprint(
+            painter, home, nested_map_label(name, home_nudge, known=known), cell, known=known, color=color
+        )
+        if end != start or away != home:
             self._paint_nested_map_footprint(
-                painter, rest_end, name, cell, dashed=True, label=nested_map_label(name, entry["to_nudge"]), color=color
+                painter,
+                away,
+                nested_map_label(name, away_nudge, known=known),
+                cell,
+                dashed=True,
+                known=known,
+                color=color,
             )
         painter.restore()
 
@@ -616,43 +629,63 @@ class CanvasPaintingMixin:
             return nested_map_shape(pending.additions[name])
         return self.window.nested_map_shape(name)
 
+    # The label centred on a footprint, in cells and cut to it. The picker
+    # tests this rectangle and the painter draws into it, so a label is a hit
+    # target exactly where it shows.
+    def nested_map_label_rect(self, footprint, label: str) -> QRectF:
+        metrics = self.fontMetrics()
+        cell = self.cell_size()
+        x0, y0, x1, y1 = footprint
+        width, height = metrics.horizontalAdvance(label) / cell, metrics.height() / cell
+        box = QRectF((x0 + x1 - width) / 2, (y0 + y1 - height) / 2, width, height)
+        return box.intersected(QRectF(x0, y0, x1 - x0, y1 - y0))
+
     def _paint_nested_map_footprint(
         self,
         painter: QPainter,
-        anchor: tuple[float, float],
-        name: str | None,
+        footprint,
+        label: str,
         cell: float,
+        *,
         dashed: bool = False,
         dim: bool = False,
-        label: str | None = None,
+        known: bool = True,
         color=None,
     ) -> None:
-        # The nested map's grid with its cell (0, 0) on the anchor, outlined
-        # solid where it starts and dashed where it arrives, named in the
-        # middle. An unknown map is a red single cell asking to be fixed.
-        shape = self.preview_nested_map_shape(name) if name else None
-        if shape is None:
-            cols, rows, color, label = 1, 1, QColor(248, 113, 113), f"{name or '?'}?"
-        else:
-            cols, rows, color = shape.grid_cols, shape.grid_rows, QColor(color or NESTED_MAP_COLOR)
-            label = label or name
+        # The nested map's grid outlined solid where it rests and dashed
+        # where it arrives, named in the middle. An unknown map is a red
+        # single cell asking to be fixed.
+        color = QColor(color or NESTED_MAP_COLOR) if known else QColor(248, 113, 113)
         color.setAlpha(120 if dim else 230)
-        rect = QRectF(anchor[0] * cell + 2, anchor[1] * cell + 2, cols * cell - 4, rows * cell - 4)
+        x0, y0, x1, y1 = footprint
         pen = QPen(color, 2)
         if dashed:
             pen.setStyle(Qt.PenStyle.DashLine)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRect(rect)
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
+        painter.drawRect(QRectF(x0 * cell + 2, y0 * cell + 2, (x1 - x0) * cell - 4, (y1 - y0) * cell - 4))
+        box = self.nested_map_label_rect(footprint, label)
+        painter.drawText(
+            QRectF(box.x() * cell, box.y() * cell, box.width() * cell, box.height() * cell),
+            Qt.AlignmentFlag.AlignCenter,
+            label,
+        )
         painter.setPen(Qt.PenStyle.NoPen)
+
+    def _paint_nested_map_hover(self, painter: QPainter, anchor, cell: float, *, dashed: bool = False) -> None:
+        name = self.window.recent_nested_map_name()
+        shape = self.preview_nested_map_shape(name) if name else None
+        known = shape is not None
+        footprint = nested_map_footprint(anchor, shape)
+        self._paint_nested_map_footprint(
+            painter, footprint, nested_map_label(name, known=known), cell, dashed=dashed, dim=True, known=known
+        )
 
     def _paint_nested_map_drag(self, painter: QPainter, cell: float) -> None:
         start, current = self.drag_start_cell, self.drag_current_cell
         level_idx = self.window.current_level
-        name = self.window.recent_nested_map_name()
         self.paint_motion_span(painter, start, current, level_idx, level_idx, level_idx, cell, 1, dim=True)
-        self._paint_nested_map_footprint(painter, current, name, cell, dashed=current != start, dim=True)
+        self._paint_nested_map_hover(painter, current, cell, dashed=current != start)
 
     def _paint_wall_material_drag(self, painter: QPainter, cell: float) -> None:
         # Grid-point based: 2D rectangle when the drag spans both axes, or a

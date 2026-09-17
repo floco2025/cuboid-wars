@@ -167,12 +167,16 @@ def insert_level_data(map_data: dict, insert_at: int, *, remove_crossing_ramps: 
     return after
 
 
-def remove_level_data(map_data: dict, removed: int) -> dict:
-    if len(map_data["levels"]) <= 1:
-        raise ValueError("A map needs at least one level.")
+def _without_level(map_data: dict, removed: int) -> dict:
     after = remap_levels(map_data, removed, remove=True)
     after["levels"].pop(removed)
     return after
+
+
+def remove_level_data(map_data: dict, removed: int) -> dict:
+    if len(map_data["levels"]) <= 1:
+        raise ValueError("A map needs at least one level.")
+    return _without_level(map_data, removed)
 
 
 def edit_levels_data(map_data: dict, levels: list[tuple[int | None, str]]) -> dict:
@@ -184,14 +188,9 @@ def edit_levels_data(map_data: dict, levels: list[tuple[int | None, str]]) -> di
     after = copy.deepcopy(map_data)
     # Derive geometry from the final rows so adding then removing a new row
     # cannot leave behind a deleted ramp or an expanded spawn zone.
-    if kept:
-        for index in reversed(range(len(map_data["levels"]))):
-            if index not in kept:
-                after = remove_level_data(after, index)
-    else:
-        after["levels"] = []
-        for name in GLOBAL_LISTS:
-            after[name] = []
+    for index in reversed(range(len(map_data["levels"]))):
+        if index not in kept:
+            after = _without_level(after, index)
     for index, (original, name) in enumerate(levels):
         if original is None:
             after = insert_level_data(after, index, remove_crossing_ramps=True)

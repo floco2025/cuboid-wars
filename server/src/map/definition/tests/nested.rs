@@ -1,4 +1,5 @@
 use super::*;
+use common::protocol::CarrierMotion;
 
 fn motion(level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> MotionDef {
     MotionDef {
@@ -458,12 +459,12 @@ fn nested_player_spawn_zones_items_and_plates_carry_their_carrier() {
 fn a_nested_map_names_the_switch_that_runs_its_carrier() {
     let mut entry = nested("room", 0, [2, 2], [2, 5], 0);
     entry.motion.switch = Some(FIREWORKS.into());
-    entry.motion.motion = common::protocol::CarrierMotion::FollowSwitch;
+    entry.motion.motion = CarrierMotion::FollowSwitch;
     let host_def = host(vec![entry]);
     let (layout, _) = compile_host(&host_def, &tree(vec![("room", room())]));
     let fireworks = switch_id(&empty_kind_table(), &no_bridges(), FIREWORKS);
     assert_eq!(layout.carriers[0].switch, Some(fireworks));
-    assert_eq!(layout.carriers[0].motion, common::protocol::CarrierMotion::FollowSwitch);
+    assert_eq!(layout.carriers[0].motion, CarrierMotion::FollowSwitch);
 
     let mut entry = nested("room", 0, [2, 2], [2, 5], 0);
     entry.motion.switch = Some("void".into());
@@ -501,10 +502,10 @@ fn motion_defaults_to_cycle_and_requires_a_known_mode() {
         "map": "room", "level": 0, "from": [1, 1], "to": [3, 1], "travel_secs": 2.0
     });
     let entry: NestedMapDef = serde_json::from_value(value.clone()).expect("default motion rejected");
-    assert_eq!(entry.motion.motion, common::protocol::CarrierMotion::Cycle);
+    assert_eq!(entry.motion.motion, CarrierMotion::Cycle);
     value["motion"] = serde_json::json!("follow_switch");
     let entry: NestedMapDef = serde_json::from_value(value.clone()).expect("follow motion rejected");
-    assert_eq!(entry.motion.motion, common::protocol::CarrierMotion::FollowSwitch);
+    assert_eq!(entry.motion.motion, CarrierMotion::FollowSwitch);
     value["motion"] = serde_json::json!("return");
     assert!(serde_json::from_value::<NestedMapDef>(value).is_err());
 }
@@ -512,7 +513,7 @@ fn motion_defaults_to_cycle_and_requires_a_known_mode() {
 #[test]
 fn follow_switch_motion_requires_a_switch_assignment() {
     let mut entry = nested("room", 0, [2, 2], [2, 5], 0);
-    entry.motion.motion = common::protocol::CarrierMotion::FollowSwitch;
+    entry.motion.motion = CarrierMotion::FollowSwitch;
     let mut map = host(vec![entry]);
     let error = validate_map(&map).expect_err("unassigned follow motion accepted");
     assert!(

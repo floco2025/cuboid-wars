@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication, QMenu
 from . import constants as c
 from .elements import ElementRef, element_refs, refs_for_hit, refs_in_region, refs_on_grid_line
 from .geometry import rect_from_cells, zone_handle_centers
-from .nesting import nested_map_label, nested_map_rest_points
+from .nesting import nested_map_footprints, nested_map_label
 from .normalization import nested_map_spans_level, normalize_map
 from .placement_input import CLICK_TOOLS, RELEASE_TOOLS
 from .regions import TileRegion
@@ -98,7 +98,7 @@ class CanvasInput:
             None,
         )
 
-    def hits(self, point, *, alternate=False):
+    def hits(self, point, *, alternate=False, additive=False):
         if alternate:
             zone = self.window.spawn_zone_at(point)
             if zone is not None:
@@ -111,40 +111,39 @@ class CanvasInput:
                         for end, level in (("from", "level"), ("to", "to_level"))
                     ):
                         return [ref]
-        nested = self.nested_map_at(point)
-        if nested is not None:
-            return [nested]
-        return refs_for_hit(self.window.map_data, self.window.current_level, self.window.hit_at(point))
+        hit = self.window.hit_at(point)
+        # A nested map's outline and label rank with its anchor cells in
+        # `hit_at`: above the floors, below everything else, so what stands
+        # on its edge stays clickable. Its selected footprint is a drag
+        # handle, not something a Shift-click toggles.
+        if hit is None or hit[0] in (c.HIT_FLOOR, c.HIT_INACCESSIBLE_FLOOR, c.HIT_TERRAIN):
+            nested = self.nested_map_at(point, selected_footprint=not additive)
+            if nested is not None:
+                return [nested]
+        return refs_for_hit(self.window.map_data, self.window.current_level, hit)
 
-    def nested_map_at(self, point):
+    def nested_map_at(self, point, *, selected_footprint):
         tolerance = self.canvas.pick_tolerance()
-        metrics = self.canvas.fontMetrics()
-        cell = self.canvas.cell_size()
         entries = self.window.map_data.get("nested_maps", [])
         for index in reversed(range(len(entries))):
             entry = entries[index]
             shape = self.window.nested_map_shape(entry["map"])
-            if shape is None or not nested_map_spans_level(entry, self.window.current_level, shape.level_count):
+            if not nested_map_spans_level(entry, self.window.current_level, shape.level_count if shape else 1):
                 continue
             ref = ElementRef("nested_maps", index)
-            for (x, y), nudge in zip(
-                nested_map_rest_points(entry, self.window.wall_width_cells), (entry["from_nudge"], entry["to_nudge"])
-            ):
-                right, bottom = x + shape.grid_cols, y + shape.grid_rows
+            nudges = (entry["from_nudge"], entry["to_nudge"])
+            for footprint, nudge in zip(nested_map_footprints(entry, shape, self.window.wall_width_cells), nudges):
+                x0, y0, x1, y1 = footprint
                 if not (
-                    x - tolerance <= point.x() <= right + tolerance and y - tolerance <= point.y() <= bottom + tolerance
+                    x0 - tolerance <= point.x() <= x1 + tolerance and y0 - tolerance <= point.y() <= y1 + tolerance
                 ):
                     continue
-                border = (
-                    min(abs(point.x() - x), abs(point.x() - right), abs(point.y() - y), abs(point.y() - bottom))
-                    <= tolerance
+                on_outline = (
+                    min(abs(point.x() - x0), abs(point.x() - x1), abs(point.y() - y0), abs(point.y() - y1)) <= tolerance
                 )
-                label = nested_map_label(entry["map"], nudge)
-                on_label = (
-                    abs(point.x() - (x + right) / 2) <= metrics.horizontalAdvance(label) / cell / 2
-                    and abs(point.y() - (y + bottom) / 2) <= metrics.height() / cell / 2
-                )
-                if border or on_label or ref in self.window.selection.objects:
+                label = nested_map_label(entry["map"], nudge, known=shape is not None)
+                on_label = self.canvas.nested_map_label_rect(footprint, label).contains(point)
+                if on_outline or on_label or (selected_footprint and ref in self.window.selection.objects):
                     return ref
         return None
 
@@ -193,7 +192,7 @@ class CanvasInput:
                 copy.deepcopy(handle.ref.get(self.window.map_data)),
             )
         elif self.within_grid(point):
-            hits = self.hits(point, alternate=alternate)
+            hits = self.hits(point, alternate=alternate, additive=additive)
             if self.window.selection_kind == "Tiles" and not alternate:
                 if self.window.selection.area is not None and self.window.selection.contains(point, hits):
                     kind = "move"
@@ -423,7 +422,7 @@ class CanvasInput:
     def cancel(self):
         gesture = self.gesture
         self.gesture = None
-        if gesture is not None and gesture.kind in ("box", "add_box"):
+        if gesture is not None and gesture.kind in ("box", "add_box", "move", "blocked"):
             self.window.set_selection(gesture.initial)
         self.canvas._clear_hover()
         self.canvas.setCursor(

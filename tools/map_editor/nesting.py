@@ -2,12 +2,33 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from .constants import NESTED_MAPS_LIST
 
 Nudge = tuple[float, float, float]
-MOTION_LABELS = {"cycle": "Cycle", "follow_switch": "Follow switch"}
+Footprint = tuple[float, float, float, float]
+DEFAULT_MOTION = "cycle"
+MOTION_LABELS = {DEFAULT_MOTION: "Cycle", "follow_switch": "Follow switch"}
+MOTION_TOOLTIPS = {
+    "travel_secs": "Time to travel the full distance between the two ends.",
+    "pause_secs": "Pause at each end of the cycle.",
+    "phase_secs": "Start this far into the cycle.",
+}
+
+
+def motion_uses_cycle(motion) -> bool:
+    """Whether the cycle pause and phase apply: only Cycle repeats, while
+    Follow switch holds at whichever end its switch sends it to."""
+    return motion == DEFAULT_MOTION
+
+
+def nested_map_starts_at_end_2(entry: dict) -> bool:
+    """Where the nested map rests before any switch input: end 1, unless it
+    follows a switch whose Off response sends it to end 2, as the game's
+    `CarrierRun::initial` does."""
+    return entry.get("motion") == "follow_switch" and bool(entry.get("switch_inverted"))
 
 
 @dataclass(frozen=True)
@@ -25,10 +46,13 @@ class NestedMotion:
     # Follow switch requires this; a Cycle without it runs continuously.
     switch: str | None = None
     switch_inverted: bool = False
-    motion: str = "cycle"
+    motion: str = DEFAULT_MOTION
 
     @classmethod
     def from_entry(cls, entry: dict) -> "NestedMotion":
+        # An unknown motion stays on the record for validation; it is no
+        # placement default.
+        motion = entry.get("motion")
         return cls(
             entry["map"],
             entry["to_level"],
@@ -39,7 +63,7 @@ class NestedMotion:
             tuple(entry["to_nudge"]),
             entry.get("switch") or None,
             entry.get("switch_inverted", False),
-            entry.get("motion", "cycle"),
+            motion if motion in MOTION_LABELS else DEFAULT_MOTION,
         )
 
     def to_entry(self) -> dict:
@@ -122,9 +146,28 @@ def nested_map_rest_points(entry: dict, wall_width_cells: float) -> tuple[tuple[
     return rest(entry["from"], entry["from_nudge"]), rest(entry["to"], entry["to_nudge"])
 
 
-def nested_map_label(name: str, nudge: list[float]) -> str:
+def nested_map_footprint(anchor: Sequence[float], shape: NestedMapShape | None) -> Footprint:
+    """The cells the nested map's grid covers with its cell (0, 0) on
+    `anchor`, as (x0, y0, x1, y1); one cell for unknown geometry, so the
+    canvas has something to outline."""
+    cols, rows = (shape.grid_cols, shape.grid_rows) if shape else (1, 1)
+    return (anchor[0], anchor[1], anchor[0] + cols, anchor[1] + rows)
+
+
+def nested_map_footprints(
+    entry: dict, shape: NestedMapShape | None, wall_width_cells: float
+) -> tuple[Footprint, Footprint]:
+    """The footprint where the nested map rests at each end."""
+    start, end = nested_map_rest_points(entry, wall_width_cells)
+    return nested_map_footprint(start, shape), nested_map_footprint(end, shape)
+
+
+def nested_map_label(name: str | None, nudge: Sequence[float] = (), *, known: bool = True) -> str:
     """The footprint's label: the map's name, and its y nudge when it has
-    one, since the plan cannot draw a vertical displacement."""
+    one, since the plan cannot draw a vertical displacement; a question
+    mark when its geometry is unknown, asking to be fixed."""
+    if not known:
+        return f"{name or '?'}?"
     return name if len(nudge) != 3 or nudge[1] == 0 else f"{name} y{nudge[1]:+g}"
 
 

@@ -223,7 +223,7 @@ def _nested_map_body(entry: dict) -> str:
         "to_nudge": entry["to_nudge"],
     }
     body.update(control_fields(entry))
-    body["motion"] = entry.get("motion", "cycle")
+    body["motion"] = entry["motion"]
     return _inline_object_body(body)
 
 

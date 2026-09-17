@@ -186,14 +186,12 @@ impl Carriers {
                 index + 1,
                 carrier.parent.0
             );
-            let run_ticks = if carrier.switch.is_some() {
-                CarrierRun::initial(carrier).run_ticks_at(0, carrier)
-            } else {
-                0
-            };
-            let pose = carriers
-                .pose(carrier.parent)
-                .then(&CarrierPose::from_translation(carrier_offset_at(carrier, run_ticks)));
+            let pose = carriers.pose_at(
+                carrier,
+                CarrierId::from_carried_index(index),
+                0,
+                &SwitchState::default(),
+            );
             carriers.carried.push(CarrierRuntime {
                 carrier: *carrier,
                 previous: pose,
@@ -225,23 +223,28 @@ impl Carriers {
         (0..self.carried.len()).map(CarrierId::from_carried_index)
     }
 
+    // The carrier's world pose at `tick` from its parent's current pose: a
+    // free carrier runs on the shared tick, a switched one on the run the
+    // switch state names, or its initial run before the state names one.
+    fn pose_at(&self, carrier: &Carrier, id: CarrierId, tick: u32, switch_state: &SwitchState) -> CarrierPose {
+        let run_ticks = if carrier.switch.is_some() {
+            switch_state
+                .carrier_run(id)
+                .unwrap_or_else(|| CarrierRun::initial(carrier))
+                .run_ticks_at(tick, carrier)
+        } else {
+            tick
+        };
+        self.pose(carrier.parent)
+            .then(&CarrierPose::from_translation(carrier_offset_at(carrier, run_ticks)))
+    }
+
     // Parents precede children, so each world pose composes from a parent
     // already at this tick.
     pub fn advance(&mut self, tick: u32, switch_state: &SwitchState) {
         for index in 0..self.carried.len() {
             let carrier = self.carried[index].carrier;
-            let id = CarrierId::from_carried_index(index);
-            let run_ticks = if carrier.switch.is_some() {
-                switch_state
-                    .carrier_run(id)
-                    .unwrap_or_else(|| CarrierRun::initial(&carrier))
-                    .run_ticks_at(tick, &carrier)
-            } else {
-                tick
-            };
-            let pose = self
-                .pose(carrier.parent)
-                .then(&CarrierPose::from_translation(carrier_offset_at(&carrier, run_ticks)));
+            let pose = self.pose_at(&carrier, CarrierId::from_carried_index(index), tick, switch_state);
             let runtime = &mut self.carried[index];
             runtime.previous = runtime.current;
             runtime.current = pose;

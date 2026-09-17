@@ -23,6 +23,7 @@ from .constants import FACES
 from .display import color_icon, portal_label
 from .transforms import record_rect
 from .tool_catalog import TOOLS
+from .nesting import motion_uses_cycle
 from .normalization import normalize_map
 from .property_fields import fields_for, property_value
 from .spawn_counts import actor_count_error
@@ -39,6 +40,7 @@ class SelectionProperties(QDockWidget):
         self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea)
         self.refs = []
         self.signature = None
+        self.data = None
         self.field_signature = None
         self.widgets = {}
         self.fields = {}
@@ -77,19 +79,15 @@ class SelectionProperties(QDockWidget):
     def set_selection(self, refs):
         if self.applying:
             return
-        signature = (
-            self.window.path,
-            self.window.doc.active_map,
-            tuple(refs),
-            [copy.deepcopy(ref.get(self.window.map_data)) for ref in refs],
-        )
-        if signature == self.signature:
+        refs = list(refs)
+        if self.shows(refs):
             # A refresh must not replace a draft, its cursor, or its undo
             # history. Updated catalog choices appear after Apply or Revert.
             if self.changed_keys or self.field_signature == self.current_field_signature():
                 return
-        self.signature = signature
-        self.refs = list(refs)
+        self.signature = (self.window.path, self.window.doc.active_map, tuple(refs))
+        self.data = self.window.map_data
+        self.refs = refs
         previous = self.group.currentData()
         self.group.blockSignals(True)
         self.group.clear()
@@ -102,6 +100,16 @@ class SelectionProperties(QDockWidget):
         self.group.blockSignals(False)
         self.group.setVisible(self.group.count() > 2)
         self.rebuild()
+
+    # Whether the panel already shows these records. A committed record is
+    # never edited in place, every change installs a new root, so the root
+    # the panel was built from vouches for its records, and a new root only
+    # needs the selected records compared.
+    def shows(self, refs):
+        if self.signature != (self.window.path, self.window.doc.active_map, tuple(refs)):
+            return False
+        data = self.window.map_data
+        return data is self.data or all(ref.get(data) == ref.get(self.data) for ref in refs)
 
     def targets(self):
         name = self.group.currentData()
@@ -170,18 +178,8 @@ class SelectionProperties(QDockWidget):
                         text = str(value)
                     widget.setText(text)
                 widget.textEdited.connect(lambda _text, key=field.key: self.mark_changed(key))
-            if field.key == ("count",):
-                widget.setToolTip("Counts for one, two, three, etc. players. The last count repeats.")
-            elif field.kind == "respawn":
-                widget.setToolTip("Seconds before refilling a slot; Never fills it once.")
-            elif field.key == ("pause_secs",):
-                widget.setToolTip("Pause at each end of the cycle.")
-            elif field.key == ("phase_secs",):
-                widget.setToolTip("Start this far into the cycle.")
-            elif field.key[0] in ("from_nudge", "to_nudge"):
-                widget.setToolTip(
-                    "Floor thicknesses upward" if field.key[1] == 1 else "Wall widths across columns (X) or rows (Z)"
-                )
+            if field.tooltip:
+                widget.setToolTip(field.tooltip)
             if field.key == ("kind",) and names == ["actor_spawn_zones"]:
                 widget.setEditable(True)
                 widget.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
@@ -314,7 +312,8 @@ class SelectionProperties(QDockWidget):
             switch = self.widgets[("switch",)].currentData()
             self.widgets[("switch_inverted",)].setEnabled(switch is not None)
         if ("motion",) in self.widgets:
-            cycle = self.widgets[("motion",)].currentData() != "follow_switch"
+            motion = self.widgets[("motion",)].currentData()
+            cycle = motion is _MIXED or motion_uses_cycle(motion)
             for key in ("pause_secs", "phase_secs"):
                 self.widgets[(key,)].setEnabled(cycle)
                 self.labels[(key,)].setEnabled(cycle)

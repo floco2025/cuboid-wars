@@ -11,7 +11,7 @@ from .block_transforms import transform_block
 from .checkpoint_names import name_checkpoint_copies
 from .object_selection import block_fits, copy_objects, selected_data, paste_objects, refs_for_block
 from .constants import MODE_SELECT
-from .regions import copy_region, delete_region, paste_region
+from .regions import copy_region, delete_region, nested_map_ends_inside, paste_region
 from .transforms import record_levels, record_lists, translate_entry
 from .selection_painting import paint_outline, paint_caption
 
@@ -60,6 +60,21 @@ class SelectionTransferMixin:
             self.pending_block.drag_origin = (point.x(), point.y())
         self.canvas.update()
         return True
+
+    # The nested maps a pending move takes along, by index: the selected
+    # ones, or for a tile area the ones it holds whole, since one crossing
+    # its edge stays put.
+    def moving_nested_maps(self):
+        pending = self.pending_block
+        if pending is None or pending.duplicate:
+            return set()
+        if pending.refs is not None:
+            return {ref.index for ref in pending.refs if ref.name == "nested_maps"}
+        return {
+            index
+            for index, entry in enumerate(self.map_data.get("nested_maps", []))
+            if all(nested_map_ends_inside(entry, pending.source))
+        }
 
     def duplicate_selection(self):
         if self.pending_block is not None:

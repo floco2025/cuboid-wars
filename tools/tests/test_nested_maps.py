@@ -4,10 +4,21 @@ from unittest.mock import Mock, patch
 from PySide6.QtCore import QPointF
 
 from editor_fixtures import EditorHost, NESTED_SHAPES, WindowTestCase, floor, furnished_map, nested
+from map_editor.constants import HIT_NESTED_MAP
 from map_editor.dialogs import MotionDialog
+from map_editor.hover import element_hover_text
 from map_editor.io import read_map
-from map_editor.nesting import NestedMapShape, NestedMotion, nested_map_cycle, nested_map_label, nested_map_rest_points
-from map_editor.normalization import empty_map, normalize_map
+from map_editor.nesting import (
+    NestedMapShape,
+    NestedMotion,
+    nested_map_cycle,
+    nested_map_footprint,
+    nested_map_footprints,
+    nested_map_label,
+    nested_map_rest_points,
+    nested_map_starts_at_end_2,
+)
+from map_editor.normalization import empty_map, nested_map_key, normalize_map
 from map_editor.validation import validate_map
 
 
@@ -107,6 +118,45 @@ class NestedMapTests(unittest.TestCase):
         self.assertAlmostEqual(end[1], 3.3)
         self.assertEqual(nested_map_label("cabin", entry["from_nudge"]), "cabin y-2")
         self.assertEqual(nested_map_label("cabin", entry["to_nudge"]), "cabin")
+        self.assertEqual(nested_map_label("cabin", known=False), "cabin?")
+        footprints = nested_map_footprints(entry, NESTED_SHAPES["cabin"], 0.1)
+        self.assertEqual(footprints[0], (start[0], start[1], start[0] + 3, start[1] + 2))
+        self.assertEqual(footprints[1], (end[0], end[1], end[0] + 3, end[1] + 2))
+        self.assertEqual(nested_map_footprint((2, 3), None), (2, 3, 3, 4))
+
+    def test_sampling_keeps_no_unknown_motion_as_a_placement_default(self) -> None:
+        entry = {**nested("cabin", 0, [1, 1], [3, 1]), "motion": "bounce"}
+        self.assertEqual(NestedMotion.from_entry(entry).motion, "cycle")
+        followed = {**entry, "motion": "follow_switch", "switch": "lift"}
+        self.assertEqual(NestedMotion.from_entry(followed).motion, "follow_switch")
+
+    def test_an_inverted_follow_switch_map_rests_at_end_2(self) -> None:
+        entry = {**nested("cabin", 0, [1, 1], [3, 1]), "switch": "lift", "switch_inverted": True}
+        self.assertFalse(nested_map_starts_at_end_2(entry))
+        self.assertTrue(nested_map_starts_at_end_2({**entry, "motion": "follow_switch"}))
+        self.assertFalse(nested_map_starts_at_end_2({**entry, "motion": "follow_switch", "switch_inverted": False}))
+
+    def test_hover_text_names_the_motion_and_the_switch_response(self) -> None:
+        data = empty_map(8, 8)
+        entry = {
+            **nested("cabin", 0, [1, 1], [3, 1]),
+            "pause_secs": 5.0,
+            "phase_secs": 2.0,
+            "switch": "lift",
+            "switch_inverted": True,
+        }
+        data["nested_maps"] = [entry]
+        hit = (HIT_NESTED_MAP, nested_map_key(entry))
+        self.assertEqual(
+            element_hover_text(data, 0, hit),
+            "Nested map: cabin\nLevel 0 → Level 0\nCycle · Travel: 2 s · Pause: 5 s\nPhase: 2 s"
+            "\nSwitch: lift · Respond when Off",
+        )
+        entry["motion"] = "follow_switch"
+        self.assertEqual(
+            element_hover_text(data, 0, hit),
+            "Nested map: cabin\nLevel 0 → Level 0\nFollow switch · Travel: 2 s\nSwitch: lift · Respond when Off",
+        )
 
 
 class NestedMotionWindowTests(WindowTestCase):

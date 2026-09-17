@@ -345,8 +345,9 @@ def hit_at(data: dict, level_idx: int, px: float, py: float, tolerance: float):
             return (HIT_RAMP, (lower, tuple(ramp["low"]), tuple(ramp["high"])))
     if any(b["col"] == col and b["row"] == row for b in level.get("light_bridges", [])):
         return (HIT_LIGHT_BRIDGE, (col, row))
-    # Only a nested map's anchor cells are hit targets: whatever lies
-    # under its footprint stays clickable.
+    # A nested map's anchor cells rank above the floors and below every
+    # other record, so whatever lies under its footprint stays clickable;
+    # Select picks its outline and label at the same rank (`CanvasInput.hits`).
     for entry in data.get(NESTED_MAPS_LIST, []):
         at_start = entry["level"] == level_idx and entry["from"] == [col, row]
         at_end = entry["to_level"] == level_idx and entry["to"] == [col, row]

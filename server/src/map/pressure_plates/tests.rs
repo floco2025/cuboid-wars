@@ -27,9 +27,10 @@ use common::{
     map::{CarrierRun, Carriers, MapGeometry},
     physics::CollisionWorld,
     protocol::{
-        Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, Carrier, CarrierId, HexColor, KindDef, LightBridge,
-        MapLayout, MapSettings, PlayerId, PlayerMarker, PortalMode, Position, QuestId, QuestScope, ServerMessage,
-        ServerTick, SwitchDef, SwitchId, SwitchState, SwitchTable, server_tick_advance_system,
+        Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, Carrier, CarrierId, CarrierMotion, HexColor,
+        KindDef, LightBridge, MapLayout, MapSettings, PlayerId, PlayerMarker, PortalMode, Position, QuestId,
+        QuestScope, ServerMessage, ServerTick, SwitchDef, SwitchId, SwitchState, SwitchTable,
+        server_tick_advance_system,
     },
 };
 
@@ -830,7 +831,7 @@ fn a_death_reset_stops_the_carrier() {
 fn carriers_on_one_switch_can_cycle_or_follow_independently() {
     let mut layout = switched_carrier_layout();
     layout.carriers.push(Carrier {
-        motion: common::protocol::CarrierMotion::FollowSwitch,
+        motion: CarrierMotion::FollowSwitch,
         ..layout.carriers[0]
     });
     let mut app = app_with_layout(catalog(Vec::new()), vec![lobby_plate()], layout);
@@ -889,7 +890,7 @@ fn carriers_on_one_switch_can_cycle_or_follow_independently() {
 #[test]
 fn an_inverted_carrier_returns_when_its_switch_turns_on() {
     let mut layout = switched_carrier_layout();
-    layout.carriers[0].motion = common::protocol::CarrierMotion::FollowSwitch;
+    layout.carriers[0].motion = CarrierMotion::FollowSwitch;
     layout.carriers[0].switch_inverted = true;
     let mut app = app_with_layout(catalog(Vec::new()), vec![lobby_plate()], layout);
     app.add_systems(

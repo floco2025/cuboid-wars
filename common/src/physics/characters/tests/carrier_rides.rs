@@ -1,8 +1,9 @@
 use super::*;
 use crate::{
     constants::TICK_SECS,
+    map::CarrierRun,
     physics::AirborneMomentum,
-    protocol::{Carrier, CarrierId},
+    protocol::{Carrier, CarrierId, CarrierMotion, SwitchId, SwitchState},
 };
 
 fn lift() -> (Carrier, Floor) {
@@ -27,14 +28,9 @@ const RISE_PER_TICK: f32 = LEVEL_HEIGHT / 60.0;
 
 #[test]
 fn a_rider_stays_on_a_carrier_when_deactivation_reverses_it_home() {
-    use crate::{
-        map::CarrierRun,
-        protocol::{SwitchId, SwitchState},
-    };
-
     for (mut carrier, floor) in [slider(), lift()] {
         carrier.switch = Some(SwitchId(0));
-        carrier.motion = crate::protocol::CarrierMotion::FollowSwitch;
+        carrier.motion = CarrierMotion::FollowSwitch;
         let layout = MapLayout {
             carriers: vec![carrier],
             floors: vec![floor],

@@ -285,7 +285,7 @@ fn following_starts_at_the_endpoint_selected_by_the_initial_off_switch() {
 #[test]
 fn a_replicated_return_handles_tick_wrap_and_a_trailing_clock() {
     let carrier = Carrier {
-        motion: crate::protocol::CarrierMotion::FollowSwitch,
+        motion: CarrierMotion::FollowSwitch,
         ..switched()
     };
     let returning = CarrierRun::initial(&carrier)

@@ -17,6 +17,7 @@ from .constants import (
     MAP_NAME_RE,
     TERRAIN_FACES,
 )
+from .nesting import DEFAULT_MOTION
 from .spawn_counts import actor_count_key
 from .geometry import normalized_wall, ramp_cells, ramp_cells_on_level, wall_endpoints_for_cell_side
 
@@ -329,7 +330,7 @@ def normalize_nested_map(entry: dict) -> dict:
         "from_nudge": [float(axis) for axis in entry.get("from_nudge", (0.0, 0.0, 0.0))],
         "to_nudge": [float(axis) for axis in entry.get("to_nudge", (0.0, 0.0, 0.0))],
     }
-    normalized["motion"] = copy.deepcopy(entry.get("motion", "cycle"))
+    normalized["motion"] = copy.deepcopy(entry.get("motion", DEFAULT_MOTION))
     normalized.update(control_fields(entry))
     return normalized
 

@@ -65,13 +65,21 @@ WHOLE_OBJECT_NOUNS = {
 }
 
 
+# Whether the region holds each end of a nested map's motion, its anchor
+# cell on its storey.
+def nested_map_ends_inside(entry: dict, region: TileRegion) -> tuple[bool, bool]:
+    return (
+        region.contains_level(entry["level"]) and region.contains_cell(*entry["from"]),
+        region.contains_level(entry["to_level"]) and region.contains_cell(*entry["to"]),
+    )
+
+
 def _global_selected(name: str, entry: dict, region: TileRegion, subject: str, include: str) -> bool:
     if name in WHOLE_OBJECT_NOUNS:
         lower, upper = record_levels(entry)
         return _whole_object(region, record_rect(name, entry), lower, upper, WHOLE_OBJECT_NOUNS[name], subject, include)
     if name == "nested_maps":
-        start = region.contains_level(entry["level"]) and region.contains_cell(*entry["from"])
-        end = region.contains_level(entry["to_level"]) and region.contains_cell(*entry["to"])
+        start, end = nested_map_ends_inside(entry, region)
         if start != end:
             raise ValueError(f"{subject} crosses a nested map's motion. {include} both end tiles and their levels.")
         return start

@@ -673,3 +673,86 @@ class EditorInputTests(WindowTestCase):
         zone = window.map_data["actor_spawn_zones"][0]
         self.assertEqual((zone["cols"], zone["rows"], zone["level"]), ([4, 6], [4, 6], 0))
         self.assertEqual(window.selection_levels, 1)
+
+    def test_records_on_a_nested_footprint_outrank_its_outline_and_selected_interior(self):
+        window = self.window
+        data = empty_map(12, 12)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["floors"] = [floor(col, row) for col in range(1, 5) for row in range(1, 3)]
+        data["levels"][0]["walls"] = [{"c0": 4, "r0": 1, "c1": 4, "r1": 2, "all": DEFAULT_ALIAS}]
+        data["items"] = [{"level": 0, "col": 3, "row": 1, "type": "gold"}]
+        child = empty_map(3, 2)
+        child["player_spawn_zones"] = []
+        data["nested_geometry"] = {"room": child}
+        data["nested_maps"] = [nested("room", 0, [1, 1], [1, 1])]
+        window.doc.replace_with_new(data)
+        hits = window.canvas.input.hits
+        room, wall, item, inner = (
+            ElementRef("nested_maps", 0),
+            ElementRef("walls", 0, 0),
+            ElementRef("items", 0),
+            ElementRef("floors", 3, 0),
+        )
+        self.assertEqual(hits(QPointF(4.0, 1.5)), [wall])
+        self.assertEqual(hits(QPointF(3.5, 1.5)), [item])
+        self.assertEqual(hits(QPointF(1.0, 2.5)), [room])
+        self.assertEqual(hits(QPointF(2.5, 2.7)), [inner])
+        self.click_at(2.5, 2.0)
+        self.assertEqual(window.selection_refs(), [room])
+        self.assertEqual(hits(QPointF(2.5, 2.7)), [room])
+        self.assertEqual(hits(QPointF(2.5, 2.7), additive=True), [inner])
+        self.assertEqual(hits(QPointF(4.0, 1.5)), [wall])
+        self.click_at(2.5, 2.7, Qt.KeyboardModifier.ShiftModifier)
+        self.assertEqual(window.selection_refs(), [room, inner])
+        self.click_at(4.0, 1.5)
+        self.assertEqual(window.selection_refs(), [wall])
+
+    def test_escape_restores_the_selection_a_nested_map_press_replaced(self):
+        window = self.window
+        data = empty_map(12, 12)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["walls"] = [
+            {"c0": 8, "r0": row, "c1": 9, "r1": row, "all": DEFAULT_ALIAS} for row in (6, 7, 8)
+        ]
+        child = empty_map(3, 2)
+        child["player_spawn_zones"] = []
+        data["nested_geometry"] = {"room": child}
+        data["nested_maps"] = [nested("room", 0, [1, 1], [1, 1])]
+        window.doc.replace_with_new(data)
+        before = copy.deepcopy(window.map_data)
+        canvas = window.canvas
+        walls = [ElementRef("walls", index, 0) for index in range(3)]
+        for end in ((2.5, 2.0), (2.5, 5.0)):
+            with self.subTest(end=end):
+                window.inspect_refs(walls)
+                QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=self.point(2.5, 2.0))
+                QTest.mouseMove(canvas, self.point(*end))
+                self.assertEqual(window.selection_refs(), [ElementRef("nested_maps", 0)])
+                QTest.keyClick(canvas, Qt.Key.Key_Escape)
+                QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=self.point(*end))
+                self.assertEqual(window.selection_refs(), walls)
+                self.assertIsNone(window.pending_block)
+                self.assertIsNone(canvas.input.gesture)
+                self.assertEqual(window.map_data, before)
+
+    def test_a_tile_move_hides_only_the_nested_maps_it_carries(self):
+        window = self.window
+        data = empty_map(12, 12)
+        data["player_spawn_zones"] = []
+        child = empty_map(1, 1)
+        child["player_spawn_zones"] = []
+        data["nested_geometry"] = {"tile": child}
+        data["nested_maps"] = [nested("tile", 0, [0, 0], [6, 6]), nested("tile", 0, [2, 2], [2, 2])]
+        window.doc.replace_with_new(data)
+        window.selection_kind_changed("Tiles")
+        window.set_tile_selection((1, 1, 5, 5))
+        self.assertTrue(window.begin_transfer(point=QPointF(2.5, 2.5)))
+        self.assertEqual(window.moving_nested_maps(), {1})
+        window.cancel_interaction()
+        self.assertTrue(window.begin_transfer(duplicate=True))
+        self.assertEqual(window.moving_nested_maps(), set())
+        window.cancel_interaction()
+        window.selection_kind_changed("Objects")
+        window.inspect_refs([ElementRef("nested_maps", 0)])
+        self.assertTrue(window.begin_transfer(point=QPointF(0.5, 0.5)))
+        self.assertEqual(window.moving_nested_maps(), {0})
