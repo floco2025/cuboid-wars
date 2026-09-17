@@ -2,6 +2,7 @@
   "textures": {
     "pedestal": { "material": "stucco1", "portalable": false },
     "portal": { "material": "titanium-scuffed", "portalable": true },
+    "shuttle": { "material": "orbed-plastic", "portalable": false },
     "walkway": { "material": "steelplate1", "portalable": false }
   },
   "celestial": {

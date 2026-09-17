@@ -14,6 +14,19 @@
       },
       "footstep": "steel"
     },
+    "orbed-plastic": {
+      "tile_size": 1.5,
+      "metallic": 0.0,
+      "roughness": 0.0,
+      "repeat": true,
+      "linear_data_textures": true,
+      "textures": {
+        "base_color": "textures/orbed-plastic-ue/orbed-plastic_albedo.png",
+        "normal": "textures/orbed-plastic-ue/orbed-plastic_normal-dx.png",
+        "occlusion": "textures/orbed-plastic-ue/orbed-plastic_ao.png",
+        "metallic_roughness": "textures/orbed-plastic-ue/orbed-plastic_metallic-roughness.png"
+      }
+    },
     "synth-rubber": {
       "tile_size": 1.0,
       "metallic": 0.0,

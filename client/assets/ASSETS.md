@@ -38,6 +38,7 @@
 | `textures/fiberous-plaster1-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Fiberous plaster 1 | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/forest-wallpaper-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Forest wallpaper | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/modern-brick1_ue/*.png` | [FreePBR.com](https://freepbr.com/) — Modern brick 1 | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
+| `textures/orbed-plastic-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Orbed plastic | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/patched-brickwork-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Patched brickwork | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/rectangle-polished-tile-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Rectangle polished tile | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/smooth-temple-blocks-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Smooth temple blocks | [FreePBR terms](https://freepbr.com/about-free-pbr/) |

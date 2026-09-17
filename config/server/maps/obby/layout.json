@@ -14,7 +14,7 @@
     "grid_rows": 24,
     "actor_spawn_zones": [
       {"level": 9, "cols": [39, 41], "rows": [13, 15], "kind": "scuttler", "count": [6], "respawn_secs": 4.0, "switch": "trap 1", "switch_inverted": false, "until_checkpoint": 2, "on_checkpoint": "destroy"},
-      {"level": 10, "cols": [8, 32], "rows": [19, 23], "kind": "zapper", "count": [15, 25, 30], "respawn_secs": 30.0, "levels": 2, "roam_distance": 4.0, "switch": "platform", "switch_inverted": false, "until_checkpoint": 3, "on_checkpoint": "destroy"}
+      {"level": 9, "cols": [8, 32], "rows": [19, 23], "kind": "zapper", "count": [15, 25, 30], "respawn_secs": 30.0, "levels": 3, "roam_distance": 4.0, "switch": "platform", "switch_inverted": false, "until_checkpoint": 3, "on_checkpoint": "destroy"}
     ],
     "checkpoints": [
       {"level": 4, "cols": [2, 4], "rows": [2, 4], "type": "individual", "number": 0},
@@ -1489,24 +1489,24 @@
         ],
         "levels": [
           {
-            "name": "Level 0",
+            "name": "Level 1",
             "floors": [
-              {"col": 0, "row": 0, "all": "walkway"},
-              {"col": 1, "row": 0, "all": "walkway"},
-              {"col": 2, "row": 0, "all": "walkway"},
-              {"col": 3, "row": 0, "all": "walkway"},
-              {"col": 0, "row": 1, "all": "walkway"},
-              {"col": 1, "row": 1, "all": "walkway"},
-              {"col": 2, "row": 1, "all": "walkway"},
-              {"col": 3, "row": 1, "all": "walkway"},
-              {"col": 0, "row": 2, "all": "walkway"},
-              {"col": 1, "row": 2, "all": "walkway"},
-              {"col": 2, "row": 2, "all": "walkway"},
-              {"col": 3, "row": 2, "all": "walkway"},
-              {"col": 0, "row": 3, "all": "walkway"},
-              {"col": 1, "row": 3, "all": "walkway"},
-              {"col": 2, "row": 3, "all": "walkway"},
-              {"col": 3, "row": 3, "all": "walkway"}
+              {"col": 0, "row": 0, "all": "shuttle"},
+              {"col": 1, "row": 0, "all": "shuttle"},
+              {"col": 2, "row": 0, "all": "shuttle"},
+              {"col": 3, "row": 0, "all": "shuttle"},
+              {"col": 0, "row": 1, "all": "shuttle"},
+              {"col": 1, "row": 1, "all": "shuttle"},
+              {"col": 2, "row": 1, "all": "shuttle"},
+              {"col": 3, "row": 1, "all": "shuttle"},
+              {"col": 0, "row": 2, "all": "shuttle"},
+              {"col": 1, "row": 2, "all": "shuttle"},
+              {"col": 2, "row": 2, "all": "shuttle"},
+              {"col": 3, "row": 2, "all": "shuttle"},
+              {"col": 0, "row": 3, "all": "shuttle"},
+              {"col": 1, "row": 3, "all": "shuttle"},
+              {"col": 2, "row": 3, "all": "shuttle"},
+              {"col": 3, "row": 3, "all": "shuttle"}
             ],
             "inaccessible_floors": [],
             "terrain": [],
