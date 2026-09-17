@@ -44,9 +44,10 @@
 | `textures/steelplate1-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Steel plate 1 | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/stucco1_ue/*.png` | [FreePBR.com](https://freepbr.com/) — Stucco 1 | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/synth-rubber-unreal-engine/*.png` | [FreePBR.com](https://freepbr.com/) — Synthetic rubber | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
+| `textures/titanium-scuffed-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Titanium scuffed | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/used-stainless-steel-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Used stainless steel | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/worn-walkway-metal-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Worn walkway metal | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
-| `textures/synth-rubber-unreal-engine/synth-rubber-ao.png` | Project-created white placeholder; exception to the rubber pack above | Project-owned |
+| `textures/synth-rubber-unreal-engine/synth-rubber-ao.png`, `textures/titanium-scuffed-ue/titanium-scuffed_ao.png` | Project-created white placeholders; exceptions to the rubber and titanium packs above | Project-owned |
 
 ## Sounds
 

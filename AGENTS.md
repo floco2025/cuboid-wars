@@ -289,11 +289,11 @@ Texture sets are freepbr.com UE packs. Follow this workflow for every added pack
 
 Use a distinct model texture only when it contributes visibly at normal gameplay distance; reuse an existing material for tiny details. Generated models share catalog PBR loading and metre-scaled UVs in `client/assets/models/modelkit/materials.py`. Each model has a matching `.json` beside its GLB for material tuning; rebuild the GLB after changing it (controls and commands in `client/assets/models/MATERIALS.md`).
 
-1. Prepare the pack outside `client/assets`; keep only used texture maps in `client/assets/textures/<name>-ue/`. Textures embedded in active models and inputs needed to regenerate them count as used; unused variants, height maps, and previews do not.
+1. Prepare the pack outside `client/assets`; keep only used texture maps in `client/assets/textures/<name>-ue/`, resized to 2048² like every shipped pack. Textures embedded in active models and inputs needed to regenerate them count as used; unused variants, height maps, and previews do not.
 2. Build the packed metallic-roughness map Bevy wants (needs ImageMagick): `client/assets/textures/combine_metallic_roughness.sh <dir>/<name>_roughness.png <dir>/<name>_metallic.png` writes `<name>_metallic-roughness.png` next to them. `multiply_intensity.sh <metallic-roughness.png> [roughness_add] [metallic_multiply]` retunes it afterwards (keeps a `.original.png`).
 3. Copy the required maps, including the packed metallic-roughness map, into the asset directory. Add a `materials.<name>` entry in `config/client/assets.json`: `textures.base_color` (`_albedo`), `normal` (`_normal-dx`; the name must carry `-normal-dx` or `-normal-gl`, since the client flips DirectX maps and both loaders reject an unsuffixed name), `occlusion` (`_ao`), `metallic_roughness`; `tile_size` in meters; `repeat` and `linear_data_textures` true. Use a neutral white occlusion image when a pack has no AO map.
 4. Name the material from an alias in the `settings.json::textures` of each map that uses it, with an explicit `portalable` boolean (`{ "material": "<name>", "portalable": true }`). Map faces use those aliases, and no map may define `terrain`, the procedural terrain's alias; the ladder, rock, and terrain bindings in `assets.json` name their texture sets directly. Pressure plates use the materials embedded in their GLB.
-5. `cargo test --release -p client referenced_assets_exist_case_exactly` catches path and case typos.
+5. Compare the four catalog paths with the directory listing character by character: macOS opens a wrong-case path that Linux cannot. `cargo test --release -p client assets` validates the entry itself (normal-map suffix, footstep binding), not the files.
 
 ## Coding style
 

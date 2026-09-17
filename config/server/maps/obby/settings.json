@@ -1,7 +1,8 @@
 {
   "textures": {
-    "pedestal": { "material": "stucco1", "portalable": true },
-    "walkway": { "material": "steelplate1", "portalable": true }
+    "pedestal": { "material": "stucco1", "portalable": false },
+    "portal": { "material": "titanium-scuffed", "portalable": true },
+    "walkway": { "material": "steelplate1", "portalable": false }
   },
   "celestial": {
     "latitude_degrees": 40.0,
