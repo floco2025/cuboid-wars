@@ -42,7 +42,7 @@
       "footstep": "steel"
     },
     "titanium-scuffed": {
-      "tile_size": 1.0,
+      "tile_size": 4.0,
       "metallic": 1.0,
       "roughness": 1.0,
       "repeat": true,
