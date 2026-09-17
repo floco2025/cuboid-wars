@@ -89,7 +89,8 @@ def placed_definitions(root: dict, definitions: dict) -> dict[str, dict]:
 
 
 # Every valid checkpoint number of the given geometries: numbers are one
-# sequence per map document, and a zone's `until_checkpoint` names one of them.
+# sequence over the placed map tree, and a zone's `until_checkpoint` names
+# one of them.
 def document_checkpoint_numbers(geometries: list[dict]) -> set[int]:
     return {
         zone["number"]
@@ -97,6 +98,30 @@ def document_checkpoint_numbers(geometries: list[dict]) -> set[int]:
         for zone in geometry.get("checkpoints", [])
         if type(zone.get("number")) is int and zone["number"] >= 1
     }
+
+
+# The checkpoint rules one placed geometry shares with the others: its
+# numbers must be free elsewhere, and a zone elsewhere may still end at one
+# of them.
+def cross_geometry_checkpoint_errors(data: dict, others: list[dict]) -> list[str]:
+    foreign = document_checkpoint_numbers(others)
+    errors = [
+        f"checkpoints[{index}] number {zone['number']} is already used in another map definition"
+        for index, zone in enumerate(data.get("checkpoints", []))
+        if zone.get("number") in foreign
+    ]
+    available = foreign | document_checkpoint_numbers([data])
+    referenced = {
+        zone["until_checkpoint"]
+        for geometry in others
+        for zone in geometry.get("actor_spawn_zones", [])
+        if type(zone.get("until_checkpoint")) is int
+    }
+    errors.extend(
+        f"checkpoint {number} is still the end of an actor zone in another map definition"
+        for number in sorted(referenced - available)
+    )
+    return errors
 
 
 # The switches some plate of the placed geometry operates: a zone or nested
@@ -324,7 +349,8 @@ def validate_document(
             or cooldown < 0
         ):
             errors.append("fireworks cooldown_secs must be finite and nonnegative")
-    numbers = document_checkpoint_numbers([root, *definitions.values()])
+    placed = placed_definitions(root, definitions)
+    numbers = document_checkpoint_numbers([root, *placed.values()])
     for name, geometry in [(None, root), *definitions.items()]:
         label = f"Nested {name}" if name is not None else None
         if name is not None and not MAP_NAME_RE.fullmatch(name):
@@ -350,7 +376,7 @@ def validate_document(
         )
         errors.merge(found, label, name)
     owners: dict[int, str | None] = {}
-    for name, geometry in [(None, root), *definitions.items()]:
+    for name, geometry in [(None, root), *placed.items()]:
         for zone in geometry.get("checkpoints", []):
             number = zone.get("number")
             if type(number) is not int:

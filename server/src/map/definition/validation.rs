@@ -790,8 +790,9 @@ fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {
     if (c1, r1) < (c0, r0) { [c1, r1, c0, r0] } else { wall }
 }
 
-// Checkpoint numbers are one sequence per map document, so a zone's
-// `until_checkpoint` and a renumbering name exactly one course position.
+// Checkpoint numbers are one sequence over the placed map tree, so a zone's
+// `until_checkpoint` and a renumbering name exactly one course position;
+// `nested` holds the placed definitions alone.
 pub(super) fn validate_checkpoint_references(root: &MapDef, nested: &LoadedMaps) -> Result<()> {
     let definitions: Vec<(String, &MapDef)> = once(("the root map".to_owned(), root))
         .chain(

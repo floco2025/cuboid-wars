@@ -42,15 +42,15 @@ fn prepare_source(mut root: MapDef) -> Result<MapSource> {
         validate_map(geometry).with_context(|| format!("nested geometry {name:?}"))?;
         canonicalize(geometry);
     }
-    validate_checkpoint_references(&root, &nested_geometry)?;
     let mut checked = HashSet::new();
     visit(&root, &nested_geometry, &mut Vec::new(), &mut checked)?;
     let used = checked.clone();
     for name in nested_geometry.keys() {
         visit_named(name, &nested_geometry, &mut Vec::new(), &mut checked)?;
     }
-    // Unplaced definitions must not contribute pressure plates to compilation.
+    // Unplaced definitions must not contribute pressure plates or checkpoints to compilation.
     nested_geometry.retain(|name, _| used.contains(name));
+    validate_checkpoint_references(&root, &nested_geometry)?;
     Ok(MapSource {
         geometry: root,
         nested_geometry,

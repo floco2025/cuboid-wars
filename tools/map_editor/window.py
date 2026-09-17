@@ -60,6 +60,7 @@ from .tool_catalog import MODE_TO_TOOL
 from .tool_palette import ToolPalette
 from .validation import (
     ValidationErrors,
+    cross_geometry_checkpoint_errors,
     document_checkpoint_numbers,
     placed_definitions,
     plated_switches,
@@ -240,7 +241,8 @@ class EditorWindow(
     # `plated_from` is the map whose plates operate the switches `data` names;
     # a clipboard block is checked against the map it is pasted into.
     def validate(self, data: dict, plated_from: dict | None = None) -> ValidationErrors:
-        return validate_map(
+        geometries = self._document_geometries(data)
+        errors = validate_map(
             data,
             self.barrier_kinds,
             self.bridge_kinds,
@@ -251,8 +253,13 @@ class EditorWindow(
             actor_kinds=self.actor_kinds,
             wall_light_kinds=self.wall_light_kinds,
             material_aliases=self.materials_catalog,
-            checkpoint_numbers=document_checkpoint_numbers(self._all_geometries(data)),
+            checkpoint_numbers=document_checkpoint_numbers([*geometries, data]),
         )
+        if any(geometry is data for geometry in geometries):
+            others = [geometry for geometry in geometries if geometry is not data]
+            for message in cross_geometry_checkpoint_errors(data, others):
+                errors.append(message)
+        return errors
 
     # The root and every placed geometry of the document, with `data`
     # standing in for the active map.
@@ -263,13 +270,6 @@ class EditorWindow(
             name: data if name == active else geometry for name, geometry in self.doc.nested_geometry.items()
         }
         return [root, *placed_definitions(root, definitions).values()]
-
-    # The root and every named geometry, placed or not, with `data` standing
-    # in for the active map: checkpoint numbers are one sequence per document.
-    def _all_geometries(self, data: dict) -> list[dict]:
-        active = self.doc.active_map
-        root = data if active is None else self.doc.root_data
-        return [root, *(data if name == active else geometry for name, geometry in self.doc.nested_geometry.items())]
 
     def document_issues(self) -> ValidationErrors:
         if self._document_issues is None:

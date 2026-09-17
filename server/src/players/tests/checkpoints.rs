@@ -537,6 +537,29 @@ fn simultaneous_shared_entries_activate_on_consecutive_ticks() {
 }
 
 #[test]
+fn the_lowest_shared_number_wins_the_tick_whatever_the_compiled_order() {
+    let mut app = app(PlayerRespawnMode::Individual);
+    {
+        let mut layout = app.world_mut().resource_mut::<MapLayout>();
+        layout.checkpoints.reverse();
+        for checkpoint in &mut layout.checkpoints {
+            checkpoint.kind = CheckpointKind::GroupAny;
+        }
+    }
+    add_player(&mut app, PlayerId(1));
+    add_player(&mut app, PlayerId(2));
+    entries(&mut app, &[(1, 0), (2, 1)]);
+    assert_eq!(
+        saved(&app, PlayerId(1)),
+        Some(CheckpointId(1)),
+        "number 1 sits at index 1"
+    );
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
+    entries(&mut app, &[(1, 0)]);
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)), "number 2 follows");
+}
+
+#[test]
 fn checkpoint_progress_is_the_furthest_logged_in_players_number() {
     let mut app = app(PlayerRespawnMode::Individual);
     let checkpoints = app.world().resource::<MapLayout>().checkpoints.clone();
@@ -557,7 +580,10 @@ fn checkpoint_numbers_must_identify_one_placed_checkpoint() {
     let first = checkpoint(1);
     let mut second = first.clone();
     second.carrier = CarrierId(1);
-    assert_eq!(super::checkpoint_numbered(std::slice::from_ref(&first), 1), Ok(CheckpointId(0)));
+    assert_eq!(
+        super::checkpoint_numbered(std::slice::from_ref(&first), 1),
+        Ok(CheckpointId(0))
+    );
     assert!(
         super::checkpoint_numbered(&[first.clone(), second], 1)
             .expect_err("ambiguous number accepted")

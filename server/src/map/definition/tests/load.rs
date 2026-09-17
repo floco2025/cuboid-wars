@@ -79,7 +79,7 @@ fn checkpoint_numbers_are_one_sequence_per_document_and_zones_name_one() {
         .to_string();
     assert!(error.contains("names no checkpoint"), "{error}");
 
-    let mut orphan = value;
+    let mut orphan = value.clone();
     orphan["nested_geometry"]["room"]["actor_spawn_zones"][0]
         .as_object_mut()
         .expect("zone missing")
@@ -89,6 +89,21 @@ fn checkpoint_numbers_are_one_sequence_per_document_and_zones_name_one() {
         prepare_source(parse(&orphan)).expect_err("a response without a checkpoint accepted")
     );
     assert!(error.contains("needs an until_checkpoint"), "{error}");
+
+    // An unplaced definition is scratch geometry: its numbers are free, and nothing can end at them.
+    let mut spare = value;
+    spare["nested_geometry"]["spare"] = spare["nested_geometry"]["room"].clone();
+    spare["nested_geometry"]["spare"]["actor_spawn_zones"] = json!([]);
+    prepare_source(parse(&spare)).expect("an unplaced duplicate number rejected");
+    spare["nested_geometry"]["spare"]["checkpoints"][0]["number"] = json!(7);
+    spare["actor_spawn_zones"] = json!([{
+        "level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "actor", "count": [1], "respawn_secs": null,
+        "until_checkpoint": 7,
+    }]);
+    let error = prepare_source(parse(&spare))
+        .expect_err("a reference into unplaced geometry accepted")
+        .to_string();
+    assert!(error.contains("names no checkpoint"), "{error}");
 }
 
 #[test]

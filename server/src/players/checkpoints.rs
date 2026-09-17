@@ -182,7 +182,12 @@ pub(super) fn apply_checkpoint_entries(
     }
     let active = players.shared_checkpoint.map(|checkpoint| number(checkpoint.id));
     let mut activated = None;
-    for (index, checkpoint) in checkpoints.iter().enumerate() {
+    // Course order across every carrier, whatever the compiled order: the
+    // lowest shared entry of the tick activates, the others follow.
+    let mut course: Vec<usize> = (0..checkpoints.len()).collect();
+    course.sort_by_key(|&index| checkpoints[index].number);
+    for index in course {
+        let checkpoint = &checkpoints[index];
         let id = CheckpointId(index);
         // The group's progress only moves forward too: re-entering the active
         // shared checkpoint or a lower one changes nothing, so individual

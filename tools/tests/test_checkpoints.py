@@ -8,11 +8,12 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QComboBox, QSpinBox
 
-from editor_fixtures import EditorHost, WindowTestCase, floor
+from editor_fixtures import EditorHost, WindowTestCase, floor, nested
 from map_editor.checkpoint_numbers import (
     checkpoint_entries,
     next_checkpoint_number,
     number_checkpoint_copies,
+    number_generated_definitions,
     renumber_checkpoints,
 )
 from map_editor.constants import (
@@ -31,6 +32,7 @@ from map_editor.io import read_map, write_map
 from map_editor.normalization import canonicalize_map, empty_map, normalize_map, zone_key
 from map_editor.regions import TileRegion, copy_region, delete_region, paste_region
 from map_editor.transforms import insert_level_data, remove_level_data, resize_map_data, translate_map
+from map_editor.elements import ElementRef
 from map_editor.types import ZoneRef
 from map_editor.validation import validate_map
 
@@ -137,10 +139,30 @@ class CheckpointTests(unittest.TestCase):
         )
         self.assertEqual(next_checkpoint_number(root), 5)
 
-        block = {"checkpoints": [{"number": 1}, {"number": 3}, {"type": "individual"}]}
+        block = {
+            "checkpoints": [{"number": 1}, {"number": 3}, {"type": "individual"}],
+            "actor_spawn_zones": [zone(until_checkpoint=1), zone(until_checkpoint=3)],
+        }
         copied = number_checkpoint_copies(block, root)
         self.assertEqual([entry.get("number") for entry in copied["checkpoints"]], [5, 3, None])
+        self.assertEqual(
+            [entry["until_checkpoint"] for entry in copied["actor_spawn_zones"]],
+            [5, 3],
+            "a zone copied with its checkpoint follows the fresh number",
+        )
         self.assertEqual(block["checkpoints"][0]["number"], 1, "the block is left alone")
+
+        generated = copy.deepcopy(root)
+        generated["nested_geometry"]["room_rotated"] = copy.deepcopy(room)
+        generated["nested_maps"] = [nested("room_rotated", 0, [5, 5], [5, 5])]
+        kept = number_generated_definitions(generated, {"room_rotated"})
+        self.assertEqual(kept["nested_geometry"]["room_rotated"]["checkpoints"][0]["number"], 2, "unplaced original")
+        generated["nested_maps"].append(nested("room", 0, [5, 1], [5, 1]))
+        fresh = number_generated_definitions(generated, {"room_rotated"})
+        rotated = fresh["nested_geometry"]["room_rotated"]
+        self.assertEqual(rotated["checkpoints"][0]["number"], 5, "the placed original keeps 2")
+        self.assertEqual(rotated["actor_spawn_zones"][0]["until_checkpoint"], 4, "an outside reference stands")
+        self.assertEqual(fresh["nested_geometry"]["room"]["checkpoints"][0]["number"], 2)
 
         after = renumber_checkpoints(root, {1: 2, 2: 1, 4: 10})
         self.assertEqual(
@@ -407,10 +429,13 @@ class CheckpointWindowTests(WindowTestCase):
         self.assertNotIn("until_checkpoint", edited)
         self.assertNotIn("on_checkpoint", edited)
 
-    def test_numbers_repeated_across_definitions_are_reported(self):
+    def test_numbers_repeated_across_placed_definitions_are_reported(self):
         window = self.window
         root = checkpoint_map(1)
         root["nested_geometry"] = {"room": checkpoint_map(1)}
+        window.doc.replace_with_new(root)
+        self.assertEqual(window.validate_document(window.doc.root_data), [], "an unplaced definition is scratch")
+        root["nested_maps"] = [nested("room", 0, [0, 0], [0, 0])]
         window.doc.replace_with_new(root)
         errors = window.validate_document(window.doc.root_data)
         self.assertTrue(any("also used" in error for error in errors), list(errors))
@@ -418,6 +443,65 @@ class CheckpointWindowTests(WindowTestCase):
         root["actor_spawn_zones"] = [zone(until_checkpoint=2)]
         window.doc.replace_with_new(root)
         self.assertEqual(window.validate_document(window.doc.root_data), [], "a zone may end at a nested checkpoint")
+
+    def test_properties_refuse_numbers_other_placed_definitions_use_or_still_end_at(self):
+        window = self.window
+        root = checkpoint_map(1)
+        room = checkpoint_map(2)
+        room["actor_spawn_zones"] = [zone(until_checkpoint=1)]
+        root["nested_geometry"] = {"room": room}
+        root["nested_maps"] = [nested("room", 0, [0, 0], [0, 0])]
+        window.doc.replace_with_new(root)
+        self.assertEqual(window.validate_document(window.doc.root_data), [])
+        panel = window.properties_panel
+        for number, message in ((2, "already used in another"), (3, "still the end of an actor zone")):
+            window.set_selected_spawn_zone(ZoneRef("checkpoints", 0))
+            window.edit_selected_spawn_zone_fields()
+            self.set_property("number", number)
+            panel.apply_button.click()
+            self.assertIn(message, panel.error.text())
+            self.assertEqual(window.map_data["checkpoints"][0]["number"], 1)
+        room["actor_spawn_zones"] = []
+        window.doc.replace_with_new(root)
+        window.set_selected_spawn_zone(ZoneRef("checkpoints", 0))
+        window.edit_selected_spawn_zone_fields()
+        self.set_property("number", 3)
+        panel.apply_button.click()
+        self.assertEqual(window.map_data["checkpoints"][0]["number"], 3)
+
+    def test_transforming_nested_geometry_keeps_or_frees_its_checkpoint_numbers(self):
+        window = self.window
+        room = empty_map(2, 2)
+        room["player_spawn_zones"] = []
+        room["levels"][0]["floors"] = [floor(c, r) for c in range(2) for r in range(2)]
+        room["checkpoints"] = [{"level": 0, "cols": [0, 2], "rows": [0, 2], "type": "individual", "number": 5}]
+        room["actor_spawn_zones"] = [{**zone(until_checkpoint=5), "cols": [0, 1], "rows": [0, 1]}]
+        for placed_twice in (False, True):
+            with self.subTest(placed_twice=placed_twice):
+                root = checkpoint_map(1)
+                root["actor_spawn_zones"] = [zone(until_checkpoint=5)]
+                root["nested_geometry"] = {"room": copy.deepcopy(room)}
+                root["nested_maps"] = [nested("room", 0, [5, 1], [5, 1])]
+                if placed_twice:
+                    root["nested_maps"].append(nested("room", 0, [5, 4], [5, 4]))
+                window.doc.replace_with_new(root)
+                self.assertEqual(window.validate_document(window.doc.root_data), [])
+                window.inspect_refs([ElementRef("nested_maps", 0)])
+                window.transform_selection("rotate")
+                self.assertTrue(window.pending_block.additions)
+                window.pending_block.destination = (5, 1)
+                with patch.object(window, "notify") as notify:
+                    window.commit_pending_block()
+                self.assertFalse(notify.called, notify.call_args)
+                self.assertIsNone(window.pending_block)
+                after = window.doc.root_data
+                rotated = after["nested_geometry"]["room_rotated"]
+                expected = 6 if placed_twice else 5
+                self.assertEqual(rotated["checkpoints"][0]["number"], expected)
+                self.assertEqual(rotated["actor_spawn_zones"][0]["until_checkpoint"], expected)
+                self.assertEqual(after["nested_geometry"]["room"]["checkpoints"][0]["number"], 5)
+                self.assertEqual(after["actor_spawn_zones"][0]["until_checkpoint"], 5)
+                self.assertEqual(window.validate_document(after), [])
 
     def test_edit_checkpoints_dialog_renumbers_swaps_and_updates_zones(self):
         window = self.window
@@ -428,6 +512,7 @@ class CheckpointWindowTests(WindowTestCase):
         room = checkpoint_map(3)
         room["actor_spawn_zones"] = [zone(until_checkpoint=2, on_checkpoint="destroy")]
         root["nested_geometry"] = {"room": room}
+        root["nested_maps"] = [nested("room", 0, [0, 0], [0, 0])]
         window.doc.replace_with_new(root)
         self.assertEqual(window.validate_document(window.doc.root_data), [])
         before = copy.deepcopy(window.doc.root_data)
