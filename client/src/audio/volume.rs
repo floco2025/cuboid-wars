@@ -21,13 +21,18 @@ pub(crate) fn settings_volume(db: f32) -> Volume {
 }
 
 // The one writer of a spatial sink's volume: its settings, the master volume,
-// and its occlusion.
+// and its occlusion. Bevy starts a sink at the unoccluded volume, so a sound
+// held paused for its first probe plays only once this has written.
 pub(super) fn spatial_sink_volume_system(
     global_volume: Res<GlobalVolume>,
-    mut sinks: Query<(&mut SpatialAudioSink, &PlaybackSettings, &AudioOcclusion)>,
+    mut sinks: Query<(&mut SpatialAudioSink, &mut PlaybackSettings, &mut AudioOcclusion)>,
 ) {
-    for (mut sink, playback, occlusion) in &mut sinks {
-        sink.set_volume(sink_volume(playback, &global_volume) * Volume::Linear(occlusion.gain()));
+    for (mut sink, mut playback, mut occlusion) in &mut sinks {
+        sink.set_volume(sink_volume(&playback, &global_volume) * Volume::Linear(occlusion.gain()));
+        if occlusion.release() {
+            playback.paused = false;
+            sink.play();
+        }
     }
 }
 

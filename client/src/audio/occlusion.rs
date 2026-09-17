@@ -19,6 +19,8 @@ pub(crate) struct AudioOcclusion {
     layers: f32,
     // None until the first probe, which sets the factor outright.
     factor: Option<f32>,
+    // Paused only until the first probe and volume have reached the sink.
+    held: bool,
 }
 
 impl Default for AudioOcclusion {
@@ -27,11 +29,23 @@ impl Default for AudioOcclusion {
             cutoff: LowPassCutoff::open(),
             layers: 0.0,
             factor: None,
+            held: false,
         }
     }
 }
 
 impl AudioOcclusion {
+    pub(super) fn holding() -> Self {
+        Self {
+            held: true,
+            ..Self::default()
+        }
+    }
+
+    pub(super) fn release(&mut self) -> bool {
+        std::mem::take(&mut self.held)
+    }
+
     pub(super) fn cutoff(&self) -> &LowPassCutoff {
         &self.cutoff
     }

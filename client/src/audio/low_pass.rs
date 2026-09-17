@@ -32,31 +32,55 @@ impl LowPassCutoff {
     }
 }
 
+// The part of a source a looping sound repeats.
+#[derive(Clone, Copy)]
+pub(crate) struct LoopSpan {
+    pub(crate) start_position: Option<Duration>,
+    pub(crate) duration: Option<Duration>,
+}
+
 // A source played through a one-pole low-pass filter whose cutoff may change
 // while it plays; at or beyond the Nyquist frequency the samples pass through
-// untouched.
+// untouched. A loop repeats under the filter: rodio's repeat caches the
+// samples it is given, which would freeze the cutoff into the repetitions.
 #[derive(Asset, TypePath)]
 pub(crate) struct LowPassAudio<T: Asset> {
     source: T,
     cutoff: LowPassCutoff,
+    repeat: Option<LoopSpan>,
 }
 
 impl<T: Asset> LowPassAudio<T> {
-    pub(crate) fn new(source: T, cutoff: LowPassCutoff) -> Self {
-        Self { source, cutoff }
+    pub(crate) fn new(source: T, cutoff: LowPassCutoff, repeat: Option<LoopSpan>) -> Self {
+        Self { source, cutoff, repeat }
     }
 
     #[cfg(test)]
     pub(crate) fn cutoff(&self) -> &LowPassCutoff {
         &self.cutoff
     }
+
+    #[cfg(test)]
+    pub(crate) fn repeats(&self) -> bool {
+        self.repeat.is_some()
+    }
 }
 
 impl<T: Asset + Decodable> Decodable for LowPassAudio<T> {
-    type Decoder = LowPassDecoder<T::Decoder>;
+    type Decoder = LowPassDecoder<Box<dyn Source + Send>>;
 
     fn decoder(&self) -> Self::Decoder {
-        LowPassDecoder::new(self.source.decoder(), self.cutoff.clone())
+        let mut input: Box<dyn Source + Send> = Box::new(self.source.decoder());
+        if let Some(span) = self.repeat {
+            if let Some(start) = span.start_position {
+                input = Box::new(input.skip_duration(start));
+            }
+            if let Some(duration) = span.duration {
+                input = Box::new(input.take_duration(duration));
+            }
+            input = Box::new(input.repeat_infinite());
+        }
+        LowPassDecoder::new(input, self.cutoff.clone())
     }
 }
 

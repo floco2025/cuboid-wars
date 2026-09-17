@@ -12,7 +12,7 @@ mod volume;
 pub(crate) use actor_sfx::{actor_sfx_playback, play_actor_spatial_sound};
 pub(crate) use analysis::AudioAnalysis;
 pub(crate) use looping::{LoopAudio, LoopAudioLoader};
-pub(crate) use low_pass::{LowPassAudio, LowPassCutoff};
+pub(crate) use low_pass::{LoopSpan, LowPassAudio, LowPassCutoff};
 pub use normalization::NormalizationGain;
 pub(crate) use occlusion::AudioOcclusion;
 pub(crate) use playback::{explosion_playback_settings, loop_sound_playback};

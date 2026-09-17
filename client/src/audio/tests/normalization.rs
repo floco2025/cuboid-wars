@@ -62,9 +62,15 @@ fn sound_definitions_sharing_a_file_apply_independent_adjustments_once() {
                     .expect("playback settings missing");
                 assert!((playback.volume.to_decibels() - expected_db).abs() < 0.0001);
                 assert_eq!(playback.spatial, spatial);
-                assert!(matches!(playback.mode, PlaybackMode::Loop));
                 assert_eq!(playback.speed, 0.75);
-                assert_eq!(playback.start_position, Some(Duration::from_millis(100)));
+                if spatial {
+                    // The loop moved into the filtered source.
+                    assert!(matches!(playback.mode, PlaybackMode::Once));
+                    assert_eq!(playback.start_position, None);
+                } else {
+                    assert!(matches!(playback.mode, PlaybackMode::Loop));
+                    assert_eq!(playback.start_position, Some(Duration::from_millis(100)));
+                }
                 app.update();
             }
         }

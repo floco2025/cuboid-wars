@@ -60,6 +60,23 @@ fn decoder(samples: Vec<f32>, cutoff: &LowPassCutoff) -> LowPassDecoder<TestSour
     )
 }
 
+#[derive(Asset, TypePath)]
+struct TestAudio(Vec<f32>);
+
+impl Decodable for TestAudio {
+    type Decoder = TestSource;
+
+    fn decoder(&self) -> TestSource {
+        TestSource {
+            samples: self.0.clone(),
+            position: 0,
+            channels: 1,
+            sample_rate: 48000,
+            span: 100,
+        }
+    }
+}
+
 #[test]
 fn an_open_cutoff_passes_every_sample_through_unchanged() {
     let samples = stereo_frames(300);
@@ -91,4 +108,30 @@ fn a_low_cutoff_smooths_each_channel_separately_and_follows_live_changes() {
     cutoff.set(f32::INFINITY);
     let passed: Vec<f32> = decoder.collect();
     assert_eq!(passed, samples[4800..]);
+}
+
+#[test]
+fn a_loop_keeps_following_the_cutoff_on_every_repetition() {
+    let tone: Vec<f32> = (0..100).map(|index| if index % 2 == 0 { 1.0 } else { -1.0 }).collect();
+    let cutoff = LowPassCutoff::open();
+    let looping = LowPassAudio::new(
+        TestAudio(tone.clone()),
+        cutoff.clone(),
+        Some(LoopSpan {
+            start_position: None,
+            duration: None,
+        }),
+    );
+    let mut decoder = looping.decoder();
+    let first: Vec<f32> = decoder.by_ref().take(100).collect();
+    assert_eq!(first, tone);
+    cutoff.set(1000.0);
+    let second: Vec<f32> = decoder.by_ref().take(100).collect();
+    assert!(
+        second.iter().skip(50).all(|sample| sample.abs() < 0.1),
+        "repetition was {second:?}"
+    );
+    assert!(decoder.next().is_some());
+    let once = LowPassAudio::new(TestAudio(tone), cutoff, None);
+    assert_eq!(once.decoder().count(), 100);
 }
