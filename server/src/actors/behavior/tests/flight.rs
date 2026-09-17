@@ -44,6 +44,8 @@ fn home(physics: CharacterPhysicsConfig, world: &CollisionWorld) -> AirHome {
         respawn_secs: None,
         switch: None,
         switch_inverted: false,
+        until_checkpoint: None,
+        on_checkpoint: Default::default(),
     };
     let mut home = AirHome::new(&zone, &grid, physics, 2.0, CarrierPose::IDENTITY, &[]);
     home.advance(world, physics, &mut 20000);

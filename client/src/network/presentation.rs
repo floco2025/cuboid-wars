@@ -45,5 +45,7 @@ pub(super) fn handle_checkpoint_reached_message(
         &context.assets.asset_server,
         context.assets.asset_set.player_sound("checkpoint_reached"),
     );
-    context.banner.push(BannerMessage::CheckpointReached);
+    if let Some(checkpoint) = context.map_layout.checkpoints.get(usize::from(message.checkpoint)) {
+        context.banner.push(BannerMessage::CheckpointReached(checkpoint.number));
+    }
 }

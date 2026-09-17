@@ -1,37 +1,74 @@
-use crate::config::fixtures;
 use bevy::prelude::*;
 use common::{
-    map::Carriers,
     physics::{CharacterSupport, CollisionWorld},
     protocol::{
-        Barrier, BarrierKindId, Carrier, CarrierId, Checkpoint, CheckpointKind, FaceYaw, Floor, Health, MapLayout,
-        PlayerId, Position, ServerMessage, SwitchState,
+        BarrierKindId, CarrierId, Checkpoint, CheckpointKind, FaceYaw, Floor, Health, MapLayout, PlayerId, Position,
+        ServerMessage,
     },
 };
 
 use super::{
-    CheckpointId, PlayerCheckpoint, PlayerMap, PowerUpState, checkpoint_spawn_position,
+    CheckpointId, PlayerCheckpoint, PlayerMap, PowerUpState,
     checkpoints::apply_checkpoint_entries,
     players_checkpoints_system,
     respawn_tests::{add_player, advance, kill, respawn_app},
 };
 use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
+    map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     schedule::ServerSet,
+    test_geometry::geometry,
 };
 
-fn checkpoint(min_x: f32) -> Checkpoint {
+const GRID_COLS: i32 = 12;
+
+// Checkpoint `number` sits on this column of the one-row grid, past the
+// respawn fixture's spawn and actor zones.
+fn col_of(number: u32) -> i32 {
+    4 + 2 * number as i32
+}
+
+fn checkpoint(number: u32) -> Checkpoint {
+    let geometry = geometry(GRID_COLS, 1);
+    let col = col_of(number);
     Checkpoint {
         kind: CheckpointKind::Individual,
-        name: None,
+        number,
         carrier: CarrierId::WORLD,
         level: 0,
-        min_x,
-        max_x: min_x + 4.0,
-        min_z: -2.0,
-        max_z: 2.0,
+        cols: [col, col + 1],
+        rows: [0, 1],
+        min_x: geometry.cell_to_world_x(col),
+        max_x: geometry.cell_to_world_x(col + 1),
+        min_z: geometry.cell_to_world_z(0),
+        max_z: geometry.cell_to_world_z(1),
         y: 0.0,
     }
+}
+
+// The centre of checkpoint `number`.
+fn inside(number: u32) -> Position {
+    let geometry = geometry(GRID_COLS, 1);
+    Position {
+        x: geometry.cell_center_x(col_of(number)),
+        y: 0.0,
+        z: geometry.cell_center_z(0),
+    }
+}
+
+// The cell after checkpoint `number`, in no checkpoint.
+fn between(number: u32) -> Position {
+    let geometry = geometry(GRID_COLS, 1);
+    Position {
+        x: geometry.cell_center_x(col_of(number) + 1),
+        y: 0.0,
+        z: geometry.cell_center_z(0),
+    }
+}
+
+fn in_checkpoint(pos: &Position, number: u32) -> bool {
+    let checkpoint = checkpoint(number);
+    (checkpoint.min_x..checkpoint.max_x).contains(&pos.x) && (checkpoint.min_z..checkpoint.max_z).contains(&pos.z)
 }
 
 fn floor(c: &Checkpoint) -> Floor {
@@ -49,7 +86,7 @@ fn floor(c: &Checkpoint) -> Floor {
 
 fn app(mode: PlayerRespawnMode) -> App {
     let mut app = respawn_app(mode, ActorRespawnScope::Dead);
-    let checkpoints = vec![checkpoint(10.0), checkpoint(20.0)];
+    let checkpoints = vec![checkpoint(1), checkpoint(2)];
     let layout = MapLayout {
         floors: checkpoints.iter().map(floor).collect(),
         checkpoints,
@@ -57,8 +94,29 @@ fn app(mode: PlayerRespawnMode) -> App {
     };
     app.insert_resource(CollisionWorld::from_map_layout(&layout));
     app.insert_resource(layout);
+    let mut cells = CellGrid::new(GRID_COLS, 1);
+    for cell in &mut cells.rows[0] {
+        cell.has_floor = true;
+    }
+    app.world_mut().resource_mut::<MapConfig>().grids[0] = CarrierGrid::new(
+        CarrierId::WORLD,
+        geometry(GRID_COLS, 1),
+        vec![LevelGrid {
+            cells,
+            edges: EdgeGrid::new(GRID_COLS, 1),
+            barrier_edges: EdgeGrid::new(GRID_COLS, 1),
+        }],
+    );
     app.add_systems(Update, players_checkpoints_system.in_set(ServerSet::Maintenance));
     app
+}
+
+// A ramp flag on the checkpoint's cell blocks every spawn in it.
+fn block(app: &mut App, number: u32, blocked: bool) {
+    app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
+        .cells
+        .rows[0][col_of(number) as usize]
+        .has_ramp = blocked;
 }
 
 fn stand(app: &mut App, id: PlayerId, pos: Position, support: CharacterSupport) {
@@ -102,8 +160,15 @@ fn saved(app: &App, id: PlayerId) -> Option<CheckpointId> {
         .map(|c| c.id)
 }
 
+fn body_position(app: &App, id: PlayerId) -> Position {
+    let player = app.world().resource::<PlayerMap>().get(&id).expect("player missing");
+    *app.world()
+        .get::<Position>(player.entity().expect("respawn missing"))
+        .expect("position missing")
+}
+
 #[test]
-fn only_grounded_players_activate_and_notifications_do_not_repeat() {
+fn only_grounded_players_activate_and_lower_checkpoints_do_not_roll_back() {
     let mut app = app(PlayerRespawnMode::Individual);
     let id = PlayerId(1);
     let (_, receiver) = add_player(&mut app, id);
@@ -114,12 +179,12 @@ fn only_grounded_players_activate_and_notifications_do_not_repeat() {
         (4.0, CharacterSupport::Ground),
         (0.0, CharacterSupport::Ladder),
     ] {
-        stand(&mut app, id, Position { x: 12.0, y, z: 0.0 }, support);
+        stand(&mut app, id, Position { y, ..inside(1) }, support);
         advance(&mut app, 0.0);
         assert!(saved(&app, id).is_none());
     }
-    for (x, expected) in [(12.0, 0), (12.0, 0), (22.0, 1), (12.0, 0)] {
-        stand(&mut app, id, Position { x, y: 0.0, z: 0.0 }, CharacterSupport::Ground);
+    for (number, expected) in [(1, 0), (1, 0), (2, 1), (1, 1)] {
+        stand(&mut app, id, inside(number), CharacterSupport::Ground);
         advance(&mut app, 0.0);
         assert_eq!(saved(&app, id), Some(CheckpointId(expected)));
     }
@@ -130,7 +195,7 @@ fn only_grounded_players_activate_and_notifications_do_not_repeat() {
             notifications += 1;
         }
     }
-    assert_eq!(notifications, 3);
+    assert_eq!(notifications, 2, "a passed checkpoint is no news");
     let delay = app.world().resource::<ServerGameplayConfig>().player.respawn_secs;
     app.world_mut().resource_mut::<PlayerMap>().disconnect(&id, delay);
     add_player(&mut app, id);
@@ -143,16 +208,7 @@ fn deaths_preserve_checkpoints_clear_equipment_and_retry_blocked_group_or_indivi
         let mut app = app(mode);
         let id = PlayerId(1);
         let (_, receiver) = add_player(&mut app, id);
-        stand(
-            &mut app,
-            id,
-            Position {
-                x: 12.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            CharacterSupport::Ground,
-        );
+        stand(&mut app, id, inside(1), CharacterSupport::Ground);
         advance(&mut app, 0.0);
         let full_health = app.world().resource::<ServerGameplayConfig>().combat.health.player.max;
         {
@@ -162,7 +218,7 @@ fn deaths_preserve_checkpoints_clear_equipment_and_retry_blocked_group_or_indivi
             player.life.power_ups.fill(PowerUpState::Permanent);
         }
         kill(&mut app, id);
-        app.insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()));
+        block(&mut app, 1, true);
         advance(&mut app, 2.1);
         assert!(
             app.world()
@@ -171,11 +227,7 @@ fn deaths_preserve_checkpoints_clear_equipment_and_retry_blocked_group_or_indivi
                 .expect("player missing")
                 .is_dead()
         );
-        let layout = MapLayout {
-            floors: vec![floor(&checkpoint(10.0))],
-            ..default()
-        };
-        app.insert_resource(CollisionWorld::from_map_layout(&layout));
+        block(&mut app, 1, false);
         advance(&mut app, 0.1);
         let players = app.world().resource::<PlayerMap>();
         let player = players.get(&id).expect("player missing");
@@ -193,19 +245,13 @@ fn deaths_preserve_checkpoints_clear_equipment_and_retry_blocked_group_or_indivi
             app.world().get::<Health>(entity).expect("health missing").0,
             full_health
         );
-        assert_eq!(app.world().get::<Position>(entity).expect("position missing").x, 12.0);
+        assert!(in_checkpoint(
+            app.world().get::<Position>(entity).expect("position missing"),
+            1
+        ));
         assert!((app.world().get::<FaceYaw>(entity).expect("facing missing").0 - 0.7).abs() < 1e-5);
         assert_eq!(saved(&app, id), Some(CheckpointId(0)));
-        stand(
-            &mut app,
-            id,
-            Position {
-                x: 12.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            CharacterSupport::Ground,
-        );
+        stand(&mut app, id, inside(1), CharacterSupport::Ground);
         advance(&mut app, 0.0);
         let mut notifications = 0;
         while let Ok(message) = receiver.try_recv() {
@@ -222,99 +268,10 @@ fn a_player_killed_at_a_checkpoint_does_not_activate_it() {
     let mut app = app(PlayerRespawnMode::Individual);
     let id = PlayerId(1);
     add_player(&mut app, id);
-    stand(
-        &mut app,
-        id,
-        Position {
-            x: 12.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Ground,
-    );
+    stand(&mut app, id, inside(1), CharacterSupport::Ground);
     kill(&mut app, id);
     advance(&mut app, 0.0);
     assert!(saved(&app, id).is_none());
-}
-
-#[test]
-fn checkpoint_spawns_follow_carriers_and_avoid_players_and_barriers() {
-    let physics = fixtures::server_config().gameplay_config().player.physics();
-    let mut c = checkpoint(0.0);
-    c.carrier = CarrierId(1);
-    let mut layout = MapLayout {
-        floors: vec![floor(&c)],
-        carriers: vec![Carrier {
-            motion: Default::default(),
-            switch_inverted: false,
-
-            parent: CarrierId::WORLD,
-            level: 0,
-            levels: 1,
-            from: Position {
-                x: 20.0,
-                y: 5.0,
-                z: 10.0,
-            },
-            to: Position {
-                x: 40.0,
-                y: 8.0,
-                z: 10.0,
-            },
-            travel_ticks: 30,
-            pause_ticks: 0,
-            phase_ticks: 0,
-            switch: None,
-        }],
-        ..default()
-    };
-    let mut carriers = Carriers::from_layout(&layout);
-    let pose = carriers.pose(c.carrier);
-    let mut world = CollisionWorld::from_map_layout(&layout);
-    let center = checkpoint_spawn_position(&c, &pose, &world, &[], physics).expect("clear checkpoint rejected");
-    assert_eq!(
-        center,
-        Position {
-            x: 22.0,
-            y: 5.0,
-            z: 10.0
-        }
-    );
-    let other =
-        checkpoint_spawn_position(&c, &pose, &world, &[center], physics).expect("unoccupied checkpoint area rejected");
-    assert!(other.horizontal_distance_sq(&center) >= physics.movement_collider.diameter.powi(2));
-    carriers.advance(15, &SwitchState::default());
-    world.set_carrier_poses(&carriers);
-    let moved_pose = carriers.pose(c.carrier);
-    let moved = checkpoint_spawn_position(&c, &moved_pose, &world, &[], physics).expect("moving checkpoint rejected");
-    assert_eq!(
-        moved,
-        Position {
-            x: 32.0,
-            y: 6.5,
-            z: 10.0
-        }
-    );
-    layout.barriers.push(Barrier {
-        id: Default::default(),
-
-        switch: None,
-        switch_inverted: false,
-
-        x1: 0.0,
-        z1: 0.0,
-        x2: 4.0,
-        z2: 0.0,
-        y: 0.0,
-        height: 3.0,
-        width: 8.0,
-        kind: BarrierKindId(0),
-        level: 0,
-        levels: 1,
-        carrier: c.carrier,
-    });
-    let world = CollisionWorld::from_map_layout(&layout);
-    assert!(checkpoint_spawn_position(&c, &pose, &world, &[], physics).is_none());
 }
 
 fn entries(app: &mut App, entries: &[(u32, usize)]) {
@@ -366,13 +323,8 @@ fn shared_checkpoints_work_with_both_respawn_policies() {
             advance(&mut app, 2.1);
             for id in [PlayerId(1), PlayerId(2)] {
                 assert_eq!(saved(&app, id), Some(CheckpointId(1)));
-                let player = app.world().resource::<PlayerMap>().get(&id).expect("player missing");
-                let pos = app
-                    .world()
-                    .get::<Position>(player.entity().expect("respawn missing"))
-                    .expect("position missing");
                 if id == PlayerId(1) || mode == PlayerRespawnMode::Group {
-                    assert!(pos.x >= 20.0 && pos.x < 24.0);
+                    assert!(in_checkpoint(&body_position(&app, id), 2));
                 }
             }
         }
@@ -418,33 +370,26 @@ fn group_all_visits_survive_death_and_membership_changes() {
             .is_dead()
     );
     advance(&mut app, 2.1);
-    let player = app
-        .world()
-        .resource::<PlayerMap>()
-        .get(&PlayerId(1))
-        .expect("player missing");
-    assert!(
-        app.world()
-            .get::<Position>(player.entity().expect("respawn missing"))
-            .expect("position missing")
-            .x
-            >= 20.0
-    );
+    assert!(in_checkpoint(&body_position(&app, PlayerId(1)), 2));
 }
 
 #[test]
 fn a_shared_activation_clears_other_partial_visits_and_empty_sessions_reset() {
     let mut app = app(PlayerRespawnMode::Individual);
-    app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAll;
-    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAll;
     add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
-    entries(&mut app, &[(1, 0)]);
-    entries(&mut app, &[(2, 1)]);
+    entries(&mut app, &[(1, 1)]);
     entries(&mut app, &[(2, 0)]);
-    assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(1)));
-    entries(&mut app, &[(1, 0)]);
-    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
+    entries(&mut app, &[(2, 1)]);
+    assert_eq!(
+        saved(&app, PlayerId(1)),
+        Some(CheckpointId(0)),
+        "the activation cleared the earlier visit"
+    );
+    entries(&mut app, &[(1, 1)]);
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
     disconnect(&mut app, 1);
     assert!(app.world().resource::<PlayerMap>().shared_checkpoint.is_some());
     disconnect(&mut app, 2);
@@ -452,90 +397,56 @@ fn a_shared_activation_clears_other_partial_visits_and_empty_sessions_reset() {
 }
 
 #[test]
-fn shared_activations_win_simultaneous_individual_entries_once_in_map_order() {
+fn a_shared_activation_raises_only_players_below_it_and_defers_higher_entries() {
     let mut app = app(PlayerRespawnMode::Individual);
-    let mut third = checkpoint(30.0);
+    let mut third = checkpoint(3);
     third.kind = CheckpointKind::GroupAny;
     app.world_mut().resource_mut::<MapLayout>().checkpoints.push(third);
     app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAny;
     let (_, rx) = add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
     entries(&mut app, &[(1, 1), (2, 2), (2, 0)]);
-    assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(0)));
-    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
+    assert_eq!(
+        saved(&app, PlayerId(1)),
+        Some(CheckpointId(1)),
+        "an individual save past the activation stands"
+    );
+    assert_eq!(
+        saved(&app, PlayerId(2)),
+        Some(CheckpointId(0)),
+        "the lowest shared entry activates first"
+    );
     assert!(matches!(rx.try_recv(), Ok(ServerMessage::CheckpointReached(_))));
     assert!(rx.try_recv().is_err());
+    entries(&mut app, &[(2, 2)]);
+    assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(2)));
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(2)));
 }
 
 #[test]
 fn stationary_or_respawning_players_do_not_overwrite_teammates_individual_progress() {
     let mut app = app(PlayerRespawnMode::Individual);
-    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAny;
     add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
-    stand(
-        &mut app,
-        PlayerId(1),
-        Position {
-            x: 22.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Ground,
-    );
+    stand(&mut app, PlayerId(1), inside(1), CharacterSupport::Ground);
     advance(&mut app, 0.0);
-    stand(
-        &mut app,
-        PlayerId(2),
-        Position {
-            x: 12.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Ground,
-    );
+    stand(&mut app, PlayerId(2), inside(2), CharacterSupport::Ground);
     advance(&mut app, 0.0);
     advance(&mut app, 0.0);
-    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
     kill(&mut app, PlayerId(1));
     advance(&mut app, 2.1);
-    stand(
-        &mut app,
-        PlayerId(1),
-        Position {
-            x: 22.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Ground,
-    );
+    stand(&mut app, PlayerId(1), inside(1), CharacterSupport::Ground);
     advance(&mut app, 0.0);
-    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
-    stand(
-        &mut app,
-        PlayerId(1),
-        Position {
-            x: 18.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Airborne,
-    );
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
+    stand(&mut app, PlayerId(1), between(1), CharacterSupport::Airborne);
     advance(&mut app, 0.0);
-    stand(
-        &mut app,
-        PlayerId(1),
-        Position {
-            x: 22.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Ground,
-    );
+    stand(&mut app, PlayerId(1), inside(1), CharacterSupport::Ground);
     advance(&mut app, 0.0);
     assert_eq!(
         saved(&app, PlayerId(2)),
-        Some(CheckpointId(0)),
+        Some(CheckpointId(1)),
         "returning to the active shared checkpoint does not either"
     );
 }
@@ -543,138 +454,47 @@ fn stationary_or_respawning_players_do_not_overwrite_teammates_individual_progre
 #[test]
 fn re_entering_the_active_shared_checkpoint_changes_nothing() {
     let mut app = app(PlayerRespawnMode::Individual);
-    app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAll;
-    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAll;
     add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
-    let inside = Position {
-        x: 22.0,
-        y: 0.0,
-        z: 0.0,
-    };
-    stand_facing(&mut app, PlayerId(1), inside, CharacterSupport::Ground, 0.7);
+    let shared = inside(1);
+    stand_facing(&mut app, PlayerId(1), shared, CharacterSupport::Ground, 0.7);
     advance(&mut app, 0.0);
     let facing = shared_facing(&app).expect("shared checkpoint not activated");
-    stand(
-        &mut app,
-        PlayerId(2),
-        Position {
-            x: 12.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Ground,
-    );
+    stand(&mut app, PlayerId(2), inside(2), CharacterSupport::Ground);
     advance(&mut app, 0.0);
-    assert!(has_visit(&app, PlayerId(2), 0), "a partial group visit");
+    assert!(has_visit(&app, PlayerId(2), 1), "a partial group visit");
 
     // A jump in place: above the seeded contact's band the airborne tick drops
     // it, and the landing re-enters, facing another way.
     stand_facing(
         &mut app,
         PlayerId(1),
-        Position { y: 1.0, ..inside },
+        Position { y: 1.0, ..shared },
         CharacterSupport::Airborne,
         2.0,
     );
     advance(&mut app, 0.0);
-    stand_facing(&mut app, PlayerId(1), inside, CharacterSupport::Ground, 2.0);
+    stand_facing(&mut app, PlayerId(1), shared, CharacterSupport::Ground, 2.0);
     advance(&mut app, 0.0);
     assert_eq!(shared_facing(&app), Some(facing), "the saved facing stands");
-    assert!(has_visit(&app, PlayerId(2), 0), "the partial visit stands");
-    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
+    assert!(has_visit(&app, PlayerId(2), 1), "the partial visit stands");
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
 
     // Leaving and returning is the same re-entry.
-    stand_facing(
-        &mut app,
-        PlayerId(1),
-        Position {
-            x: 18.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Ground,
-        2.0,
-    );
+    stand_facing(&mut app, PlayerId(1), between(1), CharacterSupport::Ground, 2.0);
     advance(&mut app, 0.0);
-    stand_facing(&mut app, PlayerId(1), inside, CharacterSupport::Ground, 2.0);
+    stand_facing(&mut app, PlayerId(1), shared, CharacterSupport::Ground, 2.0);
     advance(&mut app, 0.0);
     assert_eq!(shared_facing(&app), Some(facing));
-    assert!(has_visit(&app, PlayerId(2), 0));
+    assert!(has_visit(&app, PlayerId(2), 1));
 
-    // Another shared checkpoint still activates once everyone has visited it.
-    stand(
-        &mut app,
-        PlayerId(1),
-        Position {
-            x: 12.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Ground,
-    );
+    // The shared checkpoint further along still activates once everyone has visited it.
+    stand(&mut app, PlayerId(1), inside(2), CharacterSupport::Ground);
     advance(&mut app, 0.0);
-    assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(0)));
-    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
-}
-
-#[test]
-fn a_re_entry_of_the_active_checkpoint_is_not_deferred() {
-    let mut app = app(PlayerRespawnMode::Individual);
-    app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAny;
-    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAny;
-    add_player(&mut app, PlayerId(1));
-    add_player(&mut app, PlayerId(2));
-    let inside = Position {
-        x: 22.0,
-        y: 0.0,
-        z: 0.0,
-    };
-    stand(&mut app, PlayerId(1), inside, CharacterSupport::Ground);
-    advance(&mut app, 0.0);
+    assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(1)));
     assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
-
-    // One tick: player 1 lands again in the active checkpoint (a jump above
-    // the seeded contact's band) while player 2 enters the other one.
-    stand(
-        &mut app,
-        PlayerId(1),
-        Position { y: 1.0, ..inside },
-        CharacterSupport::Airborne,
-    );
-    advance(&mut app, 0.0);
-    assert!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&PlayerId(1))
-            .expect("player missing")
-            .life
-            .checkpoint_contact
-            .is_none(),
-        "the jump must drop the contact for the landing to count as a re-entry"
-    );
-    stand(&mut app, PlayerId(1), inside, CharacterSupport::Ground);
-    stand(
-        &mut app,
-        PlayerId(2),
-        Position {
-            x: 12.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Ground,
-    );
-    advance(&mut app, 0.0);
-    assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(0)));
-    for _ in 0..3 {
-        advance(&mut app, 0.0);
-        assert_eq!(
-            saved(&app, PlayerId(1)),
-            Some(CheckpointId(0)),
-            "nobody moved, nothing rolls back"
-        );
-        assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
-    }
 }
 
 #[test]
@@ -684,31 +504,13 @@ fn simultaneous_shared_entries_activate_on_consecutive_ticks() {
     app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAny;
     let (_, rx) = add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
-    stand(
-        &mut app,
-        PlayerId(1),
-        Position {
-            x: 12.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Ground,
-    );
-    stand(
-        &mut app,
-        PlayerId(2),
-        Position {
-            x: 22.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        CharacterSupport::Ground,
-    );
+    stand(&mut app, PlayerId(1), inside(1), CharacterSupport::Ground);
+    stand(&mut app, PlayerId(2), inside(2), CharacterSupport::Ground);
     advance(&mut app, 0.0);
     assert_eq!(
         saved(&app, PlayerId(1)),
         Some(CheckpointId(0)),
-        "map order wins the tick"
+        "the lower number wins the tick"
     );
     assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
 
@@ -735,15 +537,32 @@ fn simultaneous_shared_entries_activate_on_consecutive_ticks() {
 }
 
 #[test]
-fn checkpoint_names_must_identify_one_placed_checkpoint() {
-    let mut first = checkpoint(0.0);
-    first.name = Some("hall".into());
+fn checkpoint_progress_is_the_furthest_logged_in_players_number() {
+    let mut app = app(PlayerRespawnMode::Individual);
+    let checkpoints = app.world().resource::<MapLayout>().checkpoints.clone();
+    let progress = |app: &App| super::checkpoint_progress(app.world().resource::<PlayerMap>(), &checkpoints);
+    add_player(&mut app, PlayerId(1));
+    add_player(&mut app, PlayerId(2));
+    assert_eq!(progress(&app), None);
+    entries(&mut app, &[(1, 1), (2, 0)]);
+    assert_eq!(progress(&app), Some(2));
+    kill(&mut app, PlayerId(1));
+    assert_eq!(progress(&app), Some(2), "a dead player's checkpoint still counts");
+    disconnect(&mut app, 1);
+    assert_eq!(progress(&app), Some(1), "a departure can move the course back");
+}
+
+#[test]
+fn checkpoint_numbers_must_identify_one_placed_checkpoint() {
+    let first = checkpoint(1);
     let mut second = first.clone();
     second.carrier = CarrierId(1);
-    assert_eq!(super::checkpoint_named(&[first.clone()], "hall"), Ok(CheckpointId(0)));
+    assert_eq!(super::checkpoint_numbered(std::slice::from_ref(&first), 1), Ok(CheckpointId(0)));
     assert!(
-        super::checkpoint_named(&[first, second], "hall")
-            .expect_err("ambiguous name accepted")
+        super::checkpoint_numbered(&[first.clone(), second], 1)
+            .expect_err("ambiguous number accepted")
             .contains("ambiguous")
     );
+    let error = super::checkpoint_numbered(&[first, checkpoint(3)], 2).expect_err("unknown number accepted");
+    assert!(error.contains("1, 3"), "{error}");
 }

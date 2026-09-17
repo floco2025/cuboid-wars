@@ -6,9 +6,9 @@ use common::{
     protocol::{Checkpoint, FaceYaw, Health, PlayerId, PlayerMoveIntent, PlayerMovementState, PortalAccess, Position},
 };
 
-use super::{CheckpointId, PlayerCheckpoint, PlayerMap, checkpoint_at_position, checkpoint_spawn_position};
+use super::{CheckpointId, PlayerCheckpoint, PlayerMap, checkpoint_at_position};
 use crate::{
-    characters::{generate_player_spawn_position, spawn_face_yaw},
+    characters::{generate_checkpoint_spawn_position, generate_player_spawn_position, spawn_face_yaw},
     map::MapConfig,
     network::broadcast_player_relocation,
 };
@@ -41,9 +41,8 @@ pub(crate) fn player_spawn_destination(
         ));
     };
     let checkpoint = &checkpoints[saved.id.0];
-    let pose = carriers.pose(checkpoint.carrier);
-    let pos = checkpoint_spawn_position(checkpoint, &pose, collision_world, occupied, physics)?;
-    let facing = pose.transform_vector(saved.facing);
+    let pos = generate_checkpoint_spawn_position(map, carriers, checkpoint, collision_world, occupied, physics)?;
+    let facing = carriers.pose(checkpoint.carrier).transform_vector(saved.facing);
     Some(PlayerSpawn {
         pos,
         face_yaw: facing.x.atan2(facing.z),

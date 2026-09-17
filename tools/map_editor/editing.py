@@ -23,6 +23,9 @@ def merge_record(entry: dict, values: dict) -> dict:
         del merged["switch"]
     if "switch" in values and "switch" not in merged:
         merged.pop("switch_inverted", None)
+    if values.get("until_checkpoint", 0) is None:
+        merged.pop("until_checkpoint", None)
+        merged.pop("on_checkpoint", None)
     return merged
 
 

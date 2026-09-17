@@ -65,6 +65,8 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
             count: vec![1],
             respawn_secs: None,
             switch: None,
+            until_checkpoint: None,
+            on_checkpoint: Default::default(),
         })
         .collect();
     let mut app = App::new();

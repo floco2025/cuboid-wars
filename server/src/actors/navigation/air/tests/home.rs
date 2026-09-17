@@ -30,6 +30,8 @@ fn air_home_expands_vertically_and_moves_with_its_spawn_zone() {
         respawn_secs: None,
         switch: None,
         switch_inverted: false,
+        until_checkpoint: None,
+        on_checkpoint: Default::default(),
     };
     let pose = CarrierPose::IDENTITY;
     let mut home = AirHome::new(&zone, &grid, physics, 1.5, pose, &[]);
@@ -76,6 +78,8 @@ fn walls_do_not_change_the_authored_roaming_boundary() {
         respawn_secs: None,
         switch: None,
         switch_inverted: false,
+        until_checkpoint: None,
+        on_checkpoint: Default::default(),
     };
     let edge = grid.geometry.cell_to_world_x(1);
     let target = Vec3::new(edge + 0.9, 1.0, 0.0);
@@ -128,6 +132,8 @@ fn sample_home(range: f32) -> AirHome {
         respawn_secs: None,
         switch: None,
         switch_inverted: false,
+        until_checkpoint: None,
+        on_checkpoint: Default::default(),
     };
     AirHome::new(
         &zone,

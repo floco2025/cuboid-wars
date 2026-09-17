@@ -52,6 +52,8 @@ class WorkflowMixin:
                 ("switch_inverted", "recent_actor_spawn_inverted", False),
                 ("levels", "recent_actor_spawn_levels", 1),
                 ("roam_distance", "recent_actor_roam_distance", 0.0),
+                ("until_checkpoint", "recent_actor_until_checkpoint", None),
+                ("on_checkpoint", "recent_actor_on_checkpoint", "stop"),
             ):
                 setattr(self, attribute, copy.deepcopy(entry.get(key, default)))
         elif name == "player_spawn_zones":

@@ -49,6 +49,7 @@ class FileIoTests(unittest.TestCase):
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["levels"][0]["light_bridges"] = [{"col": 1, "row": 0, "kind": BRIDGE_KIND}]
         data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": BRIDGE_KIND}]
+        data["checkpoints"] = [{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 1}]
         data["actor_spawn_zones"] = [
             {
                 "level": 0,
@@ -58,6 +59,8 @@ class FileIoTests(unittest.TestCase):
                 "count": [1],
                 "respawn_secs": 90,
                 "switch": BRIDGE_KIND,
+                "until_checkpoint": 1,
+                "on_checkpoint": "destroy",
             },
             {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [2], "respawn_secs": 90},
         ]
@@ -77,6 +80,7 @@ class FileIoTests(unittest.TestCase):
             self.assertEqual(loaded["levels"][0]["light_bridges"], data["levels"][0]["light_bridges"])
             self.assertEqual(loaded["pressure_plates"], data["pressure_plates"])
             self.assertEqual(loaded["actor_spawn_zones"], data["actor_spawn_zones"])
+            self.assertEqual(loaded["checkpoints"], data["checkpoints"])
             self.assertEqual(loaded["nested_maps"], data["nested_maps"])
 
     def test_nested_maps_round_trip_and_are_the_last_key(self) -> None:

@@ -48,6 +48,50 @@ fn unused_definitions_are_checked_but_do_not_compile() {
 }
 
 #[test]
+fn checkpoint_numbers_are_one_sequence_per_document_and_zones_name_one() {
+    let floored = |mut value: Value| {
+        value["levels"] = json!([{"floors": [{"col": 0, "row": 0, "all": "test"}]}]);
+        value
+    };
+    let mut value = floored(geometry(&["room"]));
+    value["checkpoints"] = json!([{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 1}]);
+    let mut room = floored(geometry(&[]));
+    room["checkpoints"] = json!([{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 2}]);
+    room["actor_spawn_zones"] = json!([{
+        "level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "actor", "count": [1], "respawn_secs": null,
+        "until_checkpoint": 1, "on_checkpoint": "destroy",
+    }]);
+    value["nested_geometry"] = json!({ "room": room });
+    let parse = |value: &Value| serde_json::from_value::<MapDef>(value.clone()).expect("test source is invalid");
+    prepare_source(parse(&value)).expect("numbered document rejected");
+
+    let mut duplicate = value.clone();
+    duplicate["nested_geometry"]["room"]["checkpoints"][0]["number"] = json!(1);
+    let error = prepare_source(parse(&duplicate))
+        .expect_err("a number repeated across definitions accepted")
+        .to_string();
+    assert!(error.contains("already used"), "{error}");
+
+    let mut dangling = value.clone();
+    dangling["nested_geometry"]["room"]["actor_spawn_zones"][0]["until_checkpoint"] = json!(9);
+    let error = prepare_source(parse(&dangling))
+        .expect_err("a reference to no checkpoint accepted")
+        .to_string();
+    assert!(error.contains("names no checkpoint"), "{error}");
+
+    let mut orphan = value;
+    orphan["nested_geometry"]["room"]["actor_spawn_zones"][0]
+        .as_object_mut()
+        .expect("zone missing")
+        .remove("until_checkpoint");
+    let error = format!(
+        "{:#}",
+        prepare_source(parse(&orphan)).expect_err("a response without a checkpoint accepted")
+    );
+    assert!(error.contains("needs an until_checkpoint"), "{error}");
+}
+
+#[test]
 fn invalid_named_geometry_is_rejected() {
     let mut value = geometry(&["room"]);
     value["nested_geometry"] = json!({"room": geometry(&[])});

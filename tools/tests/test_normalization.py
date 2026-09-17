@@ -85,6 +85,25 @@ class NormalizationTests(unittest.TestCase):
 
         self.assertEqual(result["actor_spawn_zones"], [zone, {**zone, "switch": "guards"}])
 
+    def test_actor_zone_identity_includes_the_course_end_and_drops_an_orphan_response(self) -> None:
+        data = empty_map(2, 2)
+        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "respawn_secs": 90}
+        data["actor_spawn_zones"] = [
+            dict(zone, until_checkpoint=2, on_checkpoint="destroy"),
+            dict(zone, until_checkpoint=2),
+            dict(zone, on_checkpoint="destroy"),
+            dict(zone),
+        ]
+        result = canonicalize_map(data)
+        self.assertEqual(
+            result["actor_spawn_zones"],
+            [
+                zone,
+                {**zone, "until_checkpoint": 2, "on_checkpoint": "destroy"},
+                {**zone, "until_checkpoint": 2, "on_checkpoint": "stop"},
+            ],
+        )
+
     def test_actor_zone_numbers_sort_numerically_and_equivalent_values_deduplicate(self) -> None:
         data = empty_map(2, 2)
         zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1]}

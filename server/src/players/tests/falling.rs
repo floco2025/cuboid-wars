@@ -1,6 +1,7 @@
 use super::*;
 use crate::config::{FallDamageConfig, fixtures};
 use crate::{
+    map::{CellGrid, EdgeGrid, LevelGrid},
     players::{CheckpointId, PlayerCheckpoint, PlayerInfo, PowerUpState, outcomes::Landing},
     test_geometry::geometry,
 };
@@ -123,38 +124,64 @@ fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
     assert!(receiver.try_recv().is_err());
 }
 
+// One checkpoint over four floored cells, with the grid its spawns sample.
+fn checkpoint_fixture() -> (Checkpoint, Floor, MapConfig) {
+    let geometry = geometry(2, 2);
+    let mut cells = CellGrid::new(2, 2);
+    for cell in cells.rows.iter_mut().flatten() {
+        cell.has_floor = true;
+    }
+    let checkpoint = Checkpoint {
+        kind: CheckpointKind::Individual,
+        number: 1,
+        carrier: CarrierId::WORLD,
+        level: 0,
+        cols: [0, 2],
+        rows: [0, 2],
+        min_x: geometry.cell_to_world_x(0),
+        max_x: geometry.cell_to_world_x(2),
+        min_z: geometry.cell_to_world_z(0),
+        max_z: geometry.cell_to_world_z(2),
+        y: 0.0,
+    };
+    let floor = Floor {
+        x1: checkpoint.min_x,
+        x2: checkpoint.max_x,
+        z1: checkpoint.min_z,
+        z2: checkpoint.max_z,
+        y: 0.0,
+        thickness: 0.2,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    };
+    let map_config = MapConfig::for_grid(
+        vec![LevelGrid {
+            cells,
+            edges: EdgeGrid::new(2, 2),
+            barrier_edges: EdgeGrid::new(2, 2),
+        }],
+        geometry,
+    );
+    (checkpoint, floor, map_config)
+}
+
+fn in_checkpoint(checkpoint: &Checkpoint, pos: &Position) -> bool {
+    (checkpoint.min_x..=checkpoint.max_x).contains(&pos.x) && (checkpoint.min_z..=checkpoint.max_z).contains(&pos.z)
+}
+
 #[test]
 fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
     let server = fixtures::server_config();
-    let checkpoint = Checkpoint {
-        kind: CheckpointKind::Individual,
-        name: None,
-        carrier: CarrierId::WORLD,
-        level: 0,
-        min_x: 10.0,
-        max_x: 14.0,
-        min_z: -2.0,
-        max_z: 2.0,
-        y: 0.0,
-    };
+    let (checkpoint, floor, map_config) = checkpoint_fixture();
     let layout = MapLayout {
-        floors: vec![Floor {
-            x1: 10.0,
-            x2: 14.0,
-            z1: -2.0,
-            z2: 2.0,
-            y: 0.0,
-            thickness: 0.2,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
-        checkpoints: vec![checkpoint],
+        floors: vec![floor],
+        checkpoints: vec![checkpoint.clone()],
         ..default()
     };
     let mut app = App::new();
     app.insert_resource(server.gameplay_config())
         .insert_resource(server)
-        .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
+        .insert_resource(map_config)
         .init_resource::<Carriers>()
         .insert_resource(CollisionWorld::from_map_layout(&layout))
         .insert_resource(layout)
@@ -184,7 +211,7 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
 
     let landed = *app.world().get::<Position>(entity).expect("position missing");
     assert!(
-        (10.0..=14.0).contains(&landed.x) && (-2.0..=2.0).contains(&landed.z),
+        in_checkpoint(&checkpoint, &landed),
         "rescued to {landed:?}, not the checkpoint"
     );
     let player = app.world().resource::<PlayerMap>();
@@ -200,35 +227,16 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
 #[test]
 fn simultaneous_invincible_rescues_take_distinct_spots() {
     let server = fixtures::server_config();
-    let checkpoint = Checkpoint {
-        kind: CheckpointKind::Individual,
-        name: None,
-        carrier: CarrierId::WORLD,
-        level: 0,
-        min_x: 10.0,
-        max_x: 14.0,
-        min_z: -2.0,
-        max_z: 2.0,
-        y: 0.0,
-    };
+    let (checkpoint, floor, map_config) = checkpoint_fixture();
     let layout = MapLayout {
-        floors: vec![Floor {
-            x1: 10.0,
-            x2: 14.0,
-            z1: -2.0,
-            z2: 2.0,
-            y: 0.0,
-            thickness: 0.2,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
-        checkpoints: vec![checkpoint],
+        floors: vec![floor],
+        checkpoints: vec![checkpoint.clone()],
         ..default()
     };
     let mut app = App::new();
     app.insert_resource(server.gameplay_config())
         .insert_resource(server)
-        .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
+        .insert_resource(map_config)
         .init_resource::<Carriers>()
         .insert_resource(CollisionWorld::from_map_layout(&layout))
         .insert_resource(layout)
@@ -266,7 +274,7 @@ fn simultaneous_invincible_rescues_take_distinct_spots() {
         .collect();
     for pos in &landed {
         assert!(
-            (10.0..=14.0).contains(&pos.x) && (-2.0..=2.0).contains(&pos.z),
+            in_checkpoint(&checkpoint, pos),
             "rescued to {pos:?}, not the checkpoint"
         );
     }

@@ -9,8 +9,8 @@ fn checkpoint_banner_uses_its_own_timing_and_text() {
         duration_secs: 0.75,
         fade_out_secs: 0.1,
     };
-    let (text, timing) = BannerMessage::CheckpointReached.into_timed_text(&settings);
-    assert_eq!(text, "Checkpoint reached");
+    let (text, timing) = BannerMessage::CheckpointReached(7).into_timed_text(&settings);
+    assert_eq!(text, "Checkpoint 7");
     assert_eq!(timing.duration_secs, 0.75);
     assert_eq!(timing.fade_out_secs, 0.1);
     let (_, timing) = BannerMessage::Death.into_timed_text(&settings);

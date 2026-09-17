@@ -533,9 +533,9 @@ class WindowTests(WindowTestCase):
         kind = window.actor_kinds[0]
         dialog = ActorSpawnFieldsDialog(window, kind, [3], 90, ["guards"], None)
         self.assertGreater(dialog._kind_edit.count(), 0)
-        self.assertEqual(dialog.values(), (kind, [3], 90, None, False, 0, 1, 0.0))
+        self.assertEqual(dialog.values(), (kind, [3], 90, None, False, 0, 1, 0.0, None, None))
         dialog._switch_combo.setCurrentText("guards")
-        self.assertEqual(dialog.values(), (kind, [3], 90, "guards", False, 0, 1, 0.0))
+        self.assertEqual(dialog.values(), (kind, [3], 90, "guards", False, 0, 1, 0.0, None, None))
         dialog.deleteLater()
         with (
             patch.object(ActorSpawnFieldsDialog, "exec", return_value=QDialog.DialogCode.Accepted),

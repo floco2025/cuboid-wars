@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer, de};
 
 use common::protocol::{CarrierMotion, CheckpointKind, FaceMaterials, KindDef, SwitchDef, TERRAIN_MATERIAL};
 
-use crate::config::deserialize_required_option;
+use crate::{config::deserialize_required_option, map::CheckpointResponse};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {
@@ -296,6 +296,8 @@ pub(crate) struct RampDef {
 // `respawn_secs` is the delay before a killed actor's slot refills; `null`
 // never refills. `switch` names the map switch that lets the zone spawn;
 // without one the zone fills at startup and refills on its timer.
+// `until_checkpoint` ends the zone once any player has reached that
+// checkpoint, and `on_checkpoint` says whether its remaining actors go too.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub(crate) struct ActorSpawnZoneDef {
     pub(crate) level: u32,
@@ -313,6 +315,10 @@ pub(crate) struct ActorSpawnZoneDef {
     pub(crate) switch: Option<String>,
     #[serde(default)]
     pub(crate) switch_inverted: bool,
+    #[serde(default)]
+    pub(crate) until_checkpoint: Option<u32>,
+    #[serde(default)]
+    pub(crate) on_checkpoint: Option<CheckpointResponse>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -375,6 +381,5 @@ pub(crate) struct CheckpointDef {
     pub(crate) zone: ZoneDef,
     #[serde(rename = "type")]
     pub(crate) kind: CheckpointKind,
-    #[serde(default)]
-    pub(crate) name: Option<String>,
+    pub(crate) number: u32,
 }

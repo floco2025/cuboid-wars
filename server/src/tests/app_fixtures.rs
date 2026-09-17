@@ -58,7 +58,7 @@ pub(crate) fn server_app_with_options(options: ServerAppOptions, listener: Optio
                 {"col": 1, "row": 1, "all": "basement-floor"}
             ]}],
             "player_spawn_zones": [{"level": 0, "cols": [0, 2], "rows": [0, 2]}],
-            "checkpoints": [{"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual", "name": "corner"}]
+            "checkpoints": [{"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual", "number": 1}]
         }});
         fs::write(&path, source.to_string())?;
         let generated = generate_map_at(&path, name, hz, settings);

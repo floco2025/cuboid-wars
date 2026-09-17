@@ -3,7 +3,11 @@ from dataclasses import replace
 
 from PySide6.QtWidgets import QDialog
 
+import pathlib
+
+from .checkpoint_numbers import next_checkpoint_number
 from .control_catalogs import edit_catalog
+from .dialogs import CheckpointsDialog
 from .dialogs.control_catalogs import ControlCatalogDialog, FireworksDialog
 from .nesting import DEFAULT_MOTION
 
@@ -69,6 +73,15 @@ class ControlActionsMixin:
             self.recent_item_key_kind = follow(self.recent_item_key_kind) if self.recent_item_key_kind else None
         else:
             self.recent_bridge_kind = follow(self.recent_bridge_kind) if self.recent_bridge_kind else None
+        self.tool_settings.refresh()
+
+    def edit_checkpoints(self):
+        root = self.doc.root_data
+        outer = pathlib.Path(self.path).parent.name if self.path else "Outer map"
+        after = CheckpointsDialog.prompt(self, root, outer)
+        if after is None or not self.doc.apply_root_change("Edit Checkpoints", after, self.doc.active_map):
+            return
+        self.recent_checkpoint_number = next_checkpoint_number(self.doc.root_data)
         self.tool_settings.refresh()
 
     def edit_fireworks(self):

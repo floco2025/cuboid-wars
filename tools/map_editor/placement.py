@@ -10,6 +10,7 @@ from .constants import (
     MODE_RAMP_UP,
     PLAYER_ZONE_LIST,
 )
+from .checkpoint_numbers import next_checkpoint_number, used_numbers
 from .dialogs import ActorSpawnFieldsDialog, KindDialog
 from .dialogs.controls import FieldPropertiesDialog
 from .editing import (
@@ -76,7 +77,7 @@ class PlacementMixin:
         result = self.prompt_for_actor_spawn_fields()
         if result is None:
             return
-        kind, count, respawn_secs, switch, inverted, level, levels, roam_distance = result
+        kind, count, respawn_secs, switch, inverted, level, levels, roam_distance, until, response = result
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         new_zone = {
@@ -92,6 +93,9 @@ class PlacementMixin:
         if switch:
             new_zone["switch"] = switch
             new_zone["switch_inverted"] = inverted
+        if until:
+            new_zone["until_checkpoint"] = until
+            new_zone["on_checkpoint"] = response
         after[ACTOR_ZONE_LIST].append(new_zone)
         self.recent_actor_spawn_kind = kind
         self.recent_actor_spawn_count = count
@@ -100,6 +104,8 @@ class PlacementMixin:
         self.recent_actor_spawn_inverted = inverted
         self.recent_actor_spawn_levels = levels
         self.recent_actor_roam_distance = roam_distance
+        self.recent_actor_until_checkpoint = until
+        self.recent_actor_on_checkpoint = response or "stop"
         self.apply_change("Paint Actor Spawn Zone", after)
 
     def add_player_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
@@ -117,17 +123,19 @@ class PlacementMixin:
             "rows": [r0, r1],
         }
         if list_name == CHECKPOINT_LIST:
+            number = self.recent_checkpoint_number
+            if number in used_numbers(self.doc.root_data):
+                self.notify(f"Checkpoint number {number} is already in use. Choose another number.")
+                return
             new_zone["type"] = self.recent_checkpoint_type
-            name = self.recent_checkpoint_name.strip()
-            if name:
-                if any(zone.get("name") == name for zone in self.map_data[CHECKPOINT_LIST]):
-                    self.notify(f"Checkpoint name {name!r} is already in use. Choose another name or leave it blank.")
-                    return
-                new_zone["name"] = name
+            new_zone["number"] = number
         else:
             new_zone["levels"] = min(self.recent_player_spawn_levels, len(self.map_data["levels"]) - self.current_level)
         after[list_name].append(new_zone)
         self.apply_change(f"Paint {label}", after)
+        if list_name == CHECKPOINT_LIST:
+            self.recent_checkpoint_number = next_checkpoint_number(self.doc.root_data)
+            self.tool_settings.sync_values()
 
     # Without `kind` the toolbar's recent values stand for a new zone; with it
     # every argument is the edited zone's own, `respawn_secs` None included.
@@ -141,9 +149,12 @@ class PlacementMixin:
         level=None,
         levels=None,
         roam_distance=None,
+        until_checkpoint=None,
+        on_checkpoint=None,
     ):
         if kind is None and self.recent_actor_spawn_kind in self.actor_kinds:
             recent_switch = self.recent_actor_spawn_switch
+            recent_until = self.recent_actor_until_checkpoint
             return (
                 self.recent_actor_spawn_kind,
                 self.recent_actor_spawn_count,
@@ -153,6 +164,8 @@ class PlacementMixin:
                 self.current_level,
                 min(self.recent_actor_spawn_levels, len(self.map_data["levels"]) - self.current_level),
                 self.recent_actor_roam_distance,
+                recent_until,
+                self.recent_actor_on_checkpoint if recent_until else None,
             )
         return ActorSpawnFieldsDialog.prompt(
             self,
@@ -166,6 +179,8 @@ class PlacementMixin:
             levels=self.recent_actor_spawn_levels if levels is None else levels,
             roam_distance=self.recent_actor_roam_distance if roam_distance is None else roam_distance,
             level_names=[entry.get("name", f"Level {index}") for index, entry in enumerate(self.map_data["levels"])],
+            until_checkpoint=self.recent_actor_until_checkpoint if kind is None else until_checkpoint,
+            on_checkpoint=self.recent_actor_on_checkpoint if kind is None else on_checkpoint,
         )
 
     def add_wall_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:

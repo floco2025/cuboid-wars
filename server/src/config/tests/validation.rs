@@ -21,6 +21,8 @@ fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
         count: vec![1],
         respawn_secs: None,
         switch: None,
+        until_checkpoint: None,
+        on_checkpoint: Default::default(),
     });
     (server, map)
 }
@@ -56,6 +58,8 @@ fn immovable_zones_are_not_limited_by_floor_capacity() {
         count: vec![1],
         respawn_secs: None,
         switch: None,
+        until_checkpoint: None,
+        on_checkpoint: Default::default(),
     });
     validate_map_actor_kinds(&server, &map).expect("one turret rejected");
     map.actor_spawn_zones[0].count = vec![2];

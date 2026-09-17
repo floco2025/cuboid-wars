@@ -58,7 +58,14 @@ from .selection_properties import SelectionProperties
 from .switch_connections import ConnectionOverlay
 from .tool_catalog import MODE_TO_TOOL
 from .tool_palette import ToolPalette
-from .validation import ValidationErrors, placed_definitions, plated_switches, validate_document, validate_map
+from .validation import (
+    ValidationErrors,
+    document_checkpoint_numbers,
+    placed_definitions,
+    plated_switches,
+    validate_document,
+    validate_map,
+)
 from .window_geometry import WindowGeometry
 from .panel_layout import PanelLayout
 from .compact_widgets import CompactComboBox
@@ -113,7 +120,7 @@ class EditorWindow(
         # prompt; the kinds start on the map's first listed kind.
         self.recent_barrier_controls = {}
         self.recent_bridge_controls = {}
-        self.recent_checkpoint_name: str = ""
+        self.recent_checkpoint_number: int = 1
         self.recent_checkpoint_type: str = "individual"
         self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: list[int] = [DEFAULT_ACTOR_COUNT]
@@ -121,6 +128,9 @@ class EditorWindow(
         # Empty = the zone has no switch.
         self.recent_actor_spawn_switch: str = ""
         self.recent_actor_spawn_inverted = False
+        # None = the zone stays active whatever checkpoint the players reach.
+        self.recent_actor_until_checkpoint: int | None = None
+        self.recent_actor_on_checkpoint: str = "stop"
         first_kind = self.barrier_kinds[0] if self.barrier_kinds else None
         self.recent_barrier_kind: str | None = first_kind
         self.recent_pressure_plate_switch: str | None = self.switches[0] if self.switches else None
@@ -241,6 +251,7 @@ class EditorWindow(
             actor_kinds=self.actor_kinds,
             wall_light_kinds=self.wall_light_kinds,
             material_aliases=self.materials_catalog,
+            checkpoint_numbers=document_checkpoint_numbers(self._all_geometries(data)),
         )
 
     # The root and every placed geometry of the document, with `data`
@@ -252,6 +263,13 @@ class EditorWindow(
             name: data if name == active else geometry for name, geometry in self.doc.nested_geometry.items()
         }
         return [root, *placed_definitions(root, definitions).values()]
+
+    # The root and every named geometry, placed or not, with `data` standing
+    # in for the active map: checkpoint numbers are one sequence per document.
+    def _all_geometries(self, data: dict) -> list[dict]:
+        active = self.doc.active_map
+        root = data if active is None else self.doc.root_data
+        return [root, *(data if name == active else geometry for name, geometry in self.doc.nested_geometry.items())]
 
     def document_issues(self) -> ValidationErrors:
         if self._document_issues is None:
@@ -367,6 +385,7 @@ class EditorWindow(
         map_menu.addSeparator()
         self.add_menu_action(map_menu, "Resi&ze Map...", None, self.resize_map)
         self.add_menu_action(map_menu, "Edit &Levels…", None, self.edit_levels)
+        self.add_menu_action(map_menu, "Edit &Checkpoints…", None, self.edit_checkpoints)
         map_menu.addSeparator()
         self.build_control_menu(map_menu)
 

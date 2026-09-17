@@ -89,10 +89,9 @@ fn parses_every_command_form() {
         AdminCommand::Heal(PlayerTarget::Named("Bob".to_owned()))
     );
     assert_eq!(parse_admin_command("/checkpoint"), AdminCommand::CheckpointStatus);
-    assert_eq!(
-        parse_admin_command("/checkpoint hall 2"),
-        AdminCommand::SetCheckpoint("hall 2".to_owned())
-    );
+    assert_eq!(parse_admin_command("/checkpoint 12"), AdminCommand::SetCheckpoint(12));
+    assert_eq!(parse_admin_command("/checkpoint hall"), AdminCommand::CheckpointUsage);
+    assert_eq!(parse_admin_command("/checkpoint 1 2"), AdminCommand::CheckpointUsage);
     assert_eq!(parse_admin_command("/give keys"), AdminCommand::GiveKeys);
     assert_eq!(
         parse_admin_command("/give key lobby"),

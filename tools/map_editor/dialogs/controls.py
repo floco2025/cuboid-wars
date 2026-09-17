@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QSpinBox, QVBoxLayout, QWidget
 
+from ..constants import CHECKPOINT_RESPONSE_LABELS
 from ..display import color_icon
 
 
@@ -44,6 +45,41 @@ def choice(values, current, *, optional=False, mixed=False, colors=None):
         index = box.count() - 1
     box.setCurrentIndex(max(0, index))
     return box
+
+
+class CourseControl(QWidget):
+    """Where on the checkpoint course an actor zone ends: the checkpoint that
+    closes it once any player reaches it (Always keeps it open) and what
+    happens to its actors then."""
+
+    ALWAYS = 0
+    MAX_NUMBER = 999_999
+
+    def __init__(self, until_checkpoint=None, on_checkpoint=None):
+        super().__init__()
+        self.until = QSpinBox()
+        self.until.setRange(self.ALWAYS, self.MAX_NUMBER)
+        self.until.setSpecialValueText("Always")
+        valid = type(until_checkpoint) is int and until_checkpoint >= 1
+        self.until.setValue(min(until_checkpoint, self.MAX_NUMBER) if valid else self.ALWAYS)
+        self.response = QComboBox()
+        for value, label in CHECKPOINT_RESPONSE_LABELS.items():
+            self.response.addItem(label, value)
+        self.response.setCurrentIndex(max(0, self.response.findData(on_checkpoint)))
+        form = QFormLayout(self)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.addRow("Active until checkpoint:", self.until)
+        form.addRow("Then:", self.response)
+        self.until.valueChanged.connect(self.sync_enabled)
+        self.sync_enabled()
+
+    def sync_enabled(self):
+        self.response.setEnabled(self.until.value() != self.ALWAYS)
+
+    def state(self):
+        """The closing checkpoint, `None` for always, and the response, `None` without one."""
+        until = self.until.value() or None
+        return until, self.response.currentData() if until else None
 
 
 class SwitchControl(QWidget):

@@ -10,15 +10,15 @@ use crate::{
     characters::{generate_flying_spawn_position, generate_ground_actor_spawn_position},
     config::{ActorRespawnScope, ServerGameplayConfig},
     map::{ActorSpawnZone, MapConfig},
-    players::PlayerMap,
+    players::{PlayerMap, checkpoint_progress},
 };
 use common::{
     config::{ActorGameplayConfig, ActorMovementConfig, CharacterPhysicsConfig},
     map::Carriers,
     physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, character_positions_intersect},
     protocol::{
-        ActorAnchor, ActorMarker, ActorMoveIntent, BarrierId, FaceYaw, Health, MapSettings, PlayerMarker, Position,
-        ServerTick, SwitchState, sequence_is_newer,
+        ActorAnchor, ActorMarker, ActorMoveIntent, BarrierId, FaceYaw, Health, MapLayout, MapSettings, PlayerMarker,
+        Position, ServerTick, SwitchState, sequence_is_newer,
     },
 };
 
@@ -47,8 +47,8 @@ pub(crate) fn reset_actors(
 
 // Each vacated slot waits its own `respawn_secs` and then rejoins the zone's
 // deficit: the target for the logged-in players less its live, announced, and
-// waiting slots. The deficit fills every tick the switch allows, so the first
-// fill, joins, resets, and expired countdowns all spawn the same way.
+// waiting slots. The deficit fills every tick the zone's gates allow, so the
+// first fill, joins, resets, and expired countdowns all spawn the same way.
 pub fn actors_respawn_system(
     mut pending: ResMut<PendingActorSpawns>,
     mut spawner: ResMut<ActorSpawner>,
@@ -63,8 +63,10 @@ pub fn actors_respawn_system(
     players: Query<&Position, With<PlayerMarker>>,
     actor_positions: Query<(&Position, &ActorCharacter), (With<ActorMarker>, Without<PlayerMarker>)>,
     player_map: Res<PlayerMap>,
+    layout: Res<MapLayout>,
 ) {
     let player_count = player_map.logged_in_count();
+    let progress = checkpoint_progress(&player_map, &layout.checkpoints);
     for zone_idx in actors.drain_vacated_spawn_zones() {
         if let Some(zone) = map_config.actor_spawn_zones.get(zone_idx) {
             spawner.refills.entry(zone_idx).or_default().push(zone.respawn_secs);
@@ -77,6 +79,13 @@ pub fn actors_respawn_system(
         }
         refills.retain(|secs| secs.is_none_or(|secs| secs > 0.0));
     }
+    // A zone destroying at its checkpoint takes its announced beam-ins with it.
+    pending.0.retain(|entry| {
+        !map_config
+            .actor_spawn_zones
+            .get(entry.zone_idx)
+            .is_some_and(|zone| zone.destroys_at(progress))
+    });
 
     let mut occupied_by_zone = vec![0u32; map_config.actor_spawn_zones.len()];
     for info in actors.values() {
@@ -112,8 +121,8 @@ pub fn actors_respawn_system(
         open: &switch_state.open_barriers,
     };
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        // A zone its switch holds back keeps its deficit and fills the tick the switch allows.
-        if !zone.is_enabled(&switch_state) {
+        // A zone its switch or the course holds back keeps its deficit and fills the tick the gates allow.
+        if !zone.is_enabled(&switch_state, progress) {
             continue;
         }
         let waiting = planner

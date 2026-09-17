@@ -136,6 +136,32 @@ class SpawnWindowTests(WindowTestCase):
         self.assertEqual(dialog.values()[1], [7])
         dialog.deleteLater()
 
+    def test_course_control_reports_the_closing_checkpoint_and_response(self):
+        dialog = ActorSpawnFieldsDialog(
+            self.window, "zapper", [1], None, [], None, until_checkpoint=4, on_checkpoint="destroy"
+        )
+        self.assertEqual(dialog.values()[8:], (4, "destroy"))
+        self.assertTrue(dialog.course.response.isEnabled())
+        dialog.course.until.setValue(0)
+        self.assertEqual(dialog.values()[8:], (None, None))
+        self.assertFalse(dialog.course.response.isEnabled())
+        dialog.deleteLater()
+
+    def test_zones_ending_at_a_checkpoint_are_painted_saved_and_reloaded(self):
+        window = self.window
+        data = copy.deepcopy(window.map_data)
+        data["checkpoints"] = [{"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual", "number": 2}]
+        window.apply_change("Add checkpoint", data)
+        window.recent_actor_spawn_kind = "zapper"
+        window.recent_actor_until_checkpoint = 2
+        window.recent_actor_on_checkpoint = "destroy"
+        window.add_actor_spawn_zone_rect((2, 2), (3, 3))
+        zone = window.map_data["actor_spawn_zones"][0]
+        self.assertEqual((zone["until_checkpoint"], zone["on_checkpoint"]), (2, "destroy"))
+        self.assertEqual(window.validate_document(window.doc.root_data), [])
+        self.assertTrue(window.save())
+        self.assertEqual(read_map(self.path)["actor_spawn_zones"], window.map_data["actor_spawn_zones"])
+
     def test_scaled_zones_can_be_painted_edited_undone_saved_and_reloaded(self):
         window = self.window
         window.recent_actor_spawn_count = [0, 2, 3]

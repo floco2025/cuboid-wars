@@ -1,5 +1,6 @@
 use super::{FireworksConfig, ZoneVolume};
 use bevy::prelude::Resource;
+use serde::Deserialize;
 
 use common::{
     map::MapGeometry,
@@ -108,9 +109,20 @@ pub struct LevelGrid {
     pub barrier_edges: EdgeGrid,
 }
 
+// What a zone does once any player has reached its `until_checkpoint`:
+// `stop` spawns nothing more, `destroy` also removes its remaining actors.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CheckpointResponse {
+    #[default]
+    Stop,
+    Destroy,
+}
+
 // `respawn_secs` is the delay before a vacancy refills; `None` never refills.
-// `switch` gates the zone: it spawns nothing while the switch does not match,
-// but its countdown keeps running meanwhile (`actors_respawn_system`).
+// `switch` and `until_checkpoint` gate the zone: it spawns nothing while the
+// switch does not match or the course has passed its checkpoint, but its
+// countdown keeps running meanwhile (`actors_respawn_system`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActorSpawnZone {
     pub switch_inverted: bool,
@@ -124,6 +136,8 @@ pub struct ActorSpawnZone {
     pub count: Vec<u32>,
     pub respawn_secs: Option<f32>,
     pub switch: Option<SwitchId>,
+    pub until_checkpoint: Option<u32>,
+    pub on_checkpoint: CheckpointResponse,
 }
 
 impl ActorSpawnZone {
@@ -147,12 +161,26 @@ impl ActorSpawnZone {
         zone_cells(self.cols, self.rows)
     }
 
-    // Whether the zone may spawn now: always without a switch, otherwise
-    // while its switch matches its On/Off response.
+    // Whether the zone may spawn now: its switch, if any, matches its On/Off
+    // response, and the course (`progress`, the furthest checkpoint any
+    // logged-in player has saved) has not reached its `until_checkpoint`.
     #[must_use]
-    pub fn is_enabled(&self, switch_state: &SwitchState) -> bool {
+    pub fn is_enabled(&self, switch_state: &SwitchState, progress: Option<u32>) -> bool {
         self.switch
             .is_none_or(|switch| switch_state.is_active(switch) != self.switch_inverted)
+            && !self.checkpoint_reached(progress)
+    }
+
+    #[must_use]
+    pub fn checkpoint_reached(&self, progress: Option<u32>) -> bool {
+        self.until_checkpoint
+            .is_some_and(|until| progress.is_some_and(|progress| progress >= until))
+    }
+
+    // Whether the zone's remaining actors and beam-ins go now.
+    #[must_use]
+    pub fn destroys_at(&self, progress: Option<u32>) -> bool {
+        self.on_checkpoint == CheckpointResponse::Destroy && self.checkpoint_reached(progress)
     }
 
     pub fn immovable_cells<'a>(&'a self, grid: &'a CarrierGrid) -> impl Iterator<Item = (u8, i32, i32)> + 'a {
@@ -187,7 +215,7 @@ impl PlayerSpawnZone {
 }
 
 // Every `(col, row)` of a zone rectangle, row by row.
-fn zone_cells(cols: [i32; 2], rows: [i32; 2]) -> impl Iterator<Item = (i32, i32)> {
+pub(crate) fn zone_cells(cols: [i32; 2], rows: [i32; 2]) -> impl Iterator<Item = (i32, i32)> {
     (rows[0]..rows[1]).flat_map(move |row| (cols[0]..cols[1]).map(move |col| (col, row)))
 }
 

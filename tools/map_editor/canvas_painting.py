@@ -803,7 +803,7 @@ class CanvasPaintingMixin:
         painter.setPen(QPen(QColor("#ffb31f"), 3))
         painter.drawRect(rect)
         if cell >= 8:
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, zone.get("name") or "checkpoint")
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(zone.get("number", "?")))
 
     def paint_actor_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
         c0, r0, c1, r1 = zone_rect(zone)

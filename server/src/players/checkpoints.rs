@@ -1,14 +1,13 @@
 use std::collections::BTreeMap;
 
 use bevy::prelude::*;
-use rand::RngExt;
 
 use super::{PlayerMap, checkpoint_index};
-use crate::characters::{sample_clear_position, spawn_face_yaw};
+use crate::characters::spawn_face_yaw;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::CHARACTER_CONTACT_OFFSET,
-    map::{CarrierPose, Carriers},
+    map::Carriers,
     math::direction_from_yaw_pitch,
     physics::{CharacterSupport, CollisionWorld, grounding_diagnostics},
     protocol::{
@@ -48,33 +47,43 @@ impl PlayerCheckpoint {
     }
 }
 
-// The checkpoint a name refers to, for `--checkpoint` and `/checkpoint`.
-pub(crate) fn checkpoint_named(checkpoints: &[Checkpoint], name: &str) -> Result<CheckpointId, String> {
+// The checkpoint a number refers to, for `--checkpoint` and `/checkpoint`.
+pub(crate) fn checkpoint_numbered(checkpoints: &[Checkpoint], number: u32) -> Result<CheckpointId, String> {
     let mut matches = checkpoints
         .iter()
         .enumerate()
-        .filter(|(_, checkpoint)| checkpoint.name.as_deref() == Some(name));
+        .filter(|(_, checkpoint)| checkpoint.number == number);
     if let Some((index, _)) = matches.next() {
         return if matches.next().is_some() {
             Err(format!(
-                "ambiguous checkpoint {name:?}: more than one placed checkpoint has this name"
+                "ambiguous checkpoint {number}: more than one placed checkpoint has this number"
             ))
         } else {
             Ok(CheckpointId(index))
         };
     }
-    let names: Vec<_> = checkpoints
-        .iter()
-        .filter_map(|checkpoint| checkpoint.name.as_deref())
-        .collect();
-    Err(if names.is_empty() {
-        format!("unknown checkpoint {name:?}: the map has no named checkpoints")
+    let mut numbers: Vec<_> = checkpoints.iter().map(|checkpoint| checkpoint.number).collect();
+    numbers.sort_unstable();
+    numbers.dedup();
+    Err(if numbers.is_empty() {
+        format!("unknown checkpoint {number}: the map has no checkpoints")
     } else {
         format!(
-            "unknown checkpoint {name:?}: the map's named checkpoints are {}",
-            names.join(", ")
+            "unknown checkpoint {number}: the map's checkpoints are {}",
+            numbers.iter().map(u32::to_string).collect::<Vec<_>>().join(", ")
         )
     })
+}
+
+// The furthest checkpoint any logged-in player has saved, dead players
+// included; the course position actor spawn zones are gated on.
+pub(crate) fn checkpoint_progress(players: &PlayerMap, checkpoints: &[Checkpoint]) -> Option<u32> {
+    players
+        .values()
+        .filter(|player| player.connection.logged_in)
+        .filter_map(|player| player.session.checkpoint)
+        .map(|saved| checkpoints[saved.id.0].number)
+        .max()
 }
 
 pub(crate) fn players_checkpoints_system(
@@ -136,6 +145,7 @@ pub(super) fn apply_checkpoint_entries(
     mut entered: Vec<(PlayerId, PlayerCheckpoint)>,
     tick: u32,
 ) {
+    let number = |id: CheckpointId| checkpoints[id.0].number;
     let previous: Vec<_> = players
         .iter()
         .filter(|(_, player)| player.connection.logged_in)
@@ -149,7 +159,16 @@ pub(super) fn apply_checkpoint_entries(
             continue;
         };
         match checkpoints[saved.id.0].kind {
-            CheckpointKind::Individual => player.session.checkpoint = Some(saved),
+            // Progress only moves forward: a lower-numbered checkpoint is passed, not saved.
+            CheckpointKind::Individual => {
+                if player
+                    .session
+                    .checkpoint
+                    .is_none_or(|current| number(current.id) < number(saved.id))
+                {
+                    player.session.checkpoint = Some(saved);
+                }
+            }
             CheckpointKind::GroupAny => {
                 shared_entries.entry(saved.id).or_insert(saved);
                 shared_entrants.entry(saved.id).or_default().push(id);
@@ -161,13 +180,14 @@ pub(super) fn apply_checkpoint_entries(
             }
         }
     }
-    let active = players.shared_checkpoint.map(|checkpoint| checkpoint.id);
+    let active = players.shared_checkpoint.map(|checkpoint| number(checkpoint.id));
     let mut activated = None;
     for (index, checkpoint) in checkpoints.iter().enumerate() {
         let id = CheckpointId(index);
-        // Re-entering the active shared checkpoint changes nothing: individual
+        // The group's progress only moves forward too: re-entering the active
+        // shared checkpoint or a lower one changes nothing, so individual
         // saves, the saved facing, and partial visits all stand.
-        if active == Some(id) {
+        if active.is_some_and(|active| checkpoint.number <= active) {
             continue;
         }
         let saved = match checkpoint.kind {
@@ -200,20 +220,24 @@ pub(super) fn apply_checkpoint_entries(
         };
         players.shared_checkpoint = Some(saved);
         for (_, player) in players.iter_mut().filter(|(_, player)| player.connection.logged_in) {
-            player.session.checkpoint = Some(saved);
+            if player
+                .session
+                .checkpoint
+                .is_none_or(|current| number(current.id) < checkpoint.number)
+            {
+                player.session.checkpoint = Some(saved);
+            }
             player.session.checkpoint_visits.clear();
         }
         activated = Some(id);
         break;
     }
-    // One activation per tick: whoever entered another shared checkpoint now
-    // enters it again next tick instead of standing there unnoticed. A
-    // re-entry of the checkpoint that was active is not an entry to repeat,
-    // or it would win the next tick and roll everyone back.
+    // One activation per tick: whoever entered a shared checkpoint further
+    // along now enters it again next tick instead of standing there unnoticed.
     if let Some(activated) = activated {
         for entrant in shared_entrants
             .iter()
-            .filter(|(id, _)| **id != activated && Some(**id) != active)
+            .filter(|(id, _)| number(**id) > number(activated))
             .flat_map(|(_, entrants)| entrants)
         {
             if let Some(player) = players.get_mut(entrant) {
@@ -260,50 +284,4 @@ fn contains(checkpoint: &Checkpoint, local: &Position) -> bool {
         && local.x < checkpoint.max_x
         && local.z >= checkpoint.min_z
         && local.z < checkpoint.max_z
-}
-
-pub(crate) fn checkpoint_spawn_position(
-    checkpoint: &Checkpoint,
-    pose: &CarrierPose,
-    collision_world: &CollisionWorld,
-    occupied: &[Position],
-    physics: CharacterPhysicsConfig,
-) -> Option<Position> {
-    let radius = physics.movement_collider.radius();
-    let min_x = checkpoint.min_x + radius;
-    let max_x = checkpoint.max_x - radius;
-    let min_z = checkpoint.min_z + radius;
-    let max_z = checkpoint.max_z - radius;
-    if min_x > max_x || min_z > max_z {
-        return None;
-    }
-    // The center first, then anywhere in the rectangle; a spot is clear of
-    // every solid and stands on the checkpoint's own carrier.
-    sample_clear_position(
-        occupied,
-        physics,
-        |attempt, rng| {
-            let local = Position {
-                x: if attempt == 0 {
-                    (min_x + max_x) / 2.0
-                } else {
-                    rng.random_range(min_x..=max_x)
-                },
-                y: checkpoint.y,
-                z: if attempt == 0 {
-                    (min_z + max_z) / 2.0
-                } else {
-                    rng.random_range(min_z..=max_z)
-                },
-            };
-            Some(pose.transform_position(&local))
-        },
-        |pos| {
-            if collision_world.character_overlaps_solid(pos, physics, &[]) {
-                return false;
-            }
-            let ground = grounding_diagnostics(collision_world, pos, physics, &[], &[]);
-            ground.supported && ground.hit.is_some_and(|hit| hit.carrier == checkpoint.carrier)
-        },
-    )
 }

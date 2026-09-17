@@ -41,6 +41,8 @@ fn zone(level: u8, col: i32, row: i32) -> ActorSpawnZone {
         count: vec![1],
         respawn_secs: None,
         switch: None,
+        until_checkpoint: None,
+        on_checkpoint: Default::default(),
     }
 }
 

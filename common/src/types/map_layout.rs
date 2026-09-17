@@ -262,10 +262,14 @@ pub enum CheckpointKind {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Checkpoint {
     pub kind: CheckpointKind,
-    // Unique within its map definition; `--checkpoint` and `/checkpoint` refer to it.
-    pub name: Option<String>,
+    // Orders the course and is unique within the map document; `--checkpoint`,
+    // `/checkpoint`, and a zone's `until_checkpoint` name it.
+    pub number: u32,
     pub carrier: CarrierId,
     pub level: u8,
+    // The rectangle's cells in the carrier's grid, for the spawn sampler.
+    pub cols: [i32; 2],
+    pub rows: [i32; 2],
     pub min_x: f32,
     pub max_x: f32,
     pub min_z: f32,

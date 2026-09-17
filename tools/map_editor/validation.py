@@ -10,6 +10,7 @@ from .spawn_counts import actor_count_error
 from .control_catalogs import validate_catalog
 from .constants import (
     FACES,
+    CHECKPOINT_RESPONSE_LABELS,
     CHECKPOINT_TYPE_LABELS,
     ITEM_KEY_TYPE,
     ITEM_TYPES,
@@ -87,6 +88,17 @@ def placed_definitions(root: dict, definitions: dict) -> dict[str, dict]:
     return placed
 
 
+# Every valid checkpoint number of the given geometries: numbers are one
+# sequence per map document, and a zone's `until_checkpoint` names one of them.
+def document_checkpoint_numbers(geometries: list[dict]) -> set[int]:
+    return {
+        zone["number"]
+        for geometry in geometries
+        for zone in geometry.get("checkpoints", [])
+        if type(zone.get("number")) is int and zone["number"] >= 1
+    }
+
+
 # The switches some plate of the placed geometry operates: a zone or nested
 # map naming any other could never start, so the server rejects it.
 def plated_switches(geometries: list[dict]) -> set[str]:
@@ -110,10 +122,13 @@ def validate_map(
     actor_kinds: list[str] | None = None,
     material_aliases: list[str] | None = None,
     wall_light_kinds: list[str] | None = None,
+    checkpoint_numbers: set[int] | None = None,
 ) -> ValidationErrors:
     """Validate one geometry using its parent's catalogs and named shapes."""
     errors = ValidationErrors()
     cols = map_data["grid_cols"]
+    if checkpoint_numbers is None:
+        checkpoint_numbers = document_checkpoint_numbers([map_data])
     rows = map_data["grid_rows"]
     if cols <= 0 or rows <= 0:
         errors.append("grid_cols and grid_rows must be positive")
@@ -138,6 +153,7 @@ def validate_map(
         elif zone["respawn_secs"] is not None and not _is_non_negative_number(zone["respawn_secs"]):
             errors.append(f"actor_spawn_zones[{idx}] respawn_secs must be a non-negative number or null")
         _validate_switch_target(zone, f"actor_spawn_zones[{idx}]", switches, plated_switches, errors)
+        _validate_zone_course(zone, f"actor_spawn_zones[{idx}]", checkpoint_numbers, errors)
 
     for idx, zone in enumerate(map_data["player_spawn_zones"]):
         errors.locate("player_spawn_zones", zone)
@@ -308,6 +324,7 @@ def validate_document(
             or cooldown < 0
         ):
             errors.append("fireworks cooldown_secs must be finite and nonnegative")
+    numbers = document_checkpoint_numbers([root, *definitions.values()])
     for name, geometry in [(None, root), *definitions.items()]:
         label = f"Nested {name}" if name is not None else None
         if name is not None and not MAP_NAME_RE.fullmatch(name):
@@ -329,8 +346,22 @@ def validate_document(
             actor_kinds=actor_kinds,
             material_aliases=list(catalogs.texture_catalog),
             wall_light_kinds=wall_light_kinds,
+            checkpoint_numbers=numbers,
         )
         errors.merge(found, label, name)
+    owners: dict[int, str | None] = {}
+    for name, geometry in [(None, root), *definitions.items()]:
+        for zone in geometry.get("checkpoints", []):
+            number = zone.get("number")
+            if type(number) is not int:
+                continue
+            if number in owners and owners[number] != name:
+                where = "the outer map" if owners[number] is None else f"nested {owners[number]}"
+                errors.append(
+                    f"{'Nested ' + name if name else 'The outer map'}: checkpoint number {number} is also used in {where}",
+                    map_name=name,
+                )
+            owners.setdefault(number, name)
     return errors
 
 
@@ -422,6 +453,24 @@ def _validate_nested_maps(
         cycle = nested_map_cycle(map_name, entries, nested_lookup)
         if cycle:
             errors.append("nested maps loop: " + " -> ".join(cycle))
+
+
+# A zone's optional end on the checkpoint course: a checkpoint of the
+# document, and a response only together with one.
+def _validate_zone_course(zone: dict, label: str, numbers: set[int], errors: list[str]) -> None:
+    until = zone.get("until_checkpoint")
+    if until is not None:
+        if type(until) is not int or until < 1:
+            errors.append(f"{label} until_checkpoint must be a positive whole number")
+        elif until not in numbers:
+            errors.append(f"{label} until_checkpoint {until} names no checkpoint")
+    response = zone.get("on_checkpoint")
+    if response is None:
+        return
+    if response not in CHECKPOINT_RESPONSE_LABELS:
+        errors.append(f"{label} on_checkpoint must be one of {', '.join(CHECKPOINT_RESPONSE_LABELS)}")
+    elif until is None:
+        errors.append(f"{label} on_checkpoint needs an until_checkpoint")
 
 
 # A zone's or nested map's optional switch: known to the catalog and
@@ -575,12 +624,11 @@ def _validate_checkpoints(data: dict, errors: ValidationErrors) -> None:
         _validate_zone_rect(zone, label, data, errors)
         if zone.get("type") not in CHECKPOINT_TYPE_LABELS:
             errors.append(f"{label} has an unknown checkpoint type {zone.get('type')!r}")
-        name = zone.get("name")
-        if name is not None:
-            if not isinstance(name, str) or not name.strip() or name != name.strip():
-                errors.append(f"{label} name must be nonempty with no surrounding spaces")
-            elif any(other.get("name") == name for other in data["checkpoints"][:index]):
-                errors.append(f"{label} name {name!r} is already used by another checkpoint")
+        number = zone.get("number")
+        if type(number) is not int or number < 1:
+            errors.append(f"{label} needs a positive whole `number`")
+        elif any(other.get("number") == number for other in data["checkpoints"][:index]):
+            errors.append(f"{label} number {number} is already used by another checkpoint")
         level = zone["level"]
         if not 0 <= level < len(data["levels"]):
             continue

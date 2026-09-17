@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from .constants import CHECKPOINT_TYPE_LABELS, FACES, ITEM_TYPES, TERRAIN_FACES
+from .constants import CHECKPOINT_RESPONSE_LABELS, CHECKPOINT_TYPE_LABELS, FACES, ITEM_TYPES, TERRAIN_FACES
 from .nesting import MOTION_LABELS, MOTION_TOOLTIPS
 
 NUDGE_TOOLTIPS = ("Wall widths across columns (X) or rows (Z)", "Floor thicknesses upward")
@@ -53,10 +53,23 @@ def fields_for(window, name):
         add("respawn_secs", "Respawn (s)", "respawn", tooltip="Seconds before refilling a slot; Never fills it once.")
         add("levels", "Levels", "positive_int")
         add("roam_distance", "Roam (m)", "nonnegative")
+        add(
+            "until_checkpoint",
+            "Until checkpoint",
+            "checkpoint",
+            tooltip="The checkpoint that ends the zone once any player reaches it; Always keeps it open.",
+        )
+        add(
+            "on_checkpoint",
+            "Then",
+            "choice",
+            CHECKPOINT_RESPONSE_LABELS.items(),
+            tooltip="Whether the zone's remaining actors self-destruct at that checkpoint.",
+        )
     elif name == "player_spawn_zones":
         add("levels", "Levels", "positive_int")
     elif name == "checkpoints":
-        add("name", "Name", "optional_text")
+        add("number", "Number", "positive_int", tooltip="Orders the course; unique in the map.")
         add("type", "Type", "choice", CHECKPOINT_TYPE_LABELS.items())
     elif name == "items":
         choice("type", "Item", ITEM_TYPES)
@@ -107,4 +120,6 @@ def property_value(entry, key):
         return entry.get(key[0], 1)
     if key[0] == "roam_distance":
         return entry.get(key[0], 0.0)
+    if key[0] == "on_checkpoint":
+        return entry.get(key[0], "stop")
     return value

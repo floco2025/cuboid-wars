@@ -31,25 +31,25 @@ fn saved_checkpoint(app: &App, id: PlayerId) -> Option<CheckpointId> {
 }
 
 #[test]
-fn checkpoint_option_starts_every_login_at_the_named_checkpoint_and_saves_it() {
-    let options = |checkpoint: &str| ServerAppOptions {
+fn checkpoint_option_starts_every_login_at_the_numbered_checkpoint_and_saves_it() {
+    let options = |checkpoint: u32| ServerAppOptions {
         map: None,
         god: false,
         peace: false,
         initial_spawn: None,
-        checkpoint: Some(checkpoint.to_owned()),
+        checkpoint: Some(checkpoint),
         network: NetworkOverrides::default(),
         logging: false,
     };
-    let error = server_app_with_options(options("nowhere"), None)
+    let error = server_app_with_options(options(7), None)
         .expect_err("unknown checkpoint accepted")
         .to_string();
     assert!(
-        error.contains("unknown checkpoint \"nowhere\"") && error.contains("corner"),
+        error.contains("unknown checkpoint 7") && error.contains("checkpoints are 1"),
         "{error}"
     );
 
-    let mut app = server_app_with_options(options("corner"), None).expect("server app failed to initialize");
+    let mut app = server_app_with_options(options(1), None).expect("server app failed to initialize");
     let (client, receiver) = connect(&mut app);
     client
         .send(ClientMessage::Login(CLogin { name: "Player".into() }))
@@ -92,15 +92,16 @@ fn checkpoint_command_reports_and_sets_the_senders_checkpoint() {
     assert_eq!(reply(&mut app, "/checkpoint"), vec!["no checkpoint saved"]);
     assert_eq!(
         reply(&mut app, "/checkpoint nowhere"),
-        vec!["unknown checkpoint \"nowhere\": the map's named checkpoints are corner"]
+        vec!["usage: /checkpoint [number]"]
+    );
+    assert_eq!(
+        reply(&mut app, "/checkpoint 7"),
+        vec!["unknown checkpoint 7: the map's checkpoints are 1"]
     );
     assert_eq!(saved_checkpoint(&app, PlayerId(1)), None);
-    assert_eq!(
-        reply(&mut app, "/checkpoint corner"),
-        vec!["checkpoint set to \"corner\""]
-    );
+    assert_eq!(reply(&mut app, "/checkpoint 1"), vec!["checkpoint set to 1"]);
     assert_eq!(saved_checkpoint(&app, PlayerId(1)), Some(CheckpointId(0)));
-    assert_eq!(reply(&mut app, "/checkpoint"), vec!["checkpoint: corner"]);
+    assert_eq!(reply(&mut app, "/checkpoint"), vec!["checkpoint: 1"]);
 }
 
 #[test]

@@ -88,9 +88,13 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
             label = f"Actor spawn zone: {zone['kind']}\n{actor_count_preview(zone['count'])}"
             if zone.get("switch"):
                 label += f"\nSwitch: {zone['switch']}"
+            if zone.get("until_checkpoint") is not None:
+                label += f"\nUntil checkpoint {zone['until_checkpoint']}"
+                if zone.get("on_checkpoint") == "destroy":
+                    label += " (self-destruct)"
             return label
         return (
-            f"Checkpoint: {CHECKPOINT_TYPE_LABELS.get(zone['type'], zone['type'])}"
+            f"Checkpoint {zone.get('number', '?')}: {CHECKPOINT_TYPE_LABELS.get(zone['type'], zone['type'])}"
             if kind == HIT_CHECKPOINT
             else "Player spawn zone"
         )

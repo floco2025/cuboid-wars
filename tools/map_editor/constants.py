@@ -114,6 +114,8 @@ ACTOR_ZONE_LIST = "actor_spawn_zones"
 PLAYER_ZONE_LIST = "player_spawn_zones"
 CHECKPOINT_LIST = "checkpoints"
 CHECKPOINT_TYPE_LABELS = {"individual": "Individual", "group_any": "Group — any", "group_all": "Group — all"}
+# What an actor zone does once any player has reached its `until_checkpoint`.
+CHECKPOINT_RESPONSE_LABELS = {"stop": "Stop spawning", "destroy": "Self-destruct actors"}
 SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
 ZONE_LISTS = (*SPAWN_ZONE_LISTS, CHECKPOINT_LIST)
 # Which zone a pick under the cursor prefers when zones overlap a cell: a

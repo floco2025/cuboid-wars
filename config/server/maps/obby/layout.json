@@ -13,16 +13,16 @@
     "grid_cols": 80,
     "grid_rows": 40,
     "actor_spawn_zones": [
-      {"level": 9, "cols": [46, 48], "rows": [19, 21], "kind": "scuttler", "count": [6], "respawn_secs": 4.0, "switch": "trap 1", "switch_inverted": false},
-      {"level": 10, "cols": [18, 39], "rows": [25, 29], "kind": "zapper", "count": [10, 16, 20], "respawn_secs": 60, "levels": 2, "roam_distance": 4.0, "switch": "platform", "switch_inverted": false}
+      {"level": 9, "cols": [46, 48], "rows": [19, 21], "kind": "scuttler", "count": [6], "respawn_secs": 4.0, "switch": "trap 1", "switch_inverted": false, "until_checkpoint": 2, "on_checkpoint": "destroy"},
+      {"level": 10, "cols": [15, 39], "rows": [25, 29], "kind": "zapper", "count": [15, 25, 30], "respawn_secs": 30.0, "levels": 2, "roam_distance": 4.0, "switch": "platform", "switch_inverted": false, "until_checkpoint": 3, "on_checkpoint": "destroy"}
     ],
     "player_spawn_zones": [
       {"level": 4, "cols": [9, 11], "rows": [8, 10]}
     ],
     "checkpoints": [
-      {"level": 9, "cols": [46, 48], "rows": [7, 9], "type": "individual", "name": "1"},
-      {"level": 9, "cols": [9, 11], "rows": [21, 23], "type": "individual", "name": "3"},
-      {"level": 9, "cols": [46, 48], "rows": [22, 24], "type": "individual", "name": "2"}
+      {"level": 9, "cols": [46, 48], "rows": [7, 9], "type": "individual", "number": 1},
+      {"level": 9, "cols": [46, 48], "rows": [22, 24], "type": "individual", "number": 2},
+      {"level": 9, "cols": [9, 11], "rows": [21, 23], "type": "individual", "number": 3}
     ],
     "pressure_plates": [
       {"level": 9, "col": 46, "row": 10, "switch": "trap 1"},

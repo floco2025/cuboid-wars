@@ -74,9 +74,11 @@ pub(super) fn compile_geometry(
         let level = level_tag(def.zone.level as usize);
         Checkpoint {
             kind: def.kind,
-            name: def.name.clone(),
+            number: def.number,
             carrier,
             level,
+            cols: def.zone.cols,
+            rows: def.zone.rows,
             min_x: geometry.cell_to_world_x(def.zone.cols[0]),
             max_x: geometry.cell_to_world_x(def.zone.cols[1]),
             min_z: geometry.cell_to_world_z(def.zone.rows[0]),
@@ -391,6 +393,8 @@ fn actor_spawn_zones(
                 switch: scope
                     .target_switch(zone.switch.as_deref())
                     .with_context(|| format!("actor_spawn_zones[{idx}]"))?,
+                until_checkpoint: zone.until_checkpoint,
+                on_checkpoint: zone.on_checkpoint.unwrap_or_default(),
             })
         })
         .collect()

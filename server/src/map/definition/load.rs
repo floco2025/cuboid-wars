@@ -8,7 +8,7 @@ use anyhow::{Context, Result, bail, ensure};
 
 use super::{
     schema::{MapDef, MapFile, MapSource},
-    validation::{canonicalize, validate_map},
+    validation::{canonicalize, validate_checkpoint_references, validate_map},
 };
 use crate::config::is_valid_map_name;
 
@@ -42,6 +42,7 @@ fn prepare_source(mut root: MapDef) -> Result<MapSource> {
         validate_map(geometry).with_context(|| format!("nested geometry {name:?}"))?;
         canonicalize(geometry);
     }
+    validate_checkpoint_references(&root, &nested_geometry)?;
     let mut checked = HashSet::new();
     visit(&root, &nested_geometry, &mut Vec::new(), &mut checked)?;
     let used = checked.clone();

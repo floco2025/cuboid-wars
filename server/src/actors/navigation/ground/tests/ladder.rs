@@ -389,6 +389,8 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
             count: vec![1],
             respawn_secs: None,
             switch: None,
+            until_checkpoint: None,
+            on_checkpoint: Default::default(),
         });
     }
     let mut config = test_kinds::server_config();

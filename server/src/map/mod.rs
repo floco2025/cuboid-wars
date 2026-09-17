@@ -30,9 +30,10 @@ pub use definition::FireworksConfig;
 pub use generation::{GeneratedMap, generate_map};
 pub use grid::grid_coords_from_position;
 pub use plugin::map_plugin;
+pub(crate) use resources::zone_cells;
 pub use resources::{
-    ActorSpawnZone, CarrierGrid, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, MapFireworks, PlacedItem,
-    PlayerSpawnZone, PressurePlateRuntime,
+    ActorSpawnZone, CarrierGrid, Cell, CellGrid, CheckpointResponse, EdgeGrid, LevelGrid, MapConfig, MapFireworks,
+    PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
 };
 pub use volume::ZoneVolume;
 pub use weather::{WeatherState, weather_system};

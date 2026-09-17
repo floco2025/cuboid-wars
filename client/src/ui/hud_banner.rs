@@ -10,7 +10,6 @@ use crate::{
 
 const DEATH_TEXT: &str = "You died!";
 const GROUP_RESPAWN_TEXT: &str = "Group respawning";
-const CHECKPOINT_REACHED_TEXT: &str = "Checkpoint reached";
 
 #[derive(Component)]
 pub struct HudBannerMarker;
@@ -21,31 +20,28 @@ pub enum BannerMessage {
     QuestCompleted(String),
     Death,
     GroupRespawn,
-    CheckpointReached,
+    // The checkpoint's number.
+    CheckpointReached(u32),
 }
 
 impl BannerMessage {
-    #[cfg(test)]
-    fn text(&self) -> &str {
+    fn text(&self) -> String {
         match self {
-            Self::QuestAnnouncement(text) | Self::QuestCompleted(text) => text,
-            Self::Death => DEATH_TEXT,
-            Self::GroupRespawn => GROUP_RESPAWN_TEXT,
-            Self::CheckpointReached => CHECKPOINT_REACHED_TEXT,
+            Self::QuestAnnouncement(text) | Self::QuestCompleted(text) => text.clone(),
+            Self::Death => DEATH_TEXT.to_owned(),
+            Self::GroupRespawn => GROUP_RESPAWN_TEXT.to_owned(),
+            Self::CheckpointReached(number) => format!("Checkpoint {number}"),
         }
     }
 
     fn into_timed_text(self, client_settings: &ClientSettings) -> (String, BannerTiming) {
-        match self {
-            Self::QuestAnnouncement(text) => (text, client_settings.hud.banner.quest_announcement),
-            Self::QuestCompleted(text) => (text, client_settings.hud.banner.quest_completed),
-            Self::Death => (DEATH_TEXT.to_owned(), client_settings.hud.banner.death),
-            Self::GroupRespawn => (GROUP_RESPAWN_TEXT.to_owned(), client_settings.hud.banner.death),
-            Self::CheckpointReached => (
-                CHECKPOINT_REACHED_TEXT.to_owned(),
-                client_settings.hud.banner.checkpoint_reached,
-            ),
-        }
+        let timing = match &self {
+            Self::QuestAnnouncement(_) => client_settings.hud.banner.quest_announcement,
+            Self::QuestCompleted(_) => client_settings.hud.banner.quest_completed,
+            Self::Death | Self::GroupRespawn => client_settings.hud.banner.death,
+            Self::CheckpointReached(_) => client_settings.hud.banner.checkpoint_reached,
+        };
+        (self.text(), timing)
     }
 }
 
@@ -60,7 +56,7 @@ impl HudBanner {
     }
 
     #[cfg(test)]
-    pub fn pending_texts(&self) -> Vec<&str> {
+    pub fn pending_texts(&self) -> Vec<String> {
         self.pending.iter().map(BannerMessage::text).collect()
     }
 }

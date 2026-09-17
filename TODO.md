@@ -8,6 +8,8 @@
 
 - **Portal body pose jumps at the crossing:** between floor portals, the emerging twin is upside down but the main body replaces it upright when the center crosses, swapping the visible legs for the upper body. Preserve the rendered pose across the handoff before reorienting it.
 
+- **Walking across a floor portal does not cross it:** the aperture backing is excluded while the body's centre is inside the aperture rectangle, and at obby's walk speed and gravity the centre walks out of the short axis before it has sunk to the plane. The body then stands inside the slab and surfaces over most of a second instead of emerging from the exit; a jump in crosses because it reaches the plane sooner. Keep the backing excluded until the body has cleared it, or judge the aperture by the capsule rather than its centre.
+
 - **Body clipping flickers on moving portals:** straddle detection uses the current tick's portal frame against the interpolated player position, while the visible portal and clipping planes use the interpolated carrier pose. Use the same rendered frames for detection and clipping.
 
 ## Enhancements

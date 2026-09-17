@@ -5,12 +5,12 @@ use rand::{
     seq::{IndexedRandom, SliceRandom},
 };
 
-use crate::map::{ActorSpawnZone, CarrierGrid, MapConfig};
+use crate::map::{ActorSpawnZone, CarrierGrid, MapConfig, zone_cells};
 use common::{
     config::{ActorGameplayConfig, CharacterPhysicsConfig},
     map::{Carriers, MapGeometry},
     physics::{CollisionWorld, character_paths_intersect},
-    protocol::{BarrierId, CarrierId, Position},
+    protocol::{BarrierId, CarrierId, Checkpoint, Position},
 };
 
 const SPAWN_MAX_ATTEMPTS: usize = 100;
@@ -124,6 +124,39 @@ pub fn generate_ground_actor_spawn_position(
     )
 }
 
+// A clear spot in a checkpoint for the body respawning there, sampled like
+// a spawn zone. The flag at the rectangle's centre counts as an occupied
+// body, so nobody appears inside its pole. `None` while every spot is blocked.
+#[must_use]
+pub fn generate_checkpoint_spawn_position(
+    map_config: &MapConfig,
+    carriers: &Carriers,
+    checkpoint: &Checkpoint,
+    collision_world: &CollisionWorld,
+    occupied_positions: &[Position],
+    character_physics: CharacterPhysicsConfig,
+) -> Option<Position> {
+    let valid_cells = collect_valid_cells(
+        map_config.grid(checkpoint.carrier),
+        checkpoint.level,
+        zone_cells(checkpoint.cols, checkpoint.rows),
+    );
+    let flag = carriers.pose(checkpoint.carrier).transform_position(&Position {
+        x: (checkpoint.min_x + checkpoint.max_x) / 2.0,
+        y: checkpoint.y,
+        z: (checkpoint.min_z + checkpoint.max_z) / 2.0,
+    });
+    let occupied: Vec<_> = occupied_positions.iter().copied().chain([flag]).collect();
+    pick_clear_position(
+        &valid_cells,
+        map_config,
+        carriers,
+        collision_world,
+        &occupied,
+        character_physics,
+    )
+}
+
 // (carrier, level, col, row) — the cell in its carrier's grid, same axis
 // order as the file format's `cols`/`rows` arrays and the editor's drag
 // tool. Internally the cell grid is indexed `[row][col]`, but that's local
@@ -153,7 +186,8 @@ fn collect_valid_cells(grid: &CarrierGrid, level: u8, cells: impl Iterator<Item 
 
 // The cell's position is in its carrier's frame; the carrier's pose at this
 // tick puts it in the world, where the colliders are. `None` when no cell
-// is spawnable or no random spot came up clear.
+// is spawnable or no random spot came up clear of walls, closed barriers,
+// and the other solids a body cannot stand inside.
 fn pick_clear_position(
     valid_cells: &[SpawnCell],
     map_config: &MapConfig,
@@ -171,7 +205,7 @@ fn pick_clear_position(
             let local = random_position_in_spawn_cell(rng, geometry, level, col, row, character_physics)?;
             Some(carriers.pose(carrier).transform_position(&local))
         },
-        |pos| !collision_world.character_overlaps_wall(pos, character_physics),
+        |pos| !collision_world.character_overlaps_solid(pos, character_physics, &[]),
     )
 }
 

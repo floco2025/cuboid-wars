@@ -4,11 +4,12 @@ use crate::{
     actors::{ActorCrushed, ActorMap},
     combat::{PendingExplosions, kill_actor},
     config::ServerGameplayConfig,
-    players::PlayerMap,
+    map::MapConfig,
+    players::{PlayerMap, checkpoint_progress},
 };
 use common::{
     constants::CHARACTER_FALL_DEATH_Y,
-    protocol::{ActorId, ActorMarker, Health, PlayerId, Position},
+    protocol::{ActorId, ActorMarker, Health, MapLayout, PlayerId, Position},
 };
 
 pub fn actors_removal_system(
@@ -16,14 +17,18 @@ pub fn actors_removal_system(
     mut actors: ResMut<ActorMap>,
     players: Res<PlayerMap>,
     server_gameplay_config: Res<ServerGameplayConfig>,
+    map_config: Res<MapConfig>,
+    layout: Res<MapLayout>,
     mut pending_explosions: ResMut<PendingExplosions>,
     query: Query<(Entity, &ActorId, &Position, &Health, &ActorCrushed), With<ActorMarker>>,
 ) {
+    let progress = checkpoint_progress(&players, &layout.checkpoints);
     let mut deaths: Vec<ActorDeath> = Vec::new();
     for (entity, id, pos, health, crushed) in query.iter() {
         let Some(info) = actors.get(id) else {
             continue;
         };
+        let zone = map_config.actor_spawn_zones.get(info.spawn_zone_index);
         let kind = if !server_gameplay_config.expect_actor(&info.spawn_kind).character.flies()
             && pos.y < CHARACTER_FALL_DEATH_Y
         {
@@ -32,6 +37,11 @@ pub fn actors_removal_system(
             ActorDeathKind::Crushed
         } else if health.0 <= 0.0 {
             ActorDeathKind::Killed
+        } else if let Some(until) = zone
+            .filter(|zone| zone.destroys_at(progress))
+            .and_then(|zone| zone.until_checkpoint)
+        {
+            ActorDeathKind::SelfDestruct(until)
         } else {
             continue;
         };
@@ -52,13 +62,18 @@ pub fn actors_removal_system(
 
     for death in deaths {
         match death.kind {
-            ActorDeathKind::Killed | ActorDeathKind::Crushed => {
-                if matches!(death.kind, ActorDeathKind::Crushed) {
-                    info!(
+            ActorDeathKind::Killed | ActorDeathKind::Crushed | ActorDeathKind::SelfDestruct(_) => {
+                match death.kind {
+                    ActorDeathKind::Crushed => info!(
                         "{} was crushed by moving geometry at {:?}",
                         actors.describe(&death.id),
                         death.pos
-                    );
+                    ),
+                    ActorDeathKind::SelfDestruct(checkpoint) => info!(
+                        "{} self-destructs: checkpoint {checkpoint} reached",
+                        actors.describe(&death.id)
+                    ),
+                    _ => {}
                 }
                 kill_actor(
                     &mut commands,
@@ -85,11 +100,14 @@ pub fn actors_removal_system(
     }
 }
 
+// Classified in this order, so a fatal hit keeps its credit over a zone's
+// self-destruct at the checkpoint it names.
 #[derive(Copy, Clone)]
 enum ActorDeathKind {
     Void,
     Crushed,
     Killed,
+    SelfDestruct(u32),
 }
 
 struct ActorDeath {

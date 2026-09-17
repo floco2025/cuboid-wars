@@ -4,7 +4,7 @@ use crate::{
     map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
     test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
-use common::protocol::{Carrier, CarrierId, MapLayout, Wall};
+use common::protocol::{Barrier, BarrierKindId, Carrier, CarrierId, Checkpoint, CheckpointKind, MapLayout, Wall};
 
 fn empty_layout() -> MapLayout {
     MapLayout::default()
@@ -117,6 +117,23 @@ fn floor_level(cols: i32, rows: i32, floored: &[(i32, i32)]) -> LevelGrid {
     level
 }
 
+fn resting_carrier(rest: Position) -> Carrier {
+    Carrier {
+        motion: Default::default(),
+        switch_inverted: false,
+
+        parent: CarrierId::WORLD,
+        level: 0,
+        levels: 0,
+        from: rest,
+        to: rest,
+        travel_ticks: 1,
+        pause_ticks: 0,
+        phase_ticks: 0,
+        switch: None,
+    }
+}
+
 // A 2x2 nested grid resting at `rest`, holding one scuttler zone on its
 // (1, 1) cell: a floor, or a ramp, which is never spawnable.
 fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, ActorSpawnZone) {
@@ -129,20 +146,7 @@ fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, A
         .grids
         .push(CarrierGrid::new(CarrierId(1), geometry(2, 2), vec![nested]));
     let carriers = Carriers::from_layout(&MapLayout {
-        carriers: vec![Carrier {
-            motion: Default::default(),
-            switch_inverted: false,
-
-            parent: CarrierId::WORLD,
-            level: 0,
-            levels: 0,
-            from: rest,
-            to: rest,
-            travel_ticks: 1,
-            pause_ticks: 0,
-            phase_ticks: 0,
-            switch: None,
-        }],
+        carriers: vec![resting_carrier(rest)],
         ..MapLayout::default()
     });
     let zone = ActorSpawnZone {
@@ -158,6 +162,8 @@ fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, A
         count: vec![1],
         respawn_secs: None,
         switch: None,
+        until_checkpoint: None,
+        on_checkpoint: Default::default(),
     };
     (map_config, carriers, zone)
 }
@@ -256,6 +262,8 @@ fn immovable_spawn_checks_every_cell_before_reporting_a_full_zone() {
         count: vec![120],
         respawn_secs: None,
         switch: None,
+        until_checkpoint: None,
+        on_checkpoint: Default::default(),
     };
     let geometry = map.root_grid().geometry;
     let centers: Vec<_> = (0..120)
@@ -306,6 +314,8 @@ fn immovable_spawn_waits_instead_of_shifting_away_from_an_obstructed_center() {
         count: vec![1],
         respawn_secs: None,
         switch: None,
+        until_checkpoint: None,
+        on_checkpoint: Default::default(),
     };
     assert!(
         generate_ground_actor_spawn_position(&map, &Carriers::default(), &zone, &world, &[], &actor_config("turret"))
@@ -328,4 +338,88 @@ fn player_spawn_position_uses_configured_spawn_level() {
     );
 
     assert_eq!(pos.y, LEVEL_HEIGHT);
+}
+
+#[test]
+fn checkpoint_spawns_follow_carriers_keep_off_the_flag_and_avoid_bodies_and_barriers() {
+    let physics = character_physics();
+    let rest = Position {
+        x: 30.0,
+        y: LEVEL_HEIGHT,
+        z: -10.0,
+    };
+    let (map_config, carriers, zone) = nested_zone_fixture(rest, true);
+    let geometry = geometry(2, 2);
+    let checkpoint = Checkpoint {
+        kind: CheckpointKind::Individual,
+        number: 1,
+        carrier: zone.carrier,
+        level: 0,
+        cols: zone.cols,
+        rows: zone.rows,
+        min_x: geometry.cell_to_world_x(1),
+        max_x: geometry.cell_to_world_x(2),
+        min_z: geometry.cell_to_world_z(1),
+        max_z: geometry.cell_to_world_z(2),
+        y: 0.0,
+    };
+    let pose = carriers.pose(zone.carrier);
+    let flag = pose.transform_position(&Position {
+        x: geometry.cell_center_x(1),
+        y: 0.0,
+        z: geometry.cell_center_z(1),
+    });
+    let world = collision_world(&empty_layout());
+    let diameter_sq = physics.movement_collider.diameter.powi(2);
+    let mut occupied = Vec::new();
+    for _ in 0..40 {
+        let pos = generate_checkpoint_spawn_position(&map_config, &carriers, &checkpoint, &world, &occupied, physics)
+            .expect("clear checkpoint rejected");
+        let local = pose.inverse_transform_position(&pos);
+        assert_eq!(pos.y, LEVEL_HEIGHT);
+        assert!(
+            (checkpoint.min_x..=checkpoint.max_x).contains(&local.x)
+                && (checkpoint.min_z..=checkpoint.max_z).contains(&local.z),
+            "{local:?} lies outside the checkpoint"
+        );
+        assert!(
+            pos.horizontal_distance_sq(&flag) >= diameter_sq - 1e-3,
+            "{pos:?} stands in the flag at {flag:?}"
+        );
+        for other in &occupied {
+            assert!(pos.horizontal_distance_sq(other) >= diameter_sq - 1e-3);
+        }
+        if occupied.is_empty() {
+            occupied.push(pos);
+        }
+    }
+
+    let (ramped, carriers, _) = nested_zone_fixture(rest, false);
+    assert!(generate_checkpoint_spawn_position(&ramped, &carriers, &checkpoint, &world, &[], physics).is_none());
+
+    let barred = MapLayout {
+        carriers: vec![resting_carrier(rest)],
+        barriers: vec![Barrier {
+            id: Default::default(),
+
+            switch: None,
+            switch_inverted: false,
+
+            x1: checkpoint.min_x,
+            z1: geometry.cell_center_z(1),
+            x2: checkpoint.max_x,
+            z2: geometry.cell_center_z(1),
+            y: 0.0,
+            height: 3.0,
+            width: geometry.cell_size(),
+            kind: BarrierKindId(0),
+            level: 0,
+            levels: 1,
+            carrier: zone.carrier,
+        }],
+        ..default()
+    };
+    let mut world = collision_world(&barred);
+    world.set_carrier_poses(&carriers);
+    assert!(generate_checkpoint_spawn_position(&map_config, &carriers, &checkpoint, &world, &[], physics).is_none());
 }

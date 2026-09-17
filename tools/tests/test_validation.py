@@ -118,6 +118,28 @@ class PressurePlateTests(unittest.TestCase):
                 any(f"actor_spawn_zones[{idx}] respawn_secs must be a non-negative number or null" in e for e in errors)
             )
 
+    def test_actor_zone_course_fields_name_a_checkpoint_and_pair_a_response(self) -> None:
+        data = empty_map(4, 4)
+        data["levels"][0]["floors"] = [floor(2, 2)]
+        data["checkpoints"] = [{"level": 0, "cols": [2, 3], "rows": [2, 3], "type": "individual", "number": 1}]
+        zone = {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": [1], "respawn_secs": None}
+        data["actor_spawn_zones"] = [
+            {**zone, "until_checkpoint": 1},
+            {**zone, "until_checkpoint": 1, "on_checkpoint": "destroy"},
+            {**zone, "until_checkpoint": 9},
+            {**zone, "until_checkpoint": 0},
+            {**zone, "on_checkpoint": "destroy"},
+            {**zone, "until_checkpoint": 1, "on_checkpoint": "boom"},
+        ]
+
+        errors = validate_map(data, [], [])
+
+        self.assertFalse(any("actor_spawn_zones[0]" in e or "actor_spawn_zones[1]" in e for e in errors))
+        self.assertTrue(any("actor_spawn_zones[2] until_checkpoint 9 names no checkpoint" in e for e in errors))
+        self.assertTrue(any("actor_spawn_zones[3] until_checkpoint must be a positive whole" in e for e in errors))
+        self.assertTrue(any("actor_spawn_zones[4] on_checkpoint needs an until_checkpoint" in e for e in errors))
+        self.assertTrue(any("actor_spawn_zones[5] on_checkpoint must be one of" in e for e in errors))
+
     def test_zone_and_nested_map_switches_must_be_known_and_plated(self) -> None:
         data = empty_map(4, 4)
         data["levels"][0]["floors"] = [floor(0, 0), floor(2, 2)]

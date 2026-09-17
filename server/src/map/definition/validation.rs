@@ -1,4 +1,7 @@
-use std::collections::BTreeSet;
+use std::{
+    collections::{BTreeSet, HashMap},
+    iter::once,
+};
 
 use anyhow::{Context, Result, anyhow};
 
@@ -9,6 +12,7 @@ use common::{
 
 use super::{
     geometry::ramp_spec_from_def,
+    load::LoadedMaps,
     schema::{
         ActorSpawnZoneDef, CheckpointDef, LadderDef, LevelDef, MapDef, MotionDef, RampDef, SpawnZoneDef, WallSide,
         ZoneDef,
@@ -122,6 +126,12 @@ fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
         }
         if let Some(respawn_secs) = zone.respawn_secs {
             validate_non_negative_finite(respawn_secs, &format!("{label}.respawn_secs"))?;
+        }
+        if zone.until_checkpoint == Some(0) {
+            return Err(anyhow!("{label}.until_checkpoint must be at least 1"));
+        }
+        if zone.on_checkpoint.is_some() && zone.until_checkpoint.is_none() {
+            return Err(anyhow!("{label}.on_checkpoint needs an until_checkpoint"));
         }
     }
     Ok(())
@@ -703,6 +713,8 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
             &a.count,
             &a.switch,
             a.switch_inverted,
+            a.until_checkpoint,
+            a.on_checkpoint,
         )
             .cmp(&(
                 b.level,
@@ -715,6 +727,8 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
                 &b.count,
                 &b.switch,
                 b.switch_inverted,
+                b.until_checkpoint,
+                b.on_checkpoint,
             ))
             .then_with(|| a.roam_distance.total_cmp(&b.roam_distance))
             .then_with(|| {
@@ -729,6 +743,9 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
         .player_spawn_zones
         .sort_by_key(|z| (z.level, z.levels, z.rows[0], z.cols[0], z.rows[1], z.cols[1]));
     map_def.player_spawn_zones.dedup();
+
+    // Compiled index order is course order, so a shared activation's tie-break follows the numbers.
+    map_def.checkpoints.sort_by_key(|checkpoint| checkpoint.number);
 
     for level in &mut map_def.levels {
         level.floors.sort_by_key(|f| (f.row, f.col));
@@ -773,20 +790,56 @@ fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {
     if (c1, r1) < (c0, r0) { [c1, r1, c0, r0] } else { wall }
 }
 
+// Checkpoint numbers are one sequence per map document, so a zone's
+// `until_checkpoint` and a renumbering name exactly one course position.
+pub(super) fn validate_checkpoint_references(root: &MapDef, nested: &LoadedMaps) -> Result<()> {
+    let definitions: Vec<(String, &MapDef)> = once(("the root map".to_owned(), root))
+        .chain(
+            nested
+                .iter()
+                .map(|(name, def)| (format!("nested geometry {name:?}"), def)),
+        )
+        .collect();
+    let mut numbers: HashMap<u32, &str> = HashMap::new();
+    for (owner, def) in &definitions {
+        for checkpoint in &def.checkpoints {
+            if let Some(previous) = numbers.insert(checkpoint.number, owner) {
+                return Err(anyhow!(
+                    "checkpoint number {} in {owner} is already used in {previous}",
+                    checkpoint.number
+                ));
+            }
+        }
+    }
+    for (owner, def) in &definitions {
+        for (idx, zone) in def.actor_spawn_zones.iter().enumerate() {
+            if let Some(until) = zone.until_checkpoint
+                && !numbers.contains_key(&until)
+            {
+                return Err(anyhow!(
+                    "actor_spawn_zones[{idx}] in {owner}: until_checkpoint {until} names no checkpoint"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn validate_checkpoints(map_def: &MapDef) -> Result<()> {
     for (index, checkpoint) in map_def.checkpoints.iter().enumerate() {
         let label = format!("checkpoints[{index}]");
         validate_zone_placement(checkpoint, &label, map_def)?;
-        if let Some(name) = &checkpoint.name {
-            if name.trim().is_empty() || name != name.trim() {
-                return Err(anyhow!("{label}: name must be nonempty and have no surrounding spaces"));
-            }
-            if map_def.checkpoints[..index]
-                .iter()
-                .any(|other| other.name.as_deref() == Some(name))
-            {
-                return Err(anyhow!("{label}: name {name:?} is already used by another checkpoint"));
-            }
+        if checkpoint.number == 0 {
+            return Err(anyhow!("{label}: number must be at least 1"));
+        }
+        if map_def.checkpoints[..index]
+            .iter()
+            .any(|other| other.number == checkpoint.number)
+        {
+            return Err(anyhow!(
+                "{label}: number {} is already used by another checkpoint",
+                checkpoint.number
+            ));
         }
         let zone = &checkpoint.zone;
         let floors: BTreeSet<_> = map_def.levels[zone.level as usize]

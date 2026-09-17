@@ -116,6 +116,8 @@ impl Fixture {
                 count: vec![1],
                 respawn_secs: None,
                 switch: None,
+                until_checkpoint: None,
+                on_checkpoint: Default::default(),
             }],
             ..MapConfig::for_grid(levels(level_count), geometry)
         };

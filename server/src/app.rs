@@ -15,7 +15,7 @@ use crate::{
     map::{GeneratedMap, MapFireworks, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
     network::{ClientLinks, Listener, LocalLink, network_plugin, register_local},
-    players::{Invincibility, LoginStart, PlayerMap, checkpoint_named, players_plugin},
+    players::{Invincibility, LoginStart, PlayerMap, checkpoint_numbered, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
     quests::{QuestBoard, QuestCatalog},
@@ -62,8 +62,8 @@ pub struct ServerAppOptions {
     pub god: bool,
     pub peace: bool,
     pub initial_spawn: Option<Position>,
-    // The name of the checkpoint every login starts at.
-    pub checkpoint: Option<String>,
+    // The number of the checkpoint every login starts at.
+    pub checkpoint: Option<u32>,
     pub network: NetworkOverrides,
     // Only one Bevy `LogPlugin` may install per process; the app built first owns it.
     pub logging: bool,
@@ -164,8 +164,7 @@ fn build_server_app_with_loader(
         spawn: options.initial_spawn,
         checkpoint: options
             .checkpoint
-            .as_deref()
-            .map(|name| checkpoint_named(&map_layout.checkpoints, name))
+            .map(|number| checkpoint_numbered(&map_layout.checkpoints, number))
             .transpose()
             .map_err(Error::msg)?,
     };

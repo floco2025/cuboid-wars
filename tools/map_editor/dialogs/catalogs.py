@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QMessageBox, QVBoxLayout
 
 from ..catalogs import load_actor_kinds
-from .controls import RespawnSpinBox, SwitchControl
+from .controls import CourseControl, RespawnSpinBox, SwitchControl
 from .spawn_volume import SpawnVolumeControl
 from .spawn_count import SpawnCountControl
 from ..constants import ITEM_KEY_TYPE, ITEM_TYPES
@@ -13,7 +13,8 @@ from ..display import color_icon
 
 class ActorSpawnFieldsDialog(QDialog):
     """Modal dialog with a searchable actor catalog, a count field, the
-    respawn delay, and the map switch that activates the zone, if any.
+    respawn delay, the map switch that activates the zone, if any, and the
+    checkpoint that ends it, if any.
 
     Used both when painting a new actor zone and when editing an existing
     one.
@@ -35,6 +36,8 @@ class ActorSpawnFieldsDialog(QDialog):
         levels=1,
         roam_distance=0.0,
         level_names=None,
+        until_checkpoint=None,
+        on_checkpoint=None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Actor Spawn Zone")
@@ -51,6 +54,7 @@ class ActorSpawnFieldsDialog(QDialog):
         self.control = SwitchControl(switches, switch, inverted)
         self._switch_combo = self.control.switch
         self.volume = SpawnVolumeControl(level_names or ["Level 0"], level, levels, roam_distance)
+        self.course = CourseControl(until_checkpoint, on_checkpoint)
 
         form = QFormLayout()
         form.addRow("Kind:", self._kind_edit)
@@ -58,6 +62,7 @@ class ActorSpawnFieldsDialog(QDialog):
         form.addRow("Respawn:", self._respawn_spin)
         form.addRow(self.volume)
         form.addRow(self.control)
+        form.addRow(self.course)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -86,6 +91,7 @@ class ActorSpawnFieldsDialog(QDialog):
             switch,
             inverted,
             *self.volume.values(),
+            *self.course.state(),
         )
 
     @classmethod

@@ -386,6 +386,9 @@ def normalize_actor_spawn_zone(zone: dict) -> dict:
     if "respawn_secs" in zone:
         normalized["respawn_secs"] = copy.deepcopy(zone["respawn_secs"])
     normalized.update(control_fields(zone))
+    if zone.get("until_checkpoint") is not None:
+        normalized["until_checkpoint"] = copy.deepcopy(zone["until_checkpoint"])
+        normalized["on_checkpoint"] = copy.deepcopy(zone.get("on_checkpoint", "stop"))
     return normalized
 
 
@@ -398,8 +401,8 @@ def normalize_player_spawn_zone(zone: dict) -> dict:
 
 def normalize_checkpoint(zone: dict) -> dict:
     normalized = {**normalize_player_spawn_zone(zone), "type": str(zone.get("type", ""))}
-    if "name" in zone:
-        normalized["name"] = str(zone["name"])
+    if "number" in zone:
+        normalized["number"] = copy.deepcopy(zone["number"])
     return normalized
 
 
@@ -457,6 +460,8 @@ def actor_zone_key(zone: dict) -> tuple:
         _control_zone_key(zone.get("switch_inverted", False)),
         _numeric_zone_key(zone.get("roam_distance", 0.0)),
         (0,) if zone.get("respawn_secs") is None else (1, _numeric_zone_key(zone["respawn_secs"])),
+        (0,) if zone.get("until_checkpoint") is None else (1, _numeric_zone_key(zone["until_checkpoint"])),
+        _control_zone_key(zone.get("on_checkpoint", "stop")),
     )
 
 
@@ -471,10 +476,11 @@ def player_zone_key(zone: dict) -> tuple:
     )
 
 
-# Two checkpoints may share a rectangle and differ by type, so the type is
-# part of a checkpoint's identity, in selection as in canonicalization.
+# Checkpoints sort by number, the course order. Two may share a rectangle
+# and differ by type, so the type is part of a checkpoint's identity, in
+# selection as in canonicalization.
 def checkpoint_key(zone: dict) -> tuple:
-    return (*player_zone_key(zone), zone["type"])
+    return (_numeric_zone_key(zone.get("number")), *player_zone_key(zone), zone["type"])
 
 
 def zone_key(list_name: str, zone: dict) -> tuple:

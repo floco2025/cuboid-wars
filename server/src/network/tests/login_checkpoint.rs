@@ -3,10 +3,12 @@ use std::time::Duration;
 use super::handle_login_message;
 use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
+    map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     network::{SharedWorld, handlers::CharacterQueries},
     players::{CheckpointId, LoginStart, PlayerCheckpoint, PlayerInfo, PlayerMap, respawn_tests::respawn_app},
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog},
+    test_geometry::geometry,
 };
 use bevy::{ecs::system::SystemState, prelude::*};
 use common::{celestial::CelestialClockAnchor, map::Carriers, physics::CollisionWorld, protocol::*};
@@ -21,17 +23,33 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             PlayerRespawnMode::Individual
         };
         let mut app = respawn_app(mode, ActorRespawnScope::Dead);
+        let geometry = geometry(2, 2);
         let checkpoint = Checkpoint {
             kind: CheckpointKind::GroupAny,
-            name: None,
+            number: 1,
             carrier: CarrierId(1),
             level: 0,
-            min_x: 0.0,
-            max_x: 4.0,
-            min_z: 0.0,
-            max_z: 4.0,
+            cols: [1, 2],
+            rows: [1, 2],
+            min_x: geometry.cell_to_world_x(1),
+            max_x: geometry.cell_to_world_x(2),
+            min_z: geometry.cell_to_world_z(1),
+            max_z: geometry.cell_to_world_z(2),
             y: 0.0,
         };
+        // The checkpoint's cell on the carrier's grid; a ramp flag there blocks its spawns.
+        let mut cells = CellGrid::new(2, 2);
+        cells.rows[1][1].has_floor = true;
+        cells.rows[1][1].has_ramp = blocked;
+        app.world_mut().resource_mut::<MapConfig>().grids.push(CarrierGrid::new(
+            CarrierId(1),
+            geometry,
+            vec![LevelGrid {
+                cells,
+                edges: EdgeGrid::new(2, 2),
+                barrier_edges: EdgeGrid::new(2, 2),
+            }],
+        ));
         let mut layout = MapLayout {
             carriers: vec![Carrier {
                 motion: Default::default(),
@@ -57,19 +75,16 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             }],
             ..default()
         };
-        let floor = Floor {
-            x1: 0.0,
-            x2: 4.0,
-            z1: 0.0,
-            z2: 4.0,
+        layout.floors.push(Floor {
+            x1: checkpoint.min_x,
+            x2: checkpoint.max_x,
+            z1: checkpoint.min_z,
+            z2: checkpoint.max_z,
             y: 0.0,
             thickness: 0.2,
             carrier: CarrierId(1),
             level: 0,
-        };
-        if !blocked {
-            layout.floors.push(floor);
-        }
+        });
         layout.checkpoints.push(checkpoint);
         let mut carriers = Carriers::from_layout(&layout);
         carriers.advance(15, &SwitchState::default());
@@ -187,19 +202,20 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         assert_eq!(group_cues, usize::from(group_countdown));
         // A blocked checkpoint places the joiner in a spawn zone instead of leaving it bodiless.
         assert_eq!(relocations.len(), usize::from(!group_countdown));
-        let checkpoint_pos = Position {
-            x: 32.0,
-            y: 6.5,
-            z: 12.0,
+        let in_checkpoint = |app: &App, pos: &Position| {
+            let local = app
+                .world()
+                .resource::<Carriers>()
+                .pose(CarrierId(1))
+                .inverse_transform_position(pos);
+            (geometry.cell_to_world_x(1)..geometry.cell_to_world_x(2)).contains(&local.x)
+                && (geometry.cell_to_world_z(1)..geometry.cell_to_world_z(2)).contains(&local.z)
+                && local.y.abs() < 1e-3
         };
         for relocation in &relocations {
             assert_eq!(relocation.id, PlayerId(9));
             assert_eq!(relocation.player.generation, PlayerGeneration(0));
-            if blocked {
-                assert_ne!(relocation.player.movement.pos, checkpoint_pos);
-            } else {
-                assert_eq!(relocation.player.movement.pos, checkpoint_pos);
-            }
+            assert_eq!(in_checkpoint(&app, &relocation.player.movement.pos), !blocked);
             assert_eq!(
                 relocation.player.health.0,
                 app.world().resource::<ServerGameplayConfig>().combat.health.player.max
@@ -244,10 +260,10 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         }
         if blocked {
             assert_eq!(app.world().get_entity(entity).is_err(), group_countdown);
-            layout.floors.push(floor);
-            let mut collision = CollisionWorld::from_map_layout(&layout);
-            collision.set_carrier_poses(app.world().resource::<Carriers>());
-            app.insert_resource(collision);
+            app.world_mut().resource_mut::<MapConfig>().grids[1].levels[0]
+                .cells
+                .rows[1][1]
+                .has_ramp = false;
             app.world_mut()
                 .resource_mut::<Time>()
                 .advance_by(Duration::from_secs_f32(0.1));
@@ -259,12 +275,13 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             .get(&PlayerId(9))
             .expect("joining player missing");
         let body = player.entity().expect("joining player never spawned");
+        let pos = app.world().get::<Position>(body).expect("body position missing");
         if blocked && !group_countdown {
             // Already alive in a spawn zone; clearing the checkpoint moves nobody.
-            assert_ne!(app.world().get::<Position>(body), Some(&checkpoint_pos));
+            assert!(!in_checkpoint(&app, pos));
             assert_eq!(player.life.checkpoint_contact, None);
         } else {
-            assert_eq!(app.world().get::<Position>(body), Some(&checkpoint_pos));
+            assert!(in_checkpoint(&app, pos));
             assert_eq!(player.life.checkpoint_contact, Some(CheckpointId(0)));
         }
     }

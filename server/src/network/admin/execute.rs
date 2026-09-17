@@ -9,7 +9,7 @@ use crate::{
     combat::{DeathSource, kill_player},
     config::ServerGameplayConfig,
     network::{SharedWorld, broadcast_firework_show, broadcast_to_all},
-    players::{PlayerCheckpoint, PlayerMap, PlayerStateQuery, checkpoint_named},
+    players::{PlayerCheckpoint, PlayerMap, PlayerStateQuery, checkpoint_numbered},
     quests::{QuestBoard, QuestCatalog, complete_quest, unlock_quest},
 };
 use common::{
@@ -156,19 +156,13 @@ pub(super) fn run_admin_command(
                 return Private("sender not found".to_owned());
             };
             Private(match info.session.checkpoint {
-                Some(saved) => format!(
-                    "checkpoint: {}",
-                    world.map_layout.checkpoints[saved.id.0]
-                        .name
-                        .clone()
-                        .unwrap_or_else(|| format!("#{}", saved.id.0))
-                ),
+                Some(saved) => format!("checkpoint: {}", world.map_layout.checkpoints[saved.id.0].number),
                 None => "no checkpoint saved".to_owned(),
             })
         }
-        AdminCommand::SetCheckpoint(name) => {
+        AdminCommand::SetCheckpoint(number) => {
             let checkpoints = &world.map_layout.checkpoints;
-            let id = match checkpoint_named(checkpoints, &name) {
+            let id = match checkpoint_numbered(checkpoints, number) {
                 Ok(id) => id,
                 Err(message) => return Private(message),
             };
@@ -176,8 +170,9 @@ pub(super) fn run_admin_command(
                 return Private("sender not found".to_owned());
             };
             info.session.checkpoint = Some(PlayerCheckpoint::toward_origin(id, checkpoints, &world.carriers));
-            Private(format!("checkpoint set to {name:?}"))
+            Private(format!("checkpoint set to {number}"))
         }
+        AdminCommand::CheckpointUsage => Private("usage: /checkpoint [number]".to_owned()),
         AdminCommand::GiveKeys => {
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());

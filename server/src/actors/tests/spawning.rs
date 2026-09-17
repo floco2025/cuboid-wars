@@ -1,11 +1,12 @@
 use super::*;
 use crate::{
     actors::test_kinds::{self, BEAM, CONTACT, IMMOVABLE},
-    map::{CellGrid, EdgeGrid, LevelGrid},
-    players::PlayerInfo,
+    map::{CellGrid, CheckpointResponse, EdgeGrid, LevelGrid},
+    players::{CheckpointId, PlayerCheckpoint, PlayerInfo},
 };
 use bevy::{ecs::system::RunSystemOnce, time::TimeUpdateStrategy};
-use common::protocol::{ActorId, Carrier, CarrierId, MapLayout, PlayerId, SwitchId};
+use common::protocol::{ActorId, Carrier, CarrierId, Checkpoint, CheckpointKind, MapLayout, PlayerId, SwitchId};
+use crossbeam_channel::unbounded;
 use std::time::Duration;
 
 fn spawn_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
@@ -59,6 +60,8 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
             count: vec![count],
             respawn_secs,
             switch: None,
+            until_checkpoint: None,
+            on_checkpoint: Default::default(),
         })
         .collect();
     let mut app = App::new();
@@ -74,6 +77,7 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
         .init_resource::<PendingActorSpawns>()
         .init_resource::<ServerTick>()
         .init_resource::<SwitchState>()
+        .init_resource::<MapLayout>()
         .add_systems(Update, (actors_pending_spawn_system, actors_respawn_system).chain());
     app
 }
@@ -364,6 +368,8 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 count: vec![2],
                 respawn_secs: Some(90.0),
                 switch: None,
+                until_checkpoint: None,
+                on_checkpoint: Default::default(),
             },
             ActorSpawnZone {
                 switch_inverted: false,
@@ -378,6 +384,8 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 count: vec![1],
                 respawn_secs: Some(180.0),
                 switch: None,
+                until_checkpoint: None,
+                on_checkpoint: Default::default(),
             },
         ],
         ..MapConfig::for_grid(
@@ -1094,4 +1102,86 @@ fn blocked_flying_beam_ins_retry_only_their_reserved_slot() {
     );
     materialize_pending(&mut app);
     assert_eq!(live_count(&app), 2);
+}
+
+// A one-zone app on a three-checkpoint course, its zone ending at checkpoint `until`.
+fn course_app(until: u32, on_checkpoint: CheckpointResponse, respawn_secs: Option<f32>) -> App {
+    let mut app = spawn_app_for(CONTACT, 3, &[1], respawn_secs);
+    {
+        let mut map = app.world_mut().resource_mut::<MapConfig>();
+        map.actor_spawn_zones[0].until_checkpoint = Some(until);
+        map.actor_spawn_zones[0].on_checkpoint = on_checkpoint;
+    }
+    app.world_mut().resource_mut::<MapLayout>().checkpoints = (1..=3)
+        .map(|number| Checkpoint {
+            kind: CheckpointKind::Individual,
+            number,
+            carrier: CarrierId::WORLD,
+            level: 0,
+            cols: [0, 1],
+            rows: [0, 1],
+            min_x: 0.0,
+            max_x: 1.0,
+            min_z: 0.0,
+            max_z: 1.0,
+            y: 0.0,
+        })
+        .collect();
+    app
+}
+
+// Logs `player` in if needed and saves checkpoint `number` for it.
+fn reach(app: &mut App, player: PlayerId, number: Option<u32>) {
+    let mut players = app.world_mut().resource_mut::<PlayerMap>();
+    if players.get(&player).is_none() {
+        let (tx, _rx) = unbounded();
+        let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
+        info.connection.logged_in = true;
+        players.insert(player, info);
+    }
+    players.get_mut(&player).expect("player missing").session.checkpoint = number.map(|number| PlayerCheckpoint {
+        id: CheckpointId(number as usize - 1),
+        facing: Vec3::X,
+    });
+}
+
+#[test]
+fn a_zone_stops_filling_once_any_player_has_reached_its_checkpoint() {
+    let mut app = course_app(2, CheckpointResponse::Stop, Some(1000.0));
+    reach(&mut app, PlayerId(1), Some(1));
+    app.update();
+    assert_eq!(pending_count(&app), 1, "checkpoint 1 leaves the encounter open");
+    materialize_pending(&mut app);
+    destroy_one(&mut app);
+    app.update();
+    assert!(matches!(refills(&app).as_slice(), [Some(secs)] if *secs > 999.0));
+
+    reach(&mut app, PlayerId(2), Some(2));
+    expire_countdown(&mut app);
+    app.update();
+    assert_eq!(pending_count(&app), 0, "the furthest player closes it for everyone");
+
+    reach(&mut app, PlayerId(2), Some(1));
+    app.update();
+    assert_eq!(pending_count(&app), 1, "moving the course back reopens it");
+}
+
+#[test]
+fn a_destroying_zone_drops_its_beam_ins_at_its_checkpoint() {
+    let mut app = course_app(1, CheckpointResponse::Destroy, None);
+    app.update();
+    assert_eq!(pending_count(&app), 1);
+    reach(&mut app, PlayerId(1), Some(1));
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+
+    let mut stopping = course_app(1, CheckpointResponse::Stop, None);
+    stopping.update();
+    reach(&mut stopping, PlayerId(1), Some(1));
+    stopping.update();
+    assert_eq!(
+        pending_count(&stopping),
+        1,
+        "a stopping zone lets an announced beam-in materialize"
+    );
 }

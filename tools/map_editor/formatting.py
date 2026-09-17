@@ -44,6 +44,9 @@ def _actor_spawn_zone_body(zone: dict) -> str:
         if field in zone:
             body[field] = zone[field]
     body.update(control_fields(zone))
+    for field in ("until_checkpoint", "on_checkpoint"):
+        if field in zone:
+            body[field] = zone[field]
     return _inline_object_body(body)
 
 
@@ -60,8 +63,8 @@ def _player_spawn_zone_body(zone: dict) -> str:
 
 def _checkpoint_body(zone: dict) -> str:
     body = {"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "type": zone["type"]}
-    if "name" in zone:
-        body["name"] = zone["name"]
+    if "number" in zone:
+        body["number"] = zone["number"]
     return _inline_object_body(body)
 
 

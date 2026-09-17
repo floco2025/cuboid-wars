@@ -173,7 +173,7 @@ class SelectionProperties(QDockWidget):
                     if field.kind == "counts" and isinstance(value, list):
                         text = ", ".join(map(str, value))
                     elif value is None:
-                        text = "Never" if field.kind == "respawn" else ""
+                        text = {"respawn": "Never", "checkpoint": "Always"}.get(field.kind, "")
                     else:
                         text = str(value)
                     widget.setText(text)
@@ -247,6 +247,16 @@ class SelectionProperties(QDockWidget):
             return value
         if field.kind == "respawn" and text.casefold() == "never":
             return None
+        if field.kind == "checkpoint":
+            if not text or text.casefold() == "always":
+                return None
+            try:
+                number = int(text)
+            except ValueError:
+                raise ValueError(f"{field.label}: enter a checkpoint number or Always.") from None
+            if number < 1:
+                raise ValueError(f"{field.label}: checkpoint numbers start at 1.")
+            return number
         if field.kind in ("number", "positive", "nonnegative", "positive_int", "respawn"):
             try:
                 value = int(text) if field.kind == "positive_int" else float(text)
@@ -272,12 +282,18 @@ class SelectionProperties(QDockWidget):
                         continue
                     if len(key) == 2:
                         entry[key[0]][key[1]] = value
-                    elif value is None and key[0] in ("switch", "kind", "name"):
+                    elif value is None and key[0] in ("switch", "kind", "until_checkpoint"):
                         entry.pop(key[0], None)
                     else:
                         entry[key[0]] = value
                 if not entry.get("switch"):
                     entry.pop("switch_inverted", None)
+                if ref.name == "actor_spawn_zones":
+                    if entry.get("until_checkpoint") is None:
+                        entry.pop("until_checkpoint", None)
+                        entry.pop("on_checkpoint", None)
+                    else:
+                        entry.setdefault("on_checkpoint", "stop")
                 if ref.name == "items" and entry["type"] != "key":
                     entry.pop("kind", None)
             errors = self.window.added_issues(after)
@@ -311,6 +327,9 @@ class SelectionProperties(QDockWidget):
         if ("switch_inverted",) in self.widgets:
             switch = self.widgets[("switch",)].currentData()
             self.widgets[("switch_inverted",)].setEnabled(switch is not None)
+        if ("on_checkpoint",) in self.widgets:
+            until = self.widgets[("until_checkpoint",)].text().strip()
+            self.widgets[("on_checkpoint",)].setEnabled(bool(until) and until.casefold() != "always")
         if ("motion",) in self.widgets:
             motion = self.widgets[("motion",)].currentData()
             cycle = motion is _MIXED or motion_uses_cycle(motion)

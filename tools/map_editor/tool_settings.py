@@ -32,6 +32,7 @@ from .constants import (
     MODE_WALL,
     RAMP_MODES,
 )
+from .checkpoint_numbers import next_checkpoint_number, used_numbers
 from .dialogs import ActorSpawnFieldsDialog, MotionDialog
 from .display import color_icon, portal_label
 from .compact_widgets import CompactComboBox
@@ -168,13 +169,10 @@ class ToolSettings(QWidget):
             field(label, box)
 
         def checkpoint_controls():
-            name = QLineEdit(window.recent_checkpoint_name)
-            name.setPlaceholderText("Optional")
-            name.setToolTip("Optional checkpoint name, unique within this map.")
-            name.setMaximumWidth(150)
-            name.textChanged.connect(lambda text: setattr(window, "recent_checkpoint_name", text))
-            self.bindings.append((name, "recent_checkpoint_name"))
-            field("Name", name)
+            # The next free number, unless the author typed one the map does not use yet.
+            if window.recent_checkpoint_number in used_numbers(window.doc.root_data):
+                window.recent_checkpoint_number = next_checkpoint_number(window.doc.root_data)
+            number("Number", "recent_checkpoint_number", 1, 999_999)
             box = CompactComboBox()
             for kind, label in CHECKPOINT_TYPE_LABELS.items():
                 box.addItem(label, kind)
@@ -312,9 +310,11 @@ class ToolSettings(QWidget):
             levels=window.recent_actor_spawn_levels,
             roam_distance=window.recent_actor_roam_distance,
             level_names=[entry.get("name", f"Level {index}") for index, entry in enumerate(window.map_data["levels"])],
+            until_checkpoint=window.recent_actor_until_checkpoint,
+            on_checkpoint=window.recent_actor_on_checkpoint,
         )
         if result is not None:
-            kind, count, respawn_secs, switch, inverted, level, levels, roam_distance = result
+            kind, count, respawn_secs, switch, inverted, level, levels, roam_distance, until, response = result
             window.recent_actor_spawn_kind = kind
             window.recent_actor_spawn_count = count
             window.recent_actor_spawn_respawn_secs = respawn_secs
@@ -322,6 +322,8 @@ class ToolSettings(QWidget):
             window.recent_actor_spawn_inverted = inverted
             window.recent_actor_spawn_levels = levels
             window.recent_actor_roam_distance = roam_distance
+            window.recent_actor_until_checkpoint = until
+            window.recent_actor_on_checkpoint = response or "stop"
             window.level_combo.setCurrentIndex(level)
             self.refresh()
 
