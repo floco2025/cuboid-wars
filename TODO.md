@@ -2,10 +2,6 @@
 
 ## Fixes
 
-- **Editor reach guides overlap:** Jump Reach and Portal Jump can draw identical landing markers simultaneously, so saved jump results can appear above a Portal Jump Step trajectory's maximum height. Keep their displayed results distinguishable while preserving each tool's selections.
-
-- **Movement release reaches physics late:** `input_movement_system` refreshes `PlayerMoveIntent` in `Update`, after `FixedUpdate` has consumed the previous frame's intent. A slow frame can therefore apply several walking ticks after Bevy has received the key release. Refresh movement intent before the fixed simulation. A diagnostic reproduced seven stale walking ticks at 30 Hz after a simulated stall; this has not been established as the cause of the reported roughly two-second unintended walk.
-
 - **Client memory:** the hotel client sits at ~2.0 GB RSS with mimalloc, while forcing every freed block back to the OS measured the live set at ~1.2 GB; the rest is allocator slack behind the load-time peak, when every texture decodes before the mipmap pass releases it. Lower that peak (decode and release the textures a few at a time) or tune mimalloc's purge if the gap matters.
 
 - **Portal body pose jumps at the crossing:** between floor portals, the emerging twin is upside down but the main body replaces it upright when the center crosses, swapping the visible legs for the upper body. Preserve the rendered pose across the handoff before reorienting it.
