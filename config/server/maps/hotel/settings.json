@@ -75,7 +75,7 @@
   "portals": "both",
   "random_items": {
     "weights": {
-      "single_shot": 15,
+      "single_shot": 20,
       "multi_shot": 10,
       "missile_pack": 10,
       "portal_gun": 5,
@@ -83,12 +83,12 @@
       "speed": 10,
       "low_gravity": 10
     },
-    "max_number": 20,
+    "max_number": 25,
     "despawn_secs": 60.0
   },
   "power_ups": {
     "duration_secs": {
-      "single_shot": 90.0,
+      "single_shot": 120.0,
       "multi_shot": 30.0,
       "portal_gun": 90.0,
       "speed": 30.0,
