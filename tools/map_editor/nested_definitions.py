@@ -35,7 +35,7 @@ class NestedDefinitionsMixin:
         if dimensions is None:
             return
         geometry = empty_map(*dimensions[:2])
-        geometry["player_spawn_zones"] = []
+        geometry["checkpoints"] = []
         after = copy.deepcopy(self.doc.root_data)
         after.setdefault("nested_geometry", {})[name] = geometry
         self.doc.apply_root_change("New Nested Map", after, name)

@@ -10,7 +10,7 @@ from map_editor.normalization import empty_level, empty_map, normalize_map
 class BlockTransformTests(unittest.TestCase):
     def block(self):
         data = empty_map(5, 4)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"].append(empty_level(1))
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["levels"][0]["walls"] = [
@@ -47,7 +47,7 @@ class BlockTransformTests(unittest.TestCase):
 
     def test_rotating_a_square_ramp_is_refused_while_mirroring_is_not(self):
         data = empty_map(5, 5)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"].append(empty_level(1))
         data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 3], "all": DEFAULT_ALIAS}]
         block = normalize_map(data)
@@ -89,10 +89,10 @@ class BlockTransformTests(unittest.TestCase):
 
     def test_nested_geometry_is_copied_and_motion_nudges_rotate_with_it(self):
         room = empty_map(2, 1)
-        room["player_spawn_zones"] = []
+        room["checkpoints"] = []
         room["levels"][0]["floors"] = [floor(0, 0)]
         block = empty_map(6, 4)
-        block["player_spawn_zones"] = []
+        block["checkpoints"] = []
         entry = nested("room", 0, [1, 1], [3, 2])
         entry["from_nudge"] = [0.5, 2.0, -0.25]
         block["nested_maps"] = [entry]

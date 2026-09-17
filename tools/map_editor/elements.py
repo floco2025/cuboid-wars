@@ -16,7 +16,6 @@ ELEMENT_MODES = {
     "ladders": c.MODE_LADDER,
     "nested_maps": c.MODE_NESTED_MAP,
     "actor_spawn_zones": c.MODE_ACTOR_SPAWN_ZONE,
-    "player_spawn_zones": c.MODE_PLAYER_SPAWN_ZONE,
     "checkpoints": c.MODE_CHECKPOINT,
     "items": c.MODE_ITEM,
     "barriers": c.MODE_BARRIER,

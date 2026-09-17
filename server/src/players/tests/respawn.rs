@@ -9,7 +9,7 @@ use crate::{
     actors::{ActorMap, ActorSpawner, PendingActorSpawns, actors_pending_spawn_system, actors_respawn_system},
     combat::{DeathSource, PendingExplosions, kill_actor, kill_player},
     config::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, RespawnConfig, ServerGameplayConfig},
-    map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
+    map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     missiles::MissileMap,
     players::{PlayerInfo, PlayerQuestState, enter_group_respawn, players_group_respawn_system},
     portals::PortalAssignments,
@@ -21,9 +21,9 @@ use common::{
     map::Carriers,
     physics::CollisionWorld,
     protocol::{
-        ActorId, CarrierId, Health, MapLayout, Missile, MissileMovementState, PlayerDeathEffect, PlayerId,
-        PlayerMarker, PortalMode, Position, QuestId, ServerMessage, ServerTick, SwitchState,
-        server_tick_advance_system,
+        ActorId, CarrierId, Checkpoint, CheckpointKind, Health, MapLayout, Missile, MissileMovementState,
+        PlayerDeathEffect, PlayerId, PlayerMarker, PortalMode, Position, QuestId, ServerMessage, ServerTick,
+        SwitchState, server_tick_advance_system,
     },
 };
 
@@ -36,21 +36,15 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
     for cell in &mut cells.rows[0] {
         cell.has_floor = true;
     }
+    let geometry = crate::test_geometry::geometry(6, 1);
     let mut map = MapConfig::for_grid(
         vec![LevelGrid {
             cells,
             edges: EdgeGrid::new(6, 1),
             barrier_edges: EdgeGrid::new(6, 1),
         }],
-        crate::test_geometry::geometry(6, 1),
+        geometry,
     );
-    map.player_spawn_zones.push(PlayerSpawnZone {
-        carrier: CarrierId::WORLD,
-        level: 0,
-        levels: 1,
-        cols: [0, 3],
-        rows: [0, 1],
-    });
     map.actor_spawn_zones = (3..6)
         .map(|col| ActorSpawnZone {
             switch_inverted: false,
@@ -69,14 +63,18 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
             on_checkpoint: Default::default(),
         })
         .collect();
+    let layout = MapLayout {
+        checkpoints: vec![start_checkpoint(&geometry)],
+        ..default()
+    };
     let mut app = App::new();
     app.insert_resource(Time::<()>::default())
         .insert_resource(config.gameplay_config())
         .insert_resource(config)
         .insert_resource(settings)
         .insert_resource(map)
-        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
-        .init_resource::<MapLayout>()
+        .insert_resource(CollisionWorld::from_map_layout(&layout))
+        .insert_resource(layout)
         .insert_resource(PlayerMap::new(RespawnConfig {
             players: mode,
             actors: ActorRespawnConfig {
@@ -111,6 +109,23 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
     );
     advance(&mut app, 0.0);
     app
+}
+
+// The start, over the fixture's first three cells.
+pub(super) fn start_checkpoint(geometry: &common::map::MapGeometry) -> Checkpoint {
+    Checkpoint {
+        kind: CheckpointKind::Individual,
+        number: 0,
+        carrier: CarrierId::WORLD,
+        level: 0,
+        cols: [0, 3],
+        rows: [0, 1],
+        min_x: geometry.cell_to_world_x(0),
+        max_x: geometry.cell_to_world_x(3),
+        min_z: geometry.cell_to_world_z(0),
+        max_z: geometry.cell_to_world_z(1),
+        y: 0.0,
+    }
 }
 
 pub(super) fn advance(app: &mut App, secs: f32) {

@@ -26,7 +26,6 @@ fn compiled_ramps_support_actor_routes_and_movement_in_both_directions() {
             4,
             vec![level(vec![bottom_cell]), level(vec![top_cell])],
             Vec::new(),
-            vec![player_zone(0, bottom_cell[0], bottom_cell[1])],
             vec![ramp(low, high, 0)],
         );
         let (layout, config) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
@@ -81,7 +80,6 @@ fn off_center_routes_into_a_walled_ramp_keep_moving_past_the_crest() {
         4,
         vec![level(vec![[0, 1], [0, 2], [0, 3]]), level(upper)],
         Vec::new(),
-        vec![player_zone(0, 0, 3)],
         vec![ramp([0, 3], [1, 1], 0)],
     );
     for tier in &mut map_def.levels {
@@ -190,7 +188,6 @@ fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
         4,
         vec![level_with_inaccessible(vec![[0, 0]], vec![[2, 0]])],
         vec![actor_zone(0, 0, 0)],
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
 
@@ -210,13 +207,7 @@ fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
 
 #[test]
 fn compile_resolves_known_barrier_kind() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
         switch: None,
         switch_inverted: false,
@@ -238,7 +229,6 @@ fn stacked_barriers_compile_into_one_record_when_no_floor_splits_them() {
         4,
         vec![level(vec![[0, 0]]), level(vec![[2, 2]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     for level in &mut map_def.levels {
@@ -266,7 +256,6 @@ fn a_floor_beside_the_upper_barrier_keeps_the_storeys_apart() {
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     for level in &mut map_def.levels {
@@ -288,13 +277,7 @@ fn a_floor_beside_the_upper_barrier_keeps_the_storeys_apart() {
 
 #[test]
 fn pressure_plate_barrier_is_open_for_pathfinding() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     // Vertical edge between cols 0 and 1 → `vertical[0][1]`; kind "red" has a plate.
     map_def.levels[0].barriers.push(BarrierDef {
         switch: Some("red".into()),
@@ -335,13 +318,7 @@ fn pressure_plate_barrier_is_open_for_pathfinding() {
 
 #[test]
 fn compiled_wall_trim_blocks_portal_shots_through_the_storey_seam() {
-    let mut map = map_with_zones(
-        3,
-        vec![level(vec![[0, 0]]), level(Vec::new())],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map = map_with_zones(3, vec![level(vec![[0, 0]]), level(Vec::new())], Vec::new(), Vec::new());
     for level in &mut map.levels {
         for col in [1, 3] {
             level.walls.push(WallDef {
@@ -436,7 +413,6 @@ fn compile_resolves_switches_and_rejects_unknown_or_unplated_ones() {
         4,
         vec![level(vec![[0, 0], [1, 0]])],
         vec![actor_zone(0, 1, 0)],
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map_def.pressure_plates.push(plate_def(0, 0, 0, "red"));
@@ -474,7 +450,6 @@ fn compile_resolves_switches_and_rejects_unknown_or_unplated_ones() {
 fn compile_merges_light_bridge_cells_into_one_rectangle() {
     let mut map_def = map_with_bridges(&[[1, 0], [2, 0], [1, 1], [2, 1]]);
     map_def.levels[0].floors = vec![floor_def(0, 3)];
-    map_def.player_spawn_zones = vec![player_zone(0, 0, 3)];
 
     let (layout, config) =
         compile_with(&map_def, &no_nested(), &empty_kind_table(), &skyway_bridge_table()).expect("compile");
@@ -557,13 +532,7 @@ fn compile_rejects_unknown_bridge_kind() {
 
 #[test]
 fn compile_rejects_unknown_barrier_kind() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
         switch: None,
         switch_inverted: false,
@@ -585,13 +554,7 @@ fn compile_rejects_unknown_barrier_kind() {
 
 #[test]
 fn compile_resolves_three_distinct_kinds() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
         switch: None,
         switch_inverted: false,
@@ -631,13 +594,7 @@ fn compile_resolves_three_distinct_kinds() {
 
 #[test]
 fn terrain_creates_accessible_floor_slabs_without_supporting_floors() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[3, 3]])],
-        Vec::new(),
-        vec![player_zone(0, 3, 3)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[3, 3]])], Vec::new(), Vec::new());
     map_def.levels[0].terrain.push(cell_def(0, 0));
     map_def.levels[0].terrain.push(cell_def(2, 2));
     let (layout, config) = compile_terrain_map(&map_def).expect("compile");
@@ -655,13 +612,7 @@ fn terrain_creates_accessible_floor_slabs_without_supporting_floors() {
 
 #[test]
 fn terrain_does_not_require_exterior_grounds() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[3, 3]])],
-        Vec::new(),
-        vec![player_zone(0, 3, 3)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[3, 3]])], Vec::new(), Vec::new());
     map_def.levels[0].terrain.push(cell_def(0, 0));
     let (layout, _) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
         .expect("standalone terrain failed to compile");
@@ -670,13 +621,7 @@ fn terrain_does_not_require_exterior_grounds() {
 
 #[test]
 fn terrain_compiles_to_cell_center_and_floor_top() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]]), level(Vec::new())],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]]), level(Vec::new())], Vec::new(), Vec::new());
     map_def.levels[1].terrain.push(cell_def(1, 2));
     let (layout, config) = compile_terrain_map(&map_def).expect("compile");
     let geometry = config.root_grid().geometry;
@@ -696,7 +641,6 @@ fn terrain_may_not_duplicate_an_inaccessible_floor() {
         4,
         vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map_def.levels[0].terrain.push(cell_def(1, 0));
@@ -706,13 +650,7 @@ fn terrain_may_not_duplicate_an_inaccessible_floor() {
 
 #[test]
 fn compile_rejects_item_on_floorless_cell() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 2, 2, "gold", None));
     let err = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
         .expect_err("item on a floorless cell must fail");
@@ -725,7 +663,6 @@ fn compile_rejects_item_on_ramp_cell() {
         4,
         vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
         Vec::new(),
-        vec![player_zone(0, 3, 3)],
         vec![ramp([0, 0], [1, 2], 1)],
     );
     map_def.items.push(item_def(1, 0, 0, "gold", None));
@@ -736,13 +673,7 @@ fn compile_rejects_item_on_ramp_cell() {
 
 #[test]
 fn compile_resolves_key_item_barrier_kind() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 0, 0, "key", Some("red")));
     let (_, config) = compile_with(&map_def, &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(config.placed_items.len(), 1);
@@ -758,7 +689,6 @@ fn ladder_compiles_to_world_segment_and_normal() {
         4,
         vec![level(vec![[1, 1]]), level(vec![[1, 0]])],
         Vec::new(),
-        vec![player_zone(0, 1, 1)],
         Vec::new(),
     );
     map_def.ladders.push(ladder(0, 1, 1, WallSide::North, 1));
@@ -781,13 +711,7 @@ fn ladder_compiles_to_world_segment_and_normal() {
 
 #[test]
 fn eraser_edges_compile_to_full_storey_volumes_without_solid_geometry() {
-    let mut definition = map_with_zones(
-        4,
-        vec![level(vec![[0, 0], [1, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut definition = map_with_zones(4, vec![level(vec![[0, 0], [1, 0]])], Vec::new(), Vec::new());
     definition.levels[0].erasers.push(EraserDef {
         c0: 1,
         r0: 0,
@@ -810,13 +734,7 @@ fn eraser_edges_compile_to_full_storey_volumes_without_solid_geometry() {
 
 #[test]
 fn same_appearance_targets_keep_independent_controls_and_instance_ids() {
-    let mut map = map_with_zones(
-        4,
-        vec![level(vec![[0, 0], [3, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map = map_with_zones(4, vec![level(vec![[0, 0], [3, 0]])], Vec::new(), Vec::new());
     for (col, switch) in [(0, "red"), (3, "blue")] {
         map.pressure_plates.push(PressurePlateDef {
             level: 0,

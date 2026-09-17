@@ -41,7 +41,7 @@ class EditorInputTests(WindowTestCase):
 
     def zone_map(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["actor_spawn_zones"] = [
             {"level": 0, "cols": [2, 4], "rows": [2, 4], "kind": "scuttler", "count": [2], "respawn_secs": 90}
         ]
@@ -88,9 +88,9 @@ class EditorInputTests(WindowTestCase):
 
     def test_nested_handle_moves_one_end_without_moving_the_other(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         child = empty_map(2, 2)
-        child["player_spawn_zones"] = []
+        child["checkpoints"] = []
         data["nested_geometry"] = {"cabin": child}
         data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1])]
         self.window.doc.replace_with_new(data)
@@ -113,10 +113,10 @@ class EditorInputTests(WindowTestCase):
     def test_dragging_a_platform_label_or_outline_moves_its_full_footprints(self):
         window = self.window
         data = empty_map(12, 12)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(3, 1)]
         child = empty_map(3, 2)
-        child["player_spawn_zones"] = []
+        child["checkpoints"] = []
         data["nested_geometry"] = {"platform": child}
         data["nested_maps"] = [{**nested("platform", 0, [1, 1], [6, 1]), "from_nudge": [1, 0, 0]}]
         window.doc.replace_with_new(data)
@@ -172,7 +172,7 @@ class EditorInputTests(WindowTestCase):
 
     def test_shift_selection_and_plain_click_keep_one_group_for_every_command(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, 1) for col in (1, 3, 5)]
         data["items"] = [{"level": 0, "col": col, "row": 1, "type": "gold"} for col in (1, 3, 5)]
         window = self.window
@@ -192,7 +192,7 @@ class EditorInputTests(WindowTestCase):
 
     def test_shift_drag_selects_a_group_starting_on_an_occupied_tile(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, row) for col in range(8) for row in range(8)]
         data["items"] = [{"level": 0, "col": col, "row": 1, "type": "gold"} for col in (1, 3, 5)]
         window = self.window
@@ -219,7 +219,7 @@ class EditorInputTests(WindowTestCase):
                     with self.subTest(name=name, boundary=boundary, additive=additive):
                         window = self.window
                         data = empty_map(8, 8)
-                        data["player_spawn_zones"] = []
+                        data["checkpoints"] = []
                         data["levels"][0]["floors"] = [floor(col, row) for row in range(8) for col in range(8)]
                         col = 8 if boundary else 2
                         for kind, x in ((name, col), ("erasers" if name == "walls" else "walls", col - 1)):
@@ -267,7 +267,7 @@ class EditorInputTests(WindowTestCase):
                     with self.subTest(name=name, vertical=vertical, reverse=reverse):
                         window = self.window
                         data = empty_map(8, 8)
-                        data["player_spawn_zones"] = []
+                        data["checkpoints"] = []
                         data["levels"][0]["floors"] = [floor(col, row) for row in range(8) for col in range(8)]
 
                         def edge(x0, y0, x1, y1):
@@ -328,7 +328,7 @@ class EditorInputTests(WindowTestCase):
     def test_line_selection_excludes_adjacent_segments_and_preserves_tiles_scope(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, row) for row in range(8) for col in range(8)]
         data["levels"][0]["walls"] = [
             {"c0": 2, "r0": row, "c1": 2, "r1": row + 1, "all": "basement-floor"} for row in range(6)
@@ -354,7 +354,7 @@ class EditorInputTests(WindowTestCase):
             with self.subTest(start=start):
                 window = self.window
                 data = empty_map(8, 8)
-                data["player_spawn_zones"] = []
+                data["checkpoints"] = []
                 data["levels"][0]["floors"] = [floor(col, row) for row in range(8) for col in range(8)]
                 data["levels"][0]["walls"] = [
                     {"c0": 2, "r0": row, "c1": 2, "r1": row + 1, "all": "basement-floor"} for row in (1, 2)
@@ -372,7 +372,7 @@ class EditorInputTests(WindowTestCase):
     def test_floor_drag_along_an_empty_grid_edge_still_selects_floors(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, row) for row in range(8) for col in range(8)]
         window.doc.replace_with_new(data)
         before = copy.deepcopy(window.map_data)
@@ -384,7 +384,7 @@ class EditorInputTests(WindowTestCase):
     def test_dragging_an_already_selected_wall_moves_it_without_selecting_floors(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, row) for row in range(8) for col in range(8)]
         data["levels"][0]["walls"] = [{"c0": 2, "r0": 1, "c1": 2, "r1": 2, "all": "basement-floor"}]
         window.doc.replace_with_new(data)
@@ -401,7 +401,7 @@ class EditorInputTests(WindowTestCase):
     def test_first_floor_drag_selects_and_only_a_later_drag_moves_the_selection(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, row) for row in (1, 2) for col in (1, 2)] + [floor(7, 7)]
         window.doc.replace_with_new(data)
         before = copy.deepcopy(window.map_data)
@@ -449,7 +449,7 @@ class EditorInputTests(WindowTestCase):
             with self.subTest(side=side):
                 window = self.window
                 data = empty_map(8, 8)
-                data["player_spawn_zones"] = []
+                data["checkpoints"] = []
                 data["levels"].append(empty_level(1))
                 data["levels"][0]["floors"] = [floor(col, row) for row in range(8) for col in range(8)]
                 data["ladders"] = [{"col": 3, "row": 3, "side": side, "lower_level": 0, "levels": 1}]
@@ -482,7 +482,7 @@ class EditorInputTests(WindowTestCase):
 
     def test_item_selection_highlight_does_not_fill_its_floor_tile(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(2, 2)]
         data["items"] = [{"level": 0, "col": 2, "row": 2, "type": "gold"}]
         window = self.window
@@ -524,11 +524,11 @@ class EditorInputTests(WindowTestCase):
     def test_placement_tools_do_not_erase_ladders_or_move_existing_nested_maps(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"].append(empty_level(1))
         data["ladders"] = [{"col": 2, "row": 2, "side": "S", "lower_level": 0, "levels": 1}]
         child = empty_map(1, 1)
-        child["player_spawn_zones"] = []
+        child["checkpoints"] = []
         data["nested_geometry"] = {"cabin": child}
         data["nested_maps"] = [nested("cabin", 0, [4, 4], [5, 4])]
         window.doc.replace_with_new(data)
@@ -564,7 +564,7 @@ class EditorInputTests(WindowTestCase):
     def test_right_click_keeps_a_pending_duplicate_for_its_transform_menu(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(1, 1), floor(2, 2)]
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
         window.doc.replace_with_new(data)
@@ -583,7 +583,7 @@ class EditorInputTests(WindowTestCase):
     def test_shift_drag_adds_the_box_without_toggling_the_pressed_object(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, row) for col in (1, 2) for row in (1, 2)]
         window.doc.replace_with_new(data)
         self.drag((0.5, 0.5), (2.7, 2.7))
@@ -603,7 +603,7 @@ class EditorInputTests(WindowTestCase):
     def test_focus_loss_restores_the_selection_a_press_replaced(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, row) for col in range(8) for row in range(8)]
         data["items"] = [{"level": 0, "col": col, "row": 1, "type": "gold"} for col in (1, 3, 5)]
         window.doc.replace_with_new(data)
@@ -636,7 +636,7 @@ class EditorInputTests(WindowTestCase):
     def test_a_sub_cell_drag_on_a_tile_area_neither_moves_nor_complains(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["walls"] = [{"c0": 2, "r0": 1, "c1": 2, "r1": 2, "all": DEFAULT_ALIAS}]
         data["levels"][0]["lights"] = [{"col": 2, "row": 1, "side": "W"}]
         window.doc.replace_with_new(data)
@@ -653,7 +653,7 @@ class EditorInputTests(WindowTestCase):
     def test_moving_an_object_from_an_upper_storey_keeps_the_tile_span(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"] += [empty_level(1), empty_level(2)]
         data["actor_spawn_zones"] = [
             {
@@ -677,12 +677,12 @@ class EditorInputTests(WindowTestCase):
     def test_records_on_a_nested_footprint_outrank_its_outline_and_selected_interior(self):
         window = self.window
         data = empty_map(12, 12)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, row) for col in range(1, 5) for row in range(1, 3)]
         data["levels"][0]["walls"] = [{"c0": 4, "r0": 1, "c1": 4, "r1": 2, "all": DEFAULT_ALIAS}]
         data["items"] = [{"level": 0, "col": 3, "row": 1, "type": "gold"}]
         child = empty_map(3, 2)
-        child["player_spawn_zones"] = []
+        child["checkpoints"] = []
         data["nested_geometry"] = {"room": child}
         data["nested_maps"] = [nested("room", 0, [1, 1], [1, 1])]
         window.doc.replace_with_new(data)
@@ -710,12 +710,12 @@ class EditorInputTests(WindowTestCase):
     def test_escape_restores_the_selection_a_nested_map_press_replaced(self):
         window = self.window
         data = empty_map(12, 12)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["walls"] = [
             {"c0": 8, "r0": row, "c1": 9, "r1": row, "all": DEFAULT_ALIAS} for row in (6, 7, 8)
         ]
         child = empty_map(3, 2)
-        child["player_spawn_zones"] = []
+        child["checkpoints"] = []
         data["nested_geometry"] = {"room": child}
         data["nested_maps"] = [nested("room", 0, [1, 1], [1, 1])]
         window.doc.replace_with_new(data)
@@ -738,9 +738,9 @@ class EditorInputTests(WindowTestCase):
     def test_a_tile_move_hides_only_the_nested_maps_it_carries(self):
         window = self.window
         data = empty_map(12, 12)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         child = empty_map(1, 1)
-        child["player_spawn_zones"] = []
+        child["checkpoints"] = []
         data["nested_geometry"] = {"tile": child}
         data["nested_maps"] = [nested("tile", 0, [0, 0], [6, 6]), nested("tile", 0, [2, 2], [2, 2])]
         window.doc.replace_with_new(data)

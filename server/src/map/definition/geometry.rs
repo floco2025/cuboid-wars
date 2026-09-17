@@ -7,7 +7,7 @@ use super::{
     schema::{LadderDef, LevelDef, MapDef, RampDef, WallSide},
 };
 use crate::map::{
-    ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
+    ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, PlacedItem, PressurePlateRuntime,
     barriers::{BarrierEdge, merge_barriers, stack_barriers},
     bridge_bounds::flush_light_bridges,
     bridges::merge_light_bridges,
@@ -121,7 +121,6 @@ pub(super) fn compile_geometry(
     config
         .actor_spawn_zones
         .extend(actor_spawn_zones(map_def, scope, carrier)?);
-    config.player_spawn_zones.extend(player_spawn_zones(map_def, carrier));
     config.placed_items.extend(placed_items);
     config.pressure_plates.extend(pressure_plates);
 
@@ -396,20 +395,6 @@ fn actor_spawn_zones(
                 until_checkpoint: zone.until_checkpoint,
                 on_checkpoint: zone.on_checkpoint.unwrap_or_default(),
             })
-        })
-        .collect()
-}
-
-fn player_spawn_zones(map_def: &MapDef, carrier: CarrierId) -> Vec<PlayerSpawnZone> {
-    map_def
-        .player_spawn_zones
-        .iter()
-        .map(|zone| PlayerSpawnZone {
-            carrier,
-            level: u8::try_from(zone.level).unwrap_or(u8::MAX),
-            levels: zone.levels as u16,
-            cols: zone.cols,
-            rows: zone.rows,
         })
         .collect()
 }

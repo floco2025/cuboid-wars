@@ -4,8 +4,8 @@ use crate::{
     characters::spawn_face_yaw,
     network::{FeedAudience, FeedEvent, emit_feed},
     players::{
-        LoginStart, PlayerCheckpoint, PlayerMap, PlayerSpawn, enter_group_respawn, place_player_body,
-        player_spawn_destination, spawn_zone_destination,
+        LoginStart, PlayerMap, PlayerSpawn, enter_group_respawn, place_player_body, player_spawn_destination,
+        start_destination,
     },
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
@@ -43,10 +43,7 @@ pub(super) fn handle_login_message(
     portal_assignments: &mut PortalAssignments,
     portals: &mut PortalMap,
 ) {
-    let saved_checkpoint = start
-        .checkpoint
-        .map(|id| PlayerCheckpoint::toward_origin(id, &world.map_layout.checkpoints, &world.carriers))
-        .or(players.shared_checkpoint);
+    let saved_checkpoint = start.checkpoint.unwrap_or(players.shared_checkpoint);
     let Some(player_info) = players.get_mut(&id) else {
         error!("registered player#{} missing during login", id.0);
         return;
@@ -111,10 +108,11 @@ pub(super) fn handle_login_message(
         .unwrap_or_else(|| {
             // A joining player gets a body now; the blocked checkpoint stays saved for the next respawn.
             info!(
-                "{}: the saved checkpoint is blocked, spawning in a zone instead",
-                players.describe(&id)
+                "{}: checkpoint {} is blocked, spawning at the start instead",
+                players.describe(&id),
+                saved_checkpoint.number
             );
-            spawn_zone_destination(
+            start_destination(
                 &world.map_config,
                 &world.map_layout.checkpoints,
                 &world.carriers,

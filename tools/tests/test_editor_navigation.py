@@ -8,7 +8,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QComboBox, QMenu, QSpinBox, QStatusBar
 
 from editor_fixtures import WindowTestCase
-from map_editor.constants import MODE_ACTOR_SPAWN_ZONE, MODE_PLAYER_SPAWN_ZONE, MODE_ERASE, MODE_JUMP_REACH
+from map_editor.constants import MODE_ACTOR_SPAWN_ZONE, MODE_CHECKPOINT, MODE_ERASE, MODE_JUMP_REACH
 from map_editor.transforms import insert_level_data
 from map_editor.types import ZoneRef
 from map_editor.viewport import Viewport
@@ -32,7 +32,7 @@ class EditorNavigationTests(WindowTestCase):
     def test_page_keys_change_levels_from_canvas_and_number_controls(self):
         window = self.window
         window.doc.replace_with_new(insert_level_data(window.map_data, 1))
-        window.set_mode(MODE_PLAYER_SPAWN_ZONE)
+        window.set_mode(MODE_CHECKPOINT)
         count = window.tool_settings.findChild(QSpinBox)
         count.setValue(2)
         for control in (window.canvas, count, count.lineEdit()):
@@ -211,16 +211,17 @@ class SpawnZoneHandleTests(WindowTestCase):
         window.undo_stack.redo()
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["cols"], [2, 5])
 
-    def test_player_zone_side_handle_and_normal_tile_selection(self):
+    def test_checkpoint_side_handle_and_normal_tile_selection(self):
         window = self.window
-        window.add_player_spawn_zone_rect((2, 2), (3, 3))
+        window.add_floor_rect((2, 2), (4, 3))
+        window.add_checkpoint_rect((2, 2), (3, 3))
         self.click(2, 2)
         canvas = window.canvas
         start = canvas.viewport.from_grid(QPointF(4, 3)).toPoint()
         end = canvas.viewport.from_grid(QPointF(5, 3)).toPoint()
         QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=start)
         QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=end)
-        self.assertEqual(window.map_data["player_spawn_zones"][0]["cols"], [2, 5])
+        self.assertEqual(window.map_data["checkpoints"][-1]["cols"], [2, 5])
         QTest.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=canvas.viewport.from_grid(QPointF(6.5, 6.5)).toPoint())
         self.assertIsNone(window.selected_spawn_zone_ref)
         self.assertTrue(window.selection.empty)

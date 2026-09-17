@@ -17,9 +17,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .checkpoint_numbers import is_start
 from .elements import ELEMENT_MODES, element_refs
 from .compact_widgets import CompactComboBox
-from .constants import FACES
+from .constants import FACES, START_CHECKPOINT, START_CHECKPOINT_TYPE
 from .display import color_icon, portal_label
 from .transforms import record_rect
 from .tool_catalog import TOOLS
@@ -257,15 +258,15 @@ class SelectionProperties(QDockWidget):
             if number < 1:
                 raise ValueError(f"{field.label}: checkpoint numbers start at 1.")
             return number
-        if field.kind in ("number", "positive", "nonnegative", "positive_int", "respawn"):
+        if field.kind in ("number", "positive", "nonnegative", "positive_int", "nonnegative_int", "respawn"):
             try:
-                value = int(text) if field.kind == "positive_int" else float(text)
+                value = int(text) if field.kind in ("positive_int", "nonnegative_int") else float(text)
             except ValueError:
                 raise ValueError(f"{field.label}: enter a number.") from None
             if (
                 not math.isfinite(value)
                 or (field.kind in ("positive", "positive_int") and value <= 0)
-                or (field.kind in ("nonnegative", "respawn") and value < 0)
+                or (field.kind in ("nonnegative", "nonnegative_int", "respawn") and value < 0)
             ):
                 raise ValueError(f"{field.label}: value is outside the allowed range.")
             return value
@@ -296,6 +297,8 @@ class SelectionProperties(QDockWidget):
                         entry.setdefault("on_checkpoint", "stop")
                 if ref.name == "items" and entry["type"] != "key":
                     entry.pop("kind", None)
+                if ref.name == "checkpoints" and is_start(entry):
+                    entry["type"] = START_CHECKPOINT_TYPE
             errors = self.window.added_issues(after)
             if errors:
                 raise ValueError(errors[0])
@@ -330,6 +333,11 @@ class SelectionProperties(QDockWidget):
         if ("on_checkpoint",) in self.widgets:
             until = self.widgets[("until_checkpoint",)].text().strip()
             self.widgets[("on_checkpoint",)].setEnabled(bool(until) and until.casefold() != "always")
+        if names == {"checkpoints"} and ("type",) in self.widgets:
+            number = self.widgets[("number",)].text().strip()
+            start = number.isdigit() and int(number) == START_CHECKPOINT
+            self.widgets[("type",)].setEnabled(not start)
+            self.labels[("type",)].setEnabled(not start)
         if ("motion",) in self.widgets:
             motion = self.widgets[("motion",)].currentData()
             cycle = motion is _MIXED or motion_uses_cycle(motion)

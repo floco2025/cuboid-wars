@@ -200,10 +200,7 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
     let (sender, _receiver) = unbounded();
     let mut info = PlayerInfo::new(entity, sender);
     info.connection.logged_in = true;
-    info.session.checkpoint = Some(PlayerCheckpoint {
-        id: CheckpointId(0),
-        facing: Vec3::X,
-    });
+    info.session.checkpoint = PlayerCheckpoint::numbered(1);
     info.life.outcomes.fell_out_of_world = true;
     app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
 
@@ -221,7 +218,7 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
         Some(CheckpointId(0)),
         "the landing is no fresh entry"
     );
-    assert_eq!(info.session.checkpoint.map(|c| c.id), Some(CheckpointId(0)));
+    assert_eq!(info.session.checkpoint, PlayerCheckpoint::numbered(1));
 }
 
 #[test]
@@ -257,10 +254,7 @@ fn simultaneous_invincible_rescues_take_distinct_spots() {
         let (sender, _receiver) = unbounded();
         let mut info = PlayerInfo::new(entity, sender);
         info.connection.logged_in = true;
-        info.session.checkpoint = Some(PlayerCheckpoint {
-            id: CheckpointId(0),
-            facing: Vec3::X,
-        });
+        info.session.checkpoint = PlayerCheckpoint::numbered(1);
         info.life.outcomes.fell_out_of_world = true;
         app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
         entities.push(entity);

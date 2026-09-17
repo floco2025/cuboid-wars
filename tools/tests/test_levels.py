@@ -18,7 +18,7 @@ class LevelsWindowTests(WindowTestCase):
         path.write_text(json.dumps(settings))
         self.window.reload_dependencies()
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"] = [empty_level(i) for i in range(7)]
         data["nested_geometry"] = {"platform": empty_map(2, 2)}
         data["nested_maps"] = [nested("platform", 1, [2, 2], [2, 2])]
@@ -39,7 +39,7 @@ class LevelsWindowTests(WindowTestCase):
 
     def test_shrink_keeps_interior_levels_names_spans_and_nested_motion(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"] = [empty_level(i) for i in range(8)]
         data["levels"][2]["floors"] = [floor(2, 2)]
         data["items"] = [{"level": 5, "col": 3, "row": 3, "type": "gold"}]
@@ -81,7 +81,7 @@ class LevelsWindowTests(WindowTestCase):
 
     def test_shrink_empty_levels_keeps_one_and_cancel_discards_it(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"] = [empty_level(i) for i in range(4)]
         self.window.doc.replace_with_new(data)
         self.window.set_level_index(3)

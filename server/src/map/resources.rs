@@ -165,21 +165,20 @@ impl ActorSpawnZone {
     // response, and the course (`progress`, the furthest checkpoint any
     // logged-in player has saved) has not reached its `until_checkpoint`.
     #[must_use]
-    pub fn is_enabled(&self, switch_state: &SwitchState, progress: Option<u32>) -> bool {
+    pub fn is_enabled(&self, switch_state: &SwitchState, progress: u32) -> bool {
         self.switch
             .is_none_or(|switch| switch_state.is_active(switch) != self.switch_inverted)
             && !self.checkpoint_reached(progress)
     }
 
     #[must_use]
-    pub fn checkpoint_reached(&self, progress: Option<u32>) -> bool {
-        self.until_checkpoint
-            .is_some_and(|until| progress.is_some_and(|progress| progress >= until))
+    pub fn checkpoint_reached(&self, progress: u32) -> bool {
+        self.until_checkpoint.is_some_and(|until| progress >= until)
     }
 
     // Whether the zone's remaining actors and beam-ins go now.
     #[must_use]
-    pub fn destroys_at(&self, progress: Option<u32>) -> bool {
+    pub fn destroys_at(&self, progress: u32) -> bool {
         self.on_checkpoint == CheckpointResponse::Destroy && self.checkpoint_reached(progress)
     }
 
@@ -193,24 +192,6 @@ impl ActorSpawnZone {
                     .and_then(|row| row.get(col as usize))
                     .is_some_and(Cell::is_spawnable)
             })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PlayerSpawnZone {
-    pub carrier: CarrierId,
-    pub level: u8,
-    pub levels: u16,
-    pub cols: [i32; 2],
-    pub rows: [i32; 2],
-}
-
-impl PlayerSpawnZone {
-    pub fn level_range(&self) -> impl Iterator<Item = u8> {
-        (u16::from(self.level)..u16::from(self.level) + self.levels).filter_map(|level| u8::try_from(level).ok())
-    }
-    pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> {
-        zone_cells(self.cols, self.rows)
     }
 }
 
@@ -271,7 +252,6 @@ impl CarrierGrid {
 pub struct MapConfig {
     pub grids: Vec<CarrierGrid>,
     pub actor_spawn_zones: Vec<ActorSpawnZone>,
-    pub player_spawn_zones: Vec<PlayerSpawnZone>,
     pub placed_items: Vec<PlacedItem>,
     pub pressure_plates: Vec<PressurePlateRuntime>,
 }
@@ -284,7 +264,6 @@ impl MapConfig {
         Self {
             grids: vec![CarrierGrid::new(CarrierId::WORLD, geometry, levels)],
             actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
             placed_items: Vec::new(),
             pressure_plates: Vec::new(),
         }

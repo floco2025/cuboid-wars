@@ -414,8 +414,9 @@ pub struct SSnapshot {
     // Unlocked `shared` / `everyone` quests. Completed quests stay listed
     // for the session so late joiners and clients that missed updates catch up.
     pub quests: Vec<QuestGroupStatus>,
-    // The group's claimed checkpoint, an index into `MapLayout.checkpoints`.
-    pub shared_checkpoint: Option<u16>,
+    // The number of the group's claimed checkpoint; 0 until a group
+    // checkpoint activates.
+    pub shared_checkpoint: u32,
     // Switches still locked behind a quest: the plates of a switch that
     // solves a quest are inert and hidden until that quest unlocks. Sorted,
     // usually empty.
@@ -615,8 +616,8 @@ pub struct SEquipmentErased;
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SCheckpointReached {
     pub tick: u32,
-    // An index into `MapLayout.checkpoints`.
-    pub checkpoint: u16,
+    // The checkpoint's number.
+    pub checkpoint: u32,
 }
 
 // Player collected gold. Sent only to the collecting player; drives the

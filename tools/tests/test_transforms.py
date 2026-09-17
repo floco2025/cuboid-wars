@@ -22,7 +22,7 @@ BRIDGE_KIND = "skyway"
 class ResizeTests(unittest.TestCase):
     def test_content_bounds_cover_all_levels_and_spanning_objects(self):
         data = empty_map(20, 20)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"] = [empty_level(i) for i in range(9)]
         data["levels"][2]["floors"] = [floor(4, 6)]
         data["levels"][2]["walls"] = [{"c0": 3, "r0": 6, "c1": 4, "r1": 6, **faces()}]
@@ -44,7 +44,7 @@ class ResizeTests(unittest.TestCase):
 
     def test_content_bounds_include_nested_footprints_nudges_and_both_motion_ends(self):
         data = empty_map(20, 20)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"] = [empty_level(i) for i in range(10)]
         child = empty_map(3, 2)
         child["levels"].append(empty_level(1))
@@ -58,7 +58,7 @@ class ResizeTests(unittest.TestCase):
 
     def test_empty_and_boundary_only_maps_keep_at_least_one_cell_and_level(self):
         data = empty_map(9, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"].append(empty_level(1))
         bounds = map_content_bounds(data)
         self.assertEqual(bounds.rect, (0, 0, 1, 1))
@@ -73,7 +73,7 @@ class ResizeTests(unittest.TestCase):
 
     def test_fitting_does_not_enlarge_for_nested_geometry_already_outside_the_grid(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["nested_geometry"] = {"cabin": empty_map(6, 7)}
         data["nested_maps"] = [nested("cabin", 0, [5, 5], [5, 5])]
         self.assertEqual(map_content_bounds(data).rect, (5, 5, 8, 8))

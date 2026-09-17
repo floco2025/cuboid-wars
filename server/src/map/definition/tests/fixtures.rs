@@ -13,7 +13,7 @@ pub(super) use super::super::{
     load::LoadedMaps,
     schema::{
         ActorSpawnZoneDef, BarrierDef, EraserDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef, MapDef,
-        MotionDef, NestedMapDef, PressurePlateDef, RampDef, SpawnZoneDef, TerrainDef, WallDef, WallSide, ZoneDef,
+        MotionDef, NestedMapDef, PressurePlateDef, RampDef, TerrainDef, WallDef, WallSide, ZoneDef,
     },
     validation::{canonicalize, validate_map},
 };
@@ -145,13 +145,7 @@ pub(crate) fn bridge_def(col: i32, row: i32) -> LightBridgeDef {
 
 // One floor at (0, 0) plus the bridge cells named, on a 4x4 grid.
 pub(crate) fn map_with_bridges(cells: &[[i32; 2]]) -> MapDef {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].light_bridges = cells.iter().map(|[c, r]| bridge_def(*c, *r)).collect();
     map_def
 }
@@ -194,15 +188,6 @@ pub(crate) fn actor_zone(level: u32, col: i32, row: i32) -> ActorSpawnZoneDef {
     }
 }
 
-pub(crate) fn player_zone(level: u32, col: i32, row: i32) -> SpawnZoneDef {
-    SpawnZoneDef {
-        levels: 1,
-        level,
-        cols: [col, col + 1],
-        rows: [row, row + 1],
-    }
-}
-
 pub(crate) fn ramp(low: [i32; 2], high: [i32; 2], lower_level: u32) -> RampDef {
     RampDef {
         low,
@@ -216,14 +201,12 @@ pub(crate) fn map_with_zones(
     grid: i32,
     levels: Vec<LevelDef>,
     actor_spawn_zones: Vec<ActorSpawnZoneDef>,
-    player_spawn_zones: Vec<SpawnZoneDef>,
     ramps: Vec<RampDef>,
 ) -> MapDef {
     MapDef {
         grid_cols: grid,
         grid_rows: grid,
         actor_spawn_zones,
-        player_spawn_zones,
         checkpoints: Vec::new(),
         items: Vec::new(),
         pressure_plates: Vec::new(),

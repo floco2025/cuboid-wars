@@ -8,7 +8,7 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMessageBox
 
-from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, nested
+from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, nested, start_checkpoint
 from map_editor.constants import MODE_ERASE, MODE_FLOOR, MODE_SELECT
 from map_editor.elements import ElementRef
 from map_editor.io import write_map
@@ -40,7 +40,7 @@ def furnished_block() -> dict:
     data["actor_spawn_zones"] = [
         {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "scuttler", "count": [2], "respawn_secs": 90}
     ]
-    data["player_spawn_zones"] = [{"level": 1, "cols": [0, 1], "rows": [0, 1]}]
+    data["checkpoints"] = [{"level": 1, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 1}]
     data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "gold"}]
     data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "type": "firework"}]
     data["ramps"] = [{"lower_level": 0, "low": [0, 2], "high": [3, 3], "all": DEFAULT_ALIAS}]
@@ -54,7 +54,7 @@ class RegionTests(unittest.TestCase):
         block = furnished_block()
         snapshot = copy.deepcopy(block)
         destination = empty_map(12, 12)
-        destination["player_spawn_zones"] = []
+        destination["checkpoints"] = []
         pasted = canonicalize_map(paste_region(destination, block, (5, 6), 1))
         recovered = copy_region(pasted, TileRegion((5, 6, 9, 10), 1, 2))
         for name in GLOBAL_LISTS:
@@ -79,18 +79,18 @@ class RegionTests(unittest.TestCase):
 
     def test_paste_replaces_empty_cells_too_and_preserves_neighbors(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [{"col": c, "row": 3, "all": DEFAULT_ALIAS} for c in (2, 3, 4)]
         data["items"] = [{"level": 0, "col": 3, "row": 3, "type": "gold"}]
         block = empty_map(2, 1)
-        block["player_spawn_zones"] = []
+        block["checkpoints"] = []
         result = canonicalize_map(paste_region(data, block, (2, 3), 0))
         self.assertEqual([(f["col"], f["row"]) for f in result["levels"][0]["floors"]], [(4, 3)])
         self.assertEqual(result["items"], [])
 
     def test_boundary_edges_are_copied_and_replaced(self):
         data = empty_map(4, 4)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         edges = [(1, 1, 2, 1), (1, 2, 2, 2), (1, 1, 1, 2), (2, 1, 2, 2)]
         data["levels"][0]["walls"] = [dict(zip(("c0", "r0", "c1", "r1"), e)) for e in edges]
         region = TileRegion((1, 1, 2, 2), 0)
@@ -120,7 +120,7 @@ class RegionTests(unittest.TestCase):
 
     def test_deleting_a_shared_wall_cannot_silently_lose_an_unselected_light(self):
         data = empty_map(4, 4)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1}]
         data["levels"][0]["lights"] = [{"col": 1, "row": 0, "side": "S"}]
         region = TileRegion((1, 1, 2, 2), 0)
@@ -132,7 +132,7 @@ class RegionTests(unittest.TestCase):
 
     def test_orphan_reversed_and_invalid_lights_far_away_do_not_block_edits(self):
         data = empty_map(10, 10)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["walls"] = [
             {"c0": 1, "r0": 0, "c1": 0, "r1": 0},
             {"c0": 8, "r0": 8, "c1": 9, "r1": 8},
@@ -149,15 +149,19 @@ class RegionTests(unittest.TestCase):
 
     def test_paste_refusals_speak_of_the_destination(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["ramps"] = [{"lower_level": 0, "low": [2, 2], "high": [5, 3], "all": DEFAULT_ALIAS}]
         block = empty_map(1, 1)
-        block["player_spawn_zones"] = []
+        block["checkpoints"] = []
         with self.assertRaisesRegex(ValueError, "destination crosses a ramp"):
             paste_region(data, block, (2, 2), 0)
 
     def test_partial_spawn_zone_does_not_get_split_or_duplicate_actor_counts(self):
         data = empty_map(8, 8)
+        data["checkpoints"] = []
+        data["actor_spawn_zones"] = [
+            {"level": 0, "cols": [0, 2], "rows": [0, 2], "kind": "scuttler", "count": [2], "respawn_secs": 90}
+        ]
         with self.assertRaisesRegex(ValueError, "spawn zone"):
             copy_region(data, TileRegion((0, 0, 1, 1), 0))
 
@@ -232,7 +236,7 @@ class SelectHostTests(WindowTestCase):
         data["actor_spawn_zones"] = [
             {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "scuttler", "count": [2], "respawn_secs": 90}
         ]
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         self.window.doc.replace_with_new(data)
         host = self.window
         inside = QPointF(2.5, 2.5)
@@ -258,9 +262,9 @@ class SelectHostTests(WindowTestCase):
         data = empty_map(8, 8)
         data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1])]
         child = empty_map(3, 2)
-        child["player_spawn_zones"] = []
+        child["checkpoints"] = []
         data["nested_geometry"] = {"cabin": child}
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         self.window.doc.replace_with_new(data)
         host = self.window
 
@@ -314,7 +318,7 @@ class SelectionWindowTests(WindowTestCase):
         self.assertTrue(window.paste_action.isEnabled())
         with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
             window.cut_action.trigger()
-        self.assertEqual(window.map_data["levels"][0]["floors"], [])
+        self.assertEqual([(f["col"], f["row"]) for f in window.map_data["levels"][0]["floors"]], [(7, 7)])
         self.assertEqual(window.undo_stack.count(), 1)
         clipboard = bytes(self.app.clipboard().mimeData().data(CLIPBOARD_MIME))
         window.undo_stack.undo()
@@ -322,13 +326,13 @@ class SelectionWindowTests(WindowTestCase):
         self.assertFalse(window.dirty)
         self.click(4, 4)
         window.paste_action.trigger()
-        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 2)
+        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 3)
         with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
             window.delete_action.trigger()
         self.assertEqual(window.map_data, before)
         self.assertEqual(bytes(self.app.clipboard().mimeData().data(CLIPBOARD_MIME)), clipboard)
         window.undo_stack.undo()
-        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 2)
+        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 3)
         window.undo_stack.redo()
         self.assertEqual(window.map_data, before)
 
@@ -378,7 +382,7 @@ class SelectionWindowTests(WindowTestCase):
             prompt.assert_not_called()
         self.click(5, 5)
         QTest.keySequence(self.window.canvas, QKeySequence(QKeySequence.StandardKey.Paste))
-        self.assertEqual(len(self.window.map_data["levels"][0]["floors"]), 2)
+        self.assertEqual(len(self.window.map_data["levels"][0]["floors"]), 3)
         with patch(
             "PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")
         ) as prompt:
@@ -400,7 +404,7 @@ class SelectionWindowTests(WindowTestCase):
         self.app.processEvents()
         QTest.keyClick(window.canvas, Qt.Key.Key_Escape)
         QTest.mouseRelease(window.canvas, Qt.MouseButton.LeftButton, pos=pos)
-        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 1)
+        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 2)
         self.assertFalse(window.dirty)
 
     def test_multilevel_paste_extends_map_and_undo_removes_added_levels(self):
@@ -426,7 +430,10 @@ class SelectionWindowTests(WindowTestCase):
             self.window.copy_selection()
         block = copy.deepcopy(self.window.tile_clipboard)
         other = Path(self.temp.name) / "obby" / "layout.json"
-        write_map(other, empty_map(8, 8))
+        other_map = empty_map(8, 8)
+        other_map["levels"][0]["floors"] = [{"col": 7, "row": 7, "all": DEFAULT_ALIAS}]
+        other_map["checkpoints"] = [start_checkpoint(7, 7)]
+        write_map(other, other_map)
         self.window.load_path(other)
         self.assertTrue(self.window.selection.empty)
         self.assertEqual(self.window.tile_clipboard, block)
@@ -438,7 +445,7 @@ class SelectionWindowTests(WindowTestCase):
 
     def test_paste_accepts_a_block_whose_switch_plate_lies_outside_it(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = [start_checkpoint(6, 6)]
         data["switches"] = [{"id": "bridge_1", "activation": "toggle", "reset_on_player_death": "never"}]
         data["bridge_kinds"] = [{"id": "bridge_1", "color": "#30d8ff"}]
         data["pressure_plates"] = [{"col": 6, "row": 6, "level": 0, "switch": "bridge_1"}]

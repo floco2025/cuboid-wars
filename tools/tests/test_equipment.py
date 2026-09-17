@@ -17,7 +17,7 @@ from map_editor.validation import validate_map
 class EquipmentTests(unittest.TestCase):
     def test_projectile_pickups_round_trip_through_the_map_editor(self):
         data = empty_map(4, 4)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [{"col": col, "row": 1, "all": DEFAULT_ALIAS} for col in (1, 2)]
         data["items"] = [
             {"level": 0, "col": col, "row": 1, "type": kind} for col, kind in ((1, "single_shot"), (2, "multi_shot"))
@@ -29,7 +29,7 @@ class EquipmentTests(unittest.TestCase):
 
     def test_fields_and_gun_round_trip_and_resize(self):
         data = empty_map(4, 4)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "portal_gun"}]
         data = canonicalize_map(paint_erasers(data, 0, (1, 0), (1, 3)))
@@ -47,7 +47,7 @@ class EquipmentTests(unittest.TestCase):
         self.assertEqual(len(erase_hit(data, 0, hit)["levels"][0]["erasers"]), 2)
         after = erase_group_rect(data, MODE_ERASE_EQUIPMENT_ERASERS, 0, (0, 0, 4, 4))
         self.assertEqual(after["levels"][0]["erasers"], [])
-        self.assertEqual(after["player_spawn_zones"], data["player_spawn_zones"])
+        self.assertEqual(after["checkpoints"], data["checkpoints"])
 
     def test_invalid_and_duplicate_fields_are_reported_without_losing_records_on_load(self):
         data = empty_map(4, 4)

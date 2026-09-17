@@ -34,7 +34,7 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_sampling_preserves_each_material_face_and_a_new_material_clears_the_sample(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         source = floor(1, 1)
         source["north"], source["top"] = "wall", "floor-a"
         data["levels"][0]["floors"] = [source]
@@ -83,7 +83,7 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_selection_scope_controls_copy_and_delete_without_prompts_and_clamps_after_level_removal(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["levels"].append(empty_level(1))
         data["levels"][1]["floors"] = [floor(1, 1)]
@@ -107,7 +107,7 @@ class EditorWorkflowTests(WindowTestCase):
         window.set_tile_selection((1, 1, 2, 2))
         self.drag((1.5, 1.5), (4.5, 3.5))
         floors = window.map_data["levels"][0]["floors"]
-        self.assertEqual([(e["col"], e["row"]) for e in floors], [(4, 3)])
+        self.assertEqual([(e["col"], e["row"]) for e in floors], [(4, 3), (7, 7)])
         self.assertEqual(window.undo_stack.count(), 1)
         window.undo_stack.undo()
         self.assertEqual(window.map_data, before)
@@ -122,14 +122,14 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertIsNotNone(window.pending_block)
         self.assertEqual(window.map_data, before)
         self.drag((4.5, 4.5), (4.5, 4.5))
-        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 2)
+        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 3)
         self.assertEqual(window.tile_clipboard, clipboard)
         window.undo_stack.undo()
         self.assertEqual(window.map_data, before)
 
     def test_rotation_is_previewed_before_placement_and_undo_restores_the_source(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(1, 1), floor(2, 1)]
         self.set_data(data)
         window = self.window
@@ -157,7 +157,7 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_inspector_edits_mixed_materials_as_one_undo_without_changing_other_faces(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         a, b = floor(1, 1), floor(2, 1)
         a["top"] = "floor-a"
         b["top"] = "floor-b"
@@ -180,7 +180,7 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_invalid_property_input_does_not_mutate_and_can_be_corrected(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["actor_spawn_zones"] = [
             {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": [2, 4], "respawn_secs": None}
         ]
@@ -263,14 +263,14 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_plate_links_include_other_levels_and_nested_geometry(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"].append(empty_level(1))
         data["switches"] = [{"id": "door", "activation": "momentary", "reset": "never", "hold": "any"}]
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": "door"}]
         data["levels"][1]["barriers"] = [{"c0": 2, "r0": 2, "c1": 3, "r1": 2, "kind": "treasure", "switch": "door"}]
         child = empty_map(2, 2)
-        child["player_spawn_zones"] = []
+        child["checkpoints"] = []
         child["actor_spawn_zones"] = [
             {
                 "level": 0,
@@ -295,9 +295,9 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_rotating_nested_geometry_creates_a_copy_and_undo_restores_the_whole_document(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         child = empty_map(2, 1)
-        child["player_spawn_zones"] = []
+        child["checkpoints"] = []
         child["levels"][0]["floors"] = [floor(0, 0)]
         data["nested_geometry"] = {"room": child}
         data["nested_maps"] = [nested("room", 0, [1, 1], [1, 1])]
@@ -325,7 +325,7 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_malformed_authored_count_can_be_selected_and_corrected_in_the_inspector(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["actor_spawn_zones"] = [
             {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": "invalid", "respawn_secs": None}
         ]
@@ -340,7 +340,7 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_reversed_wall_endpoints_are_picked_like_any_wall(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["levels"][0]["walls"] = [{"c0": 2, "r0": 1, "c1": 1, "r1": 1, "all": DEFAULT_ALIAS}]
         self.set_data(data)
@@ -366,7 +366,7 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_inspector_keeps_the_selection_through_normalization_and_no_op_edits(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"].append(empty_level(1))
         data["actor_spawn_zones"] = [
             {
@@ -394,7 +394,7 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_a_click_inside_the_selection_inspects_and_only_a_drag_lifts_the_block(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["actor_spawn_zones"] = [
             {"level": 0, "cols": [2, 6], "rows": [2, 6], "kind": "scuttler", "count": [1], "respawn_secs": None}
@@ -418,7 +418,7 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_duplicate_keeps_a_pending_transform_and_cancelling_it_notifies(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(1, 1), floor(2, 1)]
         self.set_data(data)
         window = self.window
@@ -436,7 +436,7 @@ class EditorWorkflowTests(WindowTestCase):
 
     def test_multilevel_paste_onto_the_top_storey_appends_levels(self):
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"].append(empty_level(1))
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["levels"][1]["floors"] = [floor(1, 1)]

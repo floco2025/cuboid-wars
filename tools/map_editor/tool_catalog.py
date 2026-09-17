@@ -31,7 +31,6 @@ TOOL_GROUPS = (
         "Zones & Items",
         (
             Tool(c.MODE_ACTOR_SPAWN_ZONE, "Actor zone", c.MODE_ERASE_SPAWN_ZONES),
-            Tool(c.MODE_PLAYER_SPAWN_ZONE, "Player zone", c.MODE_ERASE_SPAWN_ZONES),
             Tool(c.MODE_CHECKPOINT, "Checkpoint", c.MODE_ERASE_CHECKPOINTS),
             Tool(c.MODE_ITEM, "Item", c.MODE_ERASE_ITEMS),
         ),
@@ -64,8 +63,8 @@ TOOL_GROUPS = (
     ),
 )
 TOOLS = {tool.mode: tool for tool in (*PINNED_TOOLS, *(tool for _, group in TOOL_GROUPS for tool in group))}
-# Shared erase modes retain the selected variant (blocked floor, ramp down,
-# player zone). Use the first variant when there is no such selection.
+# Shared erase modes retain the selected variant (blocked floor, ramp down).
+# Use the first variant when there is no such selection.
 ERASE_TOOLS = {}
 for tool in TOOLS.values():
     if tool.erase:

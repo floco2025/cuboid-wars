@@ -1,7 +1,7 @@
 use super::*;
 use crate::config::fixtures;
 use crate::{
-    map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
+    map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
 use common::protocol::{Barrier, BarrierKindId, Carrier, CarrierId, Checkpoint, CheckpointKind, MapLayout, Wall};
@@ -20,27 +20,6 @@ fn character_physics() -> CharacterPhysicsConfig {
 
 fn actor_config(kind: &str) -> ActorGameplayConfig {
     fixtures::server_config().expect_actor(kind).character.clone()
-}
-
-fn map_config_with_player_spawn(level: u8, col: i32, row: i32) -> MapConfig {
-    let mut levels = (0..=level)
-        .map(|_| LevelGrid {
-            cells: CellGrid::new(2, 2),
-            edges: EdgeGrid::new(2, 2),
-            barrier_edges: EdgeGrid::new(2, 2),
-        })
-        .collect::<Vec<_>>();
-    levels[usize::from(level)].cells.rows[row as usize][col as usize].has_floor = true;
-    MapConfig {
-        player_spawn_zones: vec![PlayerSpawnZone {
-            carrier: CarrierId::WORLD,
-            level,
-            levels: 1,
-            cols: [col, col + 1],
-            rows: [row, row + 1],
-        }],
-        ..MapConfig::for_grid(levels, geometry(2, 2))
-    }
 }
 
 #[test]
@@ -324,23 +303,6 @@ fn immovable_spawn_waits_instead_of_shifting_away_from_an_obstructed_center() {
 }
 
 #[test]
-fn player_spawn_position_uses_configured_spawn_level() {
-    let layout = empty_layout();
-    let collision_world = collision_world(&layout);
-    let map_config = map_config_with_player_spawn(1, 0, 0);
-
-    let pos = generate_player_spawn_position(
-        &map_config,
-        &Carriers::default(),
-        &collision_world,
-        &[],
-        character_physics(),
-    );
-
-    assert_eq!(pos.y, LEVEL_HEIGHT);
-}
-
-#[test]
 fn checkpoint_spawns_follow_carriers_keep_off_the_flag_and_avoid_bodies_and_barriers() {
     let physics = character_physics();
     let rest = Position {
@@ -371,10 +333,12 @@ fn checkpoint_spawns_follow_carriers_keep_off_the_flag_and_avoid_bodies_and_barr
     });
     let world = collision_world(&empty_layout());
     let diameter_sq = physics.movement_collider.diameter.powi(2);
+    let checkpoints = std::slice::from_ref(&checkpoint);
     let mut occupied = Vec::new();
     for _ in 0..40 {
-        let pos = generate_checkpoint_spawn_position(&map_config, &carriers, &checkpoint, &world, &occupied, physics)
-            .expect("clear checkpoint rejected");
+        let pos =
+            generate_checkpoint_spawn_position(&map_config, &carriers, checkpoints, 1, &world, &occupied, physics)
+                .expect("clear checkpoint rejected");
         let local = pose.inverse_transform_position(&pos);
         assert_eq!(pos.y, LEVEL_HEIGHT);
         assert!(
@@ -395,7 +359,11 @@ fn checkpoint_spawns_follow_carriers_keep_off_the_flag_and_avoid_bodies_and_barr
     }
 
     let (ramped, carriers, _) = nested_zone_fixture(rest, false);
-    assert!(generate_checkpoint_spawn_position(&ramped, &carriers, &checkpoint, &world, &[], physics).is_none());
+    assert!(generate_checkpoint_spawn_position(&ramped, &carriers, checkpoints, 1, &world, &[], physics).is_none());
+    assert!(
+        generate_checkpoint_spawn_position(&map_config, &carriers, checkpoints, 2, &world, &[], physics).is_none(),
+        "a number with no rectangle has no spot"
+    );
 
     let barred = MapLayout {
         carriers: vec![resting_carrier(rest)],
@@ -421,5 +389,5 @@ fn checkpoint_spawns_follow_carriers_keep_off_the_flag_and_avoid_bodies_and_barr
     };
     let mut world = collision_world(&barred);
     world.set_carrier_poses(&carriers);
-    assert!(generate_checkpoint_spawn_position(&map_config, &carriers, &checkpoint, &world, &[], physics).is_none());
+    assert!(generate_checkpoint_spawn_position(&map_config, &carriers, checkpoints, 1, &world, &[], physics).is_none());
 }

@@ -1,12 +1,12 @@
 use super::fixtures::{connect, server_app, server_app_with_options};
 use super::*;
-use crate::players::CheckpointId;
+use crate::players::PlayerCheckpoint;
 use common::{
     config::GameplayConfig,
     constants::{TICK_DURATION, TICK_SECS},
     protocol::{
-        CAdmin, CLogin, CMove, ClientMessage, ItemType, MapLayout, PlayerGeneration, PlayerId, PlayerMoveIntent,
-        PlayerMovementState, Position, ServerMessage,
+        CAdmin, CLogin, CMove, ClientMessage, Health, ItemType, MapLayout, PlayerGeneration, PlayerId,
+        PlayerMoveIntent, PlayerMovementState, Position, ServerMessage,
     },
 };
 use crossbeam_channel::Receiver;
@@ -20,14 +20,26 @@ fn feed_texts(receiver: &Receiver<ServerMessage>) -> Vec<String> {
         .collect()
 }
 
-fn saved_checkpoint(app: &App, id: PlayerId) -> Option<CheckpointId> {
+fn saved_checkpoint(app: &App, id: PlayerId) -> u32 {
     app.world()
         .resource::<PlayerMap>()
         .get(&id)
         .expect("logged-in player missing")
         .session
         .checkpoint
-        .map(|saved| saved.id)
+        .number
+}
+
+fn in_checkpoint(app: &App, number: u32, pos: &Position) -> bool {
+    app.world()
+        .resource::<MapLayout>()
+        .checkpoints
+        .iter()
+        .filter(|checkpoint| checkpoint.number == number)
+        .any(|checkpoint| {
+            (checkpoint.min_x..=checkpoint.max_x).contains(&pos.x)
+                && (checkpoint.min_z..=checkpoint.max_z).contains(&pos.z)
+        })
 }
 
 #[test]
@@ -45,7 +57,7 @@ fn checkpoint_option_starts_every_login_at_the_numbered_checkpoint_and_saves_it(
         .expect_err("unknown checkpoint accepted")
         .to_string();
     assert!(
-        error.contains("unknown checkpoint 7") && error.contains("checkpoints are 1"),
+        error.contains("unknown checkpoint 7") && error.contains("checkpoints are 0, 1"),
         "{error}"
     );
 
@@ -61,14 +73,9 @@ fn checkpoint_option_starts_every_login_at_the_numbered_checkpoint_and_saves_it(
             _ => None,
         })
         .expect("login relocation missing");
-    let checkpoint = &app.world().resource::<MapLayout>().checkpoints[0];
     let pos = relocation.player.movement.pos;
-    assert!(
-        (checkpoint.min_x..=checkpoint.max_x).contains(&pos.x)
-            && (checkpoint.min_z..=checkpoint.max_z).contains(&pos.z),
-        "{pos:?} is outside {checkpoint:?}"
-    );
-    assert_eq!(saved_checkpoint(&app, PlayerId(1)), Some(CheckpointId(0)));
+    assert!(in_checkpoint(&app, 1, &pos), "{pos:?} is outside checkpoint 1");
+    assert_eq!(saved_checkpoint(&app, PlayerId(1)), 1);
 }
 
 #[test]
@@ -89,19 +96,96 @@ fn checkpoint_command_reports_and_sets_the_senders_checkpoint() {
         app.update();
         feed_texts(&receiver)
     };
-    assert_eq!(reply(&mut app, "/checkpoint"), vec!["no checkpoint saved"]);
+    assert_eq!(reply(&mut app, "/checkpoint"), vec!["checkpoint: 0"]);
     assert_eq!(
         reply(&mut app, "/checkpoint nowhere"),
         vec!["usage: /checkpoint [number]"]
     );
     assert_eq!(
         reply(&mut app, "/checkpoint 7"),
-        vec!["unknown checkpoint 7: the map's checkpoints are 1"]
+        vec!["unknown checkpoint 7: the map's checkpoints are 0, 1"]
     );
-    assert_eq!(saved_checkpoint(&app, PlayerId(1)), None);
+    assert_eq!(saved_checkpoint(&app, PlayerId(1)), 0);
     assert_eq!(reply(&mut app, "/checkpoint 1"), vec!["checkpoint set to 1"]);
-    assert_eq!(saved_checkpoint(&app, PlayerId(1)), Some(CheckpointId(0)));
+    assert_eq!(saved_checkpoint(&app, PlayerId(1)), 1);
     assert_eq!(reply(&mut app, "/checkpoint"), vec!["checkpoint: 1"]);
+}
+
+#[test]
+fn return_command_relocates_the_living_sender_to_its_checkpoint_without_a_death() {
+    let mut app = server_app(NetworkOverrides::default()).expect("server app failed to initialize");
+    let (client, receiver) = connect(&mut app);
+    client
+        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
+        .expect("login failed");
+    app.update();
+    while receiver.try_recv().is_ok() {}
+    let id = PlayerId(1);
+    let body = |app: &App| {
+        app.world()
+            .resource::<PlayerMap>()
+            .get(&id)
+            .expect("logged-in player missing")
+            .entity()
+            .expect("player has no body")
+    };
+    let entity = body(&app);
+    let generation = |app: &App| {
+        app.world()
+            .resource::<PlayerMap>()
+            .get(&id)
+            .expect("logged-in player missing")
+            .session
+            .generation
+    };
+    let before = generation(&app);
+    app.world_mut().entity_mut(entity).insert((
+        Position {
+            x: 40.0,
+            y: 3.0,
+            z: 40.0,
+        },
+        Health(17.0),
+    ));
+    {
+        let mut players = app.world_mut().resource_mut::<PlayerMap>();
+        let player = players.get_mut(&id).expect("logged-in player missing");
+        player.session.score = 9;
+        player.session.checkpoint = PlayerCheckpoint::numbered(1);
+    }
+    client
+        .send(ClientMessage::Admin(CAdmin {
+            command: "/return".into(),
+        }))
+        .expect("admin command delivery failed");
+    app.update();
+    let messages: Vec<_> = std::iter::from_fn(|| receiver.try_recv().ok()).collect();
+    let relocation = messages
+        .iter()
+        .find_map(|message| match message {
+            ServerMessage::PlayerRelocated(relocation) => Some(relocation),
+            _ => None,
+        })
+        .expect("return sent no relocation");
+    assert!(
+        !messages
+            .iter()
+            .any(|message| matches!(message, ServerMessage::PlayerDeath(_))),
+        "a return is no death"
+    );
+    assert_eq!(body(&app), entity, "the body stays; only its generation advances");
+    assert_ne!(generation(&app), before);
+    assert_eq!(relocation.player.generation, generation(&app));
+    assert!(in_checkpoint(&app, 1, &relocation.player.movement.pos));
+    assert_eq!(relocation.player.health.0, 17.0);
+    let players = app.world().resource::<PlayerMap>();
+    let player = players.get(&id).expect("logged-in player missing");
+    assert_eq!(player.session.score, 9);
+    assert_eq!(player.session.checkpoint.number, 1);
+    assert!(messages.iter().any(|message| matches!(
+        message,
+        ServerMessage::Feed(feed) if feed.spans.iter().any(|span| span.text.contains("returned to checkpoint 1"))
+    )));
 }
 
 #[test]

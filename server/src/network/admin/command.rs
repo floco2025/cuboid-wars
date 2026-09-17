@@ -1,7 +1,7 @@
 use common::celestial::LocalTime;
 use common::constants::CONSOLE_COMMAND_MAX_CHARS;
 
-pub(super) const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/time [H:MM|auto]\n/moon [0-1]\n/god [on|off]\n/peace [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/checkpoint [number]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/quest\n/quest <id> [name|@a]\n/kick <name>";
+pub(super) const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/time [H:MM|auto]\n/moon [0-1]\n/god [on|off]\n/peace [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/checkpoint [number]\n/return\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/quest\n/quest <id> [name|@a]\n/kick <name>";
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum AdminCommand {
@@ -21,6 +21,7 @@ pub(super) enum AdminCommand {
     CheckpointStatus,
     SetCheckpoint(u32),
     CheckpointUsage,
+    Return,
     GiveKeys,
     GiveKey(String),
     GivePowerups,
@@ -101,6 +102,7 @@ pub(super) fn parse_admin_command(input: &str) -> AdminCommand {
             .parse()
             .map_or(AdminCommand::CheckpointUsage, AdminCommand::SetCheckpoint),
         ["checkpoint", ..] => AdminCommand::CheckpointUsage,
+        ["return"] => AdminCommand::Return,
         ["give", "keys"] => AdminCommand::GiveKeys,
         ["give", "key", color] => AdminCommand::GiveKey((*color).to_owned()),
         ["give", "powerups"] => AdminCommand::GivePowerups,

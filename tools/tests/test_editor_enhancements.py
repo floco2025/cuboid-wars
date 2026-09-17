@@ -49,7 +49,7 @@ class EditorEnhancementTests(WindowTestCase):
     def test_clicking_an_object_keeps_neighboring_floor_tiles_visible(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, row) for col in range(8) for row in range(8)]
         data["items"] = [{"level": 0, "col": 3, "row": 3, "type": "gold"}]
         window.doc.replace_with_new(data)
@@ -88,7 +88,7 @@ class EditorEnhancementTests(WindowTestCase):
     def test_drag_selects_whole_intersected_zones_across_their_level_span(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"] += [empty_level(1), empty_level(2)]
         data["actor_spawn_zones"] = [
             {
@@ -163,7 +163,7 @@ class EditorEnhancementTests(WindowTestCase):
         data = furnished_map()
         data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
         window.switch_ids = ["barrier_1"]
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"] += [empty_level(1), empty_level(2)]
         data["actor_spawn_zones"] = [
             {"level": 0, "cols": [3, 4], "rows": [3, 4], "kind": "scuttler", "count": [1], "respawn_secs": None}
@@ -333,7 +333,7 @@ class EditorEnhancementTests(WindowTestCase):
     def test_object_paste_lands_relative_to_the_viewed_level(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"].append(empty_level(1))
         data["levels"][0]["floors"] = [floor(1, 1), floor(6, 6)]
         data["ladders"] = [{"col": 1, "row": 1, "side": "S", "lower_level": 0, "levels": 1}]
@@ -356,7 +356,7 @@ class EditorEnhancementTests(WindowTestCase):
     def test_clearing_a_switch_in_properties_drops_its_response_too(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
         window.switch_ids = ["barrier_1"]
         data["nested_geometry"] = {"room": empty_map(1, 1)}

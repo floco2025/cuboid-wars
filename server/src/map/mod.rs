@@ -33,7 +33,7 @@ pub use plugin::map_plugin;
 pub(crate) use resources::zone_cells;
 pub use resources::{
     ActorSpawnZone, CarrierGrid, Cell, CellGrid, CheckpointResponse, EdgeGrid, LevelGrid, MapConfig, MapFireworks,
-    PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
+    PlacedItem, PressurePlateRuntime,
 };
 pub use volume::ZoneVolume;
 pub use weather::{WeatherState, weather_system};

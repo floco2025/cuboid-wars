@@ -24,7 +24,6 @@ _ICONS = {
     c.MODE_LADDER: '<path d="M6 2v20M18 2v20M6 5h12M6 10h12M6 15h12M6 20h12"/>',
     c.MODE_NESTED_MAP: '<rect x="2" y="3" width="19" height="18" rx="2"/><path d="M2 9h19M9 3v18"/><rect x="12" y="12" width="7" height="7" fill="#67b8ef"/>',
     c.MODE_ACTOR_SPAWN_ZONE: '<rect x="2" y="3" width="20" height="18" rx="3" stroke-dasharray="2 3"/><path d="M7 8h10v8H7Z M9 5v3m6-3v3" fill="#eaaa89"/><path d="M10 11v1m4-1v1m-4 3h4"/>',
-    c.MODE_PLAYER_SPAWN_ZONE: '<rect x="2" y="3" width="20" height="18" rx="3" stroke-dasharray="2 3"/><circle cx="12" cy="8" r="3" fill="#67b8ef"/><path d="M6 19v-2a6 6 0 0 1 12 0v2" fill="#67b8ef"/>',
     c.MODE_CHECKPOINT: '<path d="M5 22V3m0 1c5-5 8 5 15 0v10c-7 5-10-5-15 0" fill="#60b89d"/>',
     c.MODE_ITEM: '<circle cx="12" cy="12" r="9" fill="#e9bd55"/><circle cx="12" cy="12" r="6"/><path d="M12 8v8m-2-2 2 2 2-2"/>',
     c.MODE_BARRIER: '<path d="M3 21V3m18 0v18"/><path d="M6 5h12v14H6Z" fill="#67b8ef"/><path d="m6 11 6-6m-6 12L18 5m-4 14 4-4"/>',

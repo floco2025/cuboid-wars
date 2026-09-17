@@ -97,7 +97,7 @@ fn selection_app() -> App {
                 held_keys: Vec::new(),
                 missiles: 0,
                 portal_access: BOTH,
-                checkpoint: None,
+                checkpoint: 0,
             },
             0,
         ),

@@ -24,10 +24,15 @@ def placement(name, col=0):
 
 def parent_map():
     root = empty_map(8, 8)
+    root["levels"][0]["floors"] = [
+        {"col": col, "row": row, "all": DEFAULT_ALIAS} for col in range(2) for row in range(2)
+    ]
     room = empty_map(3, 2)
-    room["player_spawn_zones"] = []
+    room["checkpoints"] = []
     room["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
-    root["nested_geometry"] = {"room": room, "platform": empty_map(1, 1)}
+    platform = empty_map(1, 1)
+    platform["checkpoints"] = []
+    root["nested_geometry"] = {"room": room, "platform": platform}
     root["nested_maps"] = [placement("room"), placement("room", 4)]
     return normalize_map(root)
 
@@ -199,7 +204,7 @@ class NestedWindowTests(WindowTestCase):
             window.new_nested_map()
         self.assertEqual(window.doc.active_map, "lift")
         self.assertEqual(window.map_data["grid_cols"], 2)
-        self.assertEqual(window.map_data["player_spawn_zones"], [])
+        self.assertEqual(window.map_data["checkpoints"], [])
         self.assertEqual(window.path, self.path)
         window.delete_nested_map()
         self.assertIsNone(window.doc.active_map)

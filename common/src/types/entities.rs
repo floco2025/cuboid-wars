@@ -77,8 +77,8 @@ pub struct Player {
     // Which portal ends this player may place. `SInit` seeds it; the snapshot
     // keeps it current as players come and go.
     pub portal_access: PortalAccess,
-    // The saved respawn point, an index into `MapLayout.checkpoints`.
-    pub checkpoint: Option<u16>,
+    // The number of the saved checkpoint; 0 is the start.
+    pub checkpoint: u32,
 }
 
 impl Player {
@@ -102,7 +102,7 @@ impl Player {
             held_keys: Vec::new(),
             missiles: 0,
             portal_access: PortalAccess::None,
-            checkpoint: None,
+            checkpoint: 0,
         }
     }
 

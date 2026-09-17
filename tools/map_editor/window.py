@@ -61,7 +61,6 @@ from .tool_catalog import MODE_TO_TOOL
 from .tool_palette import ToolPalette
 from .validation import (
     ValidationErrors,
-    cross_geometry_checkpoint_errors,
     document_checkpoint_numbers,
     placed_definitions,
     plated_switches,
@@ -114,7 +113,6 @@ class EditorWindow(
         self.recent_light_kind = next(iter(self.wall_light_kinds), "")
         self.recent_actor_spawn_levels = 1
         self.recent_actor_roam_distance = 0.0
-        self.recent_player_spawn_levels = 1
         self.current_level = 0
         self.mode = MODE_SELECT
         self.shortcuts = []
@@ -243,8 +241,7 @@ class EditorWindow(
     # `plated_from` is the map whose plates operate the switches `data` names;
     # a clipboard block is checked against the map it is pasted into.
     def validate(self, data: dict, plated_from: dict | None = None) -> ValidationErrors:
-        geometries = self._document_geometries(data)
-        errors = validate_map(
+        return validate_map(
             data,
             self.barrier_kinds,
             self.bridge_kinds,
@@ -255,13 +252,8 @@ class EditorWindow(
             actor_kinds=self.actor_kinds,
             wall_light_kinds=self.wall_light_kinds,
             material_aliases=self.materials_catalog,
-            checkpoint_numbers=document_checkpoint_numbers([*geometries, data]),
+            checkpoint_numbers=document_checkpoint_numbers([*self._document_geometries(data), data]),
         )
-        if any(geometry is data for geometry in geometries):
-            others = [geometry for geometry in geometries if geometry is not data]
-            for message in cross_geometry_checkpoint_errors(data, others):
-                errors.append(message)
-        return errors
 
     # The root and every placed geometry of the document, with `data`
     # standing in for the active map.

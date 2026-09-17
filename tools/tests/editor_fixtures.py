@@ -42,6 +42,10 @@ def floor(col: int, row: int) -> dict:
     return {"col": col, "row": row, **faces()}
 
 
+def start_checkpoint(col: int, row: int, level: int = 0) -> dict:
+    return {"level": level, "cols": [col, col + 1], "rows": [row, row + 1], "type": "individual", "number": 0}
+
+
 def nested(map_name: str, level: int, start: list[int], end: list[int], to_level: int | None = None) -> dict:
     return {
         "map": map_name,
@@ -68,7 +72,7 @@ def furnished_map() -> dict:
     level["lights"] = [{"col": 1, "row": 1, "side": "N"}]
     data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": "barrier_1"}]
     data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
-    data["player_spawn_zones"] = []
+    data["checkpoints"] = []
     return data
 
 
@@ -128,7 +132,6 @@ class EditorHost(
         self.recent_actor_spawn_inverted = False
         self.recent_actor_spawn_levels = 1
         self.recent_actor_roam_distance = 0.0
-        self.recent_player_spawn_levels = 1
         self.recent_barrier_controls = {}
         self.recent_bridge_controls = {}
         self.key_kinds = self.barrier_kinds
@@ -168,8 +171,9 @@ class EditorHost(
 
 
 class WindowTestCase(unittest.TestCase):
-    """An 8x8 map with one floor at (1, 1) and no spawn zones, open in a
-    shown window whose autosave timer is stopped."""
+    """An 8x8 map with one floor at (1, 1), the start on its own floor in the
+    far corner (7, 7), and no other zones, open in a shown window whose
+    autosave timer is stopped."""
 
     @classmethod
     def setUpClass(cls):
@@ -186,8 +190,11 @@ class WindowTestCase(unittest.TestCase):
         self.path = Path(self.temp.name) / "hotel" / "layout.json"
         data = empty_map(8, 8)
         data.update(map_kinds("hotel"))
-        data["player_spawn_zones"] = []
-        data["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
+        data["checkpoints"] = [start_checkpoint(7, 7)]
+        data["levels"][0]["floors"] = [
+            {"col": 1, "row": 1, "all": DEFAULT_ALIAS},
+            {"col": 7, "row": 7, "all": DEFAULT_ALIAS},
+        ]
         write_map(self.path, data)
         self.recents = patch.object(EditorWindow, "_record_recent_path")
         self.recents.start()

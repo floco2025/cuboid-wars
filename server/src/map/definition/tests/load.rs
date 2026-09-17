@@ -1,9 +1,11 @@
 use super::*;
 use serde_json::{Value, json};
 
+// A floored corner with the start on it, placing `names` along the top row.
 fn geometry(names: &[&str]) -> Value {
     json!({
-        "grid_cols": 4, "grid_rows": 4, "levels": [{}],
+        "grid_cols": 4, "grid_rows": 4, "levels": [{"floors": [{"col": 0, "row": 0, "all": "test"}]}],
+        "checkpoints": [{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 0}],
         "nested_maps": names.iter().enumerate().map(|(index, name)| json!({
             "map": name, "level": 0, "from": [index, 0], "to": [index, 0], "travel_secs": 1.0,
         })).collect::<Vec<_>>()
@@ -48,15 +50,22 @@ fn unused_definitions_are_checked_but_do_not_compile() {
 }
 
 #[test]
-fn checkpoint_numbers_are_one_sequence_per_document_and_zones_name_one() {
+fn the_placed_tree_starts_at_checkpoint_zero_and_zones_end_at_a_placed_number() {
     let floored = |mut value: Value| {
-        value["levels"] = json!([{"floors": [{"col": 0, "row": 0, "all": "test"}]}]);
+        value["levels"] =
+            json!([{"floors": [{"col": 0, "row": 0, "all": "test"}, {"col": 1, "row": 0, "all": "test"}]}]);
         value
     };
     let mut value = floored(geometry(&["room"]));
-    value["checkpoints"] = json!([{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 1}]);
+    value["checkpoints"] = json!([
+        {"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 0},
+        {"level": 0, "cols": [1, 2], "rows": [0, 1], "type": "individual", "number": 1}
+    ]);
     let mut room = floored(geometry(&[]));
-    room["checkpoints"] = json!([{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 2}]);
+    room["checkpoints"] = json!([
+        {"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 2},
+        {"level": 0, "cols": [1, 2], "rows": [0, 1], "type": "group_any", "number": 1}
+    ]);
     room["actor_spawn_zones"] = json!([{
         "level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "actor", "count": [1], "respawn_secs": null,
         "until_checkpoint": 1, "on_checkpoint": "destroy",
@@ -65,12 +74,14 @@ fn checkpoint_numbers_are_one_sequence_per_document_and_zones_name_one() {
     let parse = |value: &Value| serde_json::from_value::<MapDef>(value.clone()).expect("test source is invalid");
     prepare_source(parse(&value)).expect("numbered document rejected");
 
-    let mut duplicate = value.clone();
-    duplicate["nested_geometry"]["room"]["checkpoints"][0]["number"] = json!(1);
-    let error = prepare_source(parse(&duplicate))
-        .expect_err("a number repeated across definitions accepted")
+    let mut startless = value.clone();
+    startless["checkpoints"][0]["number"] = json!(3);
+    let error = prepare_source(parse(&startless))
+        .expect_err("a course without a start accepted")
         .to_string();
-    assert!(error.contains("already used"), "{error}");
+    assert!(error.contains("checkpoint numbered 0"), "{error}");
+    startless["nested_geometry"]["room"]["checkpoints"][0]["number"] = json!(0);
+    prepare_source(parse(&startless)).expect("a nested start rejected");
 
     let mut dangling = value.clone();
     dangling["nested_geometry"]["room"]["actor_spawn_zones"][0]["until_checkpoint"] = json!(9);
@@ -94,7 +105,7 @@ fn checkpoint_numbers_are_one_sequence_per_document_and_zones_name_one() {
     let mut spare = value;
     spare["nested_geometry"]["spare"] = spare["nested_geometry"]["room"].clone();
     spare["nested_geometry"]["spare"]["actor_spawn_zones"] = json!([]);
-    prepare_source(parse(&spare)).expect("an unplaced duplicate number rejected");
+    prepare_source(parse(&spare)).expect("an unplaced definition rejected");
     spare["nested_geometry"]["spare"]["checkpoints"][0]["number"] = json!(7);
     spare["actor_spawn_zones"] = json!([{
         "level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "actor", "count": [1], "respawn_secs": null,

@@ -32,7 +32,6 @@ from .constants import (
     MODE_LIGHT_BRIDGE,
     MODE_NESTED_MAP,
     MODE_ERASE_NESTED_MAPS,
-    MODE_PLAYER_SPAWN_ZONE,
     MODE_CHECKPOINT,
     MODE_RAMP_MATERIAL,
     UNKNOWN_SWITCH_PLATE_COLOR,
@@ -79,6 +78,10 @@ def tag_color(tag: str) -> QColor:
     return color
 
 
+# The start checkpoint's zone and its drag preview.
+START_COLOR = QColor.fromHsv(97, 165, 220)
+START_PREVIEW_COLOR = QColor(99, 102, 241, 120)
+
 WALL_PEN_WIDTH = 6
 WALL_HIGHLIGHT_WIDTH = WALL_PEN_WIDTH + 4
 # Barriers render slightly thinner than walls so the two read as distinct
@@ -100,7 +103,6 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_INACCESSIBLE_FLOOR: QColor(148, 163, 184, 120),
     MODE_TERRAIN: QColor(132, 204, 22, 120),
     MODE_ERASE_TERRAIN: QColor(120, 113, 108, 120),
-    MODE_PLAYER_SPAWN_ZONE: QColor(99, 102, 241, 120),
     MODE_CHECKPOINT: QColor(255, 179, 31, 90),
     # Type is picked *after* the click, so the hover ghost is a neutral
     # off-white. The placed glyph is then color-coded by its type.

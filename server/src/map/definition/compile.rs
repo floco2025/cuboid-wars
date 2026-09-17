@@ -37,7 +37,6 @@ pub(crate) fn compile_map(
         config: MapConfig {
             grids: Vec::new(),
             actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
             placed_items: Vec::new(),
             pressure_plates: Vec::new(),
         },

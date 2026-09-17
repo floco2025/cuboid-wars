@@ -54,7 +54,6 @@ class ToolPaletteTests(WindowTestCase):
         for mode, erase in (
             (c.MODE_INACCESSIBLE_FLOOR, c.MODE_ERASE_FLOORS),
             (c.MODE_RAMP_DOWN, c.MODE_ERASE_RAMPS),
-            (c.MODE_PLAYER_SPAWN_ZONE, c.MODE_ERASE_SPAWN_ZONES),
         ):
             with self.subTest(mode=mode):
                 self.choose(mode)

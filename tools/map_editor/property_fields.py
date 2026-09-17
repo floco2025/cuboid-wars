@@ -40,7 +40,7 @@ def fields_for(window, name):
     if name in ("floors", "inaccessible_floors", "walls", "ramps", "terrain"):
         for face in TERRAIN_FACES if name == "terrain" else FACES:
             choice(face, face.capitalize(), window.materials_catalog)
-    if name in ("actor_spawn_zones", "player_spawn_zones"):
+    if name == "actor_spawn_zones":
         add(
             "level",
             "First level",
@@ -66,10 +66,13 @@ def fields_for(window, name):
             CHECKPOINT_RESPONSE_LABELS.items(),
             tooltip="Whether the zone's remaining actors self-destruct at that checkpoint.",
         )
-    elif name == "player_spawn_zones":
-        add("levels", "Levels", "positive_int")
     elif name == "checkpoints":
-        add("number", "Number", "positive_int", tooltip="Orders the course; unique in the map.")
+        add(
+            "number",
+            "Number",
+            "nonnegative_int",
+            tooltip="Orders the course; 0 is the start, and checkpoints sharing a number pool their spots.",
+        )
         add("type", "Type", "choice", CHECKPOINT_TYPE_LABELS.items())
     elif name == "items":
         choice("type", "Item", ITEM_TYPES)

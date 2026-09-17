@@ -1,10 +1,7 @@
 use super::*;
 use crate::map::definition::{
     compile_map,
-    tests::{
-        cell_def, compile_settings, empty_kind_table, level, map_with_zones, no_bridges, no_nested, player_zone,
-        switch_table,
-    },
+    tests::{cell_def, compile_settings, empty_kind_table, level, map_with_zones, no_bridges, no_nested, switch_table},
 };
 use common::{
     physics::CollisionWorld,
@@ -22,7 +19,6 @@ fn grounds_fit_a_small_base_below_an_obby_style_elevated_course() {
         100,
         vec![base, level(Vec::new()), level(Vec::new()), level(Vec::new()), upper],
         Vec::new(),
-        vec![player_zone(4, 1, 8)],
         Vec::new(),
     );
     map.grid_rows = 40;
@@ -98,7 +94,7 @@ fn irregular_bases_compile_walkable_outdoor_gaps_without_filling_enclosed_voids(
             }
         }
     }
-    let mut map = map_with_zones(20, vec![base], Vec::new(), vec![player_zone(0, 1, 1)], Vec::new());
+    let mut map = map_with_zones(20, vec![base], Vec::new(), Vec::new());
     map.grid_rows = 14;
     let kinds = empty_kind_table();
     let bridges = no_bridges();

@@ -9,8 +9,8 @@ use crate::{
     config::{PlayerRespawnMode, QuestKind, RespawnConfig, ServerGameplayConfig, WeatherMode},
     map::switches::{SwitchInput, Switches},
     map::{
-        CellGrid, EdgeGrid, FireworksConfig, LevelGrid, MapConfig, MapFireworks, PlayerSpawnZone, PressurePlateRuntime,
-        WeatherState, map_plugin,
+        CellGrid, EdgeGrid, FireworksConfig, LevelGrid, MapConfig, MapFireworks, PressurePlateRuntime, WeatherState,
+        map_plugin,
     },
     players::{PlayerInfo, PlayerMap, players_group_respawn_system, players_respawn_system},
     portals::PortalAssignments,
@@ -27,9 +27,9 @@ use common::{
     map::{CarrierRun, Carriers, MapGeometry},
     physics::CollisionWorld,
     protocol::{
-        Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, Carrier, CarrierId, CarrierMotion, HexColor,
-        KindDef, LightBridge, MapLayout, MapSettings, PlayerId, PlayerMarker, PortalMode, Position, QuestId,
-        QuestScope, ServerMessage, ServerTick, SwitchDef, SwitchId, SwitchState, SwitchTable,
+        Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, Carrier, CarrierId, CarrierMotion, Checkpoint,
+        CheckpointKind, HexColor, KindDef, LightBridge, MapLayout, MapSettings, PlayerId, PlayerMarker, PortalMode,
+        Position, QuestId, QuestScope, ServerMessage, ServerTick, SwitchDef, SwitchId, SwitchState, SwitchTable,
         server_tick_advance_system,
     },
 };
@@ -1392,14 +1392,20 @@ fn toggle_switches_reset_before_a_dead_player_respawns() {
     let mut app = app(config.clone(), vec![lobby_plate(), skyway_plate()]);
     configure_switches(&mut app, SwitchActivation::Toggle, DeathTrigger::All);
     app.world_mut()
-        .resource_mut::<MapConfig>()
-        .player_spawn_zones
-        .push(PlayerSpawnZone {
+        .resource_mut::<MapLayout>()
+        .checkpoints
+        .push(Checkpoint {
+            kind: CheckpointKind::Individual,
+            number: 0,
             carrier: CarrierId::WORLD,
             level: 0,
-            levels: 1,
             cols: [1, 2],
             rows: [1, 2],
+            min_x: 0.0,
+            max_x: 0.0,
+            min_z: 0.0,
+            max_z: 0.0,
+            y: 0.0,
         });
     app.insert_resource(config.gameplay_config())
         .insert_resource(PortalAssignments::new(PortalMode::Both))

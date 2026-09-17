@@ -8,7 +8,6 @@ from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPen
 
 from .block_transforms import transform_block
-from .checkpoint_numbers import number_checkpoint_copies, number_generated_definitions
 from .object_selection import block_fits, copy_objects, selected_data, paste_objects, refs_for_block
 from .constants import MODE_SELECT
 from .regions import copy_region, delete_region, nested_map_ends_inside, paste_region
@@ -52,8 +51,6 @@ class SelectionTransferMixin:
         except ValueError as error:
             self.notify(str(error))
             return False
-        if duplicate:
-            block = number_checkpoint_copies(block, self.doc.root_data)
         self.pending_block = BlockTransfer(block, region, duplicate, region.rect[:2], refs)
         if point is not None:
             self.pending_block.dragging = True
@@ -137,7 +134,6 @@ class SelectionTransferMixin:
                     else:
                         candidate["nested_geometry"][self.doc.active_map] = after
                     candidate.setdefault("nested_geometry", {}).update(pending.additions)
-                    candidate = number_generated_definitions(candidate, set(pending.additions))
                     errors = self.added_document_issues(candidate)
                 if errors:
                     raise ValueError(errors[0])
@@ -166,7 +162,6 @@ class SelectionTransferMixin:
             collect(pending.block)
             if required:
                 root.setdefault("nested_geometry", {}).update({name: pending.additions[name] for name in required})
-                root = number_generated_definitions(root, required)
             errors = self.added_document_issues(root)
             if errors:
                 raise ValueError(errors[0])

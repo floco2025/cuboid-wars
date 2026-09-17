@@ -8,7 +8,7 @@ use common::{
 
 use super::{CheckpointId, PlayerCheckpoint, PlayerMap, checkpoint_at_position};
 use crate::{
-    characters::{generate_checkpoint_spawn_position, generate_player_spawn_position, spawn_face_yaw},
+    characters::{generate_checkpoint_spawn_position, spawn_face_yaw},
     map::MapConfig,
     network::broadcast_player_relocation,
 };
@@ -19,8 +19,9 @@ pub(crate) struct PlayerSpawn {
     pub contact: Option<CheckpointId>,
 }
 
-// The saved checkpoint when it has a clear spot, `None` while it is blocked;
-// a spawn zone otherwise.
+// A clear spot at the saved checkpoint, `None` while every spot is blocked.
+// The saved facing holds only in the rectangle it was saved in; a spot in
+// another rectangle of the number faces the origin like a first spawn.
 pub(crate) fn player_spawn_destination(
     map: &MapConfig,
     checkpoints: &[Checkpoint],
@@ -28,30 +29,33 @@ pub(crate) fn player_spawn_destination(
     collision_world: &CollisionWorld,
     occupied: &[Position],
     physics: CharacterPhysicsConfig,
-    saved: Option<PlayerCheckpoint>,
+    saved: PlayerCheckpoint,
 ) -> Option<PlayerSpawn> {
-    let Some(saved) = saved else {
-        return Some(spawn_zone_destination(
-            map,
-            checkpoints,
-            carriers,
-            collision_world,
-            occupied,
-            physics,
-        ));
+    let pos = generate_checkpoint_spawn_position(
+        map,
+        carriers,
+        checkpoints,
+        saved.number,
+        collision_world,
+        occupied,
+        physics,
+    )?;
+    let contact = checkpoint_at_position(checkpoints, carriers, collision_world, &pos, physics, &[]);
+    let face_yaw = match saved.entry {
+        Some(entry) if Some(entry.id) == contact => {
+            let facing = carriers
+                .pose(checkpoints[entry.id.0].carrier)
+                .transform_vector(entry.facing);
+            facing.x.atan2(facing.z)
+        }
+        _ => spawn_face_yaw(&pos),
     };
-    let checkpoint = &checkpoints[saved.id.0];
-    let pos = generate_checkpoint_spawn_position(map, carriers, checkpoint, collision_world, occupied, physics)?;
-    let facing = carriers.pose(checkpoint.carrier).transform_vector(saved.facing);
-    Some(PlayerSpawn {
-        pos,
-        face_yaw: facing.x.atan2(facing.z),
-        contact: checkpoint_at_position(checkpoints, carriers, collision_world, &pos, physics, &[]),
-    })
+    Some(PlayerSpawn { pos, face_yaw, contact })
 }
 
-// A spawn zone placement, seeded with the checkpoint the spot happens to be in.
-pub(crate) fn spawn_zone_destination(
+// The start, for a body that must appear now; the origin, with a warning,
+// when the start is blocked too.
+pub(crate) fn start_destination(
     map: &MapConfig,
     checkpoints: &[Checkpoint],
     carriers: &Carriers,
@@ -59,16 +63,28 @@ pub(crate) fn spawn_zone_destination(
     occupied: &[Position],
     physics: CharacterPhysicsConfig,
 ) -> PlayerSpawn {
-    let pos = generate_player_spawn_position(map, carriers, collision_world, occupied, physics);
-    PlayerSpawn {
-        pos,
-        face_yaw: spawn_face_yaw(&pos),
-        contact: checkpoint_at_position(checkpoints, carriers, collision_world, &pos, physics, &[]),
-    }
+    player_spawn_destination(
+        map,
+        checkpoints,
+        carriers,
+        collision_world,
+        occupied,
+        physics,
+        PlayerCheckpoint::START,
+    )
+    .unwrap_or_else(|| {
+        warn!("no clear spot at the start, spawning at the origin");
+        let pos = Position::default();
+        PlayerSpawn {
+            pos,
+            face_yaw: spawn_face_yaw(&pos),
+            contact: None,
+        }
+    })
 }
 
-// Every body placement: login, respawn, and the invincible void rescue.
-// The caller has already established the body's generation.
+// Every body placement: login, respawn, the invincible void rescue, and
+// `/return`. The caller has already established the body's generation.
 #[expect(
     clippy::too_many_arguments,
     reason = "one placement threads the body, its spawn, and the cue"

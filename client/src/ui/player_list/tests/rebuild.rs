@@ -14,7 +14,7 @@ fn player(name: &str, score: i32) -> PlayerInfo {
         missiles: 0,
         last_movement_tick: 0,
         spawn_tick: 0,
-        checkpoint: None,
+        checkpoint: 0,
         checkpoint_tick: 0,
     }
 }

@@ -3,7 +3,7 @@ use crate::{
     actors::{ActorInfo, test_kinds},
     combat::PendingExplosion,
     map::{ActorSpawnZone, CheckpointResponse, MapConfig},
-    players::{CheckpointId, PlayerCheckpoint, PlayerInfo},
+    players::{PlayerCheckpoint, PlayerInfo},
     test_geometry::geometry,
 };
 use common::protocol::{CarrierId, Checkpoint, CheckpointKind, MapLayout, ServerMessage};
@@ -52,8 +52,8 @@ fn spawn_actor(app: &mut App, id: ActorId, pos: Position) -> Entity {
     entity
 }
 
-// A logged-in player whose saved checkpoint is `checkpoint`, and its channel.
-fn add_player_at(app: &mut App, id: PlayerId, checkpoint: Option<usize>) -> Receiver<ServerMessage> {
+// A logged-in player whose saved checkpoint is numbered `checkpoint`, and its channel.
+fn add_player_at(app: &mut App, id: PlayerId, checkpoint: u32) -> Receiver<ServerMessage> {
     let entity = app.world_mut().spawn_empty().id();
     let (tx, rx) = unbounded();
     let mut info = PlayerInfo::new(entity, tx);
@@ -63,11 +63,8 @@ fn add_player_at(app: &mut App, id: PlayerId, checkpoint: Option<usize>) -> Rece
     rx
 }
 
-fn set_checkpoint(info: &mut PlayerInfo, checkpoint: Option<usize>) {
-    info.session.checkpoint = checkpoint.map(|index| PlayerCheckpoint {
-        id: CheckpointId(index),
-        facing: Vec3::X,
-    });
+fn set_checkpoint(info: &mut PlayerInfo, checkpoint: u32) {
+    info.session.checkpoint = PlayerCheckpoint::numbered(checkpoint);
 }
 
 fn zone_until_two(on_checkpoint: CheckpointResponse) -> ActorSpawnZone {
@@ -116,7 +113,7 @@ fn a_destroying_zone_self_destructs_its_actors_once_the_course_reaches_its_check
     let mut app = removal_app(Some(zone_until_two(CheckpointResponse::Destroy)));
     let id = ActorId(1);
     let entity = spawn_actor(&mut app, id, Position::default());
-    let rx = add_player_at(&mut app, PlayerId(1), Some(0));
+    let rx = add_player_at(&mut app, PlayerId(1), 1);
     app.update();
     assert!(
         app.world().resource::<ActorMap>().get(&id).is_some(),
@@ -125,7 +122,7 @@ fn a_destroying_zone_self_destructs_its_actors_once_the_course_reaches_its_check
 
     {
         let mut players = app.world_mut().resource_mut::<PlayerMap>();
-        set_checkpoint(players.get_mut(&PlayerId(1)).expect("player missing"), Some(1));
+        set_checkpoint(players.get_mut(&PlayerId(1)).expect("player missing"), 2);
     }
     app.update();
     assert!(app.world().resource::<ActorMap>().get(&id).is_none());
@@ -149,7 +146,7 @@ fn a_stopping_zone_keeps_its_actors_past_its_checkpoint() {
     let mut app = removal_app(Some(zone_until_two(CheckpointResponse::Stop)));
     let id = ActorId(1);
     spawn_actor(&mut app, id, Position::default());
-    add_player_at(&mut app, PlayerId(1), Some(1));
+    add_player_at(&mut app, PlayerId(1), 2);
     app.update();
     assert!(app.world().resource::<ActorMap>().get(&id).is_some());
     assert!(app.world().resource::<PendingExplosions>().0.is_empty());

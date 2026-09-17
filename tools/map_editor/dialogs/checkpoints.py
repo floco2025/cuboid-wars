@@ -14,15 +14,17 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..checkpoint_numbers import checkpoint_entries, renumber_checkpoints
-from ..constants import CHECKPOINT_TYPE_LABELS
+from ..checkpoint_numbers import checkpoint_groups, renumber_checkpoints
+from ..constants import CHECKPOINT_TYPE_LABELS, START_CHECKPOINT
 
 MAX_NUMBER = 999_999
+COLUMNS = ("instances", "maps", "types")
 
 
 class CheckpointsDialog(QDialog):
-    """Renumbers and reorders every checkpoint of the document in one edit;
-    the zones ending at a renumbered checkpoint follow it."""
+    """Renumbers and reorders the course of the document in one edit, one
+    row per number: every checkpoint carrying it follows, as do the zones
+    ending at it. The start is the fixed first row."""
 
     def __init__(self, parent, root, outer_name):
         super().__init__(parent)
@@ -31,21 +33,20 @@ class CheckpointsDialog(QDialog):
         self.after = None
         self.rows = [
             {
-                "original": entry["number"] if type(entry.get("number")) is int else None,
-                "number": entry["number"] if type(entry.get("number")) is int else 0,
-                "map": name or outer_name,
-                "type": CHECKPOINT_TYPE_LABELS.get(entry.get("type"), str(entry.get("type"))),
-                "level": str(entry.get("level", "?")),
-                "cells": f"cols {entry['cols'][0]}–{entry['cols'][1]}, rows {entry['rows'][0]}–{entry['rows'][1]}",
+                "original": group["number"],
+                "number": group["number"] if group["number"] is not None else 0,
+                "instances": str(group["instances"]),
+                "maps": ", ".join(name or outer_name for name in group["maps"]),
+                "types": ", ".join(CHECKPOINT_TYPE_LABELS.get(kind, str(kind)) for kind in group["types"]),
             }
-            for name, entry in checkpoint_entries(root)
+            for group in checkpoint_groups(root)
         ]
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["Number", "Map", "Type", "Level", "Cells"])
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["Number", "Instances", "Maps", "Types"])
         self.table.verticalHeader().hide()
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.up_button = QPushButton("Move Up")
@@ -71,19 +72,31 @@ class CheckpointsDialog(QDialog):
         layout.addLayout(actions)
         layout.addWidget(buttons)
         self.table.currentCellChanged.connect(self.sync_buttons)
-        self.fill(0)
+        self.fill(self.first_course_row())
         self.resize(640, 420)
+
+    def is_start(self, row):
+        return self.rows[row]["original"] == START_CHECKPOINT
+
+    # The first row the course proper begins at, past the start.
+    def first_course_row(self):
+        return 1 if self.rows and self.is_start(0) else 0
 
     def fill(self, selected):
         self.table.setRowCount(0)
         for row, data in enumerate(self.rows):
             self.table.insertRow(row)
-            spin = QSpinBox()
-            spin.setRange(1, MAX_NUMBER)
-            spin.setValue(max(1, data["number"]))
-            spin.valueChanged.connect(lambda value, index=row: self.rows[index].__setitem__("number", value))
-            self.table.setCellWidget(row, 0, spin)
-            for column, key in enumerate(("map", "type", "level", "cells"), start=1):
+            if self.is_start(row):
+                item = QTableWidgetItem("Start")
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.table.setItem(row, 0, item)
+            else:
+                spin = QSpinBox()
+                spin.setRange(1, MAX_NUMBER)
+                spin.setValue(max(1, data["number"]))
+                spin.valueChanged.connect(lambda value, index=row: self.rows[index].__setitem__("number", value))
+                self.table.setCellWidget(row, 0, spin)
+            for column, key in enumerate(COLUMNS, start=1):
                 item = QTableWidgetItem(data[key])
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.table.setItem(row, column, item)
@@ -93,9 +106,10 @@ class CheckpointsDialog(QDialog):
 
     def sync_buttons(self, *_):
         row = self.table.currentRow()
-        self.up_button.setEnabled(row > 0)
-        self.down_button.setEnabled(0 <= row < len(self.rows) - 1)
-        self.renumber_button.setEnabled(bool(self.rows))
+        first = self.first_course_row()
+        self.up_button.setEnabled(row > first)
+        self.down_button.setEnabled(first <= row < len(self.rows) - 1)
+        self.renumber_button.setEnabled(first < len(self.rows))
 
     def spin(self, row):
         return self.table.cellWidget(row, 0)
@@ -103,14 +117,14 @@ class CheckpointsDialog(QDialog):
     def move(self, delta):
         row = self.table.currentRow()
         other = row + delta
-        if row < 0 or not 0 <= other < len(self.rows):
+        if row < self.first_course_row() or not self.first_course_row() <= other < len(self.rows):
             return
         self.rows[row]["number"], self.rows[other]["number"] = self.rows[other]["number"], self.rows[row]["number"]
         self.rows[row], self.rows[other] = self.rows[other], self.rows[row]
         self.fill(other)
 
     def renumber(self):
-        for index, data in enumerate(self.rows, start=1):
+        for index, data in enumerate(self.rows[self.first_course_row() :], start=1):
             data["number"] = index
         self.fill(max(0, self.table.currentRow()))
 
@@ -118,7 +132,7 @@ class CheckpointsDialog(QDialog):
         return {
             data["original"]: data["number"]
             for data in self.rows
-            if data["original"] is not None and data["number"] != data["original"]
+            if data["original"] not in (None, START_CHECKPOINT) and data["number"] != data["original"]
         }
 
     def accept(self):

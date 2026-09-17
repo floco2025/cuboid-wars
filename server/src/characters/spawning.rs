@@ -43,43 +43,6 @@ pub fn spawn_face_yaw(pos: &Position) -> f32 {
     (-pos.x).atan2(-pos.z)
 }
 
-// Pick a random clear position from any player spawn zone, on the map or
-// on a nested map. All cells across all player zones are pooled and one is
-// picked uniformly at random; no per-zone capacity tracking, no fallback.
-// Used by login and player fall recovery.
-//
-// Returns the world origin if no player zone has any spawnable cells.
-#[must_use]
-pub fn generate_player_spawn_position(
-    map_config: &MapConfig,
-    carriers: &Carriers,
-    collision_world: &CollisionWorld,
-    occupied_positions: &[Position],
-    character_physics: CharacterPhysicsConfig,
-) -> Position {
-    let mut valid_cells = Vec::new();
-    for zone in &map_config.player_spawn_zones {
-        for level in zone.level_range() {
-            valid_cells.extend(collect_valid_cells(map_config.grid(zone.carrier), level, zone.cells()));
-        }
-    }
-    pick_clear_position(
-        &valid_cells,
-        map_config,
-        carriers,
-        collision_world,
-        occupied_positions,
-        character_physics,
-    )
-    .unwrap_or_else(|| {
-        warn!(
-            "no clear player spawn position among {} spawnable cells, spawning at center",
-            valid_cells.len()
-        );
-        Position::default()
-    })
-}
-
 // Pick a clear position from a single actor spawn zone, on the zone's
 // carrier. Used by the actor quota spawner — when topping a specific zone
 // up, we never want to spill into other zones. `None` when the zone has no
@@ -124,29 +87,37 @@ pub fn generate_ground_actor_spawn_position(
     )
 }
 
-// A clear spot in a checkpoint for the body respawning there, sampled like
-// a spawn zone. The flag at the rectangle's centre counts as an occupied
-// body, so nobody appears inside its pole. `None` while every spot is blocked.
+// A clear spot for the body respawning at the checkpoints numbered
+// `number`, on any carrier: their cells are pooled and one is picked
+// uniformly at random. Each flag at a rectangle's centre counts as an
+// occupied body, so nobody appears inside its pole; the start has none.
+// `None` while every spot is blocked.
 #[must_use]
 pub fn generate_checkpoint_spawn_position(
     map_config: &MapConfig,
     carriers: &Carriers,
-    checkpoint: &Checkpoint,
+    checkpoints: &[Checkpoint],
+    number: u32,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
 ) -> Option<Position> {
-    let valid_cells = collect_valid_cells(
-        map_config.grid(checkpoint.carrier),
-        checkpoint.level,
-        zone_cells(checkpoint.cols, checkpoint.rows),
-    );
-    let flag = carriers.pose(checkpoint.carrier).transform_position(&Position {
-        x: (checkpoint.min_x + checkpoint.max_x) / 2.0,
-        y: checkpoint.y,
-        z: (checkpoint.min_z + checkpoint.max_z) / 2.0,
-    });
-    let occupied: Vec<_> = occupied_positions.iter().copied().chain([flag]).collect();
+    let mut valid_cells = Vec::new();
+    let mut occupied = occupied_positions.to_vec();
+    for checkpoint in checkpoints.iter().filter(|checkpoint| checkpoint.number == number) {
+        valid_cells.extend(collect_valid_cells(
+            map_config.grid(checkpoint.carrier),
+            checkpoint.level,
+            zone_cells(checkpoint.cols, checkpoint.rows),
+        ));
+        if number != 0 {
+            occupied.push(carriers.pose(checkpoint.carrier).transform_position(&Position {
+                x: (checkpoint.min_x + checkpoint.max_x) / 2.0,
+                y: checkpoint.y,
+                z: (checkpoint.min_z + checkpoint.max_z) / 2.0,
+            }));
+        }
+    }
     pick_clear_position(
         &valid_cells,
         map_config,

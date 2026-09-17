@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::{Invincibility, PlayerMap, place_player_body, player_spawn_destination, spawn_zone_destination};
+use super::{Invincibility, PlayerMap, place_player_body, player_spawn_destination, start_destination};
 use crate::{
     characters::{FALL_DAMAGE_EMIT_THRESHOLD, fall_damage_for_distance, fall_distance_for_speed},
     combat::{DeathSource, PendingExplosions, apply_damage, kill_player},
@@ -72,7 +72,7 @@ pub fn players_fatal_outcomes_system(
                 .chain(rescued.iter().copied())
                 .collect();
             let physics = gameplay_config.player.physics();
-            // The saved checkpoint, like a respawn; a spawn zone when it is blocked.
+            // The saved checkpoint, like a respawn; the start when it is blocked.
             let spawn = player_spawn_destination(
                 &map_config,
                 &map_layout.checkpoints,
@@ -83,7 +83,7 @@ pub fn players_fatal_outcomes_system(
                 saved_checkpoint,
             )
             .unwrap_or_else(|| {
-                spawn_zone_destination(
+                start_destination(
                     &map_config,
                     &map_layout.checkpoints,
                     &carriers,

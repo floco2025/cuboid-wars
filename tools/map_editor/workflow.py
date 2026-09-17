@@ -56,8 +56,6 @@ class WorkflowMixin:
                 ("on_checkpoint", "recent_actor_on_checkpoint", "stop"),
             ):
                 setattr(self, attribute, copy.deepcopy(entry.get(key, default)))
-        elif name == "player_spawn_zones":
-            self.recent_player_spawn_levels = entry.get("levels", 1)
         elif name == "checkpoints":
             self.recent_checkpoint_type = entry["type"]
         elif name == "items":

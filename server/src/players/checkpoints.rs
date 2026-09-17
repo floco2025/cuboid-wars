@@ -1,9 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use bevy::prelude::*;
 
-use super::{PlayerMap, checkpoint_index};
-use crate::characters::spawn_face_yaw;
+use super::PlayerMap;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::CHARACTER_CONTACT_OFFSET,
@@ -16,74 +15,64 @@ use common::{
     },
 };
 
-// Index into `MapLayout.checkpoints`.
+// Index into `MapLayout.checkpoints`: one placed rectangle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CheckpointId(pub usize);
 
-pub(crate) fn checkpoints_exist(layout: Res<MapLayout>) -> bool {
-    !layout.checkpoints.is_empty()
+// A player's respawn point: a checkpoint number, and the rectangle whose
+// entry saved it with the facing then. A respawn lands in any rectangle of
+// that number and keeps the facing only in the one entered.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerCheckpoint {
+    pub number: u32,
+    pub entry: Option<CheckpointEntry>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct PlayerCheckpoint {
+// In the rectangle's carrier frame.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CheckpointEntry {
     pub id: CheckpointId,
     pub facing: Vec3,
 }
 
 impl PlayerCheckpoint {
-    // A checkpoint saved without an entry: its centre, facing the map's origin like a spawn zone.
-    pub(crate) fn toward_origin(id: CheckpointId, checkpoints: &[Checkpoint], carriers: &Carriers) -> Self {
-        let checkpoint = &checkpoints[id.0];
-        let pose = carriers.pose(checkpoint.carrier);
-        let centre = pose.transform_position(&Position {
-            x: (checkpoint.min_x + checkpoint.max_x) / 2.0,
-            y: checkpoint.y,
-            z: (checkpoint.min_z + checkpoint.max_z) / 2.0,
-        });
-        Self {
-            id,
-            facing: pose.inverse_transform_vector(direction_from_yaw_pitch(spawn_face_yaw(&centre), 0.0)),
-        }
+    // Where every player begins.
+    pub const START: Self = Self { number: 0, entry: None };
+
+    // A checkpoint set by number, for `--checkpoint` and `/checkpoint`.
+    #[must_use]
+    pub(crate) const fn numbered(number: u32) -> Self {
+        Self { number, entry: None }
     }
 }
 
-// The checkpoint a number refers to, for `--checkpoint` and `/checkpoint`.
-pub(crate) fn checkpoint_numbered(checkpoints: &[Checkpoint], number: u32) -> Result<CheckpointId, String> {
-    let mut matches = checkpoints
-        .iter()
-        .enumerate()
-        .filter(|(_, checkpoint)| checkpoint.number == number);
-    if let Some((index, _)) = matches.next() {
-        return if matches.next().is_some() {
-            Err(format!(
-                "ambiguous checkpoint {number}: more than one placed checkpoint has this number"
-            ))
-        } else {
-            Ok(CheckpointId(index))
-        };
+impl Default for PlayerCheckpoint {
+    fn default() -> Self {
+        Self::START
     }
-    let mut numbers: Vec<_> = checkpoints.iter().map(|checkpoint| checkpoint.number).collect();
-    numbers.sort_unstable();
-    numbers.dedup();
-    Err(if numbers.is_empty() {
-        format!("unknown checkpoint {number}: the map has no checkpoints")
-    } else {
-        format!(
-            "unknown checkpoint {number}: the map's checkpoints are {}",
-            numbers.iter().map(u32::to_string).collect::<Vec<_>>().join(", ")
-        )
-    })
+}
+
+// The checkpoint a number refers to, or why there is none.
+pub(crate) fn checkpoint_numbered(checkpoints: &[Checkpoint], number: u32) -> Result<PlayerCheckpoint, String> {
+    if checkpoints.iter().any(|checkpoint| checkpoint.number == number) {
+        return Ok(PlayerCheckpoint::numbered(number));
+    }
+    let numbers: BTreeSet<_> = checkpoints.iter().map(|checkpoint| checkpoint.number).collect();
+    Err(format!(
+        "unknown checkpoint {number}: the map's checkpoints are {}",
+        numbers.iter().map(u32::to_string).collect::<Vec<_>>().join(", ")
+    ))
 }
 
 // The furthest checkpoint any logged-in player has saved, dead players
 // included; the course position actor spawn zones are gated on.
-pub(crate) fn checkpoint_progress(players: &PlayerMap, checkpoints: &[Checkpoint]) -> Option<u32> {
+pub(crate) fn checkpoint_progress(players: &PlayerMap) -> u32 {
     players
         .values()
         .filter(|player| player.connection.logged_in)
-        .filter_map(|player| player.session.checkpoint)
-        .map(|saved| checkpoints[saved.id.0].number)
+        .map(|player| player.session.checkpoint.number)
         .max()
+        .unwrap_or(0)
 }
 
 pub(crate) fn players_checkpoints_system(
@@ -123,15 +112,19 @@ pub(crate) fn players_checkpoints_system(
             })
         });
         let previous = std::mem::replace(&mut player.life.checkpoint_contact, contact);
-        if let Some(checkpoint) = contact.filter(|contact| Some(*contact) != previous) {
+        if let Some(entered_id) = contact.filter(|contact| Some(*contact) != previous) {
             let (_, yaw) = position.expect("checkpoint contact missing player position");
+            let checkpoint = &map.checkpoints[entered_id.0];
             entered.push((
                 *id,
                 PlayerCheckpoint {
-                    id: checkpoint,
-                    facing: carriers
-                        .pose(map.checkpoints[checkpoint.0].carrier)
-                        .inverse_transform_vector(direction_from_yaw_pitch(yaw.0, 0.0)),
+                    number: checkpoint.number,
+                    entry: Some(CheckpointEntry {
+                        id: entered_id,
+                        facing: carriers
+                            .pose(checkpoint.carrier)
+                            .inverse_transform_vector(direction_from_yaw_pitch(yaw.0, 0.0)),
+                    }),
                 },
             ));
         }
@@ -139,102 +132,98 @@ pub(crate) fn players_checkpoints_system(
     apply_checkpoint_entries(&mut players, &map.checkpoints, entered, tick.0);
 }
 
+// `entered` holds this tick's entries, each with its rectangle.
 pub(super) fn apply_checkpoint_entries(
     players: &mut PlayerMap,
     checkpoints: &[Checkpoint],
     mut entered: Vec<(PlayerId, PlayerCheckpoint)>,
     tick: u32,
 ) {
-    let number = |id: CheckpointId| checkpoints[id.0].number;
     let previous: Vec<_> = players
         .iter()
         .filter(|(_, player)| player.connection.logged_in)
-        .map(|(id, player)| (*id, player.session.checkpoint.map(|checkpoint| checkpoint.id)))
+        .map(|(id, player)| (*id, player.session.checkpoint.number))
         .collect();
-    entered.sort_by_key(|(player, checkpoint)| (checkpoint.id, player.0));
+    entered.sort_by_key(|(player, saved)| (saved.number, saved.entry.map(|entry| entry.id), player.0));
     let mut shared_entries = BTreeMap::new();
-    let mut shared_entrants: BTreeMap<CheckpointId, Vec<PlayerId>> = BTreeMap::new();
+    let mut any_entries = BTreeSet::new();
+    let mut shared_entrants: BTreeMap<u32, Vec<PlayerId>> = BTreeMap::new();
     for (id, saved) in entered {
         let Some(player) = players.get_mut(&id).filter(|player| player.connection.logged_in) else {
             continue;
         };
-        match checkpoints[saved.id.0].kind {
+        let entry = saved.entry.expect("checkpoint entry missing its rectangle");
+        match checkpoints[entry.id.0].kind {
             // Progress only moves forward: a lower-numbered checkpoint is passed, not saved.
             CheckpointKind::Individual => {
-                if player
-                    .session
-                    .checkpoint
-                    .is_none_or(|current| number(current.id) < number(saved.id))
-                {
-                    player.session.checkpoint = Some(saved);
+                if player.session.checkpoint.number < saved.number {
+                    player.session.checkpoint = saved;
                 }
             }
             CheckpointKind::GroupAny => {
-                shared_entries.entry(saved.id).or_insert(saved);
-                shared_entrants.entry(saved.id).or_default().push(id);
+                any_entries.insert(saved.number);
+                shared_entries.entry(saved.number).or_insert(saved);
+                shared_entrants.entry(saved.number).or_default().push(id);
             }
             CheckpointKind::GroupAll => {
-                player.session.checkpoint_visits.insert(saved.id, saved.facing);
-                shared_entries.entry(saved.id).or_insert(saved);
-                shared_entrants.entry(saved.id).or_default().push(id);
+                player.session.checkpoint_visits.insert(saved.number, entry);
+                shared_entries.entry(saved.number).or_insert(saved);
+                shared_entrants.entry(saved.number).or_default().push(id);
             }
         }
     }
-    let active = players.shared_checkpoint.map(|checkpoint| number(checkpoint.id));
+    let active = players.shared_checkpoint.number;
     let mut activated = None;
     // Course order across every carrier, whatever the compiled order: the
-    // lowest shared entry of the tick activates, the others follow.
-    let mut course: Vec<usize> = (0..checkpoints.len()).collect();
-    course.sort_by_key(|&index| checkpoints[index].number);
-    for index in course {
-        let checkpoint = &checkpoints[index];
-        let id = CheckpointId(index);
-        // The group's progress only moves forward too: re-entering the active
-        // shared checkpoint or a lower one changes nothing, so individual
-        // saves, the saved facing, and partial visits all stand.
-        if active.is_some_and(|active| checkpoint.number <= active) {
-            continue;
-        }
-        let saved = match checkpoint.kind {
-            CheckpointKind::Individual => continue,
-            CheckpointKind::GroupAny => shared_entries.get(&id).copied(),
-            CheckpointKind::GroupAll => {
-                let visitors: Vec<_> = players
-                    .iter()
-                    .filter(|(_, player)| player.connection.logged_in)
-                    .collect();
-                if !visitors
-                    .iter()
-                    .all(|(_, player)| player.session.checkpoint_visits.contains_key(&id))
-                {
-                    continue;
-                }
-                visitors
-                    .into_iter()
-                    .min_by_key(|(player, _)| player.0)
-                    .map(|(_, player)| {
-                        shared_entries.get(&id).copied().unwrap_or(PlayerCheckpoint {
-                            id,
-                            facing: player.session.checkpoint_visits[&id],
-                        })
-                    })
+    // lowest shared number of the tick activates, the others follow. The
+    // group's progress only moves forward too: re-entering the active shared
+    // checkpoint or a lower one changes nothing, so individual saves, the
+    // saved facing, and partial visits all stand.
+    let shared_numbers: BTreeSet<u32> = checkpoints
+        .iter()
+        .filter(|checkpoint| checkpoint.kind != CheckpointKind::Individual && checkpoint.number > active)
+        .map(|checkpoint| checkpoint.number)
+        .collect();
+    for number in shared_numbers {
+        let saved = if any_entries.contains(&number) {
+            shared_entries.get(&number).copied()
+        } else if checkpoints
+            .iter()
+            .any(|checkpoint| checkpoint.number == number && checkpoint.kind == CheckpointKind::GroupAll)
+        {
+            let visitors: Vec<_> = players
+                .iter()
+                .filter(|(_, player)| player.connection.logged_in)
+                .collect();
+            if !visitors
+                .iter()
+                .all(|(_, player)| player.session.checkpoint_visits.contains_key(&number))
+            {
+                continue;
             }
+            visitors
+                .into_iter()
+                .min_by_key(|(player, _)| player.0)
+                .map(|(_, player)| {
+                    shared_entries.get(&number).copied().unwrap_or(PlayerCheckpoint {
+                        number,
+                        entry: Some(player.session.checkpoint_visits[&number]),
+                    })
+                })
+        } else {
+            None
         };
         let Some(saved) = saved else {
             continue;
         };
-        players.shared_checkpoint = Some(saved);
+        players.shared_checkpoint = saved;
         for (_, player) in players.iter_mut().filter(|(_, player)| player.connection.logged_in) {
-            if player
-                .session
-                .checkpoint
-                .is_none_or(|current| number(current.id) < checkpoint.number)
-            {
-                player.session.checkpoint = Some(saved);
+            if player.session.checkpoint.number < number {
+                player.session.checkpoint = saved;
             }
             player.session.checkpoint_visits.clear();
         }
-        activated = Some(id);
+        activated = Some(number);
         break;
     }
     // One activation per tick: whoever entered a shared checkpoint further
@@ -242,7 +231,7 @@ pub(super) fn apply_checkpoint_entries(
     if let Some(activated) = activated {
         for entrant in shared_entrants
             .iter()
-            .filter(|(id, _)| number(**id) > number(activated))
+            .filter(|(number, _)| **number > activated)
             .flat_map(|(_, entrants)| entrants)
         {
             if let Some(player) = players.get_mut(entrant) {
@@ -252,14 +241,13 @@ pub(super) fn apply_checkpoint_entries(
     }
     for (id, previous) in previous {
         let player = players.get(&id).expect("checkpoint recipient missing");
-        if let Some(saved) = player.session.checkpoint
-            && Some(saved.id) != previous
-        {
+        let saved = player.session.checkpoint;
+        if saved.number != previous {
             let _ = player
                 .connection
                 .channel
                 .send(ServerMessage::CheckpointReached(SCheckpointReached {
-                    checkpoint: checkpoint_index(saved.id),
+                    checkpoint: saved.number,
                     tick,
                 }));
         }

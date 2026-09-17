@@ -27,13 +27,12 @@
       {"level": 2, "cols": [17, 18], "rows": [13, 17], "kind": "zapper", "count": [1], "respawn_secs": 90, "levels": 2, "roam_distance": 2.0},
       {"level": 2, "cols": [13, 17], "rows": [17, 18], "kind": "zapper", "count": [1], "respawn_secs": 90, "levels": 2, "roam_distance": 2.0}
     ],
-    "player_spawn_zones": [
-      {"level": 4, "cols": [12, 18], "rows": [6, 8]},
-      {"level": 4, "cols": [6, 8], "rows": [12, 18]},
-      {"level": 4, "cols": [22, 24], "rows": [12, 18]},
-      {"level": 4, "cols": [12, 18], "rows": [22, 24]}
+    "checkpoints": [
+      {"level": 4, "cols": [12, 18], "rows": [6, 8], "type": "individual", "number": 0},
+      {"level": 4, "cols": [6, 8], "rows": [12, 18], "type": "individual", "number": 0},
+      {"level": 4, "cols": [22, 24], "rows": [12, 18], "type": "individual", "number": 0},
+      {"level": 4, "cols": [12, 18], "rows": [22, 24], "type": "individual", "number": 0}
     ],
-    "checkpoints": [],
     "pressure_plates": [
       {"level": 1, "col": 13, "row": 13, "switch": "lobby"},
       {"level": 1, "col": 16, "row": 16, "switch": "lobby"},

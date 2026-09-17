@@ -38,9 +38,9 @@ from .constants import (
     MODE_ERASE_SPAWN_ZONES,
     MODE_ERASE_WALLS,
     NESTED_MAPS_LIST,
-    SPAWN_ZONE_LISTS,
     ZONE_LISTS,
     ZONE_PICK_ORDER,
+    ACTOR_ZONE_LIST,
     CHECKPOINT_LIST,
     MODE_ERASE_CHECKPOINTS,
 )
@@ -210,10 +210,6 @@ def _keep_walls(data: dict, level_idx: int, rect: Rect) -> dict:
     return {(level_idx, "walls"): level["walls"], (level_idx, "lights"): level["lights"]}
 
 
-def _keep_spawn_zones(data: dict, level_idx: int, rect: Rect) -> dict:
-    return {(None, name): zones_outside(data[name], level_idx, rect) for name in SPAWN_ZONE_LISTS}
-
-
 # Keyed by the erase mode; each value is the group's noun for feedback and
 # its keep function, which maps `(level or None, list)` to what survives.
 ERASE_GROUPS = {
@@ -224,7 +220,10 @@ ERASE_GROUPS = {
     MODE_ERASE_EQUIPMENT_ERASERS: ("equipment erasers", _keep_level_edges("erasers")),
     MODE_ERASE_LIGHT_BRIDGES: ("light bridges", _keep_level_cells("light_bridges")),
     MODE_ERASE_LIGHTS: ("lights", _keep_level_cells("lights")),
-    MODE_ERASE_SPAWN_ZONES: ("spawn zones", _keep_spawn_zones),
+    MODE_ERASE_SPAWN_ZONES: (
+        "spawn zones",
+        lambda data, level_idx, rect: {(None, ACTOR_ZONE_LIST): zones_outside(data[ACTOR_ZONE_LIST], level_idx, rect)},
+    ),
     MODE_ERASE_CHECKPOINTS: (
         "checkpoints",
         lambda data, level_idx, rect: {(None, CHECKPOINT_LIST): zones_outside(data[CHECKPOINT_LIST], level_idx, rect)},

@@ -9,7 +9,7 @@ from map_editor.normalization import empty_level, empty_map
 class ResizeWindowTests(WindowTestCase):
     def test_shrink_is_staged_and_undoable_without_changing_level_count(self):
         data = empty_map(12, 10)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"] = [empty_level(i) for i in range(3)]
         data["levels"][1]["floors"] = [floor(3, 4)]
         data["levels"][1]["walls"] = [{"c0": 2, "r0": 4, "c1": 3, "r1": 4, **faces()}]
@@ -46,7 +46,7 @@ class ResizeWindowTests(WindowTestCase):
             dialog._rows_spin.setValue(10)
             dialog._anchor_group.button(8).setChecked(True)
             dialog.shrink.setChecked(True)
-            self.assertEqual(dialog.values(), (1, 1, -1, -1))
+            self.assertEqual(dialog.values(), (7, 7, -1, -1))
             dialog.shrink.setChecked(False)
             self.assertEqual(dialog.values(), (11, 10, 3, 2))
             dialog.shrink.setChecked(True)
@@ -79,7 +79,7 @@ class ResizeWindowTests(WindowTestCase):
     def test_shrink_changes_only_the_active_nested_geometry(self):
         data = copy.deepcopy(self.window.map_data)
         child = empty_map(8, 8)
-        child["player_spawn_zones"] = []
+        child["checkpoints"] = []
         child["levels"][0]["floors"] = [floor(2, 3)]
         data["nested_geometry"] = {"room": child, "other": empty_map(2, 2)}
         self.window.doc.replace_with_new(data)

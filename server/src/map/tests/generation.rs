@@ -21,7 +21,7 @@ impl TestMap {
                 {"col": 0, "row": 0, "all": "basement-floor"},
                 {"col": 1, "row": 0, "all": "basement-floor"}
             ]}],
-            "player_spawn_zones": [{"level": 0, "cols": [0, 1], "rows": [0, 1]}],
+            "checkpoints": [{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 0}],
             "switches": [
                 {"id": "lobby", "activation": "toggle", "reset_on_player_death": "never"},
                 {"id": "fireworks", "activation": "momentary", "reset_on_player_death": "never"}

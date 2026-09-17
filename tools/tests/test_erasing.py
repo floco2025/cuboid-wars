@@ -4,7 +4,7 @@ import unittest
 
 from PySide6.QtCore import QPointF
 
-from editor_fixtures import EditorHost, faces, floor, furnished_map, nested
+from editor_fixtures import EditorHost, faces, floor, furnished_map, nested, start_checkpoint
 from map_editor.constants import (
     HIT_FLOOR,
     HIT_ITEM,
@@ -50,7 +50,7 @@ class LayerEraserTests(unittest.TestCase):
             {"low": [2, 0], "high": [3, 1], "lower_level": 1, **faces()},
         ]
         data["actor_spawn_zones"] = [actor_zone(0, 0, 0, 2, 2), actor_zone(1, 0, 0, 2, 2)]
-        data["player_spawn_zones"] = [{"level": 0, "cols": [3, 4], "rows": [3, 4]}]
+        data["checkpoints"] = [start_checkpoint(3, 3)]
         data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "gold"}]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 0, "type": "firework"}]
         return EditorHost(data, [BRIDGE_KIND])
@@ -82,12 +82,12 @@ class LayerEraserTests(unittest.TestCase):
         host.erase_group_rect(MODE_ERASE_RAMPS, (0, 0), (3, 3))
         self.assertEqual([ramp["lower_level"] for ramp in host.map_data["ramps"]], [1])
 
-    def test_erase_spawn_zones_clears_both_zone_lists_on_the_current_level(self) -> None:
+    def test_erase_spawn_zones_clears_actor_zones_on_the_current_level_and_keeps_checkpoints(self) -> None:
         host = self.host()
         host.inspect_refs([ElementRef("actor_spawn_zones", 0)])
         host.erase_group_rect(MODE_ERASE_SPAWN_ZONES, (1, 1), (3, 3))
         self.assertEqual(host.map_data["actor_spawn_zones"], [actor_zone(1, 0, 0, 2, 2)])
-        self.assertEqual(host.map_data["player_spawn_zones"], [])
+        self.assertEqual(host.map_data["checkpoints"], [start_checkpoint(3, 3)])
         self.assertIsNone(host.selected_spawn_zone_ref)
 
     def test_an_empty_selection_flashes_and_changes_nothing(self) -> None:

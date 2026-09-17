@@ -25,11 +25,13 @@ from .constants import (
     MODE_NESTED_MAP,
     MODE_WALL,
     MODE_WALL_MATERIAL,
-    PLAYER_ZONE_LIST,
+    MODE_CHECKPOINT,
     CHECKPOINT_LIST,
     RAMP_MODES,
+    START_CHECKPOINT,
     ZONE_MODES,
 )
+from .checkpoint_numbers import is_start
 from .symbols import ITEM_SYMBOLS, paint_item_symbol
 from .nesting import (
     nested_map_footprint,
@@ -45,11 +47,12 @@ from .display import (
     DRAG_PREVIEW_COLORS,
     DRAG_PREVIEW_FALLBACK,
     NESTED_MAP_COLOR,
+    START_COLOR,
+    START_PREVIEW_COLOR,
     switch_color,
     WALL_HIGHLIGHT_WIDTH,
     WALL_PEN_WIDTH,
     face_color,
-    tag_color,
     zone_color,
 )
 from .selection_painting import paint_selection
@@ -428,6 +431,8 @@ class CanvasPaintingMixin:
             return
         c0, r0, c1, r1 = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
         color = DRAG_PREVIEW_COLORS.get(self.window.mode, DRAG_PREVIEW_FALLBACK)
+        if self.window.mode == MODE_CHECKPOINT and self.window.recent_checkpoint_number == START_CHECKPOINT:
+            color = START_PREVIEW_COLOR
         painter.setBrush(color)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRect(QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell))
@@ -782,10 +787,15 @@ class CanvasPaintingMixin:
         painter.setPen(Qt.PenStyle.NoPen)
 
     def paint_spawn_zones(self, painter: QPainter, cell: float, level_idx: int) -> None:
-        # Player zones first (background), then actor (top — has the kind label).
-        for zone in self.visible_entries(PLAYER_ZONE_LIST, self.window.map_data[PLAYER_ZONE_LIST]):
-            if zone_spans_level(zone, level_idx):
-                self.paint_player_spawn_zone(painter, zone, cell)
+        # Starts first (background), then actor zones (with the kind label), then the course.
+        checkpoints = [
+            zone
+            for zone in self.visible_entries(CHECKPOINT_LIST, self.window.map_data[CHECKPOINT_LIST])
+            if zone["level"] == level_idx
+        ]
+        for zone in checkpoints:
+            if is_start(zone):
+                self.paint_start(painter, zone, cell)
         if self.window.show_roam_extensions:
             for zone in self.window.map_data[ACTOR_ZONE_LIST]:
                 self.paint_roam_range(painter, zone, cell, level_idx)
@@ -793,8 +803,8 @@ class CanvasPaintingMixin:
             if zone_spans_level(zone, level_idx):
                 self.paint_actor_spawn_zone(painter, zone, cell)
 
-        for zone in self.visible_entries(CHECKPOINT_LIST, self.window.map_data[CHECKPOINT_LIST]):
-            if zone["level"] == level_idx:
+        for zone in checkpoints:
+            if not is_start(zone):
                 self.paint_checkpoint(painter, zone, cell)
 
     def paint_checkpoint(self, painter: QPainter, zone: dict, cell: float) -> None:
@@ -850,19 +860,18 @@ class CanvasPaintingMixin:
                 f"Roam +{zone['roam_distance']:g} m",
             )
 
-    def paint_player_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
+    def paint_start(self, painter: QPainter, zone: dict, cell: float) -> None:
         c0, r0, c1, r1 = zone_rect(zone)
         inset = min(2, cell * 0.1)
         rect = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset)
-        outline_color = tag_color("player")
-        fill_color = QColor(outline_color)
+        fill_color = QColor(START_COLOR)
         fill_color.setAlpha(70)
         painter.setBrush(QBrush(fill_color))
-        painter.setPen(QPen(outline_color, 2, Qt.PenStyle.DashLine))
+        painter.setPen(QPen(START_COLOR, 2, Qt.PenStyle.DashLine))
         painter.drawRect(rect)
         painter.setPen(QColor("#f8fafc"))
         if cell >= 8:
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "player")
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "Start")
 
     def paint_ramp(self, painter: QPainter, ramp: dict, cell: float, is_lower_level: bool) -> None:
         c0, r0, c1, r1 = ramp_rect(ramp)

@@ -27,7 +27,6 @@ MODE_ERASE_FLOORS = "Erase Floors"
 MODE_TERRAIN = "Terrain"
 MODE_ERASE_TERRAIN = "Erase Terrain"
 MODE_ACTOR_SPAWN_ZONE = "Actor Spawn Zone"
-MODE_PLAYER_SPAWN_ZONE = "Player Spawn Zone"
 MODE_CHECKPOINT = "Checkpoint"
 MODE_ERASE_CHECKPOINTS = "Erase Checkpoints"
 MODE_ERASE_SPAWN_ZONES = "Erase Spawn Zones"
@@ -60,7 +59,7 @@ MODE_PRESSURE_PLATE = "Pressure Plate"
 MODE_ERASE_PRESSURE_PLATES = "Erase Pressure Plates"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
-ZONE_MODES = (MODE_ACTOR_SPAWN_ZONE, MODE_PLAYER_SPAWN_ZONE, MODE_CHECKPOINT)
+ZONE_MODES = (MODE_ACTOR_SPAWN_ZONE, MODE_CHECKPOINT)
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
 # What a pick under the cursor found; the kind doubles as the hover title
 # and the "Erase <kind>" label.
@@ -112,17 +111,19 @@ ITEM_TYPE_COLORS = {
 }
 # Named lists in map_data so the editor can refer to them generically.
 ACTOR_ZONE_LIST = "actor_spawn_zones"
-PLAYER_ZONE_LIST = "player_spawn_zones"
 CHECKPOINT_LIST = "checkpoints"
+# The course starts at checkpoint 0: every player begins there, and the game
+# neither marks nor announces it. Its type is meaningless, and the file
+# carries this one for it.
+START_CHECKPOINT = 0
+START_CHECKPOINT_TYPE = "individual"
 CHECKPOINT_TYPE_LABELS = {"individual": "Individual", "group_any": "Group — any", "group_all": "Group — all"}
 # What an actor zone does once any player has reached its `until_checkpoint`.
 CHECKPOINT_RESPONSE_LABELS = {"stop": "Stop spawning", "destroy": "Self-destruct actors"}
-SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
-ZONE_LISTS = (*SPAWN_ZONE_LISTS, CHECKPOINT_LIST)
+ZONE_LISTS = (ACTOR_ZONE_LIST, CHECKPOINT_LIST)
 # Which zone a pick under the cursor prefers when zones overlap a cell: a
-# checkpoint first, then an actor zone (it carries per-zone settings), then a
-# player zone.
-ZONE_PICK_ORDER = (CHECKPOINT_LIST, *SPAWN_ZONE_LISTS)
+# checkpoint first, then an actor zone.
+ZONE_PICK_ORDER = (CHECKPOINT_LIST, ACTOR_ZONE_LIST)
 ITEMS_LIST = "items"
 NESTED_MAPS_LIST = "nested_maps"
 

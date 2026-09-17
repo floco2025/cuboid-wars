@@ -7,7 +7,6 @@ import math
 
 from .constants import (
     ACTOR_ZONE_LIST,
-    CHECKPOINT_LIST,
     DEFAULT_GRID_COLS,
     DEFAULT_GRID_ROWS,
     FACES,
@@ -15,6 +14,8 @@ from .constants import (
     LADDER_SIDES,
     LIGHT_SIDES,
     MAP_NAME_RE,
+    START_CHECKPOINT,
+    START_CHECKPOINT_TYPE,
     TERRAIN_FACES,
 )
 from .nesting import DEFAULT_MOTION
@@ -44,16 +45,21 @@ def level_label(level: dict, index: int) -> str:
 def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_ROWS) -> dict:
     # No seeded actor zone: there's no default kind to give it. Users paint
     # actor zones explicitly and pick a kind in the dialog.
-    # The player-spawn-zone seed in the top-left guarantees the map is
-    # save-valid out of the box (at least one player spawn zone is required).
+    # The start seeded in the top-left is the checkpoint every placed map
+    # needs; `started_map` gives it the floor it wants before the map saves.
     return {
         "grid_cols": grid_cols,
         "grid_rows": grid_rows,
         "actor_spawn_zones": [],
-        "player_spawn_zones": [
-            {"level": 0, "cols": [0, min(2, grid_cols)], "rows": [0, min(2, grid_rows)]},
+        "checkpoints": [
+            {
+                "level": 0,
+                "cols": [0, min(2, grid_cols)],
+                "rows": [0, min(2, grid_rows)],
+                "type": START_CHECKPOINT_TYPE,
+                "number": START_CHECKPOINT,
+            },
         ],
-        "checkpoints": [],
         "items": [],
         "pressure_plates": [],
         "levels": [empty_level(0)],
@@ -61,6 +67,19 @@ def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_
         "ladders": [],
         "nested_maps": [],
     }
+
+
+# A fresh document that saves as it is: the empty map with `material`
+# floored under its start.
+def started_map(grid_cols: int, grid_rows: int, material: str) -> dict:
+    data = empty_map(grid_cols, grid_rows)
+    start = data["checkpoints"][0]
+    data["levels"][0]["floors"] = [
+        {"col": col, "row": row, "all": material}
+        for col in range(start["cols"][0], start["cols"][1])
+        for row in range(start["rows"][0], start["rows"][1])
+    ]
+    return data
 
 
 def expand_face_materials(obj: dict) -> dict[str, str]:
@@ -126,7 +145,6 @@ def normalize_map(map_data: dict) -> dict:
     cols = int(map_data.get("grid_cols", DEFAULT_GRID_COLS))
     rows = int(map_data.get("grid_rows", DEFAULT_GRID_ROWS))
     actor_spawn_zones = [normalize_actor_spawn_zone(z) for z in map_data.get("actor_spawn_zones", [])]
-    player_spawn_zones = [normalize_player_spawn_zone(z) for z in map_data.get("player_spawn_zones", [])]
     items = [normalize_item(i) for i in map_data.get("items", [])]
     pressure_plates = [normalize_pressure_plate(p) for p in map_data.get("pressure_plates", [])]
     levels = []
@@ -159,7 +177,6 @@ def normalize_map(map_data: dict) -> dict:
         "grid_cols": cols,
         "grid_rows": rows,
         "actor_spawn_zones": actor_spawn_zones,
-        "player_spawn_zones": player_spawn_zones,
         "checkpoints": [normalize_checkpoint(z) for z in map_data.get("checkpoints", [])],
         "items": items,
         "pressure_plates": pressure_plates,
@@ -392,15 +409,8 @@ def normalize_actor_spawn_zone(zone: dict) -> dict:
     return normalized
 
 
-def normalize_player_spawn_zone(zone: dict) -> dict:
-    normalized = _normalize_zone_rect(zone)
-    if zone.get("levels", 1) != 1:
-        normalized["levels"] = copy.deepcopy(zone["levels"])
-    return normalized
-
-
 def normalize_checkpoint(zone: dict) -> dict:
-    normalized = {**normalize_player_spawn_zone(zone), "type": str(zone.get("type", ""))}
+    normalized = {**_normalize_zone_rect(zone), "type": str(zone.get("type", ""))}
     if "number" in zone:
         normalized["number"] = copy.deepcopy(zone["number"])
     return normalized
@@ -465,30 +475,23 @@ def actor_zone_key(zone: dict) -> tuple:
     )
 
 
-def player_zone_key(zone: dict) -> tuple:
-    return (
-        zone["level"],
-        _numeric_zone_key(zone.get("levels", 1)),
-        zone["rows"][0],
-        zone["cols"][0],
-        zone["rows"][1],
-        zone["cols"][1],
-    )
-
-
 # Checkpoints sort by number, the course order. Two may share a rectangle
 # and differ by type, so the type is part of a checkpoint's identity, in
 # selection as in canonicalization.
 def checkpoint_key(zone: dict) -> tuple:
-    return (_numeric_zone_key(zone.get("number")), *player_zone_key(zone), zone["type"])
+    return (
+        _numeric_zone_key(zone.get("number")),
+        zone["level"],
+        zone["rows"][0],
+        zone["cols"][0],
+        zone["rows"][1],
+        zone["cols"][1],
+        zone["type"],
+    )
 
 
 def zone_key(list_name: str, zone: dict) -> tuple:
-    if list_name == ACTOR_ZONE_LIST:
-        return actor_zone_key(zone)
-    if list_name == CHECKPOINT_LIST:
-        return checkpoint_key(zone)
-    return player_zone_key(zone)
+    return actor_zone_key(zone) if list_name == ACTOR_ZONE_LIST else checkpoint_key(zone)
 
 
 def _dedupe_sorted(zones: list[dict], key_fn) -> list[dict]:
@@ -512,7 +515,9 @@ def canonicalize_map(map_data: dict) -> dict:
     b["ramps"] = sorted(b["ramps"], key=lambda r: (r["lower_level"], tuple(r["low"]), tuple(r["high"])))
     enforce_ramp_floor_rules(b)
     b["actor_spawn_zones"] = _dedupe_sorted(b["actor_spawn_zones"], actor_zone_key)
-    b["player_spawn_zones"] = _dedupe_sorted(b["player_spawn_zones"], player_zone_key)
+    for zone in b["checkpoints"]:
+        if type(zone.get("number")) is int and zone["number"] == START_CHECKPOINT:
+            zone["type"] = START_CHECKPOINT_TYPE
     b["checkpoints"] = _dedupe_sorted(b["checkpoints"], checkpoint_key)
     b["pressure_plates"] = _dedupe_sorted(b["pressure_plates"], pressure_plate_key)
     # Ramp footprints occupy cells on both the lower and upper level of each

@@ -53,7 +53,7 @@ class WindowTests(WindowTestCase):
         with patch.object(window, "notify") as refused:
             window.paste_action.trigger()
         refused.assert_not_called()
-        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 3)
+        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 4)
 
     def test_panels_and_selection_scope_are_available_on_startup(self):
         window = self.window
@@ -389,7 +389,7 @@ class WindowTests(WindowTestCase):
         self.assertEqual(panel.widgets[("top",)].currentText(), "Mixed / unchanged")
         self.set_property("north", first)
         panel.apply_button.click()
-        self.assertEqual([f["top"] for f in window.map_data["levels"][0]["floors"]], [first, second])
+        self.assertEqual([f["top"] for f in window.map_data["levels"][0]["floors"]], [first, second, DEFAULT_ALIAS])
         self.assertTrue(all(f["north"] == first for f in window.map_data["levels"][0]["floors"]))
 
     def test_terrain_material_editor_exposes_only_sides_and_bottom(self):

@@ -19,7 +19,7 @@ ACTOR_KINDS = ["turret", "scuttler", "zapper"]
 
 def spawn_map(kind="turret"):
     data = empty_map(4, 2)
-    data["player_spawn_zones"] = [{"level": 0, "cols": [0, 4], "rows": [0, 2]}]
+    data["checkpoints"] = []
     data["actor_spawn_zones"] = [
         {"level": 0, "cols": [0, 4], "rows": [0, 2], "kind": kind, "count": [100], "respawn_secs": 90}
     ]
@@ -69,10 +69,9 @@ class SpawnValidationTests(unittest.TestCase):
             data["actor_spawn_zones"][0]["roam_distance"] = distance
             self.assertTrue(self.validate(data))
         for levels in [0, 2, 1.5, "two"]:
-            for name in ["actor_spawn_zones", "player_spawn_zones"]:
-                data = spawn_map()
-                data[name][0]["levels"] = levels
-                self.assertTrue(self.validate(data))
+            data = spawn_map()
+            data["actor_spawn_zones"][0]["levels"] = levels
+            self.assertTrue(self.validate(data))
 
     def test_roam_slice_uses_euclidean_distance_above_and_below_the_volume(self):
         zone = {"level": 1, "levels": 2, "roam_distance": 5.0}
@@ -110,6 +109,7 @@ class SpawnValidationTests(unittest.TestCase):
 
     def test_nested_spawn_zones_allow_bridges_without_ground_support(self):
         data = empty_map(8, 8)
+        data["levels"][0]["floors"] = [{"col": c, "row": r, "all": DEFAULT_ALIAS} for c in range(2) for r in range(2)]
         child = spawn_map()
         child["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "kind": "green"}]
         data["nested_geometry"] = {"turret_room": child}
@@ -150,7 +150,7 @@ class SpawnWindowTests(WindowTestCase):
     def test_zones_ending_at_a_checkpoint_are_painted_saved_and_reloaded(self):
         window = self.window
         data = copy.deepcopy(window.map_data)
-        data["checkpoints"] = [{"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual", "number": 2}]
+        data["checkpoints"].append({"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual", "number": 2})
         window.apply_change("Add checkpoint", data)
         window.recent_actor_spawn_kind = "zapper"
         window.recent_actor_until_checkpoint = 2
@@ -195,14 +195,11 @@ class SpawnWindowTests(WindowTestCase):
         window.recent_actor_roam_distance = 3.5
         window.recent_actor_spawn_count = [1]
         window.recent_actor_spawn_kind = "zapper"
-        window.recent_player_spawn_levels = 2
         window.add_actor_spawn_zone_rect((2, 2), (3, 3))
-        window.add_player_spawn_zone_rect((2, 2), (3, 3))
         self.assertTrue(window.save())
         saved = read_map(self.path)
         zone = saved["actor_spawn_zones"][0]
         self.assertEqual((zone["levels"], zone["count"], zone["roam_distance"]), (2, [1], 3.5))
-        self.assertEqual(saved["player_spawn_zones"][0]["levels"], 2)
 
     def test_unsupported_spawn_zones_can_be_created_saved_and_reloaded(self):
         window = self.window
@@ -210,17 +207,13 @@ class SpawnWindowTests(WindowTestCase):
         for kind in ACTOR_KINDS:
             window.recent_actor_spawn_kind = kind
             window.add_actor_spawn_zone_rect((2, 2), (3, 3))
-        window.add_player_spawn_zone_rect((2, 2), (3, 3))
         zones = window.map_data["actor_spawn_zones"]
-        players = window.map_data["player_spawn_zones"]
         self.assertEqual(len(zones), len(ACTOR_KINDS))
         self.assertEqual(window.validate_document(window.doc.root_data), [])
         self.assertTrue(window.save())
         saved = read_map(self.path)
         self.assertEqual(saved["actor_spawn_zones"], zones)
-        self.assertEqual(saved["player_spawn_zones"], players)
         window.load_path(self.path)
         window.reload_dependencies()
         self.assertEqual(window.map_data["actor_spawn_zones"], zones)
-        self.assertEqual(window.map_data["player_spawn_zones"], players)
         self.assertEqual(window.validate_document(window.doc.root_data), [])

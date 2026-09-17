@@ -9,7 +9,7 @@ use crate::{
 };
 use common::{
     constants::CHARACTER_FALL_DEATH_Y,
-    protocol::{ActorId, ActorMarker, Health, MapLayout, PlayerId, Position},
+    protocol::{ActorId, ActorMarker, Health, PlayerId, Position},
 };
 
 pub fn actors_removal_system(
@@ -18,11 +18,10 @@ pub fn actors_removal_system(
     players: Res<PlayerMap>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     map_config: Res<MapConfig>,
-    layout: Res<MapLayout>,
     mut pending_explosions: ResMut<PendingExplosions>,
     query: Query<(Entity, &ActorId, &Position, &Health, &ActorCrushed), With<ActorMarker>>,
 ) {
-    let progress = checkpoint_progress(&players, &layout.checkpoints);
+    let progress = checkpoint_progress(&players);
     let mut deaths: Vec<ActorDeath> = Vec::new();
     for (entity, id, pos, health, crushed) in query.iter() {
         let Some(info) = actors.get(id) else {

@@ -5,7 +5,9 @@ use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
     map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     network::{SharedWorld, handlers::CharacterQueries},
-    players::{CheckpointId, LoginStart, PlayerCheckpoint, PlayerInfo, PlayerMap, respawn_tests::respawn_app},
+    players::{
+        CheckpointEntry, CheckpointId, LoginStart, PlayerCheckpoint, PlayerInfo, PlayerMap, respawn_tests::respawn_app,
+    },
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog},
     test_geometry::geometry,
@@ -50,7 +52,9 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
                 barrier_edges: EdgeGrid::new(2, 2),
             }],
         ));
+        let start = app.world().resource::<MapLayout>().checkpoints[0].clone();
         let mut layout = MapLayout {
+            checkpoints: vec![start],
             carriers: vec![Carrier {
                 motion: Default::default(),
                 switch_inverted: false,
@@ -113,10 +117,13 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         let catalog = QuestCatalog::from_quests(&[]);
         app.insert_resource(QuestBoard::from_catalog(&catalog, None))
             .insert_resource(catalog);
-        app.world_mut().resource_mut::<PlayerMap>().shared_checkpoint = Some(PlayerCheckpoint {
-            id: CheckpointId(0),
-            facing: Vec3::X,
-        });
+        app.world_mut().resource_mut::<PlayerMap>().shared_checkpoint = PlayerCheckpoint {
+            number: 1,
+            entry: Some(CheckpointEntry {
+                id: CheckpointId(1),
+                facing: Vec3::X,
+            }),
+        };
         if group_countdown {
             let entity = app.world_mut().spawn_empty().id();
             let (channel, _) = unbounded();
@@ -200,7 +207,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             }
         }
         assert_eq!(group_cues, usize::from(group_countdown));
-        // A blocked checkpoint places the joiner in a spawn zone instead of leaving it bodiless.
+        // A blocked checkpoint places the joiner at the start instead of leaving it bodiless.
         assert_eq!(relocations.len(), usize::from(!group_countdown));
         let in_checkpoint = |app: &App, pos: &Position| {
             let local = app
@@ -227,10 +234,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             .resource::<PlayerMap>()
             .get(&PlayerId(9))
             .expect("joining player missing");
-        assert_eq!(
-            player.session.checkpoint.expect("shared checkpoint not inherited").id,
-            CheckpointId(0)
-        );
+        assert_eq!(player.session.checkpoint.number, 1, "shared checkpoint not inherited");
         assert_eq!(player.is_dead(), group_countdown);
         assert_eq!(player.session.score, 0);
         if group_countdown {
@@ -277,12 +281,12 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         let body = player.entity().expect("joining player never spawned");
         let pos = app.world().get::<Position>(body).expect("body position missing");
         if blocked && !group_countdown {
-            // Already alive in a spawn zone; clearing the checkpoint moves nobody.
+            // Already alive at the start; clearing the checkpoint moves nobody.
             assert!(!in_checkpoint(&app, pos));
             assert_eq!(player.life.checkpoint_contact, None);
         } else {
             assert!(in_checkpoint(&app, pos));
-            assert_eq!(player.life.checkpoint_contact, Some(CheckpointId(0)));
+            assert_eq!(player.life.checkpoint_contact, Some(CheckpointId(1)));
         }
     }
 }

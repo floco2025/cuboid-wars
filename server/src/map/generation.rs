@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, bail};
 use common::{
     config::validate_non_negative_finite,
     protocol::{
@@ -49,10 +49,6 @@ pub(crate) fn generate_map_at(
     settings.bridge_kinds = source.bridge_kinds;
     let map_def = source.geometry;
     let nested = source.nested_geometry;
-    ensure!(
-        !map_def.player_spawn_zones.is_empty(),
-        "map {map_name:?} needs at least one player_spawn_zones entry"
-    );
     for (name, map) in once((map_name, &map_def)).chain(nested.iter().map(|(name, map)| (name.as_str(), map))) {
         for (level, tier) in map.levels.iter().enumerate() {
             for (index, floor) in tier.floors.iter().chain(&tier.inaccessible_floors).enumerate() {

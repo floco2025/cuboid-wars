@@ -24,6 +24,7 @@ from .constants import (
     ITEMS_LIST,
     NESTED_MAPS_LIST,
 )
+from .checkpoint_numbers import is_start
 from .display import materials_summary, pressure_plate_label
 from .nesting import MOTION_LABELS, motion_uses_cycle
 from .normalization import edge_key, ladder_key, nested_map_key
@@ -93,11 +94,9 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
                 if zone.get("on_checkpoint") == "destroy":
                     label += " (self-destruct)"
             return label
-        return (
-            f"Checkpoint {zone.get('number', '?')}: {CHECKPOINT_TYPE_LABELS.get(zone['type'], zone['type'])}"
-            if kind == HIT_CHECKPOINT
-            else "Player spawn zone"
-        )
+        if is_start(zone):
+            return "Start"
+        return f"Checkpoint {zone.get('number', '?')}: {CHECKPOINT_TYPE_LABELS.get(zone['type'], zone['type'])}"
 
     if kind == HIT_RAMP:
         lower = value[0]

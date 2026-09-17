@@ -15,7 +15,7 @@ fn checkpoint_def(level: u32, col: i32, row: i32) -> CheckpointDef {
 
 #[test]
 fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
-    let mut map = map_with_zones(4, vec![level(vec![[0, 0], [1, 0]])], Vec::new(), Vec::new(), Vec::new());
+    let mut map = map_with_zones(4, vec![level(vec![[0, 0], [1, 0]])], Vec::new(), Vec::new());
     map.checkpoints.push(checkpoint_def(0, 0, 0));
     validate_map(&map).expect("checkpoint map rejected");
     let compile = |map: &MapDef| compile_with(map, &no_nested(), &empty_kind_table(), &no_bridges());
@@ -58,7 +58,7 @@ fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
 
 #[test]
 fn terrain_is_an_accessible_checkpoint_floor() {
-    let mut map = map_with_zones(4, vec![level(Vec::new())], Vec::new(), Vec::new(), Vec::new());
+    let mut map = map_with_zones(4, vec![level(Vec::new())], Vec::new(), Vec::new());
     map.levels[0].terrain.push(cell_def(1, 1));
     map.checkpoints.push(checkpoint_def(0, 1, 1));
     validate_map(&map).expect("checkpoint on terrain rejected");
@@ -66,9 +66,9 @@ fn terrain_is_an_accessible_checkpoint_floor() {
 
 #[test]
 fn repeated_nested_checkpoints_have_separate_carriers_and_runtime_slots() {
-    let mut nested = map_with_zones(2, vec![level(vec![[0, 0]])], Vec::new(), Vec::new(), Vec::new());
+    let mut nested = map_with_zones(2, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     nested.checkpoints.push(checkpoint_def(0, 0, 0));
-    let mut root = map_with_zones(8, vec![level(Vec::new())], Vec::new(), Vec::new(), Vec::new());
+    let mut root = map_with_zones(8, vec![level(Vec::new())], Vec::new(), Vec::new());
     root.nested_maps = [0, 4]
         .map(|col| NestedMapDef {
             map: "platform".into(),
@@ -102,26 +102,22 @@ fn repeated_nested_checkpoints_have_separate_carriers_and_runtime_slots() {
 }
 
 #[test]
-fn checkpoint_numbers_are_positive_unique_and_order_the_compiled_list() {
-    let mut map = map_with_zones(4, vec![level(vec![[0, 0], [1, 0]])], Vec::new(), Vec::new(), Vec::new());
+fn checkpoint_numbers_may_be_zero_or_shared_and_order_the_compiled_list() {
+    let mut map = map_with_zones(4, vec![level(vec![[0, 0], [1, 0], [2, 0]])], Vec::new(), Vec::new());
     let numbered = |col, number| CheckpointDef {
         number,
         ..checkpoint_def(0, col, 0)
     };
-    map.checkpoints = vec![numbered(0, 7), numbered(1, 2)];
+    map.checkpoints = vec![numbered(0, 7), numbered(1, 0), numbered(2, 7)];
     validate_map(&map).expect("numbered checkpoints rejected");
     canonicalize(&mut map);
     let (layout, _) = compile_with(&map, &no_nested(), &empty_kind_table(), &no_bridges())
         .expect("numbered checkpoint compilation failed");
-    assert_eq!(layout.checkpoints.iter().map(|c| c.number).collect::<Vec<_>>(), [2, 7]);
+    assert_eq!(
+        layout.checkpoints.iter().map(|c| c.number).collect::<Vec<_>>(),
+        [0, 7, 7]
+    );
     assert_eq!(layout.checkpoints[0].cols, [1, 2]);
-    for (number, message) in [(0, "at least 1"), (7, "already used")] {
-        map.checkpoints[0].number = number;
-        let error = validate_map(&map)
-            .expect_err("bad checkpoint number accepted")
-            .to_string();
-        assert!(error.contains(message), "{error}");
-    }
 }
 
 #[test]
@@ -135,7 +131,7 @@ fn checkpoint_types_are_required_and_preserved_on_the_wire() {
             serde_json::json!({"type": name, "number": 1, "level": 0, "cols": [0, 1], "rows": [0, 1]}),
         )
         .expect("checkpoint type rejected");
-        let mut map = map_with_zones(2, vec![level(vec![[0, 0]])], Vec::new(), Vec::new(), Vec::new());
+        let mut map = map_with_zones(2, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
         map.checkpoints.push(definition);
         let (layout, _) = compile_with(&map, &no_nested(), &empty_kind_table(), &no_bridges())
             .expect("typed checkpoint compilation failed");

@@ -2,8 +2,7 @@
 
 import copy
 
-from .constants import ACTOR_ZONE_LIST, CHECKPOINT_LIST
-from .validation import placed_definitions
+from .constants import ACTOR_ZONE_LIST, CHECKPOINT_LIST, START_CHECKPOINT
 
 
 def geometries(root: dict):
@@ -12,7 +11,11 @@ def geometries(root: dict):
 
 
 def _is_number(value) -> bool:
-    return type(value) is int and value >= 1
+    return type(value) is int and value >= START_CHECKPOINT
+
+
+def is_start(zone: dict) -> bool:
+    return _is_number(zone.get("number")) and zone["number"] == START_CHECKPOINT
 
 
 def _numbers(geometry: dict) -> set[int]:
@@ -34,63 +37,54 @@ def used_numbers(root: dict) -> set[int]:
 
 
 def next_checkpoint_number(root: dict) -> int:
-    return max(used_numbers(root), default=0) + 1
+    return max(used_numbers(root), default=START_CHECKPOINT) + 1
 
 
 def checkpoint_entries(root: dict) -> list[tuple[str | None, dict]]:
     """Every checkpoint of the document with its definition's name (`None`
     for the outer map), in course order; unnumbered ones last."""
     entries = [(name, entry) for name, geometry in geometries(root) for entry in geometry.get(CHECKPOINT_LIST, [])]
-    entries.sort(key=lambda item: (not _is_number(item[1].get("number")), item[1].get("number") or 0, item[0] or ""))
+    entries.sort(
+        key=lambda item: (
+            not _is_number(item[1].get("number")),
+            item[1]["number"] if _is_number(item[1].get("number")) else 0,
+            item[0] or "",
+        )
+    )
     return entries
 
 
-def number_checkpoint_copies(block: dict, root: dict) -> dict:
-    """The block with fresh numbers for the checkpoints whose numbers the
-    document already uses; the block's zones ending at them follow."""
-    block = copy.deepcopy(block)
-    used = used_numbers(root)
-    next_free = max(used | _numbers(block), default=0) + 1
-    mapping = {}
-    for number in sorted(_numbers(block) & used):
-        mapping[number] = next_free
-        next_free += 1
-    _apply_mapping(block, mapping)
-    return block
-
-
-def number_generated_definitions(root: dict, generated: set[str]) -> dict:
-    """The document with the checkpoints of the generated definitions
-    renumbered where they collide with the rest of the placed map tree, each
-    definition's own zones following. A copy whose original is no longer
-    placed keeps its numbers, so the zones ending at them keep pointing there."""
-    after = copy.deepcopy(root)
-    placed = placed_definitions(after, after.get("nested_geometry", {}))
-    taken = set().union(_numbers(after), *(_numbers(g) for name, g in placed.items() if name not in generated))
-    next_free = next_checkpoint_number(after)
-    for name in sorted(generated):
-        geometry = placed.get(name)
-        if geometry is None:
+def checkpoint_groups(root: dict) -> list[dict]:
+    """One entry per distinct number of the document, in course order: the
+    number, how many checkpoints carry it, the definitions holding them
+    (`None` for the outer map), and the types they use. A checkpoint without
+    a valid number is an entry of its own, after the numbered ones."""
+    groups: dict[int, dict] = {}
+    unnumbered = []
+    for name, entry in checkpoint_entries(root):
+        number = entry.get("number")
+        if not _is_number(number):
+            unnumbered.append({"number": None, "instances": 1, "maps": [name], "types": [entry.get("type")]})
             continue
-        mapping = {}
-        for number in sorted(_numbers(geometry) & taken):
-            mapping[number] = next_free
-            next_free += 1
-        _apply_mapping(geometry, mapping)
-        taken |= _numbers(geometry)
-    return after
+        group = groups.setdefault(number, {"number": number, "instances": 0, "maps": [], "types": []})
+        group["instances"] += 1
+        if name not in group["maps"]:
+            group["maps"].append(name)
+        if entry.get("type") not in group["types"]:
+            group["types"].append(entry.get("type"))
+    return [*groups.values(), *unnumbered]
 
 
 def renumber_checkpoints(root: dict, mapping: dict[int, int]) -> dict:
-    """The document with the checkpoints in `mapping` renumbered at once,
-    every zone ending at one following it."""
+    """The document with every checkpoint numbered a key of `mapping` given
+    its value, in the outer map and every definition alike, the zones ending
+    at one following it."""
     targets = list(mapping.values())
+    if START_CHECKPOINT in mapping or START_CHECKPOINT in targets:
+        raise ValueError(f"Checkpoint {START_CHECKPOINT} is the start and keeps its number.")
     if len(set(targets)) != len(targets) or not all(_is_number(number) for number in targets):
         raise ValueError("Checkpoint numbers must be distinct positive whole numbers.")
     after = copy.deepcopy(root)
     for _, geometry in geometries(after):
         _apply_mapping(geometry, mapping)
-    numbers = [entry.get("number") for _, entry in checkpoint_entries(after) if _is_number(entry.get("number"))]
-    if len(set(numbers)) != len(numbers):
-        raise ValueError("Checkpoint numbers must be unique in the map.")
     return after

@@ -49,7 +49,7 @@ class TextureHostWindowTests(WindowTestCase):
         self.window.adopt_map("hotel")
         self.window.current_material = "upper-floors"
         data = empty_map(2, 2)
-        data["levels"][0]["floors"] = [{"col": 0, "row": 0, "all": "upper-floors"}]
+        data["levels"][0]["floors"] = [{"col": c, "row": r, "all": "upper-floors"} for c in range(2) for r in range(2)]
         data = normalize_map(data)
         self.assertFalse(self.window.validate(data))
         self.window.adopt_map("obby")

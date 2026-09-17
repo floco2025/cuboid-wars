@@ -261,9 +261,12 @@ pub enum CheckpointKind {
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Checkpoint {
+    // Meaningless on the start, which no entry ever saves.
     pub kind: CheckpointKind,
-    // Orders the course and is unique within the map document; `--checkpoint`,
-    // `/checkpoint`, and a zone's `until_checkpoint` name it.
+    // The course position; `--checkpoint`, `/checkpoint`, and a zone's
+    // `until_checkpoint` name it. Checkpoints sharing a number are one
+    // respawn point with several spots. 0 is the start: every player begins
+    // there, and it has no flag or paint.
     pub number: u32,
     pub carrier: CarrierId,
     pub level: u8,

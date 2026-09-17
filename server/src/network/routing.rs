@@ -146,6 +146,7 @@ pub(super) fn route_client_message(
                 &mut context.admin,
                 &context.queries.player_data,
                 &context.world,
+                &context.portal_assignments,
                 &mut context.pending_actor_spawns,
                 &mut context.quest_board,
                 &message,

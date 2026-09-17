@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     actors::test_kinds::{self, BEAM, CONTACT, IMMOVABLE},
     map::{CellGrid, CheckpointResponse, EdgeGrid, LevelGrid},
-    players::{CheckpointId, PlayerCheckpoint, PlayerInfo},
+    players::{PlayerCheckpoint, PlayerInfo},
 };
 use bevy::{ecs::system::RunSystemOnce, time::TimeUpdateStrategy};
 use common::protocol::{ActorId, Carrier, CarrierId, Checkpoint, CheckpointKind, MapLayout, PlayerId, SwitchId};
@@ -1131,7 +1131,7 @@ fn course_app(until: u32, on_checkpoint: CheckpointResponse, respawn_secs: Optio
 }
 
 // Logs `player` in if needed and saves checkpoint `number` for it.
-fn reach(app: &mut App, player: PlayerId, number: Option<u32>) {
+fn reach(app: &mut App, player: PlayerId, number: u32) {
     let mut players = app.world_mut().resource_mut::<PlayerMap>();
     if players.get(&player).is_none() {
         let (tx, _rx) = unbounded();
@@ -1139,16 +1139,13 @@ fn reach(app: &mut App, player: PlayerId, number: Option<u32>) {
         info.connection.logged_in = true;
         players.insert(player, info);
     }
-    players.get_mut(&player).expect("player missing").session.checkpoint = number.map(|number| PlayerCheckpoint {
-        id: CheckpointId(number as usize - 1),
-        facing: Vec3::X,
-    });
+    players.get_mut(&player).expect("player missing").session.checkpoint = PlayerCheckpoint::numbered(number);
 }
 
 #[test]
 fn a_zone_stops_filling_once_any_player_has_reached_its_checkpoint() {
     let mut app = course_app(2, CheckpointResponse::Stop, Some(1000.0));
-    reach(&mut app, PlayerId(1), Some(1));
+    reach(&mut app, PlayerId(1), 1);
     app.update();
     assert_eq!(pending_count(&app), 1, "checkpoint 1 leaves the encounter open");
     materialize_pending(&mut app);
@@ -1156,12 +1153,12 @@ fn a_zone_stops_filling_once_any_player_has_reached_its_checkpoint() {
     app.update();
     assert!(matches!(refills(&app).as_slice(), [Some(secs)] if *secs > 999.0));
 
-    reach(&mut app, PlayerId(2), Some(2));
+    reach(&mut app, PlayerId(2), 2);
     expire_countdown(&mut app);
     app.update();
     assert_eq!(pending_count(&app), 0, "the furthest player closes it for everyone");
 
-    reach(&mut app, PlayerId(2), Some(1));
+    reach(&mut app, PlayerId(2), 1);
     app.update();
     assert_eq!(pending_count(&app), 1, "moving the course back reopens it");
 }
@@ -1171,13 +1168,13 @@ fn a_destroying_zone_drops_its_beam_ins_at_its_checkpoint() {
     let mut app = course_app(1, CheckpointResponse::Destroy, None);
     app.update();
     assert_eq!(pending_count(&app), 1);
-    reach(&mut app, PlayerId(1), Some(1));
+    reach(&mut app, PlayerId(1), 1);
     app.update();
     assert_eq!(pending_count(&app), 0);
 
     let mut stopping = course_app(1, CheckpointResponse::Stop, None);
     stopping.update();
-    reach(&mut stopping, PlayerId(1), Some(1));
+    reach(&mut stopping, PlayerId(1), 1);
     stopping.update();
     assert_eq!(
         pending_count(&stopping),

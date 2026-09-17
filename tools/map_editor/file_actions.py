@@ -21,7 +21,7 @@ from .catalogs import (
 from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS
 from .dialogs import ResizeMapDialog
 from .io import read_map
-from .normalization import empty_map
+from .normalization import started_map
 
 
 class FileActionsMixin:
@@ -42,11 +42,11 @@ class FileActionsMixin:
             return
         try:
             map_name = map_name_from_path(path)
-            MapCatalogs.load(map_name)
+            catalogs = MapCatalogs.load(map_name)
         except (OSError, ValueError) as exc:
             QMessageBox.critical(self, "New Map Failed", str(exc))
             return
-        self.doc.replace_with_new(empty_map(new_cols, new_rows), path)
+        self.doc.replace_with_new(started_map(new_cols, new_rows, next(iter(catalogs.texture_catalog), "")), path)
         self.adopt_map(map_name)
 
     def confirm_replace_map(self, path: Path) -> bool:

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::{PlayerMap, place_player_body, player_spawn_destination};
+use super::{PlayerCheckpoint, PlayerMap, place_player_body, player_spawn_destination};
 use crate::{
     actors::{ActorMap, ActorSpawner, PendingActorSpawns, reset_actors},
     config::ServerGameplayConfig,
@@ -55,7 +55,9 @@ pub fn players_respawn_system(
 
     let mut occupied_positions: Vec<Position> = player_query.iter().copied().collect();
     for id in to_respawn {
-        let saved = players.get(&id).and_then(|player| player.session.checkpoint);
+        let saved = players
+            .get(&id)
+            .map_or(PlayerCheckpoint::START, |player| player.session.checkpoint);
         let Some(spawn) = player_spawn_destination(
             &map_config,
             &map_layout.checkpoints,

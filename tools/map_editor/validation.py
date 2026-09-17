@@ -17,6 +17,7 @@ from .constants import (
     LADDER_SIDES,
     LIGHT_SIDES,
     MAP_NAME_RE,
+    START_CHECKPOINT,
     TERRAIN_FACES,
 )
 from .catalogs import MapCatalogs
@@ -88,40 +89,24 @@ def placed_definitions(root: dict, definitions: dict) -> dict[str, dict]:
     return placed
 
 
-# Every valid checkpoint number of the given geometries: numbers are one
-# sequence over the placed map tree, and a zone's `until_checkpoint` names
-# one of them.
+# Every checkpoint number past the start in the given geometries: the course
+# is one sequence over the placed map tree, and a zone's `until_checkpoint`
+# names one of these.
 def document_checkpoint_numbers(geometries: list[dict]) -> set[int]:
     return {
         zone["number"]
         for geometry in geometries
         for zone in geometry.get("checkpoints", [])
-        if type(zone.get("number")) is int and zone["number"] >= 1
+        if type(zone.get("number")) is int and zone["number"] > START_CHECKPOINT
     }
 
 
-# The checkpoint rules one placed geometry shares with the others: its
-# numbers must be free elsewhere, and a zone elsewhere may still end at one
-# of them.
-def cross_geometry_checkpoint_errors(data: dict, others: list[dict]) -> list[str]:
-    foreign = document_checkpoint_numbers(others)
-    errors = [
-        f"checkpoints[{index}] number {zone['number']} is already used in another map definition"
-        for index, zone in enumerate(data.get("checkpoints", []))
-        if zone.get("number") in foreign
-    ]
-    available = foreign | document_checkpoint_numbers([data])
-    referenced = {
-        zone["until_checkpoint"]
-        for geometry in others
-        for zone in geometry.get("actor_spawn_zones", [])
-        if type(zone.get("until_checkpoint")) is int
-    }
-    errors.extend(
-        f"checkpoint {number} is still the end of an actor zone in another map definition"
-        for number in sorted(referenced - available)
+def _has_start(geometries: list[dict]) -> bool:
+    return any(
+        type(zone.get("number")) is int and zone["number"] == START_CHECKPOINT
+        for geometry in geometries
+        for zone in geometry.get("checkpoints", [])
     )
-    return errors
 
 
 # The switches some plate of the placed geometry operates: a zone or nested
@@ -179,10 +164,6 @@ def validate_map(
             errors.append(f"actor_spawn_zones[{idx}] respawn_secs must be a non-negative number or null")
         _validate_switch_target(zone, f"actor_spawn_zones[{idx}]", switches, plated_switches, errors)
         _validate_zone_course(zone, f"actor_spawn_zones[{idx}]", checkpoint_numbers, errors)
-
-    for idx, zone in enumerate(map_data["player_spawn_zones"]):
-        errors.locate("player_spawn_zones", zone)
-        _validate_zone_rect(zone, f"player_spawn_zones[{idx}]", map_data, errors)
 
     _validate_checkpoints(map_data, errors)
     _validate_items(map_data, kinds, errors)
@@ -375,19 +356,8 @@ def validate_document(
             checkpoint_numbers=numbers,
         )
         errors.merge(found, label, name)
-    owners: dict[int, str | None] = {}
-    for name, geometry in [(None, root), *placed.items()]:
-        for zone in geometry.get("checkpoints", []):
-            number = zone.get("number")
-            if type(number) is not int:
-                continue
-            if number in owners and owners[number] != name:
-                where = "the outer map" if owners[number] is None else f"nested {owners[number]}"
-                errors.append(
-                    f"{'Nested ' + name if name else 'The outer map'}: checkpoint number {number} is also used in {where}",
-                    map_name=name,
-                )
-            owners.setdefault(number, name)
+    if not _has_start([root, *placed.values()]):
+        errors.append(f"The placed map has no checkpoint {START_CHECKPOINT}, the start.")
     return errors
 
 
@@ -430,8 +400,8 @@ def _validate_nested_maps(
 ) -> None:
     # Mirrors the Rust loader's entry checks: a safe name, ends on the grid
     # and on real storeys, sane timing, one entry per start cell, and no
-    # nesting loop; a stationary entry is a room placed once. Only the map
-    # being played needs a player spawn zone, so none is required here.
+    # nesting loop; a stationary entry is a room placed once. The start
+    # checkpoint is required of the placed tree as a whole, not here.
     cols = map_data["grid_cols"]
     rows = map_data["grid_rows"]
     level_count = len(map_data["levels"])
@@ -651,10 +621,8 @@ def _validate_checkpoints(data: dict, errors: ValidationErrors) -> None:
         if zone.get("type") not in CHECKPOINT_TYPE_LABELS:
             errors.append(f"{label} has an unknown checkpoint type {zone.get('type')!r}")
         number = zone.get("number")
-        if type(number) is not int or number < 1:
-            errors.append(f"{label} needs a positive whole `number`")
-        elif any(other.get("number") == number for other in data["checkpoints"][:index]):
-            errors.append(f"{label} number {number} is already used by another checkpoint")
+        if type(number) is not int or number < START_CHECKPOINT:
+            errors.append(f"{label} needs a whole `number` of at least {START_CHECKPOINT}")
         level = zone["level"]
         if not 0 <= level < len(data["levels"]):
             continue

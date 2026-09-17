@@ -38,14 +38,14 @@ pub(super) fn handle_checkpoint_reached_message(
 ) {
     let my_player_id = context.my_player_id.0;
     if let Some(info) = context.players.get_mut(&my_player_id) {
-        info.apply_checkpoint(Some(message.checkpoint), message.tick);
+        info.apply_checkpoint(message.checkpoint, message.tick);
     }
     play_sound(
         commands,
         &context.assets.asset_server,
         context.assets.asset_set.player_sound("checkpoint_reached"),
     );
-    if let Some(checkpoint) = context.map_layout.checkpoints.get(usize::from(message.checkpoint)) {
-        context.banner.push(BannerMessage::CheckpointReached(checkpoint.number));
-    }
+    context
+        .banner
+        .push(BannerMessage::CheckpointReached(message.checkpoint));
 }

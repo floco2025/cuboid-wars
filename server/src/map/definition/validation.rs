@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeSet, HashMap},
-    iter::once,
-};
+use std::{collections::BTreeSet, iter::once};
 
 use anyhow::{Context, Result, anyhow};
 
@@ -13,10 +10,7 @@ use common::{
 use super::{
     geometry::ramp_spec_from_def,
     load::LoadedMaps,
-    schema::{
-        ActorSpawnZoneDef, CheckpointDef, LadderDef, LevelDef, MapDef, MotionDef, RampDef, SpawnZoneDef, WallSide,
-        ZoneDef,
-    },
+    schema::{ActorSpawnZoneDef, CheckpointDef, LadderDef, LevelDef, MapDef, MotionDef, RampDef, WallSide, ZoneDef},
 };
 use crate::config::is_valid_map_name;
 
@@ -29,7 +23,6 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
     }
 
     validate_actor_spawn_zones(map_def)?;
-    validate_player_spawn_zones(map_def)?;
     validate_checkpoints(map_def)?;
     validate_items(map_def)?;
     validate_pressure_plates(map_def)?;
@@ -41,7 +34,7 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
     Ok(())
 }
 
-// Common rect-shaped accessors that both actor and player zones share.
+// Common rect-shaped accessors that actor zones and checkpoints share.
 // Used by the level-bounds and range checks below.
 trait ZoneRect {
     fn level(&self) -> u32;
@@ -70,21 +63,6 @@ impl ZoneRect for ActorSpawnZoneDef {
 impl ZoneRect for ZoneDef {
     fn level(&self) -> u32 {
         self.level
-    }
-    fn cols(&self) -> [i32; 2] {
-        self.cols
-    }
-    fn rows(&self) -> [i32; 2] {
-        self.rows
-    }
-}
-
-impl ZoneRect for SpawnZoneDef {
-    fn level(&self) -> u32 {
-        self.level
-    }
-    fn levels(&self) -> u32 {
-        self.levels
     }
     fn cols(&self) -> [i32; 2] {
         self.cols
@@ -133,14 +111,6 @@ fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
         if zone.on_checkpoint.is_some() && zone.until_checkpoint.is_none() {
             return Err(anyhow!("{label}.on_checkpoint needs an until_checkpoint"));
         }
-    }
-    Ok(())
-}
-
-fn validate_player_spawn_zones(map_def: &MapDef) -> Result<()> {
-    for (zone_idx, zone) in map_def.player_spawn_zones.iter().enumerate() {
-        let label = format!("player_spawn_zones[{zone_idx}]");
-        validate_zone_placement(zone, &label, map_def)?;
     }
     Ok(())
 }
@@ -739,12 +709,6 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
     });
     map_def.actor_spawn_zones.dedup();
 
-    map_def
-        .player_spawn_zones
-        .sort_by_key(|z| (z.level, z.levels, z.rows[0], z.cols[0], z.rows[1], z.cols[1]));
-    map_def.player_spawn_zones.dedup();
-
-    // Compiled index order is course order, so a shared activation's tie-break follows the numbers.
     map_def.checkpoints.sort_by_key(|checkpoint| checkpoint.number);
 
     for level in &mut map_def.levels {
@@ -790,10 +754,10 @@ fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {
     if (c1, r1) < (c0, r0) { [c1, r1, c0, r0] } else { wall }
 }
 
-// Checkpoint numbers are one sequence over the placed map tree, so a zone's
-// `until_checkpoint` and a renumbering name exactly one course position;
-// `nested` holds the placed definitions alone.
-pub(super) fn validate_checkpoint_references(root: &MapDef, nested: &LoadedMaps) -> Result<()> {
+// The checkpoint course is one sequence over the placed map tree: it starts
+// at a checkpoint numbered 0, and a zone's `until_checkpoint` names a
+// number placed somewhere in it; `nested` holds the placed definitions alone.
+pub(super) fn validate_checkpoint_course(root: &MapDef, nested: &LoadedMaps) -> Result<()> {
     let definitions: Vec<(String, &MapDef)> = once(("the root map".to_owned(), root))
         .chain(
             nested
@@ -801,21 +765,17 @@ pub(super) fn validate_checkpoint_references(root: &MapDef, nested: &LoadedMaps)
                 .map(|(name, def)| (format!("nested geometry {name:?}"), def)),
         )
         .collect();
-    let mut numbers: HashMap<u32, &str> = HashMap::new();
-    for (owner, def) in &definitions {
-        for checkpoint in &def.checkpoints {
-            if let Some(previous) = numbers.insert(checkpoint.number, owner) {
-                return Err(anyhow!(
-                    "checkpoint number {} in {owner} is already used in {previous}",
-                    checkpoint.number
-                ));
-            }
-        }
+    let numbers: BTreeSet<u32> = definitions
+        .iter()
+        .flat_map(|(_, def)| def.checkpoints.iter().map(|checkpoint| checkpoint.number))
+        .collect();
+    if !numbers.contains(&0) {
+        return Err(anyhow!("the placed map has no checkpoint numbered 0, the start"));
     }
     for (owner, def) in &definitions {
         for (idx, zone) in def.actor_spawn_zones.iter().enumerate() {
             if let Some(until) = zone.until_checkpoint
-                && !numbers.contains_key(&until)
+                && !numbers.contains(&until)
             {
                 return Err(anyhow!(
                     "actor_spawn_zones[{idx}] in {owner}: until_checkpoint {until} names no checkpoint"
@@ -830,18 +790,6 @@ fn validate_checkpoints(map_def: &MapDef) -> Result<()> {
     for (index, checkpoint) in map_def.checkpoints.iter().enumerate() {
         let label = format!("checkpoints[{index}]");
         validate_zone_placement(checkpoint, &label, map_def)?;
-        if checkpoint.number == 0 {
-            return Err(anyhow!("{label}: number must be at least 1"));
-        }
-        if map_def.checkpoints[..index]
-            .iter()
-            .any(|other| other.number == checkpoint.number)
-        {
-            return Err(anyhow!(
-                "{label}: number {} is already used by another checkpoint",
-                checkpoint.number
-            ));
-        }
         let zone = &checkpoint.zone;
         let floors: BTreeSet<_> = map_def.levels[zone.level as usize]
             .floors

@@ -122,7 +122,7 @@ class DocumentTests(unittest.TestCase):
 
     def test_an_edit_that_only_reorders_a_file_ordered_map_is_not_an_edit(self):
         data = empty_map(6, 6)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [
             {"col": 3, "row": 3, "all": DEFAULT_ALIAS},
             {"col": 1, "row": 1, "all": DEFAULT_ALIAS},

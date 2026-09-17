@@ -19,7 +19,6 @@ from .constants import (
     ITEM_KEY_TYPE,
     ITEM_TYPES,
     MODE_ACTOR_SPAWN_ZONE,
-    MODE_PLAYER_SPAWN_ZONE,
     MODE_BARRIER,
     MODE_FLOOR,
     MODE_INACCESSIBLE_FLOOR,
@@ -31,6 +30,7 @@ from .constants import (
     MODE_PRESSURE_PLATE,
     MODE_WALL,
     RAMP_MODES,
+    START_CHECKPOINT,
 )
 from .checkpoint_numbers import next_checkpoint_number, used_numbers
 from .dialogs import ActorSpawnFieldsDialog, MotionDialog
@@ -52,6 +52,7 @@ class ToolSettings(QWidget):
         self.key_controls = None
         self.material_permission = None
         self.actor_count = None
+        self.checkpoint_type = None
         self.row = QHBoxLayout(self)
         self.row.setContentsMargins(8, 0, 0, 0)
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
@@ -74,7 +75,7 @@ class ToolSettings(QWidget):
                 if widget.text() != value:
                     widget.setText(value)
             else:
-                if attribute in ("recent_player_spawn_levels", "selection_levels"):
+                if attribute == "selection_levels":
                     widget.setMaximum(max(1, len(self.window.map_data["levels"]) - self.window.current_level))
                 widget.setValue(value)
             widget.blockSignals(False)
@@ -88,6 +89,13 @@ class ToolSettings(QWidget):
         if self.key_controls is not None:
             for widget in self.key_controls:
                 widget.setVisible(self.window.recent_item_type == ITEM_KEY_TYPE)
+        self.sync_checkpoint_type()
+
+    # The start has no type of its own.
+    def sync_checkpoint_type(self) -> None:
+        if self.checkpoint_type is not None:
+            for widget in self.checkpoint_type:
+                widget.setEnabled(self.window.recent_checkpoint_number != START_CHECKPOINT)
 
     def refresh(self) -> None:
         window = self.window
@@ -113,6 +121,7 @@ class ToolSettings(QWidget):
         self.key_controls = None
         self.material_permission = None
         self.actor_count = None
+        self.checkpoint_type = None
         body = QWidget()
         form = QHBoxLayout(body)
         form.setContentsMargins(0, 0, 0, 0)
@@ -167,19 +176,24 @@ class ToolSettings(QWidget):
             box.valueChanged.connect(lambda value: setattr(window, attribute, value))
             self.bindings.append((box, attribute))
             field(label, box)
+            return box
 
         def checkpoint_controls():
-            # The next free number, unless the author typed one the map does not use yet.
-            if window.recent_checkpoint_number in used_numbers(window.doc.root_data):
+            # The next free number, unless the author typed one the map does
+            # not use yet; a start stands, since starts come several at a time.
+            recent = window.recent_checkpoint_number
+            if recent != START_CHECKPOINT and recent in used_numbers(window.doc.root_data):
                 window.recent_checkpoint_number = next_checkpoint_number(window.doc.root_data)
-            number("Number", "recent_checkpoint_number", 1, 999_999)
-            box = CompactComboBox()
-            for kind, label in CHECKPOINT_TYPE_LABELS.items():
-                box.addItem(label, kind)
-            box.setCurrentIndex(box.findData(window.recent_checkpoint_type))
-            box.currentIndexChanged.connect(lambda _: setattr(window, "recent_checkpoint_type", box.currentData()))
-            self.bindings.append((box, "recent_checkpoint_type"))
-            field("Type", box)
+            box = number("Number", "recent_checkpoint_number", START_CHECKPOINT, 999_999)
+            kind = CompactComboBox()
+            for value, label in CHECKPOINT_TYPE_LABELS.items():
+                kind.addItem(label, value)
+            kind.setCurrentIndex(kind.findData(window.recent_checkpoint_type))
+            kind.currentIndexChanged.connect(lambda _: setattr(window, "recent_checkpoint_type", kind.currentData()))
+            self.bindings.append((kind, "recent_checkpoint_type"))
+            self.checkpoint_type = (kind, field("Type", kind))
+            box.valueChanged.connect(lambda _: self.sync_checkpoint_type())
+            self.sync_checkpoint_type()
 
         def item_controls():
             item, _ = combo("Item", "recent_item_type", list(ITEM_TYPES), required=True)
@@ -268,9 +282,6 @@ class ToolSettings(QWidget):
             ),
             MODE_CHECKPOINT: checkpoint_controls,
             MODE_ACTOR_SPAWN_ZONE: actor_controls,
-            MODE_PLAYER_SPAWN_ZONE: lambda: number(
-                "Levels", "recent_player_spawn_levels", 1, max(1, len(window.map_data["levels"]) - window.current_level)
-            ),
             MODE_BARRIER: lambda: field_controls(True),
             MODE_PRESSURE_PLATE: lambda: combo(
                 "Switch", "recent_pressure_plate_switch", window.switches, colors=window.switch_colors

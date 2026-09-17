@@ -9,7 +9,8 @@ use crate::{
     combat::{DeathSource, kill_player},
     config::ServerGameplayConfig,
     network::{SharedWorld, broadcast_firework_show, broadcast_to_all},
-    players::{PlayerCheckpoint, PlayerMap, PlayerStateQuery, checkpoint_numbered},
+    players::{PlayerMap, PlayerStateQuery, checkpoint_numbered, place_player_body, player_spawn_destination},
+    portals::PortalAssignments,
     quests::{QuestBoard, QuestCatalog, complete_quest, unlock_quest},
 };
 use common::{
@@ -34,6 +35,7 @@ pub(super) fn run_admin_command(
     admin: &mut AdminContext,
     player_data: &PlayerStateQuery,
     world: &SharedWorld,
+    portal_assignments: &PortalAssignments,
     pending_actor_spawns: &mut PendingActorSpawns,
     quest_board: &mut QuestBoard,
     command: &str,
@@ -155,24 +157,66 @@ pub(super) fn run_admin_command(
             let Some(info) = players.get(&sender) else {
                 return Private("sender not found".to_owned());
             };
-            Private(match info.session.checkpoint {
-                Some(saved) => format!("checkpoint: {}", world.map_layout.checkpoints[saved.id.0].number),
-                None => "no checkpoint saved".to_owned(),
-            })
+            Private(format!("checkpoint: {}", info.session.checkpoint.number))
         }
         AdminCommand::SetCheckpoint(number) => {
-            let checkpoints = &world.map_layout.checkpoints;
-            let id = match checkpoint_numbered(checkpoints, number) {
-                Ok(id) => id,
+            let saved = match checkpoint_numbered(&world.map_layout.checkpoints, number) {
+                Ok(saved) => saved,
                 Err(message) => return Private(message),
             };
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };
-            info.session.checkpoint = Some(PlayerCheckpoint::toward_origin(id, checkpoints, &world.carriers));
+            info.session.checkpoint = saved;
             Private(format!("checkpoint set to {number}"))
         }
         AdminCommand::CheckpointUsage => Private("usage: /checkpoint [number]".to_owned()),
+        // A relocation like the void rescue: the living body moves to its
+        // saved checkpoint with its health, equipment, and score intact.
+        AdminCommand::Return => {
+            let Some(info) = players.get(&sender) else {
+                return Private("sender not found".to_owned());
+            };
+            let Some(entity) = info.entity() else {
+                return Private("dead: the respawn returns you".to_owned());
+            };
+            let Ok((_, _, health)) = player_data.get(entity) else {
+                return Private("sender has no body".to_owned());
+            };
+            let health = *health;
+            let saved = info.session.checkpoint;
+            let occupied: Vec<_> = players
+                .values()
+                .filter(|player| player.connection.logged_in && player.entity() != Some(entity))
+                .filter_map(|player| player.entity().and_then(|entity| player_data.get(entity).ok()))
+                .map(|(pos, _, _)| *pos)
+                .collect();
+            let Some(spawn) = player_spawn_destination(
+                &world.map_config,
+                &world.map_layout.checkpoints,
+                &world.carriers,
+                &world.collision_world,
+                &occupied,
+                world.gameplay_config.player.physics(),
+                saved,
+            ) else {
+                return Private(format!("checkpoint {} is blocked", saved.number));
+            };
+            if let Some(info) = players.get_mut(&sender) {
+                info.advance_body();
+            }
+            place_player_body(
+                commands,
+                players,
+                sender,
+                entity,
+                &spawn,
+                health,
+                tick,
+                portal_assignments.get(&sender),
+            );
+            Private(format!("returned to checkpoint {}", saved.number))
+        }
         AdminCommand::GiveKeys => {
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());

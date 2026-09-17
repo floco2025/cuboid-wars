@@ -168,7 +168,7 @@ fn hotel_sized_snapshot_takes_the_retransmitted_channel() {
                 held_keys: Vec::new(),
                 missiles: 0,
                 portal_access: PortalAccess::None,
-                checkpoint: None,
+                checkpoint: 0,
             },
         )
     };
@@ -210,7 +210,7 @@ fn hotel_sized_snapshot_takes_the_retransmitted_channel() {
         missiles: Vec::new(),
         switch_state: SwitchState::default(),
         quests: Vec::new(),
-        shared_checkpoint: None,
+        shared_checkpoint: 0,
         locked_switches: Vec::new(),
         cloud_cover: 0.0,
         raining: false,

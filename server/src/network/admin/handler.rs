@@ -8,6 +8,7 @@ use crate::{
     map::WeatherState,
     network::{FeedAudience, FeedEvent, SharedWorld, emit_feed},
     players::{Invincibility, PlayerInfo, PlayerMap, PlayerStateQuery},
+    portals::PortalAssignments,
     quests::{QuestBoard, QuestCatalog},
 };
 use common::{
@@ -42,6 +43,7 @@ pub fn handle_admin_message(
     admin: &mut AdminContext,
     player_data: &PlayerStateQuery,
     world: &SharedWorld,
+    portal_assignments: &PortalAssignments,
     pending_actor_spawns: &mut PendingActorSpawns,
     quest_board: &mut QuestBoard,
     msg: &CAdmin,
@@ -58,6 +60,7 @@ pub fn handle_admin_message(
             admin,
             player_data,
             world,
+            portal_assignments,
             pending_actor_spawns,
             quest_board,
             &msg.command,

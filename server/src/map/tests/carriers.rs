@@ -17,7 +17,7 @@ fn carrier_fixture(settings: &MapSettings) -> MapLayout {
     let text = format!(
         r#"{{"map": {{
             "grid_cols": 8, "grid_rows": 8,
-            "player_spawn_zones": [{{"level": 0, "cols": [0, 1], "rows": [0, 1]}}],
+            "checkpoints": [{{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 0}}],
             "levels": [{{"floors": [{}]}}, {{}}],
             "nested_maps": [
                 {{"map": "tile", "level": 0, "from": [2, 2], "to": [6, 2], "travel_secs": 2.0, "pause_secs": 0.5}},

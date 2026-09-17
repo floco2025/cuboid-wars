@@ -9,12 +9,7 @@ use common::protocol::{
     PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus, ServerMessage,
 };
 
-use super::{CheckpointId, PendingOutcomes, PlayerCheckpoint, PowerUpState};
-
-// The wire form of a checkpoint id.
-pub(crate) fn checkpoint_index(id: CheckpointId) -> u16 {
-    u16::try_from(id.0).expect("checkpoint index exceeds u16")
-}
+use super::{CheckpointEntry, CheckpointId, PendingOutcomes, PlayerCheckpoint, PowerUpState};
 
 pub type PlayerStateQuery<'w, 's> =
     Query<'w, 's, (&'static Position, &'static FaceYaw, &'static Health), With<PlayerMarker>>;
@@ -27,7 +22,7 @@ pub struct Invincibility(pub bool);
 #[derive(Resource, Debug, Clone, Copy, Default)]
 pub(crate) struct LoginStart {
     pub spawn: Option<Position>,
-    pub checkpoint: Option<CheckpointId>,
+    pub checkpoint: Option<PlayerCheckpoint>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,8 +81,9 @@ pub struct PlayerSession {
     pub last_move_seq: u32,
     pub score: i32,
     pub quest_states: HashMap<QuestId, PlayerQuestState>,
-    pub checkpoint: Option<PlayerCheckpoint>,
-    pub checkpoint_visits: BTreeMap<CheckpointId, Vec3>,
+    pub checkpoint: PlayerCheckpoint,
+    // A `group_all` visit per checkpoint number, until one activates.
+    pub checkpoint_visits: BTreeMap<u32, CheckpointEntry>,
 }
 
 enum PlayerLifecycle {
@@ -329,7 +325,7 @@ impl PlayerInfo {
             held_keys: self.life.held_keys.clone(),
             missiles: self.life.missiles,
             portal_access,
-            checkpoint: self.session.checkpoint.map(|saved| checkpoint_index(saved.id)),
+            checkpoint: self.session.checkpoint.number,
         }
     }
 
@@ -352,7 +348,7 @@ pub struct PlayerMap {
     group_respawn: Option<f32>,
     actor_reset_timers: Vec<f32>,
     resets: Vec<PlayerResetCounts>,
-    pub(crate) shared_checkpoint: Option<PlayerCheckpoint>,
+    pub(crate) shared_checkpoint: PlayerCheckpoint,
 }
 
 pub(crate) struct PlayerResetCounts {
@@ -491,7 +487,7 @@ impl PlayerMap {
             self.record_reset(PlayerResetCounts { logged_in, alive }, delay);
         }
         if !self.values().any(|player| player.connection.logged_in) {
-            self.shared_checkpoint = None;
+            self.shared_checkpoint = PlayerCheckpoint::START;
         }
         Some(info)
     }

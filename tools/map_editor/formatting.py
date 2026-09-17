@@ -50,17 +50,6 @@ def _actor_spawn_zone_body(zone: dict) -> str:
     return _inline_object_body(body)
 
 
-def _player_spawn_zone_body(zone: dict) -> str:
-    return _inline_object_body(
-        {
-            "level": zone["level"],
-            "cols": zone["cols"],
-            "rows": zone["rows"],
-            **({"levels": zone["levels"]} if "levels" in zone else {}),
-        }
-    )
-
-
 def _checkpoint_body(zone: dict) -> str:
     body = {"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "type": zone["type"]}
     if "number" in zone:
@@ -98,9 +87,6 @@ def format_map_file(wrapper: dict) -> str:
         f'    "grid_rows": {map_data["grid_rows"]},',
         *with_trailing_comma(
             format_object_array("actor_spawn_zones", map_data["actor_spawn_zones"], _actor_spawn_zone_body, 4)
-        ),
-        *with_trailing_comma(
-            format_object_array("player_spawn_zones", map_data["player_spawn_zones"], _player_spawn_zone_body, 4)
         ),
         *with_trailing_comma(format_object_array("checkpoints", map_data.get("checkpoints", []), _checkpoint_body, 4)),
         *with_trailing_comma(

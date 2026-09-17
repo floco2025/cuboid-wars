@@ -17,8 +17,8 @@ use common::{
     map::Carriers,
     physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, character_positions_intersect},
     protocol::{
-        ActorAnchor, ActorMarker, ActorMoveIntent, BarrierId, FaceYaw, Health, MapLayout, MapSettings, PlayerMarker,
-        Position, ServerTick, SwitchState, sequence_is_newer,
+        ActorAnchor, ActorMarker, ActorMoveIntent, BarrierId, FaceYaw, Health, MapSettings, PlayerMarker, Position,
+        ServerTick, SwitchState, sequence_is_newer,
     },
 };
 
@@ -63,10 +63,9 @@ pub fn actors_respawn_system(
     players: Query<&Position, With<PlayerMarker>>,
     actor_positions: Query<(&Position, &ActorCharacter), (With<ActorMarker>, Without<PlayerMarker>)>,
     player_map: Res<PlayerMap>,
-    layout: Res<MapLayout>,
 ) {
     let player_count = player_map.logged_in_count();
-    let progress = checkpoint_progress(&player_map, &layout.checkpoints);
+    let progress = checkpoint_progress(&player_map);
     for zone_idx in actors.drain_vacated_spawn_zones() {
         if let Some(zone) = map_config.actor_spawn_zones.get(zone_idx) {
             spawner.refills.entry(zone_idx).or_default().push(zone.respawn_secs);

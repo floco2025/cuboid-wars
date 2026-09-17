@@ -6,11 +6,9 @@ fn spawn_volumes_validate_all_levels_and_allow_zero_roam_extension() {
         4,
         vec![level(Vec::new()), level(Vec::new())],
         vec![actor_zone(0, 0, 0)],
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map.actor_spawn_zones[0].levels = 2;
-    map.player_spawn_zones[0].levels = 2;
     validate_map(&map).expect("valid spawn volumes rejected");
     for distance in [-1.0, f32::NAN, f32::INFINITY] {
         map.actor_spawn_zones[0].roam_distance = distance;
@@ -21,9 +19,6 @@ fn spawn_volumes_validate_all_levels_and_allow_zero_roam_extension() {
         map.actor_spawn_zones[0].levels = span;
         assert!(validate_map(&map).is_err());
         map.actor_spawn_zones[0].levels = 2;
-        map.player_spawn_zones[0].levels = span;
-        assert!(validate_map(&map).is_err());
-        map.player_spawn_zones[0].levels = 2;
     }
 }
 
@@ -35,7 +30,6 @@ fn validation_accepts_actor_zone_without_floor() {
         4,
         vec![level(vec![[0, 0]]), level(vec![[1, 0]])],
         vec![actor_zone(1, 0, 0)],
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
 
@@ -48,7 +42,6 @@ fn validation_accepts_actor_zone_on_higher_level_floor() {
         4,
         vec![level(vec![[1, 0]]), level(vec![[0, 0]])],
         vec![actor_zone(1, 0, 0)],
-        vec![player_zone(0, 1, 0)],
         Vec::new(),
     );
 
@@ -64,24 +57,10 @@ fn validation_accepts_actor_zone_overlapping_inaccessible_floor() {
         4,
         vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
         vec![actor_zone(0, 1, 0)],
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
 
     validate_map(&map_def).expect("actor zone overlapping inaccessible floor should load");
-}
-
-#[test]
-fn validation_accepts_player_zone_overlapping_inaccessible_floor() {
-    let map_def = map_with_zones(
-        4,
-        vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 1, 0)],
-        Vec::new(),
-    );
-
-    validate_map(&map_def).expect("player zone overlapping inaccessible floor should load");
 }
 
 #[test]
@@ -92,24 +71,10 @@ fn validation_accepts_actor_zone_overlapping_ramp_footprint() {
         4,
         vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
         vec![actor_zone(1, 0, 0)],
-        vec![player_zone(0, 3, 3)],
         vec![ramp([0, 0], [1, 2], 1)],
     );
 
     validate_map(&map_def).expect("actor zone overlapping ramp footprint should load");
-}
-
-#[test]
-fn validation_accepts_player_zone_overlapping_ramp_footprint() {
-    let map_def = map_with_zones(
-        4,
-        vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
-        vec![],
-        vec![player_zone(1, 0, 0)],
-        vec![ramp([0, 0], [1, 2], 1)],
-    );
-
-    validate_map(&map_def).expect("player zone overlapping ramp footprint should load");
 }
 
 #[test]
@@ -134,7 +99,6 @@ fn validation_rejects_actor_zone_with_empty_kind() {
             until_checkpoint: None,
             on_checkpoint: None,
         }],
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
 
@@ -166,7 +130,6 @@ fn validation_accepts_unknown_kind_strings() {
             until_checkpoint: None,
             on_checkpoint: None,
         }],
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
 
@@ -176,26 +139,14 @@ fn validation_accepts_unknown_kind_strings() {
 #[test]
 fn validation_accepts_empty_actor_spawn_zones() {
     // A map with no enemies is valid.
-    let map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
 
     validate_map(&map_def).expect("empty actor zones should be allowed");
 }
 
 #[test]
 fn validation_accepts_barrier_on_empty_edge() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
         switch: None,
         switch_inverted: false,
@@ -211,13 +162,7 @@ fn validation_accepts_barrier_on_empty_edge() {
 
 #[test]
 fn validation_rejects_barrier_overlapping_wall() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].walls.push(WallDef {
         c0: 0,
         r0: 0,
@@ -254,7 +199,6 @@ fn validate_rejects_a_light_bridge_on_a_ramp() {
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         vec![ramp([1, 0], [3, 1], 0)],
     );
     map_def.levels[0].light_bridges.push(bridge_def(1, 0));
@@ -296,7 +240,6 @@ fn validate_rejects_a_plate_without_a_floor_or_on_a_ramp() {
         4,
         vec![level_with_inaccessible(vec![[0, 0]], vec![[0, 1]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         vec![ramp([1, 0], [3, 1], 0)],
     );
     let plate = |level: u32, col: i32, row: i32| PressurePlateDef {
@@ -341,13 +284,7 @@ fn validate_rejects_duplicate_light_bridge_cells() {
 
 #[test]
 fn validation_rejects_terrain_out_of_bounds() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].terrain.push(cell_def(4, 0));
     let err = validate_map(&map_def).expect_err("out-of-bounds terrain must be rejected");
     assert!(err.to_string().contains("terrain"));
@@ -385,7 +322,6 @@ fn validation_rejects_terrain_on_floors_and_ramps() {
         4,
         vec![level(vec![[0, 0]]), level(Vec::new())],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         vec![ramp([1, 1], [3, 2], 0)],
     );
     map_def.levels[0].terrain.push(cell_def(0, 0));
@@ -407,13 +343,7 @@ fn validation_rejects_terrain_on_floors_and_ramps() {
 
 #[test]
 fn validation_rejects_item_outside_grid() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 4, 0, "gold", None));
     let err = validate_map(&map_def).expect_err("out-of-bounds item must be rejected");
     assert!(err.to_string().contains("col"));
@@ -421,13 +351,7 @@ fn validation_rejects_item_outside_grid() {
 
 #[test]
 fn validation_rejects_key_item_without_kind() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 0, 0, "key", None));
     let err = validate_map(&map_def).expect_err("key without kind must be rejected");
     assert!(err.to_string().contains("kind"));
@@ -435,13 +359,7 @@ fn validation_rejects_key_item_without_kind() {
 
 #[test]
 fn validation_rejects_kind_on_non_key_item() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 0, 0, "gold", Some("red")));
     let err = validate_map(&map_def).expect_err("kind on non-key item must be rejected");
     assert!(err.to_string().contains("only key items"));
@@ -449,13 +367,7 @@ fn validation_rejects_kind_on_non_key_item() {
 
 #[test]
 fn validation_rejects_unknown_item_type() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 0, 0, "banana", None));
     let err = validate_map(&map_def).expect_err("unknown item type must be rejected");
     assert!(err.to_string().contains("unknown item type"));
@@ -463,13 +375,7 @@ fn validation_rejects_unknown_item_type() {
 
 #[test]
 fn validation_rejects_duplicate_item_cell() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 0, 0, "gold", None));
     map_def.items.push(item_def(0, 0, 0, "speed", None));
     let err = validate_map(&map_def).expect_err("two items on one cell must be rejected");
@@ -478,13 +384,7 @@ fn validation_rejects_duplicate_item_cell() {
 
 #[test]
 fn validation_rejects_duplicate_barrier() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
         switch: None,
         switch_inverted: false,
@@ -515,7 +415,6 @@ fn validation_accepts_stacked_non_overlapping_ladders() {
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 1));
@@ -530,7 +429,6 @@ fn validation_rejects_ladder_span_past_top_level() {
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 2));
@@ -548,7 +446,6 @@ fn validation_rejects_zero_storey_ladder() {
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 0));
@@ -566,7 +463,6 @@ fn validation_rejects_overlapping_ladders_on_same_edge() {
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 2));
@@ -584,7 +480,6 @@ fn validation_rejects_mirrored_ladders_on_same_edge() {
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 1));
@@ -600,7 +495,6 @@ fn validation_rejects_out_of_bounds_ladder() {
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map_def.ladders.push(ladder(0, 5, 0, WallSide::East, 1));
@@ -619,13 +513,7 @@ fn eraser_validation_rejects_duplicates_diagonals_and_out_of_bounds_edges() {
         vec![[1, 0, 2, 1]],
         vec![[-1, 0, 0, 0]],
     ] {
-        let mut definition = map_with_zones(
-            4,
-            vec![level(vec![[0, 0]])],
-            Vec::new(),
-            vec![player_zone(0, 0, 0)],
-            Vec::new(),
-        );
+        let mut definition = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
         definition.levels[0].erasers = edges
             .into_iter()
             .map(|[c0, r0, c1, r1]| EraserDef { c0, r0, c1, r1 })
@@ -645,7 +533,6 @@ fn canonicalize_keeps_zones_that_differ_only_by_switch() {
             actor_zone(0, 0, 0),
             actor_zone(0, 0, 0),
         ],
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map_def.actor_spawn_zones[0].switch = Some("guards".into());
@@ -666,13 +553,7 @@ fn canonicalize_keeps_zones_that_differ_only_by_switch() {
 
 #[test]
 fn validate_rejects_empty_switch_names() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        vec![actor_zone(0, 0, 0)],
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], vec![actor_zone(0, 0, 0)], Vec::new());
     map_def.pressure_plates.push(plate_def(0, 0, 0, ""));
     let err = validate_map(&map_def).expect_err("a plate with an empty switch accepted");
     assert!(
@@ -692,7 +573,7 @@ fn validate_rejects_empty_switch_names() {
 #[test]
 fn actor_count_lists_validate_and_canonicalize() {
     let mut zone = actor_zone(0, 0, 0);
-    let mut map = map_with_zones(4, vec![level(Vec::new())], vec![zone.clone()], vec![], vec![]);
+    let mut map = map_with_zones(4, vec![level(Vec::new())], vec![zone.clone()], vec![]);
     for counts in [vec![], vec![2, 1]] {
         map.actor_spawn_zones[0].count = counts;
         let error = validate_map(&map).expect_err("invalid count list");

@@ -25,9 +25,9 @@ mod resources_tests;
 #[path = "tests/respawn.rs"]
 pub(crate) mod respawn_tests;
 
-pub use checkpoints::{CheckpointId, PlayerCheckpoint};
+pub use checkpoints::{CheckpointEntry, CheckpointId, PlayerCheckpoint};
 pub(crate) use checkpoints::{
-    checkpoint_at_position, checkpoint_numbered, checkpoint_progress, checkpoints_exist, players_checkpoints_system,
+    checkpoint_at_position, checkpoint_numbered, checkpoint_progress, players_checkpoints_system,
 };
 pub use equipment::erase_equipment_system;
 pub use falling::{players_fall_damage_system, players_fatal_outcomes_system};
@@ -39,9 +39,8 @@ pub use plugin::players_plugin;
 pub use power_ups::PowerUpState;
 
 pub(crate) use resources::LoginStart;
-pub(crate) use resources::checkpoint_index;
 pub use resources::{Invincibility, PlayerInfo, PlayerMap, PlayerQuestState, PlayerStateQuery};
 pub use respawn::players_respawn_system;
 pub use status::players_status_timers_system;
 
-pub(crate) use spawning::{PlayerSpawn, place_player_body, player_spawn_destination, spawn_zone_destination};
+pub(crate) use spawning::{PlayerSpawn, place_player_body, player_spawn_destination, start_destination};

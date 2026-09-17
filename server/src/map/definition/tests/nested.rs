@@ -1,4 +1,4 @@
-use super::*;
+use super::{super::schema::CheckpointDef, *};
 use common::protocol::CarrierMotion;
 
 fn motion(level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> MotionDef {
@@ -27,13 +27,7 @@ fn nested(map: &str, level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) ->
 }
 
 fn barrier_corridor() -> MapDef {
-    let mut map = map_with_zones(
-        3,
-        vec![level(vec![[0, 0], [1, 0], [2, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map = map_with_zones(3, vec![level(vec![[0, 0], [1, 0], [2, 0]])], Vec::new(), Vec::new());
     for (col, kind) in [(1, "red"), (2, "blue")] {
         map.levels[0].barriers.push(BarrierDef {
             switch: (kind == "red").then(|| "red".into()),
@@ -136,13 +130,7 @@ fn a_deeply_nested_plate_allows_actor_routes_through_a_siblings_barriers() {
 
 #[test]
 fn firework_plate_does_not_open_any_barrier_kind() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
         switch: None,
         switch_inverted: false,
@@ -181,7 +169,6 @@ fn room() -> MapDef {
             level(vec![[0, 0]]),
         ],
         vec![actor_zone(0, 1, 1)],
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map_def.grid_rows = 2;
@@ -191,6 +178,15 @@ fn room() -> MapDef {
         c1: 1,
         r1: 0,
         materials: FaceMaterials::uniform("test"),
+    });
+    map_def.checkpoints.push(CheckpointDef {
+        zone: ZoneDef {
+            level: 0,
+            cols: [0, 1],
+            rows: [0, 1],
+        },
+        kind: common::protocol::CheckpointKind::Individual,
+        number: 0,
     });
     map_def.items.push(ItemDef {
         level: 0,
@@ -214,7 +210,6 @@ fn host(entries: Vec<NestedMapDef>) -> MapDef {
         6,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
     map_def.nested_maps = entries;
@@ -317,13 +312,6 @@ fn travel_time_sets_the_travel_ticks_whatever_the_distance() {
 fn validation_accepts_a_stationary_nested_map() {
     let map_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
     validate_map(&map_def).expect("a room placed once was rejected");
-}
-
-#[test]
-fn validation_accepts_a_file_without_player_spawn_zones() {
-    let mut map_def = room();
-    map_def.player_spawn_zones.clear();
-    validate_map(&map_def).expect("nested geometry without spawn zones was rejected");
 }
 
 #[test]
@@ -442,13 +430,13 @@ fn nested_actor_spawn_zones_carry_their_carrier() {
 }
 
 #[test]
-fn nested_player_spawn_zones_items_and_plates_carry_their_carrier() {
+fn nested_checkpoints_items_and_plates_carry_their_carrier() {
     use common::protocol::CarrierId;
 
     let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
-    let (_, config) = compile_host(&host_def, &tree(vec![("room", room())]));
-    assert_eq!(config.player_spawn_zones.len(), 2);
-    assert_eq!(config.player_spawn_zones[1].carrier, CarrierId(1));
+    let (layout, config) = compile_host(&host_def, &tree(vec![("room", room())]));
+    assert_eq!(layout.checkpoints.len(), 1);
+    assert_eq!(layout.checkpoints[0].carrier, CarrierId(1));
     assert_eq!(config.placed_items.len(), 1);
     assert_eq!(config.placed_items[0].carrier, CarrierId(1));
     assert_eq!(config.pressure_plates.len(), 1);

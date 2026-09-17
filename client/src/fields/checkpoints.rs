@@ -24,17 +24,17 @@ use crate::{
 #[derive(Component)]
 pub struct CheckpointMarker;
 
-// The group's claimed checkpoint from the snapshot, an index into `MapLayout.checkpoints`.
+// The number of the group's claimed checkpoint from the snapshot.
 #[derive(Resource, Default, PartialEq, Eq)]
-pub struct SharedCheckpoint(pub Option<u16>);
+pub struct SharedCheckpoint(pub u32);
 
 #[derive(Component)]
 pub(crate) struct CheckpointPennant {
-    index: u16,
+    number: u32,
 }
 
 #[derive(Component)]
-pub(crate) struct CheckpointBadge(u16);
+pub(crate) struct CheckpointBadge(u32);
 
 #[derive(Resource)]
 pub(crate) struct CheckpointAssets {
@@ -219,8 +219,9 @@ pub(crate) fn checkpoints_spawn_system(
         commands.entity(entity).despawn();
     }
     let mut paint_materials = HashMap::new();
-    for (index, checkpoint) in layout.checkpoints.iter().enumerate() {
-        let index = u16::try_from(index).expect("checkpoint index exceeds u16");
+    // The start has no flag or paint: nothing marks where players begin.
+    for checkpoint in layout.checkpoints.iter().filter(|checkpoint| checkpoint.number != 0) {
+        let number = checkpoint.number;
         let footprint = Rect::new(checkpoint.min_x, checkpoint.min_z, checkpoint.max_x, checkpoint.max_z);
         let center = footprint.center();
         commands
@@ -249,7 +250,7 @@ pub(crate) fn checkpoints_spawn_system(
                     Transform::from_xyz(0.0, CHECKPOINT_POLE_HEIGHT / 2.0, 0.0),
                 ));
                 parent.spawn((
-                    CheckpointPennant { index },
+                    CheckpointPennant { number },
                     Mesh3d(assets.pennant_mesh.clone()),
                     pennant_bounds(),
                     MeshMaterial3d(assets.unclaimed.clone()),
@@ -257,7 +258,7 @@ pub(crate) fn checkpoints_spawn_system(
                 ));
                 if checkpoint.kind != CheckpointKind::Individual {
                     parent.spawn((
-                        CheckpointBadge(index),
+                        CheckpointBadge(number),
                         Mesh3d(assets.badge_mesh.clone()),
                         MeshMaterial3d(assets.badge_unclaimed.clone()),
                         Transform::from_xyz(
@@ -284,9 +285,9 @@ pub(crate) fn checkpoint_pennants_system(
     mut pennants: Query<(&CheckpointPennant, &mut MeshMaterial3d<FlagMaterial>)>,
     mut badges: Query<(&CheckpointBadge, &mut MeshMaterial3d<StandardMaterial>)>,
 ) {
-    let mine = players.get(&my_player_id.0).and_then(|info| info.checkpoint);
+    let mine = players.get(&my_player_id.0).map(|info| info.checkpoint);
     for (pennant, mut material) in &mut pennants {
-        let wanted = if mine == Some(pennant.index) {
+        let wanted = if mine == Some(pennant.number) {
             &assets.claimed
         } else {
             &assets.unclaimed
@@ -297,7 +298,7 @@ pub(crate) fn checkpoint_pennants_system(
         }
     }
     for (badge, mut material) in &mut badges {
-        let wanted = if shared.0 == Some(badge.0) {
+        let wanted = if shared.0 == badge.0 {
             &assets.badge_claimed
         } else {
             &assets.badge_unclaimed

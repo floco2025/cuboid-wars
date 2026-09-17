@@ -8,9 +8,10 @@ from .constants import (
     ACTOR_ZONE_LIST,
     CHECKPOINT_LIST,
     MODE_RAMP_UP,
-    PLAYER_ZONE_LIST,
+    START_CHECKPOINT,
+    START_CHECKPOINT_TYPE,
 )
-from .checkpoint_numbers import next_checkpoint_number, used_numbers
+from .checkpoint_numbers import next_checkpoint_number
 from .dialogs import ActorSpawnFieldsDialog, KindDialog
 from .dialogs.controls import FieldPropertiesDialog
 from .editing import (
@@ -108,32 +109,22 @@ class PlacementMixin:
         self.recent_actor_on_checkpoint = response or "stop"
         self.apply_change("Paint Actor Spawn Zone", after)
 
-    def add_player_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        self._add_zone_rect(PLAYER_ZONE_LIST, "Player Spawn Zone", start, end)
-
+    # The toolbar number stays after a start is placed: starts come several at a time.
     def add_checkpoint_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        self._add_zone_rect(CHECKPOINT_LIST, "Checkpoint", start, end)
-
-    def _add_zone_rect(self, list_name: str, label: str, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
+        number = self.recent_checkpoint_number
         after = copy.deepcopy(self.map_data)
-        new_zone = {
-            "level": self.current_level,
-            "cols": [c0, c1],
-            "rows": [r0, r1],
-        }
-        if list_name == CHECKPOINT_LIST:
-            number = self.recent_checkpoint_number
-            if number in used_numbers(self.doc.root_data):
-                self.notify(f"Checkpoint number {number} is already in use. Choose another number.")
-                return
-            new_zone["type"] = self.recent_checkpoint_type
-            new_zone["number"] = number
-        else:
-            new_zone["levels"] = min(self.recent_player_spawn_levels, len(self.map_data["levels"]) - self.current_level)
-        after[list_name].append(new_zone)
-        self.apply_change(f"Paint {label}", after)
-        if list_name == CHECKPOINT_LIST:
+        after[CHECKPOINT_LIST].append(
+            {
+                "level": self.current_level,
+                "cols": [c0, c1],
+                "rows": [r0, r1],
+                "type": START_CHECKPOINT_TYPE if number == START_CHECKPOINT else self.recent_checkpoint_type,
+                "number": number,
+            }
+        )
+        self.apply_change("Paint Checkpoint", after)
+        if number != START_CHECKPOINT:
             self.recent_checkpoint_number = next_checkpoint_number(self.doc.root_data)
             self.tool_settings.sync_values()
 

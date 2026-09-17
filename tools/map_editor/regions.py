@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass
 
-from .constants import CHECKPOINT_LIST, LIGHT_SIDES, ZONE_LISTS
+from .constants import ACTOR_ZONE_LIST, CHECKPOINT_LIST, LIGHT_SIDES
 from .geometry import rects_overlap, wall_endpoints_for_cell_side, wall_overlaps_rect
 from .normalization import edge_key, empty_level, empty_map
 from .transforms import EDGE_LISTS, GLOBAL_LISTS, LEVEL_LISTS, record_levels, record_rect, translate_map
@@ -58,7 +58,7 @@ def _whole_object(
 # The whole-object rule for every record spanning cells or levels; a
 # nested map's two ends are judged separately.
 WHOLE_OBJECT_NOUNS = {
-    **dict.fromkeys(ZONE_LISTS, "spawn zone"),
+    ACTOR_ZONE_LIST: "spawn zone",
     CHECKPOINT_LIST: "checkpoint",
     "ramps": "ramp",
     "ladders": "ladder",

@@ -192,7 +192,7 @@ class ContextEditingTests(WindowTestCase):
     def test_context_targets_the_clicked_object_then_keeps_an_existing_group(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, 1) for col in (1, 3, 5)]
         data["items"] = [{"level": 0, "col": col, "row": 1, "type": "gold"} for col in (1, 3, 5)]
         window.doc.replace_with_new(data)
@@ -217,7 +217,9 @@ class ContextEditingTests(WindowTestCase):
         window.copy_selection()
         actions = self.context((5.5, 5.5), "Paste")
         self.assertEqual(actions, ["Paste"])
-        self.assertEqual([(f["col"], f["row"]) for f in window.map_data["levels"][0]["floors"]], [(1, 1), (5, 5)])
+        self.assertEqual(
+            [(f["col"], f["row"]) for f in window.map_data["levels"][0]["floors"]], [(1, 1), (5, 5), (7, 7)]
+        )
         self.app.clipboard().clear()
         self.assertEqual(self.context((6.5, 6.5)), [])
         self.assertEqual(window.selection_refs(), [])
@@ -225,7 +227,7 @@ class ContextEditingTests(WindowTestCase):
     def test_context_inside_a_tile_area_keeps_the_area_as_its_target(self):
         window = self.window
         data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
+        data["checkpoints"] = []
         data["levels"][0]["floors"] = [floor(col, 1) for col in (1, 2, 5)]
         window.doc.replace_with_new(data)
         window.selection_kind_changed("Tiles")

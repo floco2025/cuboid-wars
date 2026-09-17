@@ -8,7 +8,7 @@ use anyhow::{Context, Result, bail, ensure};
 
 use super::{
     schema::{MapDef, MapFile, MapSource},
-    validation::{canonicalize, validate_checkpoint_references, validate_map},
+    validation::{canonicalize, validate_checkpoint_course, validate_map},
 };
 use crate::config::is_valid_map_name;
 
@@ -50,7 +50,7 @@ fn prepare_source(mut root: MapDef) -> Result<MapSource> {
     }
     // Unplaced definitions must not contribute pressure plates or checkpoints to compilation.
     nested_geometry.retain(|name, _| used.contains(name));
-    validate_checkpoint_references(&root, &nested_geometry)?;
+    validate_checkpoint_course(&root, &nested_geometry)?;
     Ok(MapSource {
         geometry: root,
         nested_geometry,

@@ -3,7 +3,7 @@ import unittest
 from editor_fixtures import DEFAULT_ALIAS, EditorHost, NESTED_SHAPES, faces, floor, nested
 from map_editor.constants import TERRAIN_FACES
 from map_editor.editing import paint_floors
-from map_editor.normalization import canonicalize_map, empty_level, empty_map
+from map_editor.normalization import canonicalize_map, empty_level, empty_map, normalize_map, started_map
 from map_editor.catalogs import MapCatalogs
 from map_editor.repairs import repair_summary
 from map_editor.validation import placed_definitions, validate_document, validate_map
@@ -35,12 +35,24 @@ class ValidationTests(unittest.TestCase):
         ):
             self.assertTrue(any(expected in error for error in errors), expected)
 
-    def test_one_tile_map_has_an_in_bounds_spawn_zone(self) -> None:
-        self.assertEqual(validate_map(empty_map(1, 1), [], []), [])
+    def test_a_new_map_seeds_an_in_bounds_start_and_a_started_map_floors_it(self) -> None:
+        data = empty_map(1, 1)
+        self.assertEqual(
+            data["checkpoints"], [{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 0}]
+        )
+        self.assertEqual(list(validate_map(data, [], [])), ["checkpoints[0] requires flat accessible floor throughout"])
+        data["levels"][0]["floors"] = [floor(0, 0)]
+        self.assertEqual(validate_map(data, [], []), [])
+        started = normalize_map(started_map(3, 3, "basement-floor"))
+        self.assertEqual(
+            sorted((f["col"], f["row"], f["top"]) for f in started["levels"][0]["floors"]),
+            [(0, 0, "basement-floor"), (0, 1, "basement-floor"), (1, 0, "basement-floor"), (1, 1, "basement-floor")],
+        )
+        self.assertEqual(validate_map(started, [], []), [])
 
     def test_valid_minimal_map_has_no_errors(self) -> None:
         data = empty_map(2, 2)
-        data["levels"][0]["floors"] = [floor(0, 0)]
+        data["levels"][0]["floors"] = [floor(col, row) for col in range(2) for row in range(2)]
         self.assertEqual(validate_map(data, [], []), [])
 
     def test_invalid_geometry_item_and_ladder_are_reported(self) -> None:
@@ -58,6 +70,7 @@ class ValidationTests(unittest.TestCase):
 
     def test_material_validation_uses_the_supplied_catalog(self) -> None:
         data = paint_floors(empty_map(), 0, (3, 3, 4, 4), "fresh_alias")
+        data["checkpoints"] = []
         self.assertFalse(validate_map(data, [], [], material_aliases=["fresh_alias"]))
         self.assertTrue(validate_map(data, [], [], material_aliases=[DEFAULT_ALIAS]))
 
@@ -207,7 +220,7 @@ class PressurePlateTests(unittest.TestCase):
 
     def test_fireworks_take_no_response_and_repair_drops_one(self) -> None:
         data = empty_map(2, 2)
-        data["levels"][0]["floors"] = [floor(0, 0)]
+        data["levels"][0]["floors"] = [floor(col, row) for col in range(2) for row in range(2)]
         data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "show"}]
         data["fireworks"] = {"switch": "show", "cooldown_secs": 5, "switch_inverted": True}
         catalogs = MapCatalogs({}, {}, 0.1, {DEFAULT_ALIAS: True}, ["show"])
@@ -251,6 +264,7 @@ class PressurePlateTests(unittest.TestCase):
 
     def test_plates_need_a_slab_outside_ramp_footprints(self) -> None:
         data = empty_map(4, 4)
+        data["checkpoints"] = []
         data["levels"].append(empty_level(1))
         data["levels"][0]["floors"] = [floor(0, 0), floor(1, 1)]
         data["levels"][0]["inaccessible_floors"] = [floor(3, 3)]
