@@ -2,8 +2,8 @@ use super::{CameraAim, CameraViewMode, MainCameraMarker};
 use crate::{
     actors::ActorMap,
     characters::ball_character_hit,
-    constants::CROSSHAIR_THIRD_PERSON_HEIGHT,
-    players::{LocalPlayerMarker, MyPlayerId, PlayerMap},
+    constants::{CAMERA_MAX_PITCH, CROSSHAIR_THIRD_PERSON_HEIGHT},
+    players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
 };
 use bevy::prelude::*;
 use common::{
@@ -19,6 +19,7 @@ pub fn camera_aim_system(
     view: Res<CameraViewMode>,
     camera: Query<(&Transform, &Projection), With<MainCameraMarker>>,
     local_player: Query<&Position, With<LocalPlayerMarker>>,
+    local_player_info: Res<LocalPlayerInfo>,
     characters: Query<(&Position, &FaceYaw)>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
@@ -37,7 +38,7 @@ pub fn camera_aim_system(
     let crosshair_height_offset = if view.is_first_person() {
         0.0
     } else {
-        CROSSHAIR_THIRD_PERSON_HEIGHT
+        third_person_crosshair_height(local_player_info.stored_pitch)
     };
     let direction = if view.is_first_person() {
         *camera.forward()
@@ -69,6 +70,16 @@ pub fn camera_aim_system(
         pitch: direction.y.clamp(-1.0, 1.0).asin(),
         crosshair_height_offset,
     };
+}
+
+// The shoulder camera rides over the player looking down and under them
+// looking up, so a fixed raise aims metres past the feet at a steep pitch.
+// Scaling it with the pitch lands the crosshair at the feet straight down and
+// on the ceiling overhead straight up, while the level view keeps the raise
+// that clears the head. The input pitch is used, not the camera's, so the
+// portal view tilt cannot move the reticle.
+fn third_person_crosshair_height(pitch: f32) -> f32 {
+    (CROSSHAIR_THIRD_PERSON_HEIGHT * (1.0 + pitch / CAMERA_MAX_PITCH)).max(0.0)
 }
 
 fn crosshair_direction(camera: &Transform, projection: &PerspectiveProjection, height_offset: f32) -> Vec3 {

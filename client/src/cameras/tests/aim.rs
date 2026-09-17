@@ -6,6 +6,14 @@ use common::{
 };
 
 #[test]
+fn crosshair_height_follows_pitch_from_feet_to_overhead() {
+    assert!(third_person_crosshair_height(-CAMERA_MAX_PITCH).abs() < 1e-6);
+    assert!((third_person_crosshair_height(0.0) - CROSSHAIR_THIRD_PERSON_HEIGHT).abs() < 1e-6);
+    assert!((third_person_crosshair_height(CAMERA_MAX_PITCH) - 2.0 * CROSSHAIR_THIRD_PERSON_HEIGHT).abs() < 1e-6);
+    assert!(third_person_crosshair_height(-CAMERA_MAX_PITCH * 0.5) < CROSSHAIR_THIRD_PERSON_HEIGHT);
+}
+
+#[test]
 fn raised_crosshair_ray_matches_projection_across_fovs_and_camera_rotations() {
     for fov in [60.0_f32, 90.0, 110.0] {
         let projection = PerspectiveProjection {

@@ -190,7 +190,7 @@ fn inward_scroll_while_obstruction_forces_first_person_clears_saved_zoom() {
 }
 
 #[test]
-fn crosshair_height_is_fixed_in_third_person_and_recentres_when_obstructed() {
+fn crosshair_height_ignores_zoom_distance_and_recentres_when_obstructed() {
     let (mut app, _, _) = app();
     app.update();
     assert_eq!(app.world().resource::<CameraAim>().crosshair_height_offset, 0.0);
