@@ -67,7 +67,7 @@ class ContentBounds:
 
 
 def map_content_bounds(
-    data: dict, *, nested_lookup=None, wall_width_cells=0.0, wall_height_levels=0.0
+    data: dict, *, nested_lookup=None, wall_width_cells=0.0, floor_height_levels=0.0
 ) -> ContentBounds:
     rectangles, spans = [], []
     for (level, name), entries in record_lists(data):
@@ -83,7 +83,8 @@ def map_content_bounds(
                 rectangles.extend(nested_map_footprints(entry, shape, wall_width_cells))
                 for end, end_level in (("from", entry["level"]), ("to", entry["to_level"])):
                     nudge = entry[end + "_nudge"]
-                    base = end_level + (nudge[1] * wall_height_levels if len(nudge) == 3 else 0)
+                    # compile.rs::carrier_from_motion scales y in floor thicknesses, x/z in wall widths.
+                    base = end_level + (nudge[1] * floor_height_levels if len(nudge) == 3 else 0)
                     spans.append((floor(base), ceil(base + (shape.level_count if shape else 1)) - 1))
 
     # Trim only existing empty borders, including degenerate bounds such as a lone boundary wall.
@@ -130,12 +131,6 @@ def translate_map(data: dict, dc: int, dr: int, dl: int = 0) -> dict:
     for (_, name), entries in record_lists(moved):
         entries[:] = [translate_entry(name, entry, dc, dr, dl) for entry in entries]
     return moved
-
-
-def resize_map_data(data: dict, cols: int, rows: int, anchor_x: int, anchor_y: int) -> dict:
-    dc = (cols - data["grid_cols"]) * anchor_x // 2
-    dr = (rows - data["grid_rows"]) * anchor_y // 2
-    return resize_map_offset(data, cols, rows, dc, dr)
 
 
 def resize_map_offset(data: dict, cols: int, rows: int, dc: int, dr: int) -> dict:

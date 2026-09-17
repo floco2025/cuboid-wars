@@ -1,4 +1,12 @@
-"""Open-space portal reach envelopes, independent of the editor widgets."""
+"""Open-space portal reach envelopes, independent of the editor widgets.
+
+Floor entries cross the center; wall entries use the full aperture height.
+Entry reach solves continuous time windows. Landing estimates sample those
+wall-entry windows at up to 120 Hz, retaining endpoints, while post-exit
+steering uses continuous time intervals. Obstacles and repeat hops are ignored.
+Control velocity and carried falling momentum rotate separately, as in the
+game; steering can change instantly but cannot erase that carried momentum.
+"""
 
 from dataclasses import dataclass, replace
 from itertools import pairwise
@@ -10,6 +18,9 @@ from .geometry import ramp_cells_on_level
 from .jump_reach import ANTI_GRAVITY, BOTH, CHARACTER_TERMINAL_VELOCITY, NORMAL, SPEED, JumpSettings
 
 EPS = 1e-9
+ENTRY_APPROACH_MARGIN = 1e-4
+WALL_ENTRY_SAMPLE_STEP = 1 / 120
+WALL_ENTRY_MAX_STEPS = 128
 # Match common/src/physics/characters/geometry.rs::character_movement_center.
 CHARACTER_CONTACT_OFFSET = 0.01
 # Keep aperture dimensions in sync with common/src/constants.rs.
@@ -27,6 +38,7 @@ def dot(a: Vec3, b: Vec3) -> float:
 class PortalSettings:
     movement: JumpSettings
     body_height: float
+    body_radius: float
 
     @property
     def center_height(self):
@@ -35,7 +47,11 @@ class PortalSettings:
     @classmethod
     def from_settings(cls, settings, source, *, gameplay, gameplay_source):
         movement = JumpSettings.from_settings(settings, source, gameplay=gameplay, gameplay_source=gameplay_source)
-        return cls(movement, setting_number(gameplay, gameplay_source, "player.movement_collider.height"))
+        return cls(
+            movement,
+            setting_number(gameplay, gameplay_source, "player.movement_collider.height"),
+            setting_number(gameplay, gameplay_source, "player.movement_collider.diameter") / 2,
+        )
 
     def scenarios(self, running):
         m = self.movement
@@ -144,14 +160,80 @@ class EntryState:
     vertical_velocity: float
     speed: float
     gravity: float
+    up_offset: float = 0.0
+    end_time: float | None = None
 
 
-def entry_states(settings, origin, surface, data, *, running, jumping, margin, footprints=None):
+def vertical_motion(velocity, gravity, time):
+    velocity = max(-CHARACTER_TERMINAL_VELOCITY, velocity)
+    accelerated = min(time, (velocity + CHARACTER_TERMINAL_VELOCITY) / gravity) if gravity else time
+    height = velocity * accelerated - gravity * accelerated**2 / 2
+    height -= CHARACTER_TERMINAL_VELOCITY * (time - accelerated)
+    return height, max(-CHARACTER_TERMINAL_VELOCITY, velocity - gravity * time)
+
+
+def wall_entry_windows(velocity, gravity, low, high, earliest):
+    if gravity == 0:
+        if velocity == 0:
+            if low <= 0 <= high:
+                yield earliest, earliest
+        elif (end := high / velocity) >= (start := max(earliest, low / velocity)):
+            yield start, end
+        return
+    end = descending_time(velocity, gravity, low)
+    if end is None or end < earliest - EPS:
+        return
+    end = max(earliest, end)
+    cuts = {earliest, end}
+    for height in (low, high):
+        cuts.update(t for t, _ in crossings(velocity, gravity, height) if earliest <= t <= end)
+    if earliest < velocity / gravity < end:
+        cuts.add(velocity / gravity)
+    ordered = sorted(cuts)
+    windows = [
+        (start, stop)
+        for start, stop in pairwise(ordered)
+        if low - EPS <= vertical_motion(velocity, gravity, (start + stop) / 2)[0] <= high + EPS
+    ]
+    windows.extend(
+        (time, time)
+        for time in ordered
+        if not any(start <= time <= stop for start, stop in windows)
+        and low - EPS <= vertical_motion(velocity, gravity, time)[0] <= high + EPS
+    )
+    yield from reversed(windows)
+
+
+def sampled_entries(states):
+    for state in states:
+        duration = (state.end_time or state.time) - state.time
+        # Bound selected-pair work even when near-zero gravity makes a window very long.
+        steps = min(WALL_ENTRY_MAX_STEPS, max(1, ceil(duration / WALL_ENTRY_SAMPLE_STEP)))
+        for index in range(steps + 1 if duration > 0 else 1):
+            delta = duration * index / steps
+            height, velocity = vertical_motion(state.vertical_velocity, state.gravity, delta)
+            yield replace(
+                state,
+                time=state.time + delta,
+                vertical_velocity=velocity,
+                up_offset=state.up_offset + height,
+                end_time=None,
+            )
+
+
+def exit_frame(settings, frame, state):
+    support = settings.body_height / 2 if frame.up[1] else settings.body_radius
+    limit = max(0, PORTAL_HALF_HEIGHT - support)
+    offset = max(-limit, min(limit, state.up_offset))
+    return replace(frame, center=tuple(p + up * offset for p, up in zip(frame.center, frame.up)))
+
+
+def entry_states(settings, origin, surface, data, *, running, jumping, margin, rectangles=None):
     if not isfinite(margin) or margin < 0:
         raise ValueError("Takeoff margin must be finite and nonnegative")
     m = settings.movement
-    footprints = footprints or FloorFootprints(data, m.cell_size, m.wall_thickness)
-    rectangles = footprints.rectangles(*origin)
+    if rectangles is None:
+        rectangles = FloorFootprints(data, m.cell_size, m.wall_thickness).rectangles(*origin)
     frame = surface.frame(settings)
     x, y, z = frame.center
     distance = min(distance_to_rect(x, z, rect) for rect in rectangles)
@@ -160,23 +242,31 @@ def entry_states(settings, origin, surface, data, *, running, jumping, margin, f
     margin = margin if jumping else 0
     result = {}
     for bit, speed, gravity in settings.scenarios(running):
+        if surface.face != "floor":
+            front = any(
+                distance_to_rect(x, z, rect) <= distance + EPS
+                and max(
+                    (a - x) * frame.normal[0] + (b - z) * frame.normal[2]
+                    for a in (rect[0], rect[2])
+                    for b in (rect[1], rect[3])
+                )
+                > EPS
+                for rect in rectangles
+            )
+            # A shortest path from behind ends at the plane without entering its front.
+            # Reserve a small approach distance rather than testing near-equality of flight ranges.
+            earliest = margin + (distance + (0 if front else ENTRY_APPROACH_MARGIN)) / speed
+            for start, end in wall_entry_windows(
+                velocity, gravity, height - PORTAL_HALF_HEIGHT, height + PORTAL_HALF_HEIGHT, earliest
+            ):
+                elevation, vertical = vertical_motion(velocity, gravity, start)
+                result.setdefault(bit, []).append(EntryState(start, vertical, speed, gravity, elevation - height, end))
+            continue
         states = list(crossings(velocity, gravity, height))
-        if gravity == velocity == 0 and abs(height) < EPS and surface.face != "floor":
-            states = [(distance / speed + margin + EPS * 10, 0)]
         for time, vertical in states:
-            if surface.face == "floor" and vertical >= -EPS:
+            if vertical >= -EPS:
                 continue
             if time <= margin or distance > speed * (time - margin) + EPS:
-                continue
-            # At maximum range there is no time to steer around to a wall's front.
-            if (
-                surface.face != "floor"
-                and abs(distance - speed * (time - margin)) < EPS
-                and not any(
-                    (min(max(x, a), c) - x) * frame.normal[0] + (min(max(z, b), d) - z) * frame.normal[2] > EPS
-                    for a, b, c, d in rectangles
-                )
-            ):
                 continue
             result.setdefault(bit, []).append(EntryState(time, vertical, speed, gravity))
     return result
@@ -233,8 +323,9 @@ def feasible_times(center, drift, speed, rect, start, end):
 
 
 def landing_windows(settings, entry, exit, states, level):
-    height = level * settings.movement.level_height - (exit.center[1] - settings.center_height)
     for state in states:
+        frame = exit_frame(settings, exit, state)
+        height = level * settings.movement.level_height - (frame.center[1] - settings.center_height)
         # No accepted takeoff/entry in zero gravity produces a downward exit in this tool.
         if state.gravity == 0:
             continue
@@ -248,21 +339,25 @@ def landing_windows(settings, entry, exit, states, level):
         if start is None or end is None or end <= EPS:
             continue
         best = descending_time(0, state.gravity, height) if height < 0 else start
-        yield state, drift, max(start, EPS), end, best, height
+        yield state, frame.center, drift, max(start, EPS), end, best, height
 
 
 def calculate_landings(settings, entry_surface, exit_surface, states, data):
     m = settings.movement
     footprints = FloorFootprints(data, m.cell_size, m.wall_thickness)
     entry, exit = entry_surface.frame(settings), exit_surface.frame(settings)
-    center = (exit.center[0], exit.center[2])
+    states = {bit: list(sampled_entries(alternatives)) for bit, alternatives in states.items()}
+    rectangles = {}
     result = {}
     for level in range(len(data["levels"])):
         excluded = ramp_cells_on_level(data["ramps"], level) | {
             (tile["col"], tile["row"]) for tile in data["levels"][level].get("terrain", [])
         }
         for bit, alternatives in states.items():
-            for state, drift, start, end, best, height in landing_windows(settings, entry, exit, alternatives, level):
+            for state, position, drift, start, end, best, height in landing_windows(
+                settings, entry, exit, alternatives, level
+            ):
+                center = position[0], position[2]
                 radius = state.speed * end + m.wall_thickness
                 bounds = [
                     (min(p + v * start, p + v * end) - radius, max(p + v * start, p + v * end) + radius)
@@ -278,7 +373,10 @@ def calculate_landings(settings, entry_surface, exit_surface, states, data):
                     ):
                         if (col, row) in excluded:
                             continue
-                        for rect in footprints.rectangles(level, col, row):
+                        key = level, col, row
+                        if key not in rectangles:
+                            rectangles[key] = footprints.rectangles(level, col, row)
+                        for rect in rectangles[key]:
                             for lo, hi in feasible_times(center, drift, state.speed, rect, start, end):
                                 time = min(max(best, lo), hi)
                                 impact = min(

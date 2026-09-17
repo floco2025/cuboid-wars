@@ -22,7 +22,7 @@ from map_editor.jump_reach import (
     landing_time,
 )
 from map_editor.normalization import empty_level, empty_map
-from map_editor.transforms import insert_level_data, resize_map_data
+from map_editor.transforms import insert_level_data, resize_map_offset
 
 
 class JumpReachTests(unittest.TestCase):
@@ -214,7 +214,7 @@ class JumpReachWindowTests(WindowTestCase):
         self.window.undo_stack.redo()
         self.assertIsNone(overlay.origin)
         overlay.select(2, 2)
-        self.window.doc.apply_change("Resize Map", resize_map_data(self.window.map_data, 10, 10, 0, 0))
+        self.window.doc.apply_change("Resize Map", resize_map_offset(self.window.map_data, 10, 10, 0, 0))
         self.assertIsNone(overlay.origin)
 
     def test_same_size_replacement_and_nested_switch_clear_origin(self):

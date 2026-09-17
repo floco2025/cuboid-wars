@@ -3,22 +3,23 @@ import json
 import os
 from unittest.mock import patch
 
-from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QMessageBox
-
-from editor_fixtures import WindowTestCase
 from config_fixtures import ConfigTestCase
+from editor_fixtures import WindowTestCase
 from map_editor.catalogs import (
     kind_colors,
     list_map_names,
+    load_map_geometry,
     load_map_settings,
     map_layout_path,
-    switch_colors,
     map_name_from_path,
     map_settings_path,
+    switch_colors,
 )
+from map_editor.dialogs.levels import LevelsDialog
 from map_editor.io import read_map, write_map
 from map_editor.normalization import empty_map
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QMessageBox
 
 
 class MapSettingsTests(ConfigTestCase):
@@ -95,6 +96,35 @@ class MapSettingsTests(ConfigTestCase):
 
 
 class MapSettingsWindowTests(WindowTestCase):
+    def test_invalid_geometry_reload_retains_last_valid_dimensions_for_level_editing(self):
+        window = self.window
+        path = map_settings_path("hotel")
+        settings = json.loads(path.read_text())
+        expected = window.grid_cell_size, window.level_height, window.wall_width_cells, window.floor_thickness
+        for key in ("grid_cell_size", "level_height", "wall_thickness", "floor_thickness"):
+            for value in (0, -1, float("nan"), float("inf"), "4", None, True):
+                with self.subTest(key=key, value=value):
+                    invalid = copy.deepcopy(settings)
+                    invalid["geometry"][key] = value
+                    path.write_text(json.dumps(invalid))
+                    with self.assertRaisesRegex(ValueError, f"geometry.{key}"):
+                        load_map_geometry("hotel")
+        settings["geometry"]["level_height"] = 0
+        path.write_text(json.dumps(settings))
+        window.reload_dependencies()
+        self.assertIn("geometry.level_height", window.canvas.notice.text())
+        self.assertEqual(
+            (window.grid_cell_size, window.level_height, window.wall_width_cells, window.floor_thickness), expected
+        )
+
+        def edit(dialog):
+            dialog.shrink_button.click()
+            dialog.reject()
+            return dialog.result()
+
+        with patch.object(LevelsDialog, "exec", edit):
+            window.edit_levels()
+
     def test_save_as_carries_the_layouts_catalogs_and_leaves_both_settings_files_alone(self):
         before = {name: map_settings_path(name).read_bytes() for name in ["hotel", "obby"]}
         edited = copy.deepcopy(self.window.doc.root_data)

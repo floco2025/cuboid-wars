@@ -83,12 +83,14 @@ def switch_colors(root: dict, barriers: dict[str, str], bridges: dict[str, str])
     }
 
 
-# The cell size and level height in metres, and one wall width in cells,
-# the unit a nested map's nudge is drawn in.
-def load_map_geometry(map_name: str) -> tuple[float, float, float]:
-    geometry = load_map_settings(map_name)["geometry"]
-    cell, level_height, wall = (float(geometry[key]) for key in ("grid_cell_size", "level_height", "wall_thickness"))
-    return cell, level_height, wall / cell
+def load_map_geometry(map_name: str) -> tuple[float, float, float, float]:
+    settings = load_map_settings(map_name)
+    source = str(map_settings_path(map_name))
+    cell, level_height, wall, floor = (
+        setting_number(settings, source, f"geometry.{key}")
+        for key in ("grid_cell_size", "level_height", "wall_thickness", "floor_thickness")
+    )
+    return cell, level_height, wall / cell, floor
 
 
 def load_texture_catalog(host: str) -> dict[str, bool]:
@@ -200,6 +202,7 @@ class MapCatalogs:
     switch_colors: dict[str, str] = field(default_factory=dict)
     grid_cell_size: float = 0.0
     level_height: float = 0.0
+    floor_thickness: float = 0.0
 
     # The layout owns the kinds and switches; the rest stays as loaded.
     def for_layout(self, root: dict) -> "MapCatalogs":
@@ -215,7 +218,7 @@ class MapCatalogs:
 
     @classmethod
     def load(cls, map_name: str) -> "MapCatalogs":
-        cell, level_height, wall_width = load_map_geometry(map_name)
+        cell, level_height, wall_width, floor_thickness = load_map_geometry(map_name)
         layout = map_layout_path(map_name)
         root = read_settings_json(layout)["map"] if layout.exists() else {}
         return cls(
@@ -225,4 +228,5 @@ class MapCatalogs:
             load_texture_catalog(map_name),
             grid_cell_size=cell,
             level_height=level_height,
+            floor_thickness=floor_thickness,
         ).for_layout(root)

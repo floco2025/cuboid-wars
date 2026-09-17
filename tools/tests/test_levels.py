@@ -1,7 +1,9 @@
 import copy
+import json
 from unittest.mock import patch
 
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, floor, nested
+from map_editor.catalogs import map_settings_path
 from map_editor.dialogs.levels import LevelsDialog
 from map_editor.io import read_map
 from map_editor.normalization import empty_level, empty_map
@@ -9,6 +11,32 @@ from PySide6.QtWidgets import QDialog, QMessageBox
 
 
 class LevelsWindowTests(WindowTestCase):
+    def test_shrink_scales_vertical_nudges_by_floor_thickness(self):
+        path = map_settings_path("hotel")
+        settings = json.loads(path.read_text())
+        settings["geometry"].update(level_height=4, floor_thickness=1, wall_thickness=0.75)
+        path.write_text(json.dumps(settings))
+        self.window.reload_dependencies()
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"] = [empty_level(i) for i in range(7)]
+        data["nested_geometry"] = {"platform": empty_map(2, 2)}
+        data["nested_maps"] = [nested("platform", 1, [2, 2], [2, 2])]
+        data["nested_maps"][0]["from_nudge"][1] = 16
+        data["nested_maps"][0]["to_nudge"][1] = 16
+        self.window.doc.replace_with_new(data)
+
+        def edit(dialog):
+            dialog.shrink_button.click()
+            self.assertEqual(dialog.values(), [(i, f"Level {i}") for i in range(1, 6)])
+            dialog.accept()
+            return dialog.result()
+
+        with patch.object(LevelsDialog, "exec", edit):
+            self.window.edit_levels()
+        self.assertEqual(len(self.window.map_data["levels"]), 5)
+        self.assertEqual(self.window.map_data["nested_maps"][0]["from_nudge"], [0, 16, 0])
+
     def test_shrink_keeps_interior_levels_names_spans_and_nested_motion(self):
         data = empty_map(8, 8)
         data["player_spawn_zones"] = []

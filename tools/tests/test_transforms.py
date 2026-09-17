@@ -11,7 +11,6 @@ from map_editor.transforms import (
     map_content_bounds,
     record_lists,
     remove_level_data,
-    resize_map_data,
     resize_map_offset,
     translate_map,
 )
@@ -53,7 +52,7 @@ class ResizeTests(unittest.TestCase):
         data["nested_maps"] = [nested("cabin", 2, [4, 5], [11, 8], 5)]
         data["nested_maps"][0]["from_nudge"] = [-1, -1, -1]
         data["nested_maps"][0]["to_nudge"] = [1, 1, 1]
-        bounds = map_content_bounds(data, wall_width_cells=0.25, wall_height_levels=0.25)
+        bounds = map_content_bounds(data, wall_width_cells=0.25, floor_height_levels=0.25)
         self.assertEqual(bounds.rect, (3, 4, 15, 11))
         self.assertEqual((bounds.first_level, bounds.last_level), (1, 7))
 
@@ -79,7 +78,7 @@ class ResizeTests(unittest.TestCase):
         data["nested_maps"] = [nested("cabin", 0, [5, 5], [5, 5])]
         self.assertEqual(map_content_bounds(data).rect, (5, 5, 8, 8))
 
-    def test_center_resize_translates_every_coordinate_family(self) -> None:
+    def test_resize_offset_translates_every_coordinate_family(self) -> None:
         data = empty_map(4, 4)
         data["levels"].append(empty_level(1))
         level = data["levels"][0]
@@ -95,7 +94,7 @@ class ResizeTests(unittest.TestCase):
         data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 2], **faces()}]
         data["ladders"] = [{"lower_level": 0, "col": 1, "row": 1, "side": "N", "levels": 1}]
 
-        result = resize_map_data(data, 6, 6, 1, 1)
+        result = resize_map_offset(data, 6, 6, 1, 1)
 
         self.assertEqual((result["levels"][0]["floors"][0]["col"], result["levels"][0]["floors"][0]["row"]), (2, 2))
         wall = result["levels"][0]["walls"][0]
@@ -111,7 +110,7 @@ class ResizeTests(unittest.TestCase):
     def test_resize_drops_a_nested_map_with_an_anchor_outside(self) -> None:
         data = empty_map(6, 6)
         data["nested_maps"] = [nested("cabin", 0, [0, 0], [5, 0]), nested("cabin", 0, [2, 2], [2, 2])]
-        resized = resize_map_data(data, 5, 6, 0, 0)
+        resized = resize_map_offset(data, 5, 6, 0, 0)
         self.assertEqual([e["from"] for e in resized["nested_maps"]], [[2, 2]])
 
 

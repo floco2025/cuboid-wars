@@ -310,6 +310,7 @@ class EditorWindow(
             self.switch_colors,
             grid_cell_size=self.grid_cell_size,
             level_height=self.level_height,
+            floor_thickness=self.floor_thickness,
         )
 
     # Every view, dialog, and validation reads the catalogs of one map;
@@ -326,6 +327,7 @@ class EditorWindow(
         self.wall_width_cells = catalogs.wall_width_cells
         self.grid_cell_size = catalogs.grid_cell_size
         self.level_height = catalogs.level_height
+        self.floor_thickness = catalogs.floor_thickness
         self.texture_catalog = catalogs.texture_catalog
         self.materials_catalog = list(catalogs.texture_catalog)
         if self.current_material not in catalogs.texture_catalog:

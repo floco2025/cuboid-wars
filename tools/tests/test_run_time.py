@@ -7,7 +7,7 @@ from map_editor.catalogs import load_map_settings
 from map_editor.constants import MODE_FLOOR, MODE_RUN_TIME
 from map_editor.normalization import empty_map
 from map_editor.run_time import RunSettings
-from map_editor.transforms import resize_map_data
+from map_editor.transforms import resize_map_offset
 
 
 class RunTimeTests(unittest.TestCase):
@@ -68,7 +68,7 @@ class RunTimeWindowTests(WindowTestCase):
         self.app.processEvents()
         self.click(4, 4)
         self.assertEqual(overlay.origin, (0, 2, 2))
-        self.window.doc.apply_change("Resize Map", resize_map_data(self.window.map_data, 10, 10, 0, 0))
+        self.window.doc.apply_change("Resize Map", resize_map_offset(self.window.map_data, 10, 10, 0, 0))
         self.assertIsNone(overlay.origin)
         overlay.select(2, 2)
         data = copy.deepcopy(self.window.doc.root_data)

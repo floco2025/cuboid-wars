@@ -10,7 +10,7 @@ from map_editor.editing import paint_erasers
 from map_editor.erasing import erase_group_rect, erase_hit, hit_at
 from map_editor.formatting import format_map_file
 from map_editor.normalization import canonicalize_map, empty_map, normalize_map
-from map_editor.transforms import resize_map_data
+from map_editor.transforms import resize_map_offset
 from map_editor.validation import validate_map
 
 
@@ -36,7 +36,7 @@ class EquipmentTests(unittest.TestCase):
         encoded = format_map_file({"map": data})
         self.assertEqual(normalize_map(json.loads(encoded)["map"]), data)
         self.assertFalse(validate_map(data, [], []))
-        moved = resize_map_data(data, 6, 6, 2, 2)
+        moved = resize_map_offset(data, 6, 6, 2, 2)
         self.assertEqual(moved["items"][0]["col"], 3)
         self.assertEqual(moved["levels"][0]["erasers"][0], {"c0": 3, "r0": 2, "c1": 3, "r1": 3})
 

@@ -17,19 +17,22 @@ from map_editor.portal_jump import (
     crossings,
     descending_time,
     entry_states,
+    exit_frame,
     exit_motion,
     feasible_times,
+    sampled_entries,
     traverse_vector,
+    vertical_motion,
 )
 from map_editor.portal_surfaces import PortalSurfaces, portals_overlap
-from map_editor.transforms import insert_level_data, resize_map_data
+from map_editor.transforms import insert_level_data, resize_map_offset
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtTest import QTest
 
 
 class PortalJumpTests(unittest.TestCase):
     def setUp(self):
-        self.settings = PortalSettings(JumpSettings(4, 5, 10, 3, 6, 2, 10, 2, 0.2, FallSettings(8, 15, 100)), 2)
+        self.settings = PortalSettings(JumpSettings(4, 5, 10, 3, 6, 2, 10, 2, 0.2, FallSettings(8, 15, 100)), 2, 0.3)
         self.data = empty_map(30, 30)
         self.data["levels"] = [empty_level(i) for i in range(5)]
 
@@ -57,6 +60,61 @@ class PortalJumpTests(unittest.TestCase):
         for invalid in (-1, float("nan"), float("inf")):
             with self.assertRaises(ValueError):
                 self.states(target, margin=invalid)
+
+    def test_step_can_enter_a_wall_below_its_center_on_the_same_storey(self):
+        entry = PortalSurface(2, 6, 5, "west")
+        states = self.states(entry)
+        self.assertEqual(set(states), {NORMAL, SPEED, ANTI_GRAVITY, BOTH})
+        self.assertAlmostEqual(states[NORMAL][0].vertical_velocity, 0)
+        self.assertAlmostEqual(states[NORMAL][0].up_offset, -0.368)
+        for alternatives in states.values():
+            for state in sampled_entries(alternatives):
+                self.assertGreaterEqual(state.up_offset, -1.3 - 1e-9)
+                self.assertLessEqual(state.up_offset, 1.3 + 1e-9)
+        self.assertEqual(set(self.states(PortalSurface(2, 7, 5, "west"))), {SPEED, ANTI_GRAVITY, BOTH})
+        self.assertEqual(self.states(PortalSurface(3, 6, 5, "west")), {})
+
+    def test_wall_entry_preserves_crossing_offset_with_the_game_exit_clamp(self):
+        state = EntryState(0, 0, 6, 10, up_offset=-0.368)
+        floor_exit = PortalSurface(0, 10, 10).frame(self.settings)
+        mapped = exit_frame(self.settings, floor_exit, state)
+        self.assertAlmostEqual(mapped.center[2] - floor_exit.center[2], 0.368)
+        wall_exit = PortalSurface(0, 10, 10, "east").frame(self.settings)
+        self.assertAlmostEqual(exit_frame(self.settings, wall_exit, state).center[1], 1.078)
+        high = replace(state, up_offset=1.3)
+        self.assertAlmostEqual(exit_frame(self.settings, floor_exit, high).center[2], 41.0)
+        settings = replace(self.settings, movement=replace(self.settings.movement, level_height=0.1))
+        landings = calculate_landings(
+            settings,
+            PortalSurface(0, 5, 5, "west"),
+            PortalSurface(0, 10, 10, "east"),
+            {NORMAL: [state]},
+            self.data,
+        )
+        self.assertEqual({level for level, _, _ in landings}, {0})
+
+    def test_wall_back_approach_requires_spare_travel_at_the_aperture_limit(self):
+        end = sqrt(2 * (10 + 1.01 - 0.078) / 10)
+        for extra, reachable in ((0, False), (0.00005, False), (0.0002, True)):
+            with self.subTest(extra=extra):
+                settings = replace(
+                    self.settings, movement=replace(self.settings.movement, run_speed=(16 + extra) / end)
+                )
+                self.assertEqual(NORMAL in self.states(PortalSurface(0, 10, 5, "east"), settings=settings), reachable)
+        settings = replace(self.settings, movement=replace(self.settings.movement, run_speed=15.8 / end))
+        self.assertIn(NORMAL, self.states(PortalSurface(0, 10, 5, "west"), settings=settings))
+
+    def test_wall_entry_windows_include_terminal_motion_and_zero_gravity_walking(self):
+        settings = replace(self.settings, movement=replace(self.settings.movement, level_height=100))
+        states = self.states(PortalSurface(0, 6, 5, "west"), settings=settings)
+        normal = list(sampled_entries(states[NORMAL]))
+        self.assertTrue(normal)
+        self.assertTrue(all(state.vertical_velocity == -50 for state in normal))
+        self.assertAlmostEqual(normal[-1].up_offset, -1.3)
+        self.assertEqual(vertical_motion(-50, 10, 2), (-100, -50))
+        settings = replace(self.settings, movement=replace(self.settings.movement, low_gravity=0))
+        states = self.states(PortalSurface(2, 6, 5, "west"), settings=settings)
+        self.assertEqual(states[ANTI_GRAVITY][0].vertical_velocity, 0)
 
     def test_level_floor_portals_return_to_takeoff_apex_for_each_powerup(self):
         settings = replace(
@@ -315,6 +373,59 @@ class PortalJumpWindowTests(WindowTestCase):
         self.assertIs(overlay.results, results)
         self.assertEqual(overlay.input_selector.currentData(), "origin")
 
+    def test_outside_grid_has_no_landing_tooltip_but_boundary_wall_still_previews(self):
+        overlay = self.pair()
+        self.input("origin")
+        for point in (QPointF(-0.5, 3.5), QPointF(8.5, 3.5), QPointF(3.5, -0.5), QPointF(3.5, 8.5)):
+            self.assertIsNone(overlay.hover_text(point))
+            before = overlay.origin
+            overlay.select(point)
+            self.assertEqual(overlay.origin, before)
+        self.input("entry")
+        text = overlay.hover_text(QPointF(-0.01, 3.5))
+        self.assertIn("West", text)
+        self.assertNotIn("landing floor", text)
+        self.assertNotIn("Out of range", text)
+
+    def test_tooltip_does_not_change_preview_and_hover_tracks_faces_within_one_cell(self):
+        overlay = self.start()
+        self.input("entry")
+        canvas = self.window.canvas
+        with patch.object(canvas, "update") as repaint:
+            overlay.hover_text(QPointF(3.5, 2.5))
+            self.assertIsNone(overlay.preview)
+            repaint.assert_not_called()
+        canvas._update_cell_hover(canvas.viewport.from_grid(QPointF(3.5, 2.5)))
+        self.assertEqual(overlay.preview.face, "floor")
+        canvas._update_cell_hover(canvas.viewport.from_grid(QPointF(3.01, 2.5)))
+        self.assertEqual(overlay.preview.face, "east")
+        canvas._clear_hover()
+        self.assertIsNone(overlay.preview)
+
+    def test_repaints_reuse_oriented_candidates_and_origin_footprints(self):
+        overlay = self.start()
+        original = PortalSurface.placed_from
+        with (
+            patch.object(PortalSurface, "placed_from", autospec=True, side_effect=original) as oriented,
+            patch.object(
+                overlay.surfaces.footprints, "rectangles", wraps=overlay.surfaces.footprints.rectangles
+            ) as rectangles,
+        ):
+            overlay.recompute()
+            self.window.canvas.grab()
+            calls = oriented.call_count
+            self.assertGreater(calls, 0)
+            self.assertEqual(rectangles.call_count, 1)
+            self.window.canvas.grab()
+            self.assertEqual(oriented.call_count, calls)
+            self.assertEqual(rectangles.call_count, 1)
+            self.input("entry_shot")
+            self.click(4, 2)
+            self.window.canvas.grab()
+            self.assertGreater(oriented.call_count, calls)
+            candidate = next(s for s in overlay.candidates(0) if (s.col, s.row, s.face) == (3, 2, "floor"))
+            self.assertEqual(candidate.turn, 3)
+
     def test_shooting_overrides_and_fallback_reorient_only_the_matching_portal(self):
         overlay = self.pair()
         self.assertEqual(overlay.firing_origin("entry"), overlay.origin)
@@ -431,7 +542,7 @@ class PortalJumpWindowTests(WindowTestCase):
         overlay = self.pair()
         self.input("entry_shot")
         self.click(4, 2)
-        self.window.doc.apply_change("Resize", resize_map_data(self.window.map_data, 10, 10, 0, 0))
+        self.window.doc.apply_change("Resize", resize_map_offset(self.window.map_data, 10, 10, 0, 0))
         self.assertFalse(overlay.has_selection)
         self.click(3, 2)
         self.assertIsNotNone(overlay.entry_shot)
@@ -494,7 +605,7 @@ class PortalJumpWindowTests(WindowTestCase):
         self.input("entry")
         canvas = self.window.canvas
         size = canvas.cell_size()
-        canvas._show_hover_label(None, QPointF(size * 3.5, size * 2.5))
+        canvas._update_cell_hover(QPointF(size * 3.5, size * 2.5))
         self.assertIsNotNone(overlay.preview)
         self.assertIn("Reachable", canvas._hover_label.text())
         self.input("entry_shot")

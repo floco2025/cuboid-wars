@@ -31,7 +31,7 @@ from map_editor.erasing import erase_cell_rect, erase_group_rect, erase_hit, hit
 from map_editor.io import read_map, write_map
 from map_editor.normalization import canonicalize_map, empty_map, normalize_map, zone_key
 from map_editor.regions import TileRegion, copy_region, delete_region, paste_region
-from map_editor.transforms import insert_level_data, remove_level_data, resize_map_data, translate_map
+from map_editor.transforms import insert_level_data, remove_level_data, resize_map_offset, translate_map
 from map_editor.elements import ElementRef
 from map_editor.types import ZoneRef
 from map_editor.validation import validate_map
@@ -192,7 +192,7 @@ class CheckpointTests(unittest.TestCase):
             copy_region(data, TileRegion((1, 1, 2, 2), 0))
         moved = translate_map(data, 1, 2)
         self.assertEqual(moved["checkpoints"][0]["rows"], [3, 6])
-        resized = resize_map_data(data, 3, 3, 0, 0)
+        resized = resize_map_offset(data, 3, 3, 0, 0)
         self.assertEqual(resized["checkpoints"][0]["cols"], [1, 3])
         inserted = insert_level_data(data, 0)
         self.assertEqual(inserted["checkpoints"][0]["level"], 1)
@@ -228,7 +228,7 @@ class CheckpointTests(unittest.TestCase):
             pasted = paste_region(delete_region(restored, region), copy_region(restored, region), (4, 4), 0)
             self.assertEqual(pasted["checkpoints"][0]["type"], kind)
             self.assertEqual(insert_level_data(restored, 0)["checkpoints"][0]["type"], kind)
-            self.assertEqual(resize_map_data(restored, 4, 4, 0, 0)["checkpoints"][0]["type"], kind)
+            self.assertEqual(resize_map_offset(restored, 4, 4, 0, 0)["checkpoints"][0]["type"], kind)
 
     def test_unknown_missing_and_overlapping_types_are_rejected(self):
         for kind in (None, "unknown"):

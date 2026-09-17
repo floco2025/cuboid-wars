@@ -48,7 +48,7 @@ class StructureMixin:
             self.current_level,
             maintain=self.doc.maintain,
             nested_lookup=self.nested_map_shape,
-            wall_height_levels=self.wall_width_cells * self.grid_cell_size / self.level_height,
+            floor_height_levels=self.floor_thickness / self.level_height,
         )
         if result is None:
             return

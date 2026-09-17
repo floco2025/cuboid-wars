@@ -13,6 +13,7 @@ from .constants import (
     MODE_FLOOR_MATERIAL,
     MODE_LADDER,
     MODE_LIGHT,
+    MODE_PORTAL_JUMP,
     MODE_WALL_MATERIAL,
 )
 from .display import materials_summary
@@ -239,12 +240,21 @@ class Canvas(CanvasPaintingMixin, QWidget):
 
     def _update_cell_hover(self, pos) -> None:
         cell = self.point_to_cell(pos)
+        portal = self.window.portal_jump
+        key = portal.input_selector.currentData()
+        preview = (
+            portal.pick(self.grid_position(pos), key)
+            if self.window.mode == MODE_PORTAL_JUMP and key in ("entry", "exit")
+            else None
+        )
+        preview_changed = preview != portal.preview
+        portal.preview = preview
         self._show_hover_label(self._element_hover_text(pos), pos)
         edge_side = None
         if self.window.mode in (MODE_LADDER, MODE_LIGHT) and cell is not None:
             point = self.grid_position(pos)
             edge_side = cell_side_from_click(cell[0], cell[1], point.x(), point.y())
-        if cell == self.hover_cell and edge_side == self.hover_edge_side:
+        if cell == self.hover_cell and edge_side == self.hover_edge_side and not preview_changed:
             return
         self.hover_cell = cell
         self.hover_edge_side = edge_side

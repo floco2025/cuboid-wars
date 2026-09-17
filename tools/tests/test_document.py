@@ -12,7 +12,7 @@ from map_editor.editing import paint_floors
 from map_editor.erasing import erase_cell_rect
 from map_editor.io import read_map, write_map
 from map_editor.normalization import empty_map
-from map_editor.transforms import insert_level_data, resize_map_data
+from map_editor.transforms import insert_level_data, resize_map_offset
 from map_editor.validation import validate_map
 
 
@@ -103,7 +103,7 @@ class DocumentTests(unittest.TestCase):
         self.load_damaged_map()
         self.doc.apply_change("Paint", paint_floors(self.doc.map_data, 0, (4, 4, 5, 5), DEFAULT_ALIAS))
         self.assertEqual(len(self.doc.map_data["items"]), 1)
-        moved = resize_map_data(self.doc.map_data, 10, 10, 2, 2)
+        moved = resize_map_offset(self.doc.map_data, 10, 10, 2, 2)
         self.doc.apply_change("Resize", moved)
         self.assertEqual(self.doc.map_data["levels"][0]["lights"][0]["col"], 4)
         self.doc.apply_change("Insert", insert_level_data(self.doc.map_data, 0))

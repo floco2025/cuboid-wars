@@ -23,7 +23,8 @@ from .portal_surfaces import PortalSurfaces, portals_overlap
 from .reach_markers import SCENARIOS, landing_lines, paint_landing_markers
 
 LIMITS = (
-    "Open-space estimate through portal centers; air steering can stop or change direction immediately. "
+    "Open-space estimate: floor entries are centered; wall entries use the aperture height with sampled entry timing. "
+    "Air steering can stop or change direction immediately. "
     "Each portal is aimed from its shooting position, initially the jump position; floor orientations follow the game's quarter-turn snap. "
     "Assumes sufficient backing: floors are centered on tiles; wall portals' lower rims align with the wall base. "
     "Ignores intervening obstacles, moving platforms, front clearance, placement nudging, fixtures, funnel assistance and repeat crossings. "
@@ -53,6 +54,8 @@ class PortalJumpOverlay:
         self.error = None
         self.results = {}
         self.entries = {}
+        self.origin_rectangles = None
+        self.candidate_levels = {}
         self.statuses = {}
         self.preview = None
         self.clear_action = QAction("Clear Portal Jump", window)
@@ -186,11 +189,12 @@ class PortalJumpOverlay:
         self.entry_shot = self.exit_shot = None
         self.active_map = None
         self.entries = {}
+        self.origin_rectangles = None
+        self.candidate_levels = {}
         self.results = {}
         self.selection_changed()
 
     def selection_changed(self):
-        self.preview = None
         self.window.canvas._clear_hover()
         self.refresh()
         self.window.canvas.update()
@@ -206,6 +210,12 @@ class PortalJumpOverlay:
             self.statuses[surface] = self.surfaces.status(surface)
         return self.statuses[surface]
 
+    def candidates(self, level):
+        key = level, self.firing_origin("entry")
+        if key not in self.candidate_levels:
+            self.candidate_levels[key] = tuple(self.oriented(s, "entry") for s in self.surfaces.candidates(level))
+        return self.candidate_levels[key]
+
     def states(self, surface):
         if self.origin is None or self.settings is None:
             return {}
@@ -219,7 +229,7 @@ class PortalJumpOverlay:
                     running=self.movement.currentText() == "Run",
                     jumping=self.takeoff.currentText() == "Jump",
                     margin=self.margin.value(),
-                    footprints=self.surfaces.footprints,
+                    rectangles=self.origin_rectangles,
                 )
                 if self.status(surface).available
                 else {}
@@ -242,6 +252,10 @@ class PortalJumpOverlay:
     def recompute(self):
         self.entries = {}
         self.results = {}
+        self.origin_rectangles = (
+            self.surfaces.footprints.rectangles(*self.origin) if self.origin is not None and self.surfaces else None
+        )
+        self.candidate_levels = {}
         self.margin.setEnabled(self.takeoff.currentText() == "Jump")
         if self.settings:
             for end in ("entry", "exit"):
@@ -296,10 +310,10 @@ class PortalJumpOverlay:
             return
         key = self.input_selector.currentData()
         if key in ("origin", "entry_shot", "exit_shot"):
-            col, row = int(point.x() // 1), int(point.y() // 1)
-            if not (0 <= col < self.window.map_data["grid_cols"] and 0 <= row < self.window.map_data["grid_rows"]):
+            cell = self.window.canvas.input.cell(point)
+            if cell is None:
                 return
-            value = self.window.current_level, col, row
+            value = self.window.current_level, *cell
         else:
             value = self.pick(point, key)
             if value is None:
@@ -319,19 +333,23 @@ class PortalJumpOverlay:
         key = self.input_selector.currentData()
         selected = self.window.mode == constants.MODE_PORTAL_JUMP
         preview = self.pick(point, key) if selected and key in ("entry", "exit") else None
-        if preview != self.preview:
-            self.preview = preview
-            self.window.canvas.update()
         if self.settings is None or (not self.has_selection and not selected):
             return None
+        tile = self.window.canvas.input.cell(point)
+        if (
+            tile is None
+            and preview is None
+            and (self.output_selector.currentData() != "entry" or self.pick(point, "entry") is None)
+        ):
+            return None
         lines = []
-        cell = self.window.current_level, int(point.x() // 1), int(point.y() // 1)
+        cell = (self.window.current_level, *tile) if tile is not None else None
         for position, label in (
             (self.origin, "J · Jump position"),
             (self.firing_origin("entry"), "S1 · Shoot portal 1 from"),
             (self.firing_origin("exit"), "S2 · Shoot portal 2 from"),
         ):
-            if cell == position:
+            if cell is not None and cell == position:
                 lines.append(label)
         if preview is not None:
             lines.extend(
@@ -357,9 +375,9 @@ class PortalJumpOverlay:
                         if states
                         else "Out of reach"
                     )
-        elif issue := self.landing_issue():
+        elif cell is not None and (issue := self.landing_issue()):
             lines.append("Portal Jump · " + issue)
-        else:
+        elif cell is not None:
             landings = self.results.get(cell, {})
             existing = cell[1:] in self.surfaces.floors[cell[0]]
             lines.append("Portal Jump · " + ("Existing landing floor" if existing else "Planned landing floor"))
@@ -421,10 +439,9 @@ class PortalJumpOverlay:
         visible = canvas.viewport.visible_rect(canvas.width(), canvas.height()).adjusted(-1, -1, 1, 1)
         painter.save()
         if self.output_selector.currentData() == "entry" and self.origin is not None:
-            for surface in self.surfaces.candidates(level):
+            for surface in self.candidates(level):
                 if not visible.contains(QPointF(surface.col, surface.row)):
                     continue
-                surface = self.oriented(surface, "entry")
                 status = self.status(surface)
                 if not status.available:
                     continue

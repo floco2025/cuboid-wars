@@ -17,13 +17,13 @@ from ..transforms import dropped_summary, edit_levels_data, map_content_bounds
 
 
 class LevelsDialog(QDialog):
-    def __init__(self, parent, map_data, current_level, *, maintain=None, nested_lookup=None, wall_height_levels=0.0):
+    def __init__(self, parent, map_data, current_level, *, maintain=None, nested_lookup=None, floor_height_levels=0.0):
         super().__init__(parent)
         self.setWindowTitle("Edit Levels")
         self.before = map_data
         self.maintain = maintain
         self.nested_lookup = nested_lookup
-        self.wall_height_levels = wall_height_levels
+        self.floor_height_levels = floor_height_levels
         self.selected_level = current_level
         self.table = QTableWidget(0, 2)
         self.table.setHorizontalHeaderLabels(["Level", "Name"])
@@ -124,7 +124,7 @@ class LevelsDialog(QDialog):
         selected = max(0, self.table.currentRow())
         self.table.setCurrentItem(None)
         bounds = map_content_bounds(
-            self.edited_data(), nested_lookup=self.nested_lookup, wall_height_levels=self.wall_height_levels
+            self.edited_data(), nested_lookup=self.nested_lookup, floor_height_levels=self.floor_height_levels
         )
         self.table.blockSignals(True)
         for row in reversed(range(self.table.rowCount())):

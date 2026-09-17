@@ -53,8 +53,9 @@ class CanvasInput:
             return col, row
         return None
 
-    def within_grid(self, point):
-        tolerance = self.canvas.cells_per_pixel(1)
+    def within_grid(self, point, tolerance=None):
+        if tolerance is None:
+            tolerance = self.canvas.cells_per_pixel(1)
         return (
             -tolerance <= point.x() <= self.window.map_data["grid_cols"] + tolerance
             and -tolerance <= point.y() <= self.window.map_data["grid_rows"] + tolerance
@@ -62,11 +63,7 @@ class CanvasInput:
 
     def tool_accepts(self, mode, point):
         if mode == c.MODE_PORTAL_JUMP:
-            tolerance = self.canvas.pick_tolerance()
-            return (
-                -tolerance <= point.x() <= self.window.map_data["grid_cols"] + tolerance
-                and -tolerance <= point.y() <= self.window.map_data["grid_rows"] + tolerance
-            )
+            return self.within_grid(point, tolerance=self.canvas.pick_tolerance())
         if mode in (c.MODE_WALL, c.MODE_BARRIER, c.MODE_EQUIPMENT_ERASER, c.MODE_WALL_MATERIAL):
             return self.within_grid(point)
         return self.cell(point) is not None
