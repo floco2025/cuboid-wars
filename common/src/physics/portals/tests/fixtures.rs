@@ -1,7 +1,7 @@
 pub(super) use super::super::*;
 pub(super) use crate::{
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_RIM_SCALE, TICK_SECS},
-    map::Carriers,
+    map::{Carriers, Grounds, GroundsSettings},
     physics::{
         CharacterEnvironment, CharacterStep, CharacterSupport, CollisionWorld, LadderMode, step_character_movement,
     },

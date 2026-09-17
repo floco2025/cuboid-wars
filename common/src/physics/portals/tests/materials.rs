@@ -172,3 +172,40 @@ fn incompatible_material_impact_keeps_its_carrier_local_position() {
     assert!((wire.pos.y - 1.6).abs() < 1e-4);
     assert!((wire.pos.z - WALL_THICKNESS / 2.0).abs() < 1e-4);
 }
+
+fn grounds_around(layout: &MapLayout) -> Grounds {
+    let floor = &layout.floors[0];
+    Grounds::new([floor.bounds_xz()], floor.y, GroundsSettings { level: floor.level })
+}
+
+#[test]
+fn portal_reaching_over_the_terrain_seam_is_bumped_back_onto_the_floor() {
+    let mut layout = textured_layout(&placement_layout());
+    layout.grounds = Some(grounds_around(&layout));
+    let seam = layout.floors[0].x2;
+    let placement = material_shot(&layout, Vec3::new(seam - 0.4, 3.0, 3.0), Vec3::NEG_Y).expect("floor beside terrain");
+    assert!(
+        placement.pos.x + PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE <= seam + 1e-3,
+        "{placement:?}"
+    );
+}
+
+#[test]
+fn portal_that_cannot_avoid_the_terrain_fizzles() {
+    let mut layout = textured_layout(&placement_layout());
+    layout.walls.clear();
+    layout.wall_materials.clear();
+    layout.floors[0] = Floor {
+        x1: -1.0,
+        z1: -1.0,
+        x2: 1.0,
+        z2: 1.0,
+        ..layout.floors[0]
+    };
+    layout.grounds = Some(grounds_around(&layout));
+    let result = material_shot(&layout, Vec3::new(0.0, 3.0, 0.0), Vec3::NEG_Y);
+    assert!(
+        matches!(result, Err(PortalPlacementFailure::IncompatibleMaterial(_))),
+        "{result:?}"
+    );
+}
