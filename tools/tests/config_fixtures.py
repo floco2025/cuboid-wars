@@ -13,6 +13,7 @@ def gameplay():
             "kinds": {name: {"immovable": name == "turret"} for name in ("scuttler", "bruiser", "zapper", "turret")}
         },
         "combat": {"health": {"player": {"max": 500}}},
+        "player": {"movement_collider": {"diameter": 0.6, "height": 1.8}},
     }
 
 

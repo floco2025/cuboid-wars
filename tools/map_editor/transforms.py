@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import dataclass
+from math import ceil, floor
 
 from .constants import ZONE_LISTS
+from .nesting import nested_map_footprints, nested_map_shape
 from .normalization import empty_level
-
 
 CELL_LISTS = ("floors", "inaccessible_floors", "terrain", "light_bridges", "lights")
 EDGE_LISTS = ("walls", "barriers", "erasers")
@@ -57,6 +59,50 @@ def record_levels(entry: dict, level: int | None = None) -> tuple[int, int]:
     )
 
 
+@dataclass(frozen=True)
+class ContentBounds:
+    rect: tuple[int, int, int, int]
+    first_level: int
+    last_level: int
+
+
+def map_content_bounds(
+    data: dict, *, nested_lookup=None, wall_width_cells=0.0, wall_height_levels=0.0
+) -> ContentBounds:
+    rectangles, spans = [], []
+    for (level, name), entries in record_lists(data):
+        for entry in entries:
+            rectangles.append(record_rect(name, entry))
+            spans.append(record_levels(entry, level))
+            if name == "nested_maps":
+                shape = (
+                    nested_lookup(entry["map"])
+                    if nested_lookup
+                    else nested_map_shape(data.get("nested_geometry", {}).get(entry["map"]))
+                )
+                rectangles.extend(nested_map_footprints(entry, shape, wall_width_cells))
+                for end, end_level in (("from", entry["level"]), ("to", entry["to_level"])):
+                    nudge = entry[end + "_nudge"]
+                    base = end_level + (nudge[1] * wall_height_levels if len(nudge) == 3 else 0)
+                    spans.append((floor(base), ceil(base + (shape.level_count if shape else 1)) - 1))
+
+    # Trim only existing empty borders, including degenerate bounds such as a lone boundary wall.
+    def trim(low, high, size):
+        start = max(0, min(size - 1, floor(low)))
+        return start, max(start + 1, min(size, ceil(high)))
+
+    left, right = trim(
+        min((r[0] for r in rectangles), default=0), max((r[2] for r in rectangles), default=1), data["grid_cols"]
+    )
+    top, bottom = trim(
+        min((r[1] for r in rectangles), default=0), max((r[3] for r in rectangles), default=1), data["grid_rows"]
+    )
+    first, end = trim(
+        min((s[0] for s in spans), default=0), max((s[1] + 1 for s in spans), default=1), len(data["levels"])
+    )
+    return ContentBounds((left, top, right, bottom), first, end - 1)
+
+
 def translate_entry(name: str, entry: dict, dc: int = 0, dr: int = 0, dl: int = 0) -> dict:
     moved = copy.deepcopy(entry)
     if name in ZONE_LISTS:
@@ -89,6 +135,10 @@ def translate_map(data: dict, dc: int, dr: int, dl: int = 0) -> dict:
 def resize_map_data(data: dict, cols: int, rows: int, anchor_x: int, anchor_y: int) -> dict:
     dc = (cols - data["grid_cols"]) * anchor_x // 2
     dr = (rows - data["grid_rows"]) * anchor_y // 2
+    return resize_map_offset(data, cols, rows, dc, dr)
+
+
+def resize_map_offset(data: dict, cols: int, rows: int, dc: int, dr: int) -> dict:
     moved = translate_map(data, dc, dr)
     moved["grid_cols"], moved["grid_rows"] = cols, rows
     for (_, name), entries in record_lists(moved):

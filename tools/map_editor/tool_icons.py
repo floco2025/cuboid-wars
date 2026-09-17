@@ -35,6 +35,7 @@ _ICONS = {
     c.MODE_WALL_MATERIAL: '<path d="M2 3h7v19H2Z M2 9h7m-7 6h7" fill="#eaaa89"/>' + _BRUSH,
     c.MODE_RAMP_MATERIAL: '<path d="m2 22 9-9v9Z" fill="#67b8ef"/>' + _BRUSH,
     c.MODE_LIGHT: '<path d="M9 18v3h6v-3m-3-16V0M4 5 2 3m18 2 2-2M3 12H1m20 0h2"/><path d="M9 18v-2a7 7 0 1 1 6 0v2Z" fill="#e9bd55"/>',
+    c.MODE_PORTAL_JUMP: '<ellipse cx="6" cy="17" rx="4" ry="2" stroke="#60a5fa"/><ellipse cx="19" cy="9" rx="2" ry="6" stroke="#fb923c"/><path d="M6 14V5m-3 3 3-3 3 3m5 4h8m-3-3 3 3-3 3"/>',
     c.MODE_JUMP_REACH: '<path d="M2 21h5m10 0h5M4 17C4 0 20 0 20 17m-4-4 4 4 3-5" stroke="#60b89d"/>',
     c.MODE_RUN_TIME: '<circle cx="12" cy="14" r="8"/><path d="M12 2v4m-3-4h6m3 5 2-2M12 9v5l4 2" stroke="#67b8ef"/>',
 }

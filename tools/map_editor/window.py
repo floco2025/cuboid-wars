@@ -38,6 +38,7 @@ from .file_actions import FileActionsMixin
 from .issues import IssuesDialog
 from .items import ItemsMixin
 from .jump_reach_overlay import JumpReachOverlay
+from .portal_jump_overlay import PortalJumpOverlay
 from .ladders import LaddersMixin
 from .lights import LightsMixin
 from .nested_definitions import NestedDefinitionsMixin
@@ -185,6 +186,7 @@ class EditorWindow(
 
         self.jump_reach = JumpReachOverlay(self)
         self.run_time = RunTimeOverlay(self)
+        self.portal_jump = PortalJumpOverlay(self)
         self.build_menus()
         self.build_toolbar()
         self.doc.changed.connect(self._on_document_changed)
@@ -332,6 +334,7 @@ class EditorWindow(
     def adopt_map(self, map_name: str) -> None:
         self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
         self.jump_reach.reload_settings()
+        self.portal_jump.reload_settings()
         self.run_time.reload_settings()
         self.clear_selection()
         self.current_level = 0
@@ -429,6 +432,7 @@ class EditorWindow(
         view_menu.addAction(self.roam_extensions_action)
         self.canvas_shortcut(self.roam_extensions_action)
         view_menu.addAction(self.jump_reach.clear_action)
+        view_menu.addAction(self.portal_jump.clear_action)
         view_menu.addAction(self.run_time.clear_action)
 
         help_menu = self.menuBar().addMenu("&Help")
@@ -474,6 +478,7 @@ class EditorWindow(
         self.tool_settings.available_changed.connect(tool_settings_action.setVisible)
         tool_settings_action.setVisible(False)
         toolbar.addAction(self.jump_reach.controls_action)
+        toolbar.addAction(self.portal_jump.controls_action)
         # Persistent "Building UP/DOWN" hint that disambiguates the two ramp
         # modes mid-drag. Hidden outside ramp modes so it doesn't clutter the
         # toolbar.
@@ -485,6 +490,8 @@ class EditorWindow(
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.jump_reach.toolbar)
         self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.run_time.toolbar)
+        self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.portal_jump.toolbar)
 
     # === State updates & UI refresh ===
 
@@ -534,6 +541,7 @@ class EditorWindow(
         self.dependencies.watch(self.catalog_map)
         self.tool_settings.refresh()
         self.jump_reach.refresh()
+        self.portal_jump.refresh()
         self.run_time.refresh()
         self.refresh_inspection()
 
@@ -603,6 +611,7 @@ class EditorWindow(
         self.refresh_issues(validate=False)
         self.tool_settings.refresh()
         self.jump_reach.refresh()
+        self.portal_jump.refresh()
         self.run_time.refresh()
 
     def set_roam_extensions(self, enabled: bool) -> None:

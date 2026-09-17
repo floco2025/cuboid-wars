@@ -16,6 +16,7 @@ from .constants import (
     MODE_INACCESSIBLE_FLOOR,
     MODE_ITEM,
     MODE_JUMP_REACH,
+    MODE_PORTAL_JUMP,
     MODE_LADDER,
     MODE_LIGHT,
     MODE_LIGHT_BRIDGE,
@@ -121,6 +122,7 @@ def _erase_cells_tool(canvas: "Canvas", event) -> None:
 CLICK_TOOLS = {
     MODE_SAMPLE: lambda canvas, event: canvas.window.sample_at(canvas.grid_position(event.position())),
     MODE_JUMP_REACH: lambda canvas, event: canvas.window.jump_reach.select(*canvas.point_to_cell(event.position())),
+    MODE_PORTAL_JUMP: lambda canvas, event: canvas.window.portal_jump.select(canvas.grid_position(event.position())),
     MODE_RUN_TIME: lambda canvas, event: canvas.window.run_time.select(*canvas.point_to_cell(event.position())),
     MODE_LIGHT: _light_tool,
     MODE_LADDER: _ladder_tool,

@@ -13,15 +13,17 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..transforms import dropped_summary, edit_levels_data
+from ..transforms import dropped_summary, edit_levels_data, map_content_bounds
 
 
 class LevelsDialog(QDialog):
-    def __init__(self, parent, map_data, current_level, *, maintain=None):
+    def __init__(self, parent, map_data, current_level, *, maintain=None, nested_lookup=None, wall_height_levels=0.0):
         super().__init__(parent)
         self.setWindowTitle("Edit Levels")
         self.before = map_data
         self.maintain = maintain
+        self.nested_lookup = nested_lookup
+        self.wall_height_levels = wall_height_levels
         self.selected_level = current_level
         self.table = QTableWidget(0, 2)
         self.table.setHorizontalHeaderLabels(["Level", "Name"])
@@ -39,9 +41,14 @@ class LevelsDialog(QDialog):
         self.remove_button = QPushButton("Remove")
         self.remove_button.setAutoDefault(False)
         self.remove_button.clicked.connect(self.remove_level)
+        self.shrink_button = QPushButton("Shrink to fit")
+        self.shrink_button.setAutoDefault(False)
+        self.shrink_button.setToolTip("Remove empty levels below and above the contents; keep empty levels in between.")
+        self.shrink_button.clicked.connect(self.shrink_to_fit)
         actions = QHBoxLayout()
         actions.addWidget(self.add_button)
         actions.addWidget(self.remove_button)
+        actions.addWidget(self.shrink_button)
         self.summary = QLabel()
         self.summary.setTextFormat(Qt.TextFormat.PlainText)
         self.summary.setWordWrap(True)
@@ -112,6 +119,18 @@ class LevelsDialog(QDialog):
         self.table.blockSignals(True)
         self.table.removeRow(row)
         self.refresh_rows(min(row, self.table.rowCount() - 1))
+
+    def shrink_to_fit(self):
+        selected = max(0, self.table.currentRow())
+        self.table.setCurrentItem(None)
+        bounds = map_content_bounds(
+            self.edited_data(), nested_lookup=self.nested_lookup, wall_height_levels=self.wall_height_levels
+        )
+        self.table.blockSignals(True)
+        for row in reversed(range(self.table.rowCount())):
+            if row < bounds.first_level or row > bounds.last_level:
+                self.table.removeRow(row)
+        self.refresh_rows(max(0, min(selected - bounds.first_level, self.table.rowCount() - 1)))
 
     def accept(self):
         self.selected_level = max(0, self.table.currentRow())

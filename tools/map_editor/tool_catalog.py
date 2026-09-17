@@ -54,7 +54,14 @@ TOOL_GROUPS = (
             Tool(c.MODE_LIGHT, "Light", c.MODE_ERASE_LIGHTS),
         ),
     ),
-    ("Measure", (Tool(c.MODE_JUMP_REACH, "Jump reach"), Tool(c.MODE_RUN_TIME, "Run time"))),
+    (
+        "Measure",
+        (
+            Tool(c.MODE_JUMP_REACH, "Jump reach"),
+            Tool(c.MODE_PORTAL_JUMP, "Portal jump"),
+            Tool(c.MODE_RUN_TIME, "Run time"),
+        ),
+    ),
 )
 TOOLS = {tool.mode: tool for tool in (*PINNED_TOOLS, *(tool for _, group in TOOL_GROUPS for tool in group))}
 # Shared erase modes retain the selected variant (blocked floor, ramp down,

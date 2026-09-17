@@ -1,8 +1,8 @@
 from html import escape
 from math import ceil, floor
 
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QAction, QColor, QPainterPath, QPen, QPolygonF
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QAction, QColor, QPen
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -17,15 +17,8 @@ from PySide6.QtWidgets import (
 from .catalogs import load_map_settings, map_settings_path, read_settings_json
 from .constants import GAMEPLAY_PATH, MODE_JUMP_REACH
 from .floor_footprints import ramp_landing_edges, slab_cells
-from .jump_reach import ANTI_GRAVITY, BOTH, NORMAL, SPEED, JumpSettings, calculate_reach
-
-
-SCENARIOS = (
-    (NORMAL, "Normal", "#4ade80"),
-    (SPEED, "Speed", "#fbbf24"),
-    (ANTI_GRAVITY, "Anti-gravity", "#60a5fa"),
-    (BOTH, "Both", "#e879f9"),
-)
+from .jump_reach import JumpSettings, calculate_reach
+from .reach_markers import SCENARIOS, landing_lines, paint_landing_markers
 
 
 class JumpReachOverlay:
@@ -179,21 +172,7 @@ class JumpReachOverlay:
         if not landings:
             return "Jump Reach: out of range"
         lines = ["Jump Reach:"]
-        for bit, name, _ in SCENARIOS:
-            if bit not in landings:
-                continue
-            damage = landings[bit]
-            if damage == 0:
-                lines.append(f"● {name}")
-                continue
-            if damage == 1:
-                symbol = "×"
-                amount = "100"
-            else:
-                symbol = "△"
-                percent = damage * 100
-                amount = "<0.1" if percent < 0.1 else ">99.9" if percent > 99.9 else f"{percent:.1f}"
-            lines.append(f"{symbol} {name} (damage: {amount}%)")
+        lines.extend(landing_lines(landings))
         return "\n".join(lines)
 
     def paint(self, painter, cell: float):
@@ -204,41 +183,12 @@ class JumpReachOverlay:
         data = self.window.map_data
         level = self.window.current_level
         painter.save()
-        size = min(7.0, cell * 0.16)
         for row in range(max(0, floor(visible.top())), min(data["grid_rows"], ceil(visible.bottom()))):
             for col in range(max(0, floor(visible.left())), min(data["grid_cols"], ceil(visible.right()))):
                 landings = self.results.get((level, col, row), {})
                 if not landings:
                     continue
-                for index, (bit, _, color) in enumerate(SCENARIOS):
-                    if bit in landings:
-                        painter.setPen(QPen(QColor("#111418"), min(1.0, size * 0.15)))
-                        painter.setBrush(QColor(color))
-                        x = (col + 0.2 + index * 0.2) * cell - size / 2
-                        y = (row + 0.78) * cell - size / 2
-                        if landings[bit] == 0:
-                            painter.drawEllipse(QRectF(x, y, size, size))
-                        elif landings[bit] < 1:
-                            painter.setPen(QPen(QColor(color), size * 0.2))
-                            painter.setBrush(QColor("#111418"))
-                            painter.drawPolygon(
-                                QPolygonF(
-                                    [
-                                        QPointF(x + size / 2, y),
-                                        QPointF(x + size, y + size),
-                                        QPointF(x, y + size),
-                                    ]
-                                )
-                            )
-                        else:
-                            cross = QPainterPath(QPointF(x, y))
-                            cross.lineTo(x + size, y + size)
-                            cross.moveTo(x + size, y)
-                            cross.lineTo(x, y + size)
-                            painter.setPen(QPen(QColor("#111418"), size * 0.45))
-                            painter.drawPath(cross)
-                            painter.setPen(QPen(QColor(color), size * 0.25))
-                            painter.drawPath(cross)
+                paint_landing_markers(painter, cell, col, row, landings)
         source_level, col, row = self.origin
         if source_level == level:
             painter.setPen(QPen(QColor("#ffffff"), 2, Qt.PenStyle.DashLine))

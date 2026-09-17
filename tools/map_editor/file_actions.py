@@ -144,6 +144,7 @@ class FileActionsMixin:
         # stays where it is.
         self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
         self.jump_reach.reload_settings()
+        self.portal_jump.reload_settings()
         self.run_time.reload_settings()
         self._record_recent_path(self.path)
         self.refresh_ui()
@@ -312,5 +313,6 @@ class FileActionsMixin:
         except (OSError, ValueError, KeyError) as exc:
             self.notify(f"Catalog reload failed: {exc}")
         self.jump_reach.reload_settings()
+        self.portal_jump.reload_settings()
         self.run_time.reload_settings()
         self.refresh_ui()

@@ -6,20 +6,25 @@ from PySide6.QtWidgets import QMessageBox
 
 from .dialogs import ResizeMapDialog, ToolReferenceDialog
 from .dialogs.levels import LevelsDialog
-from .transforms import dropped_summary, resize_map_data
+from .transforms import dropped_summary, map_content_bounds, resize_map_offset
 
 
 class StructureMixin:
     # === Map structure (resize / levels / help) ===
 
     def resize_map(self) -> None:
-        result = ResizeMapDialog.prompt(self, self.map_data["grid_cols"], self.map_data["grid_rows"])
+        bounds = map_content_bounds(
+            self.map_data, nested_lookup=self.nested_map_shape, wall_width_cells=self.wall_width_cells
+        )
+        result = ResizeMapDialog.prompt(
+            self, self.map_data["grid_cols"], self.map_data["grid_rows"], content_bounds=bounds.rect
+        )
         if result is None:
             return
-        new_cols, new_rows, anchor_x, anchor_y = result
-        if new_cols == self.map_data["grid_cols"] and new_rows == self.map_data["grid_rows"]:
+        new_cols, new_rows, dc, dr = result
+        if new_cols == self.map_data["grid_cols"] and new_rows == self.map_data["grid_rows"] and dc == dr == 0:
             return
-        after = self.doc.maintain(resize_map_data(self.map_data, new_cols, new_rows, anchor_x, anchor_y))
+        after = self.doc.maintain(resize_map_offset(self.map_data, new_cols, new_rows, dc, dr))
         summary = dropped_summary(self.map_data, after)
         if summary:
             response = QMessageBox.question(
@@ -37,7 +42,14 @@ class StructureMixin:
         self.canvas.fit_map()
 
     def edit_levels(self) -> None:
-        result = LevelsDialog.prompt(self, self.map_data, self.current_level, maintain=self.doc.maintain)
+        result = LevelsDialog.prompt(
+            self,
+            self.map_data,
+            self.current_level,
+            maintain=self.doc.maintain,
+            nested_lookup=self.nested_map_shape,
+            wall_height_levels=self.wall_width_cells * self.grid_cell_size / self.level_height,
+        )
         if result is None:
             return
         after, selected = result

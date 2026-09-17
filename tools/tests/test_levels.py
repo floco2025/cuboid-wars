@@ -1,15 +1,79 @@
 import copy
 from unittest.mock import patch
 
-from PySide6.QtWidgets import QDialog, QMessageBox
-
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, floor, nested
 from map_editor.dialogs.levels import LevelsDialog
 from map_editor.io import read_map
 from map_editor.normalization import empty_level, empty_map
+from PySide6.QtWidgets import QDialog, QMessageBox
 
 
 class LevelsWindowTests(WindowTestCase):
+    def test_shrink_keeps_interior_levels_names_spans_and_nested_motion(self):
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"] = [empty_level(i) for i in range(8)]
+        data["levels"][2]["floors"] = [floor(2, 2)]
+        data["items"] = [{"level": 5, "col": 3, "row": 3, "type": "gold"}]
+        child = empty_map(2, 2)
+        child["levels"].append(empty_level(1))
+        data["nested_geometry"] = {"cabin": child}
+        data["nested_maps"] = [nested("cabin", 3, [4, 4], [5, 5], 5)]
+        self.window.doc.replace_with_new(data)
+        self.window.set_level_index(5)
+        before = copy.deepcopy(self.window.map_data)
+
+        def edit(dialog):
+            dialog.table.item(2, 1).setText("Landing")
+            dialog.table.setCurrentCell(7, 1)
+            dialog.add_button.click()
+            dialog.table.setCurrentCell(5, 1)
+            dialog.shrink_button.click()
+            self.assertEqual(dialog.values(), [(i, "Landing" if i == 2 else f"Level {i}") for i in range(2, 7)])
+            self.assertEqual(dialog.summary.text(), "")
+            self.assertEqual(self.window.map_data, before)
+            dialog.accept()
+            return dialog.result()
+
+        with patch.object(LevelsDialog, "exec", edit):
+            self.window.edit_levels()
+        after = copy.deepcopy(self.window.map_data)
+        self.assertEqual((after["grid_cols"], after["grid_rows"]), (8, 8))
+        self.assertEqual(len(after["levels"]), 5)
+        self.assertEqual(after["levels"][0]["floors"], before["levels"][2]["floors"])
+        self.assertEqual(after["items"][0], {"level": 3, "col": 3, "row": 3, "type": "gold"})
+        self.assertEqual((after["nested_maps"][0]["level"], after["nested_maps"][0]["to_level"]), (1, 3))
+        self.assertEqual(after["nested_geometry"], before["nested_geometry"])
+        self.assertEqual(self.window.current_level, 3)
+        self.assertEqual(self.window.undo_stack.count(), 1)
+        self.window.undo_stack.undo()
+        self.assertEqual(self.window.map_data, before)
+        self.window.undo_stack.redo()
+        self.assertEqual(self.window.map_data, after)
+
+    def test_shrink_empty_levels_keeps_one_and_cancel_discards_it(self):
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["levels"] = [empty_level(i) for i in range(4)]
+        self.window.doc.replace_with_new(data)
+        self.window.set_level_index(3)
+        before = copy.deepcopy(self.window.map_data)
+
+        def edit(dialog):
+            dialog.shrink_button.click()
+            self.assertEqual(dialog.values(), [(0, "Level 0")])
+            self.assertFalse(dialog.remove_button.isEnabled())
+            dialog.shrink_button.click()
+            self.assertEqual(dialog.table.rowCount(), 1)
+            dialog.reject()
+            return dialog.result()
+
+        with patch.object(LevelsDialog, "exec", edit):
+            self.window.edit_levels()
+        self.assertEqual(self.window.map_data, before)
+        self.assertEqual(self.window.current_level, 3)
+        self.assertEqual(self.window.undo_stack.count(), 0)
+
     def test_batch_names_add_remove_save_and_undo_in_the_active_nested_map(self):
         window = self.window
         child = empty_map(8, 8)

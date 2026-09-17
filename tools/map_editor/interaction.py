@@ -61,6 +61,12 @@ class CanvasInput:
         )
 
     def tool_accepts(self, mode, point):
+        if mode == c.MODE_PORTAL_JUMP:
+            tolerance = self.canvas.pick_tolerance()
+            return (
+                -tolerance <= point.x() <= self.window.map_data["grid_cols"] + tolerance
+                and -tolerance <= point.y() <= self.window.map_data["grid_rows"] + tolerance
+            )
         if mode in (c.MODE_WALL, c.MODE_BARRIER, c.MODE_EQUIPMENT_ERASER, c.MODE_WALL_MATERIAL):
             return self.within_grid(point)
         return self.cell(point) is not None

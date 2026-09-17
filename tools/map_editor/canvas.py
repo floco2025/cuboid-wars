@@ -225,6 +225,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
 
     def _clear_hover(self) -> None:
         changed = self.hover_target is not None or self.hover_cell is not None
+        portal_jump = getattr(self.window, "portal_jump", None)
+        if portal_jump is not None and portal_jump.preview is not None:
+            portal_jump.preview = None
+            changed = True
         self.hover_kind = None
         self.hover_target = None
         self.hover_cell = None
@@ -298,7 +302,11 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def _show_hover_label(self, tooltip: str | None, pos) -> None:
         cell = self.point_to_cell(pos)
         guides = (self.window.jump_reach, self.window.run_time) if cell is not None else ()
-        tooltip = "\n".join(part for part in (tooltip, *(guide.hover_text(*cell) for guide in guides)) if part) or None
+        portal_text = self.window.portal_jump.hover_text(self.grid_position(pos))
+        tooltip = (
+            "\n".join(part for part in (tooltip, portal_text, *(guide.hover_text(*cell) for guide in guides)) if part)
+            or None
+        )
         if tooltip is not None:
             self._hover_label.setText(tooltip)
             metrics = self._hover_label.fontMetrics()
