@@ -5,7 +5,7 @@ use serde_json::{from_value, json};
 
 use super::*;
 use crate::{
-    audio::sound_playback,
+    audio::{audio_plugin, sound_playback},
     config::AssetSet,
     test_fixtures,
     vfx::{WeatherIntensity, rain_audio_system},
@@ -14,7 +14,7 @@ use crate::{
 fn audio_app() -> App {
     let mut app = App::new();
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
-    app.init_asset::<AudioSource>();
+    test_fixtures::init_audio_app(&mut app);
     let mut config: serde_json::Value =
         serde_json::from_str(include_str!("../../tests/fixtures/assets.json")).expect("asset fixture rejected");
     config["player"]["sounds"]["rain"] = json!({"file": "sounds/loud.ogg", "volume_db": 3.0});

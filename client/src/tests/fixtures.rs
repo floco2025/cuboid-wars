@@ -8,7 +8,12 @@ use common::{
     protocol::{MapSettings, PortalMode},
 };
 
-use crate::config::{AssetSet, ClientSettings, FollowCameraConfig};
+use bevy::{audio::GlobalVolume, prelude::*};
+
+use crate::{
+    audio::{LoopAudio, LowPassAudio},
+    config::{AssetSet, ClientSettings, FollowCameraConfig},
+};
 
 // The shipped settings are the base of every whole-schema `ClientSettings`;
 // each test pins the values its assertions depend on.
@@ -22,6 +27,15 @@ pub(crate) fn gameplay_config() -> GameplayConfig {
 
 pub(crate) fn client_settings() -> ClientSettings {
     serde_json::from_str(SETTINGS_JSON).expect("test client settings are invalid")
+}
+
+// Every source type and resource the audio plugin's systems query.
+pub(crate) fn init_audio_app(app: &mut App) {
+    app.init_resource::<GlobalVolume>()
+        .init_asset::<AudioSource>()
+        .init_asset::<LoopAudio>()
+        .init_asset::<LowPassAudio<AudioSource>>()
+        .init_asset::<LowPassAudio<LoopAudio>>();
 }
 
 pub(crate) fn asset_set() -> AssetSet {

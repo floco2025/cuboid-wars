@@ -7,7 +7,7 @@ use serde_json::json;
 
 use super::*;
 use crate::{
-    audio::{AudioAnalysis, LoopAudio, audio_plugin},
+    audio::{AudioAnalysis, audio_plugin},
     config::AssetSet,
     test_fixtures,
 };
@@ -15,7 +15,7 @@ use crate::{
 fn audio_app() -> App {
     let mut app = App::new();
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default(), TransformPlugin));
-    app.init_asset::<LoopAudio>();
+    test_fixtures::init_audio_app(&mut app);
     let mut time = Time::<()>::default();
     time.advance_by(Duration::from_secs_f32(1.0 / 60.0));
     app.insert_resource(time)

@@ -138,6 +138,23 @@ pub const AUDIO_ACTOR_MOVEMENT_VOLUME_DB_DEFAULT: f32 = 0.0;
 pub const AUDIO_VOLUME_DB_MIN: f32 = -20.0;
 pub const AUDIO_VOLUME_DB_MAX: f32 = 20.0;
 
+// Sound occlusion: every wall, floor, or ramp between a spatial sound and the
+// camera is a layer, and the sound eases toward the gain and low-pass cutoff
+// its layer count gives.
+pub const AUDIO_OCCLUSION_PROBE_HZ: f32 = 10.0;
+// Ignores hits this close to the emitter, which sits on the surface it struck.
+pub const AUDIO_OCCLUSION_END_MARGIN: f32 = 0.1;
+// Entries closer than this to the last counted one are the same layer: wall
+// and slab segments overlap at their seams.
+pub const AUDIO_OCCLUSION_LAYER_GAP: f32 = 0.5;
+pub const AUDIO_OCCLUSION_MAX_LAYERS: f32 = 3.0;
+pub const AUDIO_OCCLUSION_LAYER_GAIN: f32 = 0.35;
+// The cutoff after the first layer; each further layer multiplies it.
+pub const AUDIO_OCCLUSION_CUTOFF_HZ: f32 = 600.0;
+pub const AUDIO_OCCLUSION_LAYER_CUTOFF_RATIO: f32 = 0.5;
+pub const AUDIO_OCCLUSION_OPEN_CUTOFF_HZ: f32 = 20_000.0;
+pub const AUDIO_OCCLUSION_FADE_RATE: f32 = 12.0;
+
 // ============================================================================
 // RTT measurement
 // ============================================================================

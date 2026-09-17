@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     map::Carriers,
-    protocol::{BarrierId, FaceMaterials, SwitchState},
+    protocol::{BarrierId, BridgeId, FaceMaterials, SwitchState},
 };
 
 #[test]
@@ -70,6 +70,78 @@ fn world_surface_along_ray_returns_none_in_the_open() {
             .world_surface_along_ray(Vec3::new(2.0, LEVEL_HEIGHT + 1.0, 2.0), Vec3::Z, 4.0)
             .is_none()
     );
+}
+
+#[test]
+fn world_surfaces_along_ray_lists_each_solid_entered_nearest_first_and_no_field() {
+    let mut layout = test_map_layout();
+    layout.walls.push(Wall {
+        x1: 0.0,
+        z1: -2.0,
+        x2: 4.0,
+        z2: -2.0,
+        width: WALL_THICKNESS,
+        level: 1,
+        y: LEVEL_HEIGHT,
+        height: WALL_HEIGHT,
+        carrier: CarrierId::WORLD,
+    });
+    layout.barriers.push(Barrier {
+        id: Default::default(),
+        switch: None,
+        switch_inverted: false,
+        x1: 0.0,
+        z1: 2.0,
+        x2: 4.0,
+        z2: 2.0,
+        level: 1,
+        levels: 1,
+        kind: BarrierKindId(0),
+        y: LEVEL_HEIGHT,
+        height: WALL_HEIGHT,
+        width: BARRIER_THICKNESS,
+        carrier: CarrierId::WORLD,
+    });
+    layout.light_bridges.push(LightBridge {
+        id: Default::default(),
+        switch: None,
+        switch_inverted: false,
+        x1: 0.0,
+        z1: 2.5,
+        x2: 4.0,
+        z2: 3.5,
+        y: LEVEL_HEIGHT + 1.0,
+        level: 1,
+        kind: BridgeKindId(0),
+        thickness: BRIDGE_THICKNESS,
+        carrier: CarrierId::WORLD,
+    });
+    let mut world = CollisionWorld::from_map_layout(&layout);
+    world.set_powered_bridges(&[BridgeId(0)]);
+    let origin = Vec3::new(2.0, LEVEL_HEIGHT + 1.0 - BRIDGE_THICKNESS * 0.25, 6.0);
+
+    // The powered bridge is the first thing a shot would meet.
+    let cover = world
+        .attack_surface_along_ray(origin, Vec3::NEG_Z, 10.0, &[])
+        .expect("expected the bridge to be cover");
+    assert!((cover.point.z - 3.5).abs() < 0.001, "cover was {cover:?}");
+
+    let hits = world.world_surfaces_along_ray(origin, Vec3::NEG_Z, 10.0);
+    let entries: Vec<f32> = hits.iter().map(|hit| hit.point.z).collect();
+    assert_eq!(entries.len(), 2, "hits were {hits:?}");
+    assert!((entries[0] - WALL_THICKNESS / 2.0).abs() < 0.001, "hits were {hits:?}");
+    assert!(
+        (entries[1] + 2.0 - WALL_THICKNESS / 2.0).abs() < 0.001,
+        "hits were {hits:?}"
+    );
+    assert!(hits.iter().all(|hit| hit.normal == Vec3::Z), "hits were {hits:?}");
+
+    // Down through the floor slab onto the ramp: entry faces only.
+    let hits = world.world_surfaces_along_ray(Vec3::new(2.0, LEVEL_HEIGHT + 2.0, 2.0), Vec3::NEG_Y, 10.0);
+    let heights: Vec<f32> = hits.iter().map(|hit| hit.point.y).collect();
+    assert_eq!(heights.len(), 2, "hits were {hits:?}");
+    assert!((heights[0] - LEVEL_HEIGHT).abs() < 0.001, "hits were {hits:?}");
+    assert!((heights[1] - LEVEL_HEIGHT / 4.0).abs() < 0.01, "hits were {hits:?}");
 }
 
 #[test]

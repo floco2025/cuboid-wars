@@ -71,7 +71,8 @@ fn selection_uses_list_parity_and_avoids_repeats_when_that_group_has_choices() {
 fn sound_app(local: bool, support: CharacterSupport, volume_db: f32, clip: PlayerClip) -> App {
     let mut app = App::new();
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
-    app.init_asset::<AudioSource>().init_asset::<AnimationClip>();
+    test_fixtures::init_audio_app(&mut app);
+    app.init_asset::<AnimationClip>();
     let mut time = Time::<()>::default();
     time.advance_by(Duration::from_secs_f32(0.1));
     app.insert_resource(time).init_resource::<Time<Fixed>>();

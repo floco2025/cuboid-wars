@@ -12,15 +12,15 @@ use crate::{
 #[test]
 fn actor_sfx_master_scales_beams_and_explosions_without_changing_player_sounds() {
     let mut app = App::new();
-    app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()))
-        .init_asset::<AudioSource>()
-        .insert_resource(
-            serde_json::from_value::<AudioAnalysis>(json!({"version": 1, "sounds": {
-                "sounds/test-sfx.wav": {"suggested_gain_db": -12.0}
-            }}))
-            .expect("audio analysis fixture rejected"),
-        )
-        .add_plugins(audio_plugin);
+    app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
+    test_fixtures::init_audio_app(&mut app);
+    app.insert_resource(
+        serde_json::from_value::<AudioAnalysis>(json!({"version": 1, "sounds": {
+            "sounds/test-sfx.wav": {"suggested_gain_db": -12.0}
+        }}))
+        .expect("audio analysis fixture rejected"),
+    )
+    .add_plugins(audio_plugin);
     let mut assets = test_fixtures::asset_set();
     assets.actors.sfx_volume_db = -6.0;
     assets.actors.movement_volume_db = 20.0;

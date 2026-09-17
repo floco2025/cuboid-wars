@@ -3,17 +3,12 @@ use bevy::{
     prelude::*,
 };
 
-use super::{AudioAnalysis, LoopAudio};
+use super::AudioAnalysis;
 
 #[derive(Component)]
 pub struct NormalizationGain(pub Volume);
 
-pub(crate) fn audio_plugin(app: &mut App) {
-    app.add_observer(normalize_sound::<AudioSource>)
-        .add_observer(normalize_sound::<LoopAudio>);
-}
-
-fn normalize_sound<T: Asset + Decodable>(
+pub(super) fn normalize_sound<T: Asset + Decodable>(
     event: On<Add, AudioPlayer<T>>,
     mut sounds: Query<(&AudioPlayer<T>, &mut PlaybackSettings)>,
     asset_server: Res<AssetServer>,

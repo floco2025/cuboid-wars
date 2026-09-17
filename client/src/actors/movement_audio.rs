@@ -1,12 +1,12 @@
 use bevy::{
-    audio::{GlobalVolume, SpatialScale, Volume},
+    audio::{SpatialScale, Volume},
     prelude::*,
 };
 use common::{config::ActorGameplayConfig, protocol::ActorId};
 
 use super::ActorAnimationVelocity;
 use crate::{
-    audio::{NormalizationGain, loop_sound_playback, settings_volume, sink_volume},
+    audio::{NormalizationGain, loop_sound_playback, settings_volume},
     config::{AudioConfig, ClientSettings, SoundDef},
     constants::{
         ACTOR_MOVEMENT_AUDIO_ATTACK_RATE, ACTOR_MOVEMENT_AUDIO_FLYING_PITCH, ACTOR_MOVEMENT_AUDIO_GROUND_PITCH,
@@ -44,7 +44,7 @@ pub(super) fn spawn_movement_audio(
             asset_server,
             sound,
             // Silent until the first update: `actor_movement_audio_system`
-            // owns the volume from then on, including the sound's own dB.
+            // owns the playback volume from then on, including the sound's own dB.
             PlaybackSettings::ONCE
                 .paused()
                 .with_volume(Volume::Linear(0.0))
@@ -63,7 +63,6 @@ pub(super) fn spawn_movement_audio(
 pub(crate) fn actor_movement_audio_system(
     time: Res<Time>,
     settings: Res<ClientSettings>,
-    global_volume: Res<GlobalVolume>,
     actors: Query<&ActorAnimationVelocity>,
     mut sounds: Query<(
         &ChildOf,
@@ -106,8 +105,7 @@ pub(crate) fn actor_movement_audio_system(
         playback.volume = sound.configured_volume * normalization.0 * volume * Volume::Linear(sound.gain);
         // A muted slider pauses the loops instead of mixing silence.
         playback.paused = sound.gain == 0.0 || volume.to_linear() == 0.0;
-        if let Some(mut sink) = sink {
-            sink.set_volume(sink_volume(&playback, &global_volume));
+        if let Some(sink) = sink {
             sink.set_speed(playback.speed);
             if playback.paused {
                 sink.pause();

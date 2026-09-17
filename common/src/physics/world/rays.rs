@@ -68,6 +68,37 @@ impl CollisionWorld {
         self.surface_along_ray(origin, direction, max_distance, world_collision_groups(), &[])
     }
 
+    // Every world surface the ray enters before `max_distance`, nearest
+    // first, one per collider; a solid's far face is never among them.
+    #[must_use]
+    pub fn world_surfaces_along_ray(&self, origin: Vec3, direction: Vec3, max_distance: f32) -> Vec<WorldSurfaceHit> {
+        if !origin.is_finite() || !direction.is_finite() || !max_distance.is_finite() || max_distance <= 0.0 {
+            return Vec::new();
+        }
+        let Some(direction) = direction.try_normalize() else {
+            return Vec::new();
+        };
+        let ray = Ray::new(to_rapier(origin), to_rapier(direction));
+        let pipeline = self.query_pipeline(query_filter(world_collision_groups()));
+        let mut hits: Vec<(f32, WorldSurfaceHit)> = pipeline
+            .intersect_ray(ray, max_distance, false)
+            .filter_map(|(handle, _, hit)| {
+                let normal = from_rapier(hit.normal).try_normalize()?;
+                Some((
+                    hit.time_of_impact,
+                    WorldSurfaceHit {
+                        point: origin + direction * hit.time_of_impact,
+                        normal,
+                        carrier: self.carrier_of(handle),
+                        collider: handle,
+                    },
+                ))
+            })
+            .collect();
+        hits.sort_by(|a, b| a.0.total_cmp(&b.0));
+        hits.into_iter().map(|(_, hit)| hit).collect()
+    }
+
     #[must_use]
     pub fn attack_path_clear(&self, from: Vec3, to: Vec3, open_barriers: &[BarrierId]) -> bool {
         let displacement = to - from;
