@@ -189,6 +189,124 @@ fn return_command_relocates_the_living_sender_to_its_checkpoint_without_a_death(
 }
 
 #[test]
+fn simultaneous_returns_reserve_their_destinations() {
+    let mut app = server_app(NetworkOverrides::default()).expect("server app failed to initialize");
+    let (first, receiver) = connect(&mut app);
+    let (second, _second_receiver) = connect(&mut app);
+    for client in [&first, &second] {
+        client
+            .send(ClientMessage::Login(CLogin { name: "Player".into() }))
+            .expect("login failed");
+    }
+    app.update();
+    while receiver.try_recv().is_ok() {}
+
+    // A body as wide as the start's only cell makes its centre the only spawn candidate.
+    let cell_size = app.world().resource::<crate::map::MapConfig>().grids[0]
+        .geometry
+        .cell_size();
+    {
+        let mut gameplay = app.world_mut().resource_mut::<GameplayConfig>();
+        gameplay.player.movement_collider.diameter = cell_size;
+        gameplay.player.movement_collider.height = cell_size;
+    }
+    {
+        let mut layout = app.world_mut().resource_mut::<MapLayout>();
+        let start = &mut layout.checkpoints[0];
+        start.rows = [0, 1];
+        start.max_z = start.min_z + cell_size;
+    }
+    for (id, x) in [(PlayerId(1), 40.0), (PlayerId(2), 50.0)] {
+        let pos = Position { x, y: 0.0, z: 40.0 };
+        let entity = {
+            let mut players = app.world_mut().resource_mut::<PlayerMap>();
+            let info = players.get_mut(&id).expect("player missing");
+            info.life.movement = PlayerMovementState::new(pos, PlayerMoveIntent::Idle, 0.0, 0.0);
+            info.entity().expect("body missing")
+        };
+        app.world_mut().entity_mut(entity).insert(pos);
+    }
+    for client in [&first, &second] {
+        client
+            .send(ClientMessage::Admin(CAdmin {
+                command: "/return".into(),
+            }))
+            .expect("return delivery failed");
+    }
+    app.update();
+
+    let positions: Vec<_> = [PlayerId(1), PlayerId(2)]
+        .iter()
+        .map(|id| {
+            let entity = app
+                .world()
+                .resource::<PlayerMap>()
+                .get(id)
+                .expect("player missing")
+                .entity()
+                .expect("body missing");
+            *app.world().get::<Position>(entity).expect("position missing")
+        })
+        .collect();
+    assert_eq!(positions.iter().filter(|pos| in_checkpoint(&app, 0, pos)).count(), 1);
+    assert_ne!(positions[0], positions[1], "both returns claimed the only spot");
+    let relocations = std::iter::from_fn(|| receiver.try_recv().ok())
+        .filter(|message| matches!(message, ServerMessage::PlayerRelocated(_)))
+        .count();
+    assert_eq!(relocations, 1, "the blocked return must not relocate its player");
+}
+
+#[test]
+fn returns_preserve_heals_in_the_same_ingress_batch() {
+    for commands in [
+        vec!["/heal", "/return"],
+        vec!["/return", "/heal"],
+        vec!["/return", "/heal", "/return"],
+    ] {
+        let mut app = server_app(NetworkOverrides::default()).expect("server app failed to initialize");
+        let (client, receiver) = connect(&mut app);
+        client
+            .send(ClientMessage::Login(CLogin { name: "Player".into() }))
+            .expect("login failed");
+        app.update();
+        while receiver.try_recv().is_ok() {}
+        let entity = app
+            .world()
+            .resource::<PlayerMap>()
+            .get(&PlayerId(1))
+            .expect("player missing")
+            .entity()
+            .expect("body missing");
+        let initial_health = 17.0;
+        app.world_mut().entity_mut(entity).insert(Health(initial_health));
+        let max_health = app.world().resource::<ServerGameplayConfig>().combat.health.player.max;
+        let mut expected_health = initial_health;
+        let mut expected_relocations = Vec::new();
+        for command in &commands {
+            if *command == "/heal" {
+                expected_health = max_health;
+            } else {
+                expected_relocations.push(expected_health);
+            }
+            client
+                .send(ClientMessage::Admin(CAdmin {
+                    command: (*command).into(),
+                }))
+                .expect("admin command delivery failed");
+        }
+        app.update();
+        assert_eq!(app.world().get::<Health>(entity).expect("health missing").0, max_health);
+        let relocation_health: Vec<_> = std::iter::from_fn(|| receiver.try_recv().ok())
+            .filter_map(|message| match message {
+                ServerMessage::PlayerRelocated(message) => Some(message.player.health.0),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(relocation_health, expected_relocations, "{commands:?}");
+    }
+}
+
+#[test]
 fn startup_god_and_peace_share_the_console_state() {
     for god in [false, true] {
         for peace in [false, true] {

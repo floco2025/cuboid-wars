@@ -69,7 +69,8 @@ pub fn players_respawn_system(
         ) else {
             continue;
         };
-        let entity = commands.spawn((PlayerMarker, id)).id();
+        let health = Health(server_gameplay_config.combat.health.player.max);
+        let entity = commands.spawn((PlayerMarker, id, health)).id();
         if let Some(info) = players.get_mut(&id) {
             info.finish_respawn(entity);
         }
@@ -79,7 +80,7 @@ pub fn players_respawn_system(
             id,
             entity,
             &spawn,
-            Health(server_gameplay_config.combat.health.player.max),
+            health,
             tick.0,
             portal_assignments.get(&id),
         );

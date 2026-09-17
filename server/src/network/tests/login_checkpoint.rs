@@ -4,7 +4,7 @@ use super::handle_login_message;
 use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
     map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
-    network::{SharedWorld, handlers::CharacterQueries},
+    network::SharedWorld,
     players::{
         CheckpointEntry, CheckpointId, LoginStart, PlayerCheckpoint, PlayerInfo, PlayerMap, respawn_tests::respawn_app,
     },
@@ -155,24 +155,14 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             ResMut<PlayerMap>,
             SharedWorld,
             Res<CelestialClockAnchor>,
-            CharacterQueries,
             Res<QuestCatalog>,
             Res<QuestBoard>,
             ResMut<PortalAssignments>,
             ResMut<PortalMap>,
         )> = SystemState::new(app.world_mut());
         {
-            let (
-                mut commands,
-                mut players,
-                world,
-                celestial_clock,
-                queries,
-                catalog,
-                board,
-                mut assignments,
-                mut portals,
-            ) = system.get_mut(app.world_mut()).expect("login system resources missing");
+            let (mut commands, mut players, world, celestial_clock, catalog, board, mut assignments, mut portals) =
+                system.get_mut(app.world_mut()).expect("login system resources missing");
             handle_login_message(
                 &mut commands,
                 entity,
@@ -182,7 +172,6 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
                 &mut players,
                 &world,
                 &celestial_clock,
-                &queries,
                 &catalog,
                 &board,
                 &mut assignments,

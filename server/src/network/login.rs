@@ -4,15 +4,15 @@ use crate::{
     characters::spawn_face_yaw,
     network::{FeedAudience, FeedEvent, emit_feed},
     players::{
-        LoginStart, PlayerMap, PlayerSpawn, enter_group_respawn, place_player_body, player_spawn_destination,
-        start_destination,
+        LoginStart, PlayerMap, PlayerSpawn, enter_group_respawn, occupied_player_positions, place_player_body,
+        player_spawn_destination, start_destination,
     },
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
 use common::{celestial::CelestialClockAnchor, protocol::*};
 
-use super::handlers::{CharacterQueries, SharedWorld};
+use super::handlers::SharedWorld;
 
 const MAX_NAME_CHARS: usize = 32;
 
@@ -37,7 +37,6 @@ pub(super) fn handle_login_message(
     players: &mut PlayerMap,
     world: &SharedWorld,
     celestial_clock: &CelestialClockAnchor,
-    queries: &CharacterQueries,
     quest_catalog: &QuestCatalog,
     quest_board: &QuestBoard,
     portal_assignments: &mut PortalAssignments,
@@ -82,12 +81,7 @@ pub(super) fn handle_login_message(
         },
     );
 
-    let occupied_positions: Vec<Position> = players
-        .values()
-        .filter(|player| player.connection.logged_in && player.entity() != Some(entity))
-        .filter_map(|player| player.entity().and_then(|entity| queries.player_data.get(entity).ok()))
-        .map(|(pos, _, _)| *pos)
-        .collect();
+    let occupied_positions = occupied_player_positions(players, &world.carriers, id);
     let physics = world.gameplay_config.player.physics();
     let spawn = if let Some(pos) = start.spawn {
         PlayerSpawn {
@@ -125,13 +119,15 @@ pub(super) fn handle_login_message(
     if enter_group_respawn(commands, players, id, spawn.pos) {
         return;
     }
+    let health = Health(world.server_gameplay_config.combat.health.player.max);
+    commands.entity(entity).insert(health);
     place_player_body(
         commands,
         players,
         id,
         entity,
         &spawn,
-        Health(world.server_gameplay_config.combat.health.player.max),
+        health,
         world.tick.0,
         portal_access,
     );

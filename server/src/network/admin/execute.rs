@@ -8,8 +8,11 @@ use crate::{
     actors::{ActorMap, PendingActorSpawns, expedite_actor_respawns},
     combat::{DeathSource, kill_player},
     config::ServerGameplayConfig,
-    network::{SharedWorld, broadcast_firework_show, broadcast_to_all},
-    players::{PlayerMap, PlayerStateQuery, checkpoint_numbered, place_player_body, player_spawn_destination},
+    network::{SharedWorld, broadcast_firework_show, broadcast_to_all, handlers::CharacterQueries},
+    players::{
+        PlayerMap, PlayerStateQuery, checkpoint_numbered, occupied_player_positions, place_player_body,
+        player_spawn_destination,
+    },
     portals::PortalAssignments,
     quests::{QuestBoard, QuestCatalog, complete_quest, unlock_quest},
 };
@@ -33,7 +36,7 @@ pub(super) fn run_admin_command(
     actors: &mut ActorMap,
     sender: PlayerId,
     admin: &mut AdminContext,
-    player_data: &PlayerStateQuery,
+    queries: &mut CharacterQueries,
     world: &SharedWorld,
     portal_assignments: &PortalAssignments,
     pending_actor_spawns: &mut PendingActorSpawns,
@@ -88,7 +91,7 @@ pub(super) fn run_admin_command(
         }
         AdminCommand::KillAllPlayers => {
             let targets = alive_players(players, None);
-            let count = kill_targets(commands, players, admin, player_data, &targets);
+            let count = kill_targets(commands, players, admin, &queries.player_data.as_readonly(), &targets);
             Public(format!("killed {count} player(s)"))
         }
         AdminCommand::KillPlayer(name) => {
@@ -96,7 +99,7 @@ pub(super) fn run_admin_command(
             if targets.is_empty() {
                 return Private(format!("unknown player {name:?}"));
             }
-            let count = kill_targets(commands, players, admin, player_data, &targets);
+            let count = kill_targets(commands, players, admin, &queries.player_data.as_readonly(), &targets);
             Public(format!("killed {count} player(s)"))
         }
         AdminCommand::KillActors(kind) => {
@@ -144,7 +147,12 @@ pub(super) fn run_admin_command(
             };
             let max_health = admin.server_gameplay_config.combat.health.player.max;
             for (_, entity) in &targets {
-                commands.entity(*entity).insert(Health(max_health));
+                if let Ok((_, _, mut health)) = queries.player_data.get_mut(*entity) {
+                    *health = Health(max_health);
+                } else {
+                    // A login in this batch may still be waiting for its body components.
+                    commands.entity(*entity).insert(Health(max_health));
+                }
             }
             let text = format!("healed {} player(s)", targets.len());
             if targets.iter().any(|(id, _)| *id != sender) {
@@ -180,17 +188,12 @@ pub(super) fn run_admin_command(
             let Some(entity) = info.entity() else {
                 return Private("dead: the respawn returns you".to_owned());
             };
-            let Ok((_, _, health)) = player_data.get(entity) else {
+            let Ok((_, _, health)) = queries.player_data.get(entity) else {
                 return Private("sender has no body".to_owned());
             };
             let health = *health;
             let saved = info.session.checkpoint;
-            let occupied: Vec<_> = players
-                .values()
-                .filter(|player| player.connection.logged_in && player.entity() != Some(entity))
-                .filter_map(|player| player.entity().and_then(|entity| player_data.get(entity).ok()))
-                .map(|(pos, _, _)| *pos)
-                .collect();
+            let occupied = occupied_player_positions(players, &world.carriers, sender);
             let Some(spawn) = player_spawn_destination(
                 &world.map_config,
                 &world.map_layout.checkpoints,

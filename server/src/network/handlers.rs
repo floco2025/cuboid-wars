@@ -4,7 +4,7 @@ use super::feed::{FeedAudience, FeedEvent, emit_feed};
 use crate::{
     config::{FeedConfig, ServerGameplayConfig},
     map::MapConfig,
-    players::{PlayerMap, PlayerStateQuery},
+    players::PlayerMap,
 };
 use common::{
     config::GameplayConfig, constants::CONSOLE_CHAT_MAX_CHARS, map::Carriers, physics::CollisionWorld, protocol::*,
@@ -28,7 +28,8 @@ pub(crate) struct SharedWorld<'w> {
 
 #[derive(SystemParam)]
 pub(crate) struct CharacterQueries<'w, 's> {
-    pub(crate) player_data: PlayerStateQuery<'w, 's>,
+    pub(crate) player_data:
+        Query<'w, 's, (&'static Position, &'static FaceYaw, &'static mut Health), With<PlayerMarker>>,
 }
 
 pub(super) fn handle_ping_message(id: PlayerId, message: CPing, players: &PlayerMap, tick: ServerTick) {
