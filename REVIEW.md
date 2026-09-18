@@ -178,7 +178,7 @@ The review inventories the repository and checks the areas above; it is not a cl
 
 ## Existing follow-ups and implementation order
 
-The floor-portal walking failure and memory work remain in Fixes. Pressure-plate support geometry, stairs rendering, Obby speed tuning, and the Rapier workaround review remain Enhancements. Sliding-carrier pushing remains Testing.
+Memory work remains in Fixes. The earlier floor-portal walking report now belongs with portal verification: a current in-game walk-over check reported no issue, and this review has not reproduced the narrow-axis case described in the original TODO. It is not an established current defect. Pressure-plate support geometry, stairs rendering, Obby speed tuning, and the Rapier workaround review remain Enhancements. Sliding-carrier pushing remains Testing.
 
 Two portal-visual entries described mechanisms already present in this revision: `portal_body_clipping_system` preserves a mapped pose during handoff, and `straddled_gate` uses rendered carrier frames. The tests `a_floor_handoff_starts_the_body_inverted_about_its_centre` and `a_carried_gate_is_straddled_where_it_is_drawn` pass. TODO now asks for integrated visual verification, including fast crossings and frame stalls, instead of requesting those mechanisms again. This does not assert that every remaining visual symptom is resolved.
 
