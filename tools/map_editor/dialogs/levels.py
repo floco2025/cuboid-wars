@@ -41,6 +41,14 @@ class LevelsDialog(QDialog):
         self.remove_button = QPushButton("Remove")
         self.remove_button.setAutoDefault(False)
         self.remove_button.clicked.connect(self.remove_level)
+        self.up_button = QPushButton("Move Up")
+        self.up_button.setAutoDefault(False)
+        self.up_button.setToolTip("Move the selected row toward level 0, together with its contents.")
+        self.up_button.clicked.connect(lambda: self.move_level(-1))
+        self.down_button = QPushButton("Move Down")
+        self.down_button.setAutoDefault(False)
+        self.down_button.setToolTip("Move the selected row toward higher level numbers, together with its contents.")
+        self.down_button.clicked.connect(lambda: self.move_level(1))
         self.shrink_button = QPushButton("Shrink to fit")
         self.shrink_button.setAutoDefault(False)
         self.shrink_button.setToolTip("Remove empty levels below and above the contents; keep empty levels in between.")
@@ -48,6 +56,8 @@ class LevelsDialog(QDialog):
         actions = QHBoxLayout()
         actions.addWidget(self.add_button)
         actions.addWidget(self.remove_button)
+        actions.addWidget(self.up_button)
+        actions.addWidget(self.down_button)
         actions.addWidget(self.shrink_button)
         self.summary = QLabel()
         self.summary.setTextFormat(Qt.TextFormat.PlainText)
@@ -87,7 +97,10 @@ class LevelsDialog(QDialog):
         return self.maintain(after) if self.maintain else after
 
     def sync_buttons(self, *_):
-        self.remove_button.setEnabled(self.table.rowCount() > 1 and self.table.currentRow() >= 0)
+        row = self.table.currentRow()
+        self.remove_button.setEnabled(self.table.rowCount() > 1 and row >= 0)
+        self.up_button.setEnabled(row > 0)
+        self.down_button.setEnabled(0 <= row < self.table.rowCount() - 1)
 
     def update_summary(self, *_):
         summary = dropped_summary(self.before, self.edited_data())
@@ -119,6 +132,20 @@ class LevelsDialog(QDialog):
         self.table.blockSignals(True)
         self.table.removeRow(row)
         self.refresh_rows(min(row, self.table.rowCount() - 1))
+
+    def move_level(self, delta):
+        row = self.table.currentRow()
+        target = row + delta
+        if row < 0 or not 0 <= target < self.table.rowCount():
+            return
+        self.table.setCurrentItem(None)
+        self.table.blockSignals(True)
+        for column in range(self.table.columnCount()):
+            selected = self.table.takeItem(row, column)
+            neighbour = self.table.takeItem(target, column)
+            self.table.setItem(row, column, neighbour)
+            self.table.setItem(target, column, selected)
+        self.refresh_rows(target)
 
     def shrink_to_fit(self):
         selected = max(0, self.table.currentRow())

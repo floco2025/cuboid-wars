@@ -123,14 +123,24 @@ class LevelsWindowTests(WindowTestCase):
             dialog.table.setCurrentCell(2, 1)
             dialog.table.editItem(dialog.table.item(2, 1))
             dialog.table.cellWidget(2, 1).setText("  Roof  ")
+            self.assertFalse(dialog.down_button.isEnabled())
+            dialog.up_button.click()
+            self.assertEqual(dialog.table.currentRow(), 1)
+            self.assertEqual(dialog.values(), [(0, "Entrance"), (2, "  Roof  "), (None, "Gallery")])
+            self.assertTrue(dialog.up_button.isEnabled())
+            self.assertTrue(dialog.down_button.isEnabled())
+            dialog.up_button.click()
+            self.assertFalse(dialog.up_button.isEnabled())
+            dialog.down_button.click()
+            self.assertEqual(window.doc.root_data, before)
             dialog.accept()
             return dialog.result()
 
         with patch.object(LevelsDialog, "exec", edit):
             window.edit_levels()
-        self.assertEqual([level["name"] for level in window.map_data["levels"]], ["Entrance", "Gallery", "Roof"])
-        self.assertEqual(window.map_data["items"][0]["level"], 2)
-        self.assertEqual(window.current_level, 2)
+        self.assertEqual([level["name"] for level in window.map_data["levels"]], ["Entrance", "Roof", "Gallery"])
+        self.assertEqual(window.map_data["items"][0]["level"], 1)
+        self.assertEqual(window.current_level, 1)
         self.assertEqual(window.undo_stack.count(), 1)
         self.assertEqual(window.undo_stack.undoText(), "Edit Levels")
         after = copy.deepcopy(window.doc.root_data)
@@ -225,9 +235,40 @@ class LevelsWindowTests(WindowTestCase):
         self.assertEqual(self.window.map_data, before)
         self.assertEqual(self.window.undo_stack.count(), 0)
 
+    def test_reversing_moves_restores_ramps_and_cancel_discards_reordering(self):
+        data = empty_map(8, 8)
+        data["levels"].append(empty_level(1))
+        data["ramps"] = [{"lower_level": 0, "low": [3, 3], "high": [6, 4], "all": DEFAULT_ALIAS}]
+        self.window.doc.replace_with_new(data)
+        before = copy.deepcopy(self.window.map_data)
+
+        def edit(dialog):
+            dialog.down_button.click()
+            self.assertIn("1 ramps", dialog.summary.text())
+            dialog.up_button.click()
+            self.assertEqual(dialog.summary.text(), "")
+            self.assertEqual(dialog.edited_data(), before)
+            dialog.down_button.click()
+            with patch(
+                "map_editor.dialogs.levels.QMessageBox.question", return_value=QMessageBox.StandardButton.Cancel
+            ) as confirm:
+                dialog.accept()
+            confirm.assert_called_once()
+            self.assertEqual(dialog.result(), QDialog.DialogCode.Rejected)
+            dialog.reject()
+            return dialog.result()
+
+        with patch.object(LevelsDialog, "exec", edit):
+            self.window.edit_levels()
+        self.assertEqual(self.window.map_data, before)
+        self.assertEqual(self.window.undo_stack.count(), 0)
+        self.assertEqual(self.window.current_level, 0)
+
     def test_last_level_cannot_be_removed(self):
         dialog = LevelsDialog(self.window, self.window.map_data, 0)
         self.assertFalse(dialog.remove_button.isEnabled())
+        self.assertFalse(dialog.up_button.isEnabled())
+        self.assertFalse(dialog.down_button.isEnabled())
         dialog.remove_level()
         self.assertEqual(dialog.table.rowCount(), 1)
         dialog.add_button.click()

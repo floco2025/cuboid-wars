@@ -228,16 +228,48 @@ def edit_levels_data(map_data: dict, levels: list[tuple[int | None, str]]) -> di
     if not levels:
         raise ValueError("A map needs at least one level.")
     kept = [original for original, _ in levels if original is not None]
-    if kept != sorted(set(kept)) or any(index < 0 or index >= len(map_data["levels"]) for index in kept):
-        raise ValueError("Existing levels must stay in their original order.")
+    if len(kept) != len(set(kept)) or any(index < 0 or index >= len(map_data["levels"]) for index in kept):
+        raise ValueError("Existing levels must be unique and within the map.")
     after = copy.deepcopy(map_data)
     # Derive geometry from the final rows so adding then removing a new row
     # cannot leave behind a deleted ramp or an expanded spawn zone.
     for index in reversed(range(len(map_data["levels"]))):
         if index not in kept:
             after = _without_level(after, index)
-    for index, (original, name) in enumerate(levels):
-        if original is None:
-            after = insert_level_data(after, index, remove_crossing_ramps=True)
-        after["levels"][index]["name"] = name.strip() or f"Level {index}"
+    remaining = {original: index for index, original in enumerate(sorted(kept))}
+    positions = {remaining[original]: index for index, (original, _) in enumerate(levels) if original is not None}
+
+    def remap(level):
+        if level >= len(remaining):
+            return level + len(levels) - len(remaining)
+        return positions.get(level, level)
+
+    for list_name in GLOBAL_LISTS:
+        entries = []
+        for entry in after.get(list_name, []):
+            lower, upper = record_levels(entry)
+            if list_name == "ramps" and remap(upper) != remap(lower) + 1:
+                continue
+            if list_name in ZONE_LISTS and type(entry.get("levels", 1)) is int and entry.get("levels", 1) > 0:
+                covered = [remap(lower), remap(upper)]
+                covered.extend(new for old, new in positions.items() if lower <= old <= upper)
+                entry["level"] = min(covered)
+                if "levels" in entry:
+                    entry["levels"] = max(covered) - min(covered) + 1
+            elif list_name == "ladders" and entry["levels"] > 0:
+                entry["lower_level"] = min(remap(lower), remap(upper))
+                entry["levels"] = abs(remap(upper) - remap(lower))
+            else:
+                for key in ("level", "lower_level", "to_level"):
+                    if key in entry:
+                        entry[key] = remap(entry[key])
+            entries.append(entry)
+        after[list_name] = entries
+    after["levels"] = [
+        {
+            **(after["levels"][remaining[original]] if original is not None else empty_level(index)),
+            "name": name.strip() or f"Level {index}",
+        }
+        for index, (original, name) in enumerate(levels)
+    ]
     return after

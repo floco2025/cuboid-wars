@@ -115,6 +115,41 @@ class ResizeTests(unittest.TestCase):
 
 
 class LevelTests(unittest.TestCase):
+    def test_reordering_levels_moves_contents_references_and_spans(self):
+        data = empty_map(6, 6)
+        data["levels"] = [{**empty_level(i), "floors": [floor(i, i)]} for i in range(4)]
+        data["items"] = [{"level": 2, "col": 1, "row": 1, "type": "gold"}]
+        data["pressure_plates"] = [{"level": 3, "col": 2, "row": 2, "switch": "lift"}]
+        data["actor_spawn_zones"] = [{"level": 0, "levels": 3, "cols": [0, 2], "rows": [0, 2], "kind": "turret"}]
+        data["ramps"] = [{"lower_level": i, "low": [1, 1], "high": [3, 2]} for i in range(3)]
+        data["ladders"] = [{"lower_level": 0, "levels": 2, "col": 3, "row": 3, "side": "N"}]
+        data["nested_geometry"] = {"cabin": empty_map(1, 1)}
+        data["nested_maps"] = [nested("cabin", 2, [1, 1], [3, 1], 0)]
+        before = copy.deepcopy(data)
+
+        after = edit_levels_data(data, [(i, f"Storey {i}") for i in (2, 3, 0, 1)])
+
+        self.assertEqual(
+            [level["floors"] for level in after["levels"]], [data["levels"][i]["floors"] for i in (2, 3, 0, 1)]
+        )
+        self.assertEqual(after["items"][0]["level"], 0)
+        self.assertEqual(after["pressure_plates"][0]["level"], 1)
+        self.assertEqual(after["checkpoints"][0]["level"], 2)
+        self.assertEqual((after["actor_spawn_zones"][0]["level"], after["actor_spawn_zones"][0]["levels"]), (0, 4))
+        self.assertEqual([ramp["lower_level"] for ramp in after["ramps"]], [2, 0])
+        self.assertEqual((after["ladders"][0]["lower_level"], after["ladders"][0]["levels"]), (0, 2))
+        self.assertEqual((after["nested_maps"][0]["level"], after["nested_maps"][0]["to_level"]), (0, 2))
+        self.assertEqual(after["nested_geometry"], before["nested_geometry"])
+        self.assertEqual(data, before)
+
+    def test_reordering_with_insertions_and_removals_uses_final_ramp_connections(self):
+        data = empty_map(6, 6)
+        data["levels"] += [empty_level(i) for i in range(1, 5)]
+        data["ramps"] = [{"lower_level": i, "low": [1, 1], "high": [3, 2]} for i in range(4)]
+        after = edit_levels_data(data, [(2, "Middle"), (3, "Upper"), (None, "Landing"), (0, "Ground"), (1, "Lower")])
+        self.assertEqual([ramp["lower_level"] for ramp in after["ramps"]], [3, 0])
+        self.assertEqual(after["levels"][2], {**empty_level(2), "name": "Landing"})
+
     def test_batch_level_changes_remap_spans_and_keep_original_geometry(self):
         data = empty_map(6, 6)
         data["levels"] += [empty_level(1), empty_level(2)]
