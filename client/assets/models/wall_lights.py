@@ -13,7 +13,7 @@ MODELS = Path(__file__).resolve().parent
 
 
 def loose(obj):
-    """Fixtures export as separate unparented meshes."""
+    """Leave parts unparented until the static fixture is assembled."""
 
 
 def finish(obj, name, mat, bevel):
@@ -166,9 +166,47 @@ def utility():
         rod("Latch screw", (x, -0.11, 0), (x, -0.12, 0), 0.014, guard_metal, 6)
 
 
+def assemble(kind):
+    """Bake static parts into one mesh, preserving their corner normals."""
+    bpy.context.view_layer.update()
+    parts = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
+    vertices, faces, normals, face_materials, materials = [], [], [], [], []
+    for obj in parts:
+        mesh = obj.data
+        transform = obj.matrix_world
+        normal_transform = transform.to_3x3().inverted().transposed()
+        offset = len(vertices)
+        vertices.extend(transform @ vertex.co for vertex in mesh.vertices)
+        for face in mesh.polygons:
+            material = mesh.materials[face.material_index]
+            if material not in materials:
+                materials.append(material)
+            face_materials.append(materials.index(material))
+            faces.append([offset + index for index in face.vertices])
+            normals.extend(
+                (normal_transform @ mesh.corner_normals[index].vector).normalized() for index in face.loop_indices
+            )
+    mesh = bpy.data.meshes.new(f"Wall light {kind}")
+    mesh.from_pydata(vertices, [], faces)
+    for material in materials:
+        mesh.materials.append(material)
+    for face, material in zip(mesh.polygons, face_materials):
+        face.material_index = material
+        face.use_smooth = True
+    mesh.normals_split_custom_set(normals)
+    obj = bpy.data.objects.new(mesh.name, mesh)
+    bpy.context.collection.objects.link(obj)
+    for part in parts:
+        bpy.data.objects.remove(part, do_unlink=True)
+
+
 for kind, build in [("decorative", decorative), ("utility", utility)]:
     preview.clear_scene()
     build()
+    # Hundreds of fixtures share these models. Join their static parts so glTF
+    # exports one node with one primitive per material instead of a node and
+    # draw primitive for every screw, trim, and guard.
+    assemble(kind)
     model = MODELS / f"wall_light_{kind}.glb"
     bpy.ops.export_scene.gltf(
         filepath=str(model),
