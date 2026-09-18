@@ -2,12 +2,6 @@
 
 ## Fixes
 
-- **Status and snapshot ordering:** prevent older same-generation status cues or snapshots from restoring outdated keys, power-ups, stun, or ammo. Define ordering for multiple changes within a tick, preserve pickup feedback independently, and account for pending missile expenditure. See [review R2](REVIEW.md#r2--p2-older-status-updates-overwrite-newer-inventory-within-the-same-body).
-
-- **Portal placement ordering:** order placement and removal across cues and snapshots so a delayed cue cannot restore a moved or erased end, and an older snapshot cannot undo a new placement. The accepted state must also drive the traversal set. See [review R3](REVIEW.md#r3--p2-reordered-portal-cues-can-restore-an-obsolete-placement).
-
-- **Actor death ordering:** prevent a pre-death snapshot from recreating an actor already removed by a death cue; bound retirement state and preserve legitimate future spawns. See [review R4](REVIEW.md#r4--p2-a-pre-death-snapshot-can-recreate-an-actor-after-its-death-cue).
-
 - **Map level-count validation:** reject root and nested grids beyond the supported runtime count before compiling geometry or building bootstrap data; 256 levels currently compile but overflow the bootstrap's `u8` count. Mirror the limit in editor diagnostics. See [review R6](REVIEW.md#r6--p2-a-validated-256-level-map-exceeds-the-bootstrap-representation).
 
 - **Audio analysis reproducibility:** make `analyze_audio.py --check` tolerate insignificant measurement noise while checking audio hashes, membership, settings, and discrete metadata exactly; report useful differences. Unchanged audio currently fails with differences no larger than 0.000002 dB. See [review R7](REVIEW.md#r7--p3-audio-freshness-checking-fails-on-insignificant-numeric-differences).
@@ -38,7 +32,7 @@
 
 - **Portal body visuals:** verify floor-to-floor handoffs and moving-portal clipping in third person, including fast crossings, frame stalls, and interpolated carrier poses. Pose preservation and rendered-frame straddle detection already exist and their focused tests pass; confirm the previously reported upright snap and flicker are gone in the integrated renderer.
 
-- **Network ordering regressions:** exercise status, portal, and actor lifecycle cues before and after snapshots, including same-tick changes, loss, wraparound, and removals. Passing login/snapshot/disconnect checks under lag and loss does not establish these ordering guarantees.
+- **Network convergence:** verify that status, health, scores, portals, and actor presence converge after loss/reordering subsides, delayed messages drain, and fresh snapshots arrive. Temporary intermediate inconsistencies are accepted under the [protocol contract](common/src/protocol.rs). Also check the existing body-generation, movement-ordering (including wraparound), and reliable-event guarantees. Passing login/snapshot/disconnect checks alone does not establish this coverage.
 
 - **Platform and rendering coverage:** repeat focused checks on macOS and Windows; inspect day/night/rain and portals under both renderers, listen to spatial audio, and run a multiplayer soak. Reproduce the Linux startup cursor-position error alongside focus/recapture testing before changing cursor behavior.
 

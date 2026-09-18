@@ -2,6 +2,30 @@
 // Names starting with C are sent by the client; names starting with S are
 // sent by the server. For example: client CLogin -> server SInit.
 //
+// Self-repairing state: an intentional trade-off
+//
+// The protocol deliberately accepts temporary client inconsistencies caused
+// by delayed, lost, or reordered messages. Repeated snapshots repair replicated
+// state; cues provide immediate updates and feedback between snapshots. Client
+// state is not required to advance monotonically across cues and snapshots:
+// a delayed cue can overwrite newer snapshot state, or an older snapshot can
+// overwrite a newer cue, until a subsequent fresh snapshot repairs it.
+//
+// Briefly outdated inventory, health, scores, portal placements, or actor
+// presence are accepted trade-offs for a simpler, responsive protocol. These
+// effects are expected to be rare on a good network. Snapshot repair restores
+// replicated state; it does not promise to replay or undo every action taken
+// during an inconsistent interval, including owner-simulated movement.
+//
+// Reviews must not classify a temporary inconsistency alone as a correctness
+// defect or require additional revisions, acknowledgements, or retirement
+// tracking merely to eliminate it. Findings must demonstrate failure to
+// converge after fresh snapshots resume and delayed messages have drained,
+// violation of an explicit protocol guarantee, or a concrete gameplay problem
+// beyond this accepted trade-off. Existing generation, movement-ordering, and
+// reliable-event guarantees below still apply. Test eventual repair and those
+// guarantees, rather than requiring every intermediate client state to agree.
+//
 // Delivery: two lanes
 //
 // A lane controls how a message travels:
@@ -102,8 +126,9 @@
 //
 // 3. Cues (unreliable): prompt feedback before the next state update.
 //
-//    A lost cue can cost a sound, animation, or delay, but later state updates
-//    keep the game state correct. Cues serve three purposes:
+//    A lost cue can cost a sound, animation, or delay; reordered cues can
+//    temporarily restore older state. Later snapshots repair replicated state
+//    under the self-repairing contract above. Cues serve three purposes:
 //    * Earlier updates: `SActorBeam` reports beam changes; snapshots also
 //      carry the beam state.
 //    * One-time feedback: `SPlayerStatus` can play a pickup sound when an item
@@ -111,7 +136,7 @@
 //      playing the sound again. `SGoldCollected` does the same for gold.
 //    * Details absent from snapshots: `SPlayerHit` carries the hit direction
 //      for camera shake. Death cues supply the death position and effects;
-//      the next snapshot still confirms that the entity is gone.
+//      later snapshots confirm that the entity is gone.
 //
 //    `CPing` and `SPong` measure round-trip time (RTT); the pong also carries
 //    the server tick for clock synchronization.
@@ -158,7 +183,7 @@
 //    ownership, equipment, cooldown, and overlap with current portals, then
 //    broadcasts the accepted result. Geometry, aim, and material checks run
 //    only on the firing client; all clients install accepted portals from
-//    `SPortalOpened` or snapshots.
+//    the unreliable `SPortalOpened` cue or snapshots.
 //
 //    `CMoveOutcome` reports landing impact speeds, crushing, falls out
 //    of the world, and equipment erasure. These events are ordered

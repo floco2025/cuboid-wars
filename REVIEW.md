@@ -2,15 +2,15 @@
 
 Reviewed on 2026-09-18 against `2b4977b0` (`Standardize JSON absence and add always-active power-ups`). The checkout was refreshed during the review, and the Rust and editor checks were repeated against that revision.
 
-This review covers correctness, structure, simplification, maintainability, assets, tooling, and selected runtime behavior. The initial review produced this report and the follow-ups in [TODO.md](TODO.md), without changing production behavior. The subsequent implementation of R1 and R5 is noted below; the other findings and the validation table describe the original review baseline. Temporary diagnostic harnesses and captures remain outside the repository.
+This review covers correctness, structure, simplification, maintainability, assets, tooling, and selected runtime behavior. The initial review produced this report and the follow-ups in [TODO.md](TODO.md), without changing production behavior. The subsequent implementation of R1 and R5 and reclassification of R2–R4 as accepted behavior are noted below; the other findings and the validation table describe the original review baseline. Temporary diagnostic harnesses and captures remain outside the repository.
 
 ## Assessment
 
 Keep the executable plus `common`, `server`, and `client` workspace structure. The shared motor, separate owner/server policies, direct network dispatch, and domain-owned resources have clear responsibilities. A broad rewrite or further crate split would add migration work without addressing the defects found here.
 
-The main correctness gaps are at boundaries: render-frame input versus fixed simulation, immediate network cues versus snapshots, and validation versus narrower runtime representations. Existing unit coverage is substantial, but successful isolated tests do not exercise all of those interactions.
+The established correctness gaps concern render-frame input versus fixed simulation, pickup eligibility after earlier pickups, and validation versus narrower runtime representations. Temporary inconsistencies between network cues and snapshots are accepted by the [self-repairing protocol contract](common/src/protocol.rs); this review did not establish failure to converge or a gameplay problem beyond that trade-off. Existing unit coverage is substantial, but successful isolated tests do not exercise all of those interactions.
 
-Eight findings follow. P2 means ordinary corrective work; P3 means a low-impact tooling or configuration edge case. No P0 or P1 issue was established. Existing portal traversal and client-memory follow-ups remain relevant.
+Eight numbered observations follow: five defects and three accepted behaviors (R2–R4, whose original P2 classifications and fix recommendations are withdrawn). P2 means ordinary corrective work; P3 means a low-impact tooling or configuration edge case. No P0 or P1 issue was established. Existing portal traversal and client-memory follow-ups remain relevant.
 
 ## Findings
 
@@ -28,45 +28,39 @@ Eight findings follow. P2 means ordinary corrective work; P3 means a low-impact 
 
 **Verification:** release during a multi-step frame, press/release across a frame with no fixed step, jump consumed once across multiple fixed steps, and focus/menu transitions. Confirm facing and camera-relative movement still use the intended orientation.
 
-### R2 — P2: older status updates overwrite newer inventory within the same body
+### R2 — Accepted behavior: temporary inventory inconsistency within the same body
+
+**Status: accepted trade-off; fix recommendation withdrawn.** The self-repairing protocol permits temporary state changes across cues and snapshots. Additional status revisions or missile acknowledgements are not required merely to eliminate this interval.
 
 **Locations:** [`SPlayerStatus`](common/src/protocol.rs), [status handler](client/src/network/players/handlers.rs), [`PlayerInfo::apply_status` and `apply_snapshot`](client/src/players/resources.rs).
 
 Status cues carry a body generation but no state revision or tick. Both cues and snapshots replace power-ups, stun, keys, and missile counts unconditionally. The body-generation guard correctly rejects another life, but cannot reject older state within the current life. The snapshot guard only orders snapshots against snapshots.
 
-For example, deliver a snapshot showing zero missiles after erasure, then an older pickup status showing three. The older status restores three locally until another snapshot arrives. Conversely, a recent pickup cue can be overwritten by an earlier snapshot that is newer than the last snapshot already received. Incorrect keys, stun, or movement abilities can affect the owner's simulation during that interval; this is more than a HUD discrepancy.
+For example, deliver a snapshot showing zero missiles after erasure, then an older pickup status showing three. The older status restores three locally until another fresh snapshot arrives. Conversely, a recent pickup cue can be overwritten by an earlier snapshot that is newer than the last snapshot already received. Equipment can affect owner simulation during that interval; the contract accepts temporary inconsistencies and does not promise to undo every action taken before repair.
 
 **Evidence:** the real client `apply_status` method restored the missile count from zero to three in a temporary harness. Source inspection confirmed that the normal message handler adds no freshness check beyond generation. This was a state-application probe, not a captured packet-order reproduction.
 
-**Change:** give status state a shared ordering rule across cues and snapshots. Account for several changes within one server tick, so a tick alone with an unrestricted equal-tick overwrite is insufficient. Keep pickup feedback separate from state acceptance. Include pending local missile expenditure in the reconciliation design rather than letting a repeated authoritative count blindly undo it. Audit other cue-written health/score fields when introducing the rule.
+### R3 — Accepted behavior: temporary portal placement inconsistency
 
-**Verification:** both delivery orders, two statuses in one tick, erasure after pickup, stun expiry, generation changes, sequence wraparound, and snapshots racing locally requested missile launches.
-
-### R3 — P2: reordered portal cues can restore an obsolete placement
+**Status: accepted trade-off; fix recommendation withdrawn.** Portal state is repaired by subsequent fresh snapshots. This observation alone does not justify placement revisions or removal tracking.
 
 **Locations:** [`SPortalOpened`](common/src/protocol.rs), [portal cue handler](client/src/network/portals/handlers.rs), [portal snapshot reconciliation](client/src/network/portals/sync.rs).
 
 The cue and snapshot paths share an equality-based upsert, but equality only deduplicates the same placement. `SPortalOpened` has no revision, and the handler installs any different placement. Snapshots also replace or remove portal ends without comparing against the cue that last changed them.
 
-Two legal delivery sequences show the gap: receive a new placement and then an earlier, globally acceptable snapshot; or receive a newer snapshot that removes/moves an end and then a delayed old placement cue. In either case the client restores older portal state. Both paths rebuild the `PortalSet` used for local traversal, so an incorrect portal can influence movement before a later snapshot repairs the state.
+Two legal delivery sequences produce a temporary inconsistency: receive a new placement and then an earlier, globally acceptable snapshot; or receive a newer snapshot that removes/moves an end and then a delayed old placement cue. In either case the client restores older portal state. Both paths rebuild the `PortalSet` used for local traversal, so a temporary placement can influence movement before a later snapshot repairs portal state. No gameplay problem beyond the accepted trade-off was established.
 
 **Evidence:** traced the complete cue/upsert/snapshot paths against the explicitly unordered delivery contract in the protocol header. No controlled visual packet-reordering reproduction was performed.
 
-**Change:** order each end's placement and removal across both sources, retaining enough removal information to reject delayed cues. Preserve the shot's sound independently of whether its state is accepted. Use a revision scheme that distinguishes multiple changes in one tick.
+### R4 — Accepted behavior: temporary actor reappearance after a death cue
 
-**Verification:** two moves of one end arriving in reverse order; placement followed by equipment erasure, death, or disconnect; an older snapshot arriving after a cue; identical cue/snapshot deduplication; and reconstruction of the collision/traversal set from the accepted state.
-
-### R4 — P2: a pre-death snapshot can recreate an actor after its death cue
+**Status: accepted trade-off; fix recommendation withdrawn.** A temporary reappearance repaired by a fresh snapshot is permitted. Additional actor retirement tracking is not required merely to prevent it.
 
 **Locations:** [actor death handler](client/src/network/actors/handlers.rs), [actor snapshot reconciliation](client/src/network/actors/sync.rs).
 
 The death handler removes the actor from `ActorMap`. A subsequent snapshot creates every listed actor whose ID is absent, without remembering the death. If the last accepted snapshot is tick 10, an actor dies at tick 12, and its death cue arrives before the tick-11 snapshot, that snapshot is globally fresh and recreates the dead actor. The next post-death snapshot removes it again.
 
-**Evidence:** source-path analysis of death removal, the snapshot tick guard, and missing-actor creation. Players already retain retired body generations, and missiles have lifecycle ordering protection; the actor path lacks equivalent protection. This sequence was not exercised through rendered network clients.
-
-**Change:** retain actor-death ordering information and reject snapshots older than the terminal state. Define a bounded retirement lifecycle rather than retaining every dead ID forever. Do not reject a legitimate future actor allocation if IDs are eventually reused.
-
-**Verification:** death before a pre-death snapshot, snapshot removal before the cue, duplicate death cues, a dropped cue repaired by a snapshot, and fresh actor spawns after a reset.
+**Evidence:** source-path analysis of death removal, the snapshot tick guard, and missing-actor creation. Existing player-generation and missile lifecycle guarantees remain applicable to those domains; they do not establish a general requirement to prevent every temporary actor reappearance. This sequence was not exercised through rendered network clients.
 
 ### R5 — P2: simultaneous pickups consume items that no longer have an effect
 
@@ -121,7 +115,7 @@ The validator checks positivity and the relative send rates. `tick_duration` com
 | Area | Assessment and next step |
 | --- | --- |
 | Workspace boundaries | Keep the current executable and three libraries. Shared geometry/motor code belongs in `common`; client-owned flight and server-owned outcomes have different policies and should remain separate. |
-| Network state | Reuse the existing wrap-aware ordering vocabulary, but make field/entity state acceptance explicit across cues and snapshots. The checkpoint and actor-beam paths are useful existing examples. A general event bus would not solve the ordering defects. |
+| Network state | Preserve the [self-repairing protocol contract](common/src/protocol.rs): temporary inconsistencies are accepted. Test eventual convergence and existing explicit guarantees; additional ordering machinery needs evidence of a problem beyond that trade-off. |
 | Input and scheduling | Resolve R1 by separating input sampling from camera/presentation work. Keep the fixed-step sequence visible in one registration point so its tick, carrier, movement, transit, and reporting dependencies remain reviewable. |
 | Pickup handling | Generalize the existing eligibility predicate at the consumption boundary instead of growing one special-case recheck per item kind. |
 | Map editor and server | Start the existing shared-map-core investigation with a small contract corpus run through both implementations: absence/null rules, nesting, transformations, validation failures, and level limits. Preserve invalid authored records and structured diagnostics. Extract pure rules incrementally before considering a Python binding or an editor rewrite. |
@@ -147,10 +141,10 @@ No dependency vulnerability audit or recommendation to expose the server publicl
 | `python3 client/assets/sounds/analyze_audio.py --check` | Failed; isolated to the numeric differences in R7. |
 | Linux input-helper parser with UndefinedBehaviorSanitizer | Built and passed. |
 | Asset-catalog file existence on case-sensitive Linux | All 154 references resolved to 143 unique files, after separating glTF subasset fragments such as `#Scene0`. This checks files, not every subasset's content. |
-| Temporary focused Rust probes | Five probes confirmed R1, R2, R5, R6, and R8. They assert observed faulty behavior and are diagnostic evidence, not regression tests asserting a fix. |
+| Temporary focused Rust probes | Five probes reproduced the behavior described in R1, R2, R5, R6, and R8. R2 is accepted behavior; the others confirmed defects. These are diagnostic probes, not regression tests asserting a fix. |
 | Temporary local network integration | Two cases passed using the real server app and client link: dedicated Obby with 80 ms one-way delay, 0.5 jitter, and 5% unreliable loss; hosted Hotel with a local queue client plus a remote link. Login, repeated snapshots/pongs, and remote disconnect cleanup succeeded. |
 
-An initial sandboxed Rust run failed its UDP loopback test because socket creation was denied. The full run with socket access passed; the initial failure is an environment limitation, not a game defect. The temporary networking checks used library apps and links, not multiple rendered processes. Their success does not exercise the deliberately reordered lifecycle sequences in R2–R4.
+An initial sandboxed Rust run failed its UDP loopback test because socket creation was denied. The full run with socket access passed; the initial failure is an environment limitation, not a game defect. The temporary networking checks used library apps and links, not multiple rendered processes. They did not specifically verify convergence after the deliberately reordered sequences in R2–R4; those temporary intermediate inconsistencies are accepted.
 
 ### Runtime observations
 
@@ -182,6 +176,6 @@ The floor-portal walking failure and memory work remain in Fixes. Pressure-plate
 
 Two portal-visual entries described mechanisms already present in this revision: `portal_body_clipping_system` preserves a mapped pose during handoff, and `straddled_gate` uses rendered carrier frames. The tests `a_floor_handoff_starts_the_body_inverted_about_its_centre` and `a_carried_gate_is_straddled_where_it_is_drawn` pass. TODO now asks for integrated visual verification, including fast crossings and frame stalls, instead of requesting those mechanisms again. This does not assert that every remaining visual symptom is resolved.
 
-R1 and R5 have been implemented with focused behavioral regressions and removed from TODO. Treat R2–R4 as one coordinated protocol-ordering pass with separate state/lifecycle tests. Resolve R6 and R8 at the validation boundaries, then fix R7 before adding audio checking to CI. Keep dependency centralization and any shared-map extraction separate from behavioral fixes so their effects remain easy to assess.
+R1 and R5 have been implemented with focused behavioral regressions and removed from TODO. R2–R4 are accepted behavior and have also been removed from Fixes; network testing now targets convergence and existing explicit guarantees. Resolve R6 and R8 at the validation boundaries, then fix R7 before adding audio checking to CI. Keep dependency centralization and any shared-map extraction separate from behavioral fixes so their effects remain easy to assess.
 
 Follow-up validation: all 1,608 release workspace tests passed (524 client, 350 common, 10 executable, 724 server), including seven added regressions. Clippy passed with warnings treated as errors. The input tests use the production movement-input registration, with a fixed-step recorder and overlay-state transitions; they are headless checks, not a new rendered playtest.
