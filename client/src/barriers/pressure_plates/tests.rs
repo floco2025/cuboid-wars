@@ -92,6 +92,7 @@ fn model_tracks_switches_colors_locks_and_layout_replacement() {
                 center_x: index as f32 * 4.0,
                 center_y: 2.0,
                 center_z: 1.0,
+                side: 1.7,
                 switch: SwitchId((index % 3) as u16),
                 carrier: CarrierId::WORLD,
             })
@@ -104,6 +105,7 @@ fn model_tracks_switches_colors_locks_and_layout_replacement() {
             .insert_resource(settings)
             .insert_resource(CarrierEntities::new(vec![carrier]))
             .insert_resource(CarrierStoreys::from_layout(&layout))
+            .insert_resource(common::physics::CollisionWorld::from_map_layout(&layout))
             .insert_resource(layout)
             .insert_resource(SwitchState {
                 active_switches: vec![SwitchId(0)],

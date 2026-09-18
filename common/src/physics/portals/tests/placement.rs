@@ -536,6 +536,7 @@ fn placement_rejects_a_floor_portal_covering_a_pressure_plate() {
         level: 0,
         center_x: 3.0,
         center_z: 3.0,
+        side: 2.0,
         switch: SwitchId(0),
         center_y: 0.0,
         carrier: CarrierId::WORLD,

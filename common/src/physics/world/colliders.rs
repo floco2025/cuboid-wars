@@ -12,9 +12,10 @@ use rapier3d::{
 use super::shape_cast::FieldKind;
 
 use crate::{
+    constants::PRESSURE_PLATE_HEIGHT,
     map::{DecorationKind, Grounds, ROCK_HULL_SUBDIVISIONS, RampAxis, ramp_axis, rock_shape},
     math::{rapier_pose, to_rapier},
-    protocol::{Barrier, BarrierId, BridgeId, CarrierId, Floor, LightBridge, Ramp, Wall},
+    protocol::{Barrier, BarrierId, BridgeId, CarrierId, Floor, LightBridge, PressurePlate, Ramp, Wall},
 };
 
 pub(super) const WALL_COLLISION_GROUP: Group = Group::GROUP_1;
@@ -77,6 +78,7 @@ pub(super) enum ColliderKind {
     Bridge,
     Grounds,
     Decoration,
+    PressurePlate,
 }
 
 impl ColliderKind {
@@ -89,6 +91,7 @@ impl ColliderKind {
             Self::Bridge => 5,
             Self::Grounds => 6,
             Self::Decoration => 7,
+            Self::PressurePlate => 8,
         };
         tag | (u128::from(carrier.0) << CARRIER_SHIFT)
     }
@@ -123,6 +126,7 @@ impl ColliderKind {
             5 => Some(Self::Bridge),
             6 => Some(Self::Grounds),
             7 => Some(Self::Decoration),
+            8 => Some(Self::PressurePlate),
             _ => None,
         }
     }
@@ -199,6 +203,20 @@ pub(super) fn insert_floor_collider(colliders: &mut ColliderSet, floor: &Floor) 
         center,
         half_extents,
         ColliderKind::Floor.user_data(floor.carrier),
+        FLOOR_COLLISION_GROUP,
+    )
+}
+
+pub(super) fn insert_pressure_plate_collider(colliders: &mut ColliderSet, plate: &PressurePlate) -> ColliderHandle {
+    insert_cuboid_collider(
+        colliders,
+        Vec3::new(
+            plate.center_x,
+            plate.center_y + PRESSURE_PLATE_HEIGHT / 2.0,
+            plate.center_z,
+        ),
+        Vec3::new(plate.side / 2.0, PRESSURE_PLATE_HEIGHT / 2.0, plate.side / 2.0),
+        ColliderKind::PressurePlate.user_data(plate.carrier),
         FLOOR_COLLISION_GROUP,
     )
 }

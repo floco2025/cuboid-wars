@@ -18,7 +18,7 @@ use crate::map::{
     ramps, trim, walls,
 };
 use common::{
-    constants::LADDER_WIDTH,
+    constants::{LADDER_WIDTH, PRESSURE_PLATE_SIDE_CELLS},
     map::MapGeometry,
     protocol::{
         Barrier, BarrierKindTable, BridgeKindId, CarrierId, Checkpoint, Eraser, FaceMaterials, Floor, ItemType, Ladder,
@@ -105,6 +105,7 @@ pub(super) fn compile_geometry(
             center_x: geometry.cell_center_x(p.col),
             center_y: geometry.level_y(p.level),
             center_z: geometry.cell_center_z(p.row),
+            side: geometry.cell_size() * PRESSURE_PLATE_SIDE_CELLS,
             switch: p.switch,
             carrier,
         }));

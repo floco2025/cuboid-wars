@@ -115,7 +115,8 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
             .collect(),
     };
     let air_graph = AirGraph::new(&message.world.map.missile_air_grids, map_settings.geometry);
-    let collision_world = CollisionWorld::from_map_layout(&message.world.map.layout);
+    let mut collision_world = CollisionWorld::from_map_layout(&message.world.map.layout);
+    collision_world.set_locked_pressure_plates(&message.locked_switches);
     let carriers = Carriers::from_layout(&message.world.map.layout);
     let carrier_entities = spawn_carrier_entities(app.world_mut(), &message.world.map.layout, &carriers);
     let carrier_storeys = CarrierStoreys::from_layout(&message.world.map.layout);

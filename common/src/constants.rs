@@ -21,6 +21,11 @@ pub const BRIDGE_THICKNESS_FRACTION: f32 = 0.25;
 // Height of a wall light above its floor, as a fraction of the wall height.
 pub const WALL_LIGHT_HEIGHT_FRACTION: f32 = 0.625;
 
+// Pressure plates use one fixed box, including the model's clipped corners.
+// The tread's 3 cm press travel is purely visual.
+pub const PRESSURE_PLATE_SIDE_CELLS: f32 = 0.5;
+pub const PRESSURE_PLATE_HEIGHT: f32 = 0.11;
+
 // Ladders. Freestanding climbable elements anchored on grid edges. One-sided:
 // the rail side (front) climbs and fences; the back is passed through. No
 // Rapier collider — the character step queries the derived volumes directly.

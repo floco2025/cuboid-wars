@@ -16,7 +16,6 @@ pub struct PlateSwitchMarker(pub SwitchId);
 #[derive(Component)]
 pub(super) struct PlateColor(pub HexColor);
 
-const PLATE_SIDE_CELLS: f32 = 0.5;
 const PLATE_Y_OFFSET: f32 = 0.01;
 
 pub fn pressure_plates_spawn_system(
@@ -35,7 +34,6 @@ pub fn pressure_plates_spawn_system(
     for entity in &existing {
         commands.entity(entity).despawn();
     }
-    let side = settings.geometry.grid_cell_size * PLATE_SIDE_CELLS;
     for plate in &layout.pressure_plates {
         let color = settings
             .switch_color(plate.switch, &layout)
@@ -47,7 +45,7 @@ pub fn pressure_plates_spawn_system(
             storeys.tag(plate.carrier, plate.level, 0),
             ChildOf(carriers.get(plate.carrier)),
             Transform::from_xyz(plate.center_x, plate.center_y + PLATE_Y_OFFSET, plate.center_z)
-                .with_scale(Vec3::new(side, 1.0, side)),
+                .with_scale(Vec3::new(plate.side, 1.0, plate.side)),
             plate_visibility(plate.switch, &locked.0),
         ));
     }

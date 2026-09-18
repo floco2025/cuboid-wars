@@ -127,7 +127,7 @@ fn build_server_app_with_loader(
         power_ups_config.validate_pickup(item.item_type, &format!("map {map_name} placed_items[{index}]"))?;
     }
     let map_items = map_config.available_items(random_items.pool.iter().map(|&(item_type, _)| item_type));
-    let collision_world = CollisionWorld::from_map_layout(&map_layout);
+    let mut collision_world = CollisionWorld::from_map_layout(&map_layout);
     let carriers = Carriers::from_layout(&map_layout);
     let mut nav_graphs = NavGraphs::new(&map_config);
     nav_graphs.add_grounds(&map_layout);
@@ -141,6 +141,7 @@ fn build_server_app_with_loader(
     )?;
     let quest_catalog = QuestCatalog::from_quests(&map_server_config.quests);
     let quest_board = QuestBoard::from_catalog(&quest_catalog, fireworks_switch);
+    collision_world.set_locked_pressure_plates(quest_board.locked_switches());
     let actor_territories = ActorTerritories::new(&map_config, &server_gameplay_config);
     let world_bootstrap = WorldBootstrap {
         network: server_gameplay_config.network,

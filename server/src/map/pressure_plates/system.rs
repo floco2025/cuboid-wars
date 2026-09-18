@@ -13,10 +13,20 @@ use crate::{
 };
 use common::{
     map::{Carriers, MapGeometry},
+    physics::CollisionWorld,
     protocol::{
         PlayerId, PlayerMarker, Position, SPressurePlate, ServerMessage, ServerTick, SwitchId, SwitchState, SwitchTable,
     },
 };
+
+pub(crate) fn pressure_plates_collision_system(
+    quest_board: Res<QuestBoard>,
+    mut collision_world: ResMut<CollisionWorld>,
+) {
+    if quest_board.is_changed() {
+        collision_world.set_locked_pressure_plates(quest_board.locked_switches());
+    }
+}
 
 // Is `pos`, in the plate's carrier frame, inside this plate's inner
 // 25%-by-area square AND on the plate's level? Y matches within half a

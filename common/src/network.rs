@@ -28,7 +28,7 @@ use renet::{Bytes, ChannelConfig, ConnectionConfig, SendType};
 use crate::protocol::Lane;
 
 // Separates this game's packets from anything else on the port.
-pub const PROTOCOL_ID: u64 = 0x6375_626f_6964_0001;
+pub const PROTOCOL_ID: u64 = 0x6375_626f_6964_0002;
 pub const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 pub const MAX_CLIENTS: usize = 32;
 // renet's slice size, which it does not export: a message above it spans packets.

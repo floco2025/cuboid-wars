@@ -8,9 +8,10 @@ use rapier3d::prelude::{
 use super::{
     bounds::WorldBounds,
     colliders::{
-        BRIDGE_COLLISION_GROUP, ColliderKind, collider_interaction_groups, insert_barrier_collider,
-        insert_bridge_collider, insert_floor_collider, insert_grounds_colliders, insert_ramp_collider,
-        insert_wall_collider, query_filter, surface_collision_groups,
+        BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, collider_interaction_groups,
+        insert_barrier_collider, insert_bridge_collider, insert_floor_collider, insert_grounds_colliders,
+        insert_pressure_plate_collider, insert_ramp_collider, insert_wall_collider, query_filter,
+        surface_collision_groups,
     },
     erasers::EraserVolume,
     ladders::LadderVolume,
@@ -19,7 +20,7 @@ use super::{
 use crate::{
     map::Carriers,
     math::{rapier_pose, to_rapier},
-    protocol::{Barrier, BarrierId, BarrierKindId, BridgeId, CarrierId, MapLayout},
+    protocol::{Barrier, BarrierId, BarrierKindId, BridgeId, CarrierId, MapLayout, SwitchId},
 };
 
 #[derive(Resource)]
@@ -31,6 +32,8 @@ pub struct CollisionWorld {
     pub(crate) barriers: Vec<Barrier>,
     // Every light bridge collider with its kind, for `set_powered_bridges`.
     bridge_colliders: Vec<(BridgeId, ColliderHandle)>,
+    // Quest-locked plates are hidden and must not leave an invisible step.
+    pressure_plate_colliders: Vec<(SwitchId, ColliderHandle)>,
     // Each carrier's colliders with their carrier-local poses, in layout
     // order, and the same handles flat, for `set_carrier_poses`.
     carrier_colliders: Vec<Vec<(ColliderHandle, Pose)>>,
@@ -91,6 +94,13 @@ impl CollisionWorld {
             collider_handles.push(carried(&colliders, handle, barrier.carrier));
         }
 
+        let mut pressure_plate_colliders = Vec::with_capacity(map_layout.pressure_plates.len());
+        for plate in &map_layout.pressure_plates {
+            let handle = insert_pressure_plate_collider(&mut colliders, plate);
+            collider_handles.push(carried(&colliders, handle, plate.carrier));
+            pressure_plate_colliders.push((plate.switch, handle));
+        }
+
         let mut bridge_colliders = Vec::with_capacity(map_layout.light_bridges.len());
         for bridge in &map_layout.light_bridges {
             let handle = insert_bridge_collider(&mut colliders, bridge);
@@ -126,6 +136,7 @@ impl CollisionWorld {
             narrow_phase,
             barriers: map_layout.barriers.clone(),
             bridge_colliders,
+            pressure_plate_colliders,
             carrier_colliders,
             bounds,
             ladder_locals,
@@ -215,6 +226,21 @@ impl CollisionWorld {
                 BRIDGE_COLLISION_GROUP
             } else {
                 Group::empty()
+            };
+            if self.colliders[*handle].collision_groups().memberships != membership {
+                self.bounds.changed(self.carrier_of(*handle));
+                self.colliders[*handle].set_collision_groups(collider_interaction_groups(membership));
+            }
+        }
+    }
+
+    // Pressing only animates the model; only quest visibility changes collision.
+    pub fn set_locked_pressure_plates(&mut self, locked: &[SwitchId]) {
+        for (switch, handle) in &self.pressure_plate_colliders {
+            let membership = if locked.contains(switch) {
+                Group::empty()
+            } else {
+                FLOOR_COLLISION_GROUP
             };
             if self.colliders[*handle].collision_groups().memberships != membership {
                 self.bounds.changed(self.carrier_of(*handle));

@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 
 use super::{
-    pressure_plates::{PressurePlateInputs, pressure_plates_system, switch_reset_system},
+    pressure_plates::{
+        PressurePlateInputs, pressure_plates_collision_system, pressure_plates_system, switch_reset_system,
+    },
     switches::{Switches, switch_state_sync_system},
     weather_system,
 };
@@ -22,6 +24,7 @@ pub fn map_plugin(app: &mut App) {
                 // tick, so the tick must already have advanced.
                 (
                     pressure_plates_system,
+                    pressure_plates_collision_system,
                     switch_state_sync_system,
                     powered_bridges_sync_system,
                 )
@@ -34,6 +37,7 @@ pub fn map_plugin(app: &mut App) {
             Update,
             (
                 switch_reset_system,
+                pressure_plates_collision_system,
                 switch_state_sync_system,
                 powered_bridges_sync_system,
             )

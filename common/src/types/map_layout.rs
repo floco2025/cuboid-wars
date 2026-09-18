@@ -217,8 +217,8 @@ pub struct Ladder {
 
 // Coop puzzle primitive: a floor-cell-mounted plate that operates one of
 // the map's switches (`MapSettings.switches`); what that switch drives is
-// declared on its targets. The center is shipped here (not col/row) so the
-// client never needs `MapGeometry` to position the visual marker. The
+// declared on its targets. The center and side length are shipped here so
+// rendering and collision share the footprint without `MapGeometry`. The
 // server keeps the original (col, row) on its own runtime mirror for
 // plate-occupancy tests. Clients receive what the switches hold via
 // `SSnapshot.switch_state`.
@@ -228,6 +228,7 @@ pub struct PressurePlate {
     pub center_x: f32,
     pub center_y: f32,
     pub center_z: f32,
+    pub side: f32,
     pub switch: SwitchId,
     pub carrier: CarrierId,
 }
