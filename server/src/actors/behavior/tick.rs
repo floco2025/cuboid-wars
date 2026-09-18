@@ -16,8 +16,8 @@ use common::{
     math::PHYSICS_EPSILON,
     physics::{CharacterSupport, CollisionWorld, grounding_diagnostics},
     protocol::{
-        ActorId, ActorMarker, ItemType, MapItems, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage,
-        ServerTick, SwitchState,
+        ActorId, ActorMarker, MapItems, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage, ServerTick,
+        SwitchState,
     },
 };
 
@@ -172,9 +172,7 @@ pub fn actors_behavior_system(
             collision_world: &collision_world,
             open_barriers: &switch_state.open_barriers,
             kind_config,
-            players_armed: map_items.contains(ItemType::SingleShotPowerUp)
-                || map_items.contains(ItemType::MultiShotPowerUp)
-                || map_items.contains(ItemType::MissilePack),
+            players_armed: players.players_can_be_armed(&map_items),
         };
         retarget_beam(info, &context);
         // `retarget_beam` zeroes the timer when a burst loses every target,

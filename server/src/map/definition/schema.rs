@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Deserializer, de};
+use serde_json::{Value, from_value};
 
 use common::protocol::{CarrierMotion, CheckpointKind, FaceMaterials, KindDef, SwitchDef, TERRAIN_MATERIAL};
 
@@ -8,7 +9,19 @@ use crate::{config::deserialize_required_option, map::CheckpointResponse};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {
+    #[serde(deserialize_with = "deserialize_root_map")]
     pub(crate) map: MapDef,
+}
+
+fn deserialize_root_map<'de, D>(deserializer: D) -> Result<MapDef, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    if !value.as_object().is_some_and(|map| map.contains_key("fireworks")) {
+        return Err(de::Error::missing_field("fireworks"));
+    }
+    from_value(value).map_err(de::Error::custom)
 }
 
 // A loaded root document: its geometry, the named geometry it embeds, and
@@ -333,7 +346,7 @@ const fn default_zone_levels() -> u32 {
 // A single map-authored item. `item_type` is an `ItemType` config id
 // (`ItemType::from_config_id`), or "key" with `kind` referencing the
 // `BarrierKindTable`. Placed items hide on pickup and reappear in place
-// after the map's per-type `placed_items.respawn_secs` delay.
+// after the map's per-type `placed_items.respawn_secs` delay, if configured.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub(crate) struct ItemDef {
     pub(crate) level: u32,

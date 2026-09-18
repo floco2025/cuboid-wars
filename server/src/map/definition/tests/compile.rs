@@ -791,3 +791,12 @@ fn same_appearance_targets_keep_independent_controls_and_instance_ids() {
         assert!(bridges[index + 1..].iter().all(|other| bridge.id != other.id));
     }
 }
+
+#[test]
+fn null_nested_destination_inherits_the_starting_level() {
+    let definition: MotionDef = serde_json::from_value(serde_json::json!({
+        "level": 2, "from": [0, 0], "to": [1, 0], "to_level": null, "travel_secs": 2.0
+    }))
+    .expect("null destination rejected");
+    assert_eq!(definition.to_level(), 2);
+}

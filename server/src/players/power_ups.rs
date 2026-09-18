@@ -7,12 +7,8 @@ pub enum PowerUpState {
 }
 
 impl PowerUpState {
-    pub fn from_duration(seconds: f32) -> Self {
-        if seconds == 0.0 {
-            Self::Permanent
-        } else {
-            Self::Timed(seconds)
-        }
+    pub fn from_duration(seconds: Option<f32>) -> Self {
+        seconds.map_or(Self::Permanent, Self::Timed)
     }
 
     pub fn is_active(self) -> bool {

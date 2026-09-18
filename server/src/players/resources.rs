@@ -3,10 +3,11 @@ use std::collections::{BTreeMap, HashMap};
 use bevy::prelude::*;
 use crossbeam_channel::{Sender, unbounded};
 
-use crate::config::{ActorRespawnScope, PlayerRespawnMode, PowerUpsConfig, RespawnConfig};
+use crate::config::{ActorRespawnScope, PlayerRespawnMode, PowerUpMode, PowerUpsConfig, RespawnConfig};
 use common::protocol::{
-    BarrierKindId, FaceYaw, Health, ItemType, Player, PlayerGeneration, PlayerId, PlayerMarker, PlayerMoveIntent,
-    PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus, ServerMessage,
+    BarrierKindId, FaceYaw, Health, ItemType, MapItems, Player, PlayerGeneration, PlayerId, PlayerMarker,
+    PlayerMoveIntent, PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
+    ServerMessage,
 };
 
 use super::{CheckpointEntry, CheckpointId, PendingOutcomes, PlayerCheckpoint, PowerUpState};
@@ -75,6 +76,7 @@ impl PlayerConnection {
 
 #[derive(Default)]
 pub struct PlayerSession {
+    always_active: [bool; PowerUpKind::COUNT],
     pub generation: PlayerGeneration,
     // Newest report sequence admitted. Per session, so a respawn does not
     // reset it under a client counter that keeps climbing.
@@ -229,12 +231,12 @@ impl PlayerInfo {
 
     #[must_use]
     pub fn has(&self, kind: PowerUpKind) -> bool {
-        self.life.power_ups[kind.index()].is_active()
+        self.session.always_active[kind.index()] || self.life.power_ups[kind.index()].is_active()
     }
 
     #[must_use]
     pub fn has_permanent(&self, kind: PowerUpKind) -> bool {
-        self.life.power_ups[kind.index()] == PowerUpState::Permanent
+        self.session.always_active[kind.index()] || self.life.power_ups[kind.index()] == PowerUpState::Permanent
     }
 
     pub fn erase_equipment(&mut self) -> bool {
@@ -265,11 +267,13 @@ impl PlayerInfo {
         out
     }
 
-    pub fn grant_power_up(&mut self, item_type: ItemType, durations: &PowerUpsConfig) {
+    pub fn grant_power_up(&mut self, item_type: ItemType, config: &PowerUpsConfig) {
         let Some(kind) = PowerUpKind::from_item_type(item_type) else {
             unreachable!("non-power-up item passed to grant_power_up");
         };
-        self.life.power_ups[kind.index()] = PowerUpState::from_duration(durations.duration_secs_for(kind));
+        if let PowerUpMode::Pickup { duration_secs } = config.mode(kind) {
+            self.life.power_ups[kind.index()] = PowerUpState::from_duration(duration_secs);
+        }
     }
 
     pub fn try_start_portal_shot(&mut self, now: f32, cooldown_secs: f32) -> bool {
@@ -345,6 +349,7 @@ fn tick_timer(timer: &mut f32, delta: f32) {
 pub struct PlayerMap {
     entries: HashMap<PlayerId, PlayerInfo>,
     respawn: RespawnConfig,
+    always_active: [bool; PowerUpKind::COUNT],
     group_respawn: Option<f32>,
     actor_reset_timers: Vec<f32>,
     resets: Vec<PlayerResetCounts>,
@@ -357,12 +362,23 @@ pub(crate) struct PlayerResetCounts {
 }
 
 impl PlayerMap {
+    pub(crate) fn players_can_be_armed(&self, items: &MapItems) -> bool {
+        [PowerUpKind::SingleShot, PowerUpKind::MultiShot]
+            .into_iter()
+            .any(|kind| self.always_active[kind.index()] || items.contains(kind.to_item_type()))
+            || items.contains(ItemType::MissilePack)
+    }
+
     pub(crate) fn logged_in_count(&self) -> usize {
         self.values().filter(|info| info.connection.logged_in).count()
     }
 
-    pub fn new(respawn: RespawnConfig) -> Self {
-        Self { respawn, ..default() }
+    pub fn new(respawn: RespawnConfig, always_active: [bool; PowerUpKind::COUNT]) -> Self {
+        Self {
+            respawn,
+            always_active,
+            ..default()
+        }
     }
 
     pub(crate) fn begin_respawn(&mut self, id: PlayerId, respawn_secs: f32) -> bool {
@@ -464,7 +480,8 @@ impl PlayerMap {
         (to_respawn, reset_actors.then_some(self.respawn.actors.scope))
     }
 
-    pub fn insert(&mut self, id: PlayerId, info: PlayerInfo) -> Option<PlayerInfo> {
+    pub fn insert(&mut self, id: PlayerId, mut info: PlayerInfo) -> Option<PlayerInfo> {
+        info.session.always_active = self.always_active;
         self.entries.insert(id, info)
     }
 

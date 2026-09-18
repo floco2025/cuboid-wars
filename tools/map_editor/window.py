@@ -26,7 +26,6 @@ from .control_actions import ControlActionsMixin
 from .constants import (
     DEFAULT_ACTOR_COUNT,
     DEFAULT_ACTOR_RESPAWN_SECS,
-    ITEM_TYPES,
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
     MODE_SELECT,
@@ -134,7 +133,7 @@ class EditorWindow(
         first_kind = self.barrier_kinds[0] if self.barrier_kinds else None
         self.recent_barrier_kind: str | None = first_kind
         self.recent_pressure_plate_switch: str | None = self.switches[0] if self.switches else None
-        self.recent_item_type: str = ITEM_TYPES[0]
+        self.recent_item_type: str = self.pickup_types[0]
         self.recent_item_key_kind: str | None = first_kind
         first_bridge_kind = self.bridge_kinds[0] if self.bridge_kinds else None
         self.recent_bridge_kind: str | None = first_bridge_kind
@@ -303,6 +302,7 @@ class EditorWindow(
             grid_cell_size=self.grid_cell_size,
             level_height=self.level_height,
             floor_thickness=self.floor_thickness,
+            pickup_types=self.pickup_types,
         )
 
     # Every view, dialog, and validation reads the catalogs of one map;
@@ -320,6 +320,9 @@ class EditorWindow(
         self.grid_cell_size = catalogs.grid_cell_size
         self.level_height = catalogs.level_height
         self.floor_thickness = catalogs.floor_thickness
+        self.pickup_types = catalogs.pickup_types
+        if hasattr(self, "recent_item_type") and self.recent_item_type not in self.pickup_types:
+            self.recent_item_type = self.pickup_types[0]
         self.texture_catalog = catalogs.texture_catalog
         self.materials_catalog = list(catalogs.texture_catalog)
         if self.current_material not in catalogs.texture_catalog:

@@ -108,7 +108,7 @@ class SpawnValidationTests(unittest.TestCase):
         self.assertTrue(any("invalid level" in error for error in self.validate(data)))
 
     def test_nested_spawn_zones_allow_bridges_without_ground_support(self):
-        data = empty_map(8, 8)
+        data = {"fireworks": None, **empty_map(8, 8)}
         data["levels"][0]["floors"] = [{"col": c, "row": r, "all": DEFAULT_ALIAS} for c in range(2) for r in range(2)]
         child = spawn_map()
         child["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "kind": "green"}]

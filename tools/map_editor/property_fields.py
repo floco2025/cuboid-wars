@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from .constants import CHECKPOINT_RESPONSE_LABELS, CHECKPOINT_TYPE_LABELS, FACES, ITEM_TYPES, TERRAIN_FACES
+from .constants import CHECKPOINT_RESPONSE_LABELS, CHECKPOINT_TYPE_LABELS, FACES, TERRAIN_FACES
 from .nesting import MOTION_LABELS, MOTION_TOOLTIPS
 
 NUDGE_TOOLTIPS = ("Wall widths across columns (X) or rows (Z)", "Floor thicknesses upward")
@@ -75,7 +75,7 @@ def fields_for(window, name):
         )
         add("type", "Type", "choice", CHECKPOINT_TYPE_LABELS.items())
     elif name == "items":
-        choice("type", "Item", ITEM_TYPES)
+        choice("type", "Item", window.pickup_types)
         choice("kind", "Key kind", [None, *window.key_kinds], window.barrier_kind_colors)
     elif name == "barriers":
         choice("kind", "Kind", window.barrier_kinds, window.barrier_kind_colors)

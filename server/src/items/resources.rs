@@ -8,8 +8,8 @@ pub enum ItemPlacement {
     // World-spawned by the random spawner; despawns outright on pickup or
     // once `RandomItems::despawn_secs` elapses.
     Random { spawned_at: f32 },
-    // Map-authored; hides on pickup and re-shows when the countdown hits 0.
-    Placed { respawn_countdown: f32 },
+    // None keeps the cell reserved after a one-time pickup; Some(0) is visible.
+    Placed { respawn_countdown: Option<f32> },
 }
 
 // The entity's `Position` is in the carrier's frame (world space on the
@@ -26,7 +26,8 @@ impl ItemInfo {
     // persists so the item keeps its cell (and its occupancy claim).
     #[must_use]
     pub fn is_hidden(&self) -> bool {
-        matches!(self.placement, ItemPlacement::Placed { respawn_countdown } if respawn_countdown > 0.0)
+        matches!(self.placement, ItemPlacement::Placed { respawn_countdown }
+            if respawn_countdown.is_none_or(|seconds| seconds > 0.0))
     }
 }
 

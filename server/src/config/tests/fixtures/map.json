@@ -1,4 +1,5 @@
 {
+  "grounds": null,
   "textures": {
     "basement-floor": { "material": "test", "portalable": true },
     "slab": { "material": "test", "portalable": true }
@@ -49,13 +50,11 @@
     "despawn_secs": 20.0
   },
   "power_ups": {
-    "duration_secs": {
-      "single_shot": 120.0,
-      "multi_shot": 30.0,
-      "portal_gun": 60.0,
-      "speed": 30.0,
-      "low_gravity": 20.0
-    }
+    "single_shot": { "mode": "pickup", "duration_secs": 120.0 },
+    "multi_shot": { "mode": "pickup", "duration_secs": 30.0 },
+    "portal_gun": { "mode": "pickup", "duration_secs": 60.0 },
+    "speed": { "mode": "pickup", "duration_secs": 30.0 },
+    "low_gravity": { "mode": "pickup", "duration_secs": 20.0 }
   },
   "placed_items": {
     "respawn_secs": {

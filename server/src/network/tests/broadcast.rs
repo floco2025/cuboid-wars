@@ -98,6 +98,7 @@ fn collect_items_omits_hidden_placed_items() {
     let mut world = World::new();
     let visible_entity = world.spawn((ItemMarker, Position::default())).id();
     let hidden_entity = world.spawn((ItemMarker, Position::default())).id();
+    let consumed_entity = world.spawn((ItemMarker, Position::default())).id();
 
     let mut items = ItemMap::default();
     items.insert(
@@ -105,7 +106,9 @@ fn collect_items_omits_hidden_placed_items() {
         ItemInfo {
             entity: visible_entity,
             item_type: ItemType::Gold,
-            placement: ItemPlacement::Placed { respawn_countdown: 0.0 },
+            placement: ItemPlacement::Placed {
+                respawn_countdown: Some(0.0),
+            },
             carrier: CarrierId::WORLD,
         },
     );
@@ -114,7 +117,21 @@ fn collect_items_omits_hidden_placed_items() {
         ItemInfo {
             entity: hidden_entity,
             item_type: ItemType::Gold,
-            placement: ItemPlacement::Placed { respawn_countdown: 5.0 },
+            placement: ItemPlacement::Placed {
+                respawn_countdown: Some(5.0),
+            },
+            carrier: CarrierId::WORLD,
+        },
+    );
+
+    items.insert(
+        ItemId(3),
+        ItemInfo {
+            entity: consumed_entity,
+            item_type: ItemType::Gold,
+            placement: ItemPlacement::Placed {
+                respawn_countdown: None,
+            },
             carrier: CarrierId::WORLD,
         },
     );

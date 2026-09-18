@@ -177,3 +177,17 @@ fn unknown_root_keys_and_a_fireworks_response_are_rejected() {
     let error = serde_json::from_value::<MapDef>(value).expect_err("fireworks response accepted");
     assert!(error.to_string().contains("switch_inverted"), "{error}");
 }
+
+#[test]
+fn root_fireworks_is_required_and_nullable_without_requiring_it_on_nested_geometry() {
+    let mut root = geometry(&["room"]);
+    root["nested_geometry"] = json!({"room": geometry(&[])});
+    assert!(serde_json::from_value::<MapFile>(json!({"map": root.clone()})).is_err());
+    root["fireworks"] = Value::Null;
+    let parsed = serde_json::from_value::<MapFile>(json!({"map": root.clone()})).expect("disabled fireworks rejected");
+    prepare_source(parsed.map).expect("nested geometry without fireworks rejected");
+    for invalid in [json!([]), json!({})] {
+        root["fireworks"] = invalid;
+        assert!(serde_json::from_value::<MapFile>(json!({"map": root.clone()})).is_err());
+    }
+}

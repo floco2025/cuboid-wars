@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::{
     celestial::CelestialMapSettings,
-    config::{MapGeometryConfig, MapMovementConfig},
+    config::{MapGeometryConfig, MapMovementConfig, deserialize_required_option},
     map::{Grounds, GroundsSettings},
 };
 
@@ -362,7 +362,7 @@ impl MapLayout {
 // prediction uses the server's values.
 #[derive(Debug, Clone, Encode, Decode, Resource, Deserialize)]
 pub struct MapSettings {
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub grounds: Option<GroundsSettings>,
     pub celestial: CelestialMapSettings,
     pub textures: BTreeMap<String, TextureSettings>,

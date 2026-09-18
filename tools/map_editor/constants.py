@@ -85,6 +85,7 @@ LADDER_SIDES = LIGHT_SIDES
 
 # Item type ids mirror `ItemType::from_config_id` in common/src/types/items.rs,
 # plus "key" (which additionally carries a barrier kind).
+POWER_UP_TYPES = ("single_shot", "multi_shot", "portal_gun", "speed", "low_gravity")
 ITEM_KEY_TYPE = "key"
 ITEM_TYPES = (
     "single_shot",

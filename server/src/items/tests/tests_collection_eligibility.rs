@@ -1,12 +1,15 @@
-use crate::config::fixtures;
+use std::time::Duration;
+
 use bevy::prelude::*;
 use common::{map::Carriers, protocol::CarrierId};
 use crossbeam_channel::unbounded;
+use serde_json::json;
 
 use crate::{
-    config::{PowerUpsConfig, RandomItemsConfig, ServerGameplayConfig},
+    config::{PlacedItemsConfig, PowerUpMode, PowerUpsConfig, RandomItemsConfig, ServerGameplayConfig, fixtures},
     items::{
-        ItemInfo, ItemMap, ItemPlacement, ItemSpawner, RandomItems, item_collection_system, random_item_spawn_system,
+        ItemInfo, ItemMap, ItemPlacement, ItemSpawner, RandomItems, item_collection_system, placed_item_respawn_system,
+        random_item_spawn_system,
     },
     map::{CellGrid, EdgeGrid, LevelGrid, MapConfig},
     players::{PlayerInfo, PlayerMap, PowerUpState},
@@ -30,7 +33,8 @@ fn test_app() -> App {
         .get(&server.default_map)
         .expect("default map settings missing")
         .placed_items
-        .clone();
+        .clone()
+        .unwrap_or_default();
     let quest_catalog = QuestCatalog::from_config(&server);
     let quest_board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut app = App::new();
@@ -78,10 +82,7 @@ fn random(spawned_at: f32) -> ItemPlacement {
 #[test]
 fn permanent_single_shot_pickup_grants_fire_and_leaves_duplicates_for_other_players() {
     let mut app = test_app();
-    app.world_mut()
-        .resource_mut::<PowerUpsConfig>()
-        .duration_secs
-        .single_shot = 0.0;
+    app.world_mut().resource_mut::<PowerUpsConfig>().single_shot = PowerUpMode::Pickup { duration_secs: None };
     let id = PlayerId(1);
     let (_, rx) = spawn_player(&mut app, id, Position::default());
     assert!(
@@ -144,6 +145,63 @@ fn overlapping_gold_is_collected_and_scores() {
     );
     let gold_cue = std::iter::from_fn(|| rx.try_recv().ok()).any(|msg| matches!(msg, ServerMessage::GoldCollected(_)));
     assert!(gold_cue, "pickup cue must be unicast");
+}
+
+#[test]
+fn placed_gold_obeys_never_immediate_and_delayed_respawn_settings() {
+    for (settings, expected_collections) in [
+        (json!(null), [1, 1, 1]),
+        (json!({"respawn_secs": {}}), [1, 1, 1]),
+        (json!({"respawn_secs": {"gold": null}}), [1, 1, 1]),
+        (json!({"respawn_secs": {"gold": 0}}), [1, 2, 3]),
+        (json!({"respawn_secs": {"gold": 2}}), [1, 1, 2]),
+    ] {
+        let mut app = test_app();
+        let config: Option<PlacedItemsConfig> =
+            serde_json::from_value(settings.clone()).expect("placed item settings invalid");
+        app.insert_resource(config.unwrap_or_default());
+        let id = PlayerId(1);
+        spawn_player(&mut app, id, Position::default());
+        let item_id = spawn_item(
+            &mut app,
+            1,
+            ItemType::Gold,
+            Position::default(),
+            ItemPlacement::Placed {
+                respawn_countdown: Some(0.0),
+            },
+        );
+        let gold_score = app.world().resource::<ServerGameplayConfig>().scoring.gold;
+        let mut respawn = Schedule::default();
+        respawn.add_systems(placed_item_respawn_system);
+
+        for collections in expected_collections {
+            app.world_mut()
+                .resource_mut::<Time>()
+                .advance_by(Duration::from_secs(1));
+            respawn.run(app.world_mut());
+            app.update();
+            assert_eq!(
+                app.world()
+                    .resource::<PlayerMap>()
+                    .get(&id)
+                    .expect("player missing")
+                    .session
+                    .score,
+                collections * gold_score,
+                "wrong collection count for {settings}",
+            );
+            let item = app
+                .world()
+                .resource::<ItemMap>()
+                .get(&item_id)
+                .expect("placed item removed");
+            assert!(
+                app.world().get::<ItemMarker>(item.entity).is_some(),
+                "placed cell reservation lost"
+            );
+        }
+    }
 }
 
 #[test]
@@ -218,8 +276,10 @@ fn dead_player_collects_nothing() {
 fn permanent_power_up_stays_for_other_players_and_timed_pickup_refreshes() {
     let mut app = test_app();
     let mut config = app.world_mut().resource_mut::<PowerUpsConfig>();
-    config.duration_secs.portal_gun = 0.0;
-    config.duration_secs.speed = 30.0;
+    config.portal_gun = PowerUpMode::Pickup { duration_secs: None };
+    config.speed = PowerUpMode::Pickup {
+        duration_secs: Some(30.0),
+    };
     let id = PlayerId(1);
     let (_, rx) = spawn_player(&mut app, id, Position::default());
     spawn_item(
@@ -418,7 +478,9 @@ fn hidden_placed_item_is_not_collectable() {
         1,
         ItemType::Gold,
         Position::default(),
-        ItemPlacement::Placed { respawn_countdown: 5.0 },
+        ItemPlacement::Placed {
+            respawn_countdown: Some(5.0),
+        },
     );
 
     app.update();

@@ -4,6 +4,11 @@ use rand::random;
 use serde_json::{Value, json};
 use std::path::PathBuf;
 
+#[test]
+fn shipped_server_settings_load_and_validate() {
+    ServerGameplayConfig::load_default().expect("shipped server settings invalid");
+}
+
 struct TestConfigDir(PathBuf);
 
 impl TestConfigDir {

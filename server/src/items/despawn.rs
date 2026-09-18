@@ -33,7 +33,9 @@ pub fn placed_item_respawn_system(time: Res<Time>, mut items: ResMut<ItemMap>) {
     let delta = time.delta_secs();
 
     for item_info in items.values_mut() {
-        if let ItemPlacement::Placed { respawn_countdown } = &mut item_info.placement
+        if let ItemPlacement::Placed {
+            respawn_countdown: Some(respawn_countdown),
+        } = &mut item_info.placement
             && *respawn_countdown > 0.0
         {
             *respawn_countdown = (*respawn_countdown - delta).max(0.0);

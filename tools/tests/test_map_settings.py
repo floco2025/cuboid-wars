@@ -49,12 +49,14 @@ class MapSettingsTests(ConfigTestCase):
     def test_only_registered_folders_load_and_layout_is_not_required(self):
         settings = map_settings_path("hotel")
         settings.parent.mkdir(parents=True)
-        settings.write_text('{"portals": "both"}')
+        settings.write_text('{"portals": "both", "grounds": null, "random_items": null, "placed_items": null}')
         other = map_settings_path("unregistered")
         other.parent.mkdir()
         other.write_text("{}")
         self.assertEqual(list_map_names(), ["hotel"])
-        self.assertEqual(load_map_settings("hotel"), {"portals": "both"})
+        self.assertEqual(
+            load_map_settings("hotel"), {"portals": "both", "grounds": None, "random_items": None, "placed_items": None}
+        )
         self.assertFalse(map_layout_path("hotel").exists())
         with self.assertRaisesRegex(ValueError, "not registered"):
             load_map_settings("unregistered")
@@ -201,7 +203,7 @@ class MapSettingsWindowTests(WindowTestCase):
 
     def test_new_over_an_existing_layout_replaces_it_only_after_asking(self):
         obby = map_layout_path("obby")
-        existing = empty_map(5, 5)
+        existing = {"fireworks": None, **empty_map(5, 5)}
         write_map(obby, existing)
         autosave = obby.with_name("layout.autosave.json")
         autosave.write_text("{}")
@@ -237,7 +239,7 @@ class MapSettingsWindowTests(WindowTestCase):
             self.window.new_file()
 
         mtime = path.stat().st_mtime
-        external = empty_map(12, 12)
+        external = {"fireworks": None, **empty_map(12, 12)}
         write_map(path, external)
         os.utime(path, (mtime + 1, mtime + 1))
         for answer in [QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Yes]:

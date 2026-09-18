@@ -10,7 +10,32 @@ from math import isfinite
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from .constants import ASSETS_PATH, GAMEPLAY_PATH, MAP_NAME_RE, MAPS_DIR
+from .constants import ASSETS_PATH, GAMEPLAY_PATH, ITEM_TYPES, MAP_NAME_RE, MAPS_DIR, POWER_UP_TYPES
+
+
+def pickup_types(settings: dict, source: str) -> tuple[str, ...]:
+    rules = settings.get("power_ups")
+    if not isinstance(rules, dict) or rules.keys() != set(POWER_UP_TYPES):
+        raise ValueError(f"{source}: power_ups must define {', '.join(POWER_UP_TYPES)}")
+    always = set()
+    for kind, rule in rules.items():
+        path = f"{source}: power_ups.{kind}"
+        if not isinstance(rule, dict):
+            raise ValueError(f"{path} must be an object")
+        if rule.get("mode") == "always" and rule.keys() == {"mode"}:
+            always.add(kind)
+        elif rule.get("mode") == "pickup" and rule.keys() == {"mode", "duration_secs"}:
+            duration = rule["duration_secs"]
+            if duration is not None and (type(duration) not in (int, float) or not isfinite(duration) or duration <= 0):
+                raise ValueError(f"{path}.duration_secs must be positive seconds or null")
+        else:
+            raise ValueError(f"{path} needs mode always, or mode pickup with duration_secs")
+    random_items = settings.get("random_items")
+    if isinstance(random_items, dict):
+        for kind in random_items.get("weights", {}):
+            if kind in always:
+                raise ValueError(f"{source}: random_items.weights.{kind} is always active and cannot be a pickup")
+    return tuple(kind for kind in ITEM_TYPES if kind not in always)
 
 
 def load_wall_light_kinds() -> list[str]:
@@ -182,7 +207,12 @@ def map_name_from_path(path: Path) -> str:
 def load_map_settings(name: str) -> dict:
     if name not in list_map_names():
         raise ValueError(f"Map {name!r} is not registered in {GAMEPLAY_PATH}.")
-    return read_settings_json(map_settings_path(name))
+    path = map_settings_path(name)
+    settings = read_settings_json(path)
+    for key in ("grounds", "random_items", "placed_items"):
+        if key not in settings or (settings[key] is not None and not isinstance(settings[key], dict)):
+            raise ValueError(f"{path}: {key} requires an object or explicit null")
+    return settings
 
 
 def require_map_settings(name: str) -> None:
@@ -203,6 +233,7 @@ class MapCatalogs:
     grid_cell_size: float = 0.0
     level_height: float = 0.0
     floor_thickness: float = 0.0
+    pickup_types: tuple[str, ...] = ITEM_TYPES
 
     # The layout owns the kinds and switches; the rest stays as loaded.
     def for_layout(self, root: dict) -> "MapCatalogs":
@@ -229,4 +260,5 @@ class MapCatalogs:
             grid_cell_size=cell,
             level_height=level_height,
             floor_thickness=floor_thickness,
+            pickup_types=pickup_types(load_map_settings(map_name), str(map_settings_path(map_name))),
         ).for_layout(root)

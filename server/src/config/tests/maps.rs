@@ -6,7 +6,7 @@ use anyhow::Result;
 use super::{
     actors::ActorKindServerConfig,
     falling::FallDamageConfig,
-    items::{PlacedItemsConfig, PowerUpsConfig},
+    items::{PlacedItemsConfig, PowerUpMode, PowerUpsConfig},
     maps::*,
     respawn::RespawnConfig,
 };
@@ -86,15 +86,19 @@ fn ok_map_entry() -> MapServerConfig {
             lethal_distance: 15.0,
         },
         respawn: RespawnConfig::default(),
-        placed_items: ok_placed_items(),
+        placed_items: Some(ok_placed_items()),
         power_ups: PowerUpsConfig {
-            duration_secs: crate::config::PowerUpDurationSecs {
-                speed: 30.0,
-                single_shot: 0.0,
-                multi_shot: 25.0,
-                low_gravity: 20.0,
-                portal_gun: 0.0,
+            speed: PowerUpMode::Pickup {
+                duration_secs: Some(30.0),
             },
+            single_shot: PowerUpMode::Pickup { duration_secs: None },
+            multi_shot: PowerUpMode::Pickup {
+                duration_secs: Some(25.0),
+            },
+            low_gravity: PowerUpMode::Pickup {
+                duration_secs: Some(20.0),
+            },
+            portal_gun: PowerUpMode::Pickup { duration_secs: None },
         },
         weather: WeatherMode::Clear,
         quests: Vec::new(),
@@ -129,15 +133,8 @@ fn map_respawn_policy_requires_every_field_and_rejects_unknown_modes() {
 fn ok_placed_items() -> PlacedItemsConfig {
     PlacedItemsConfig {
         respawn_secs: crate::config::PlacedItemRespawnSecs {
-            speed: 60.0,
-            single_shot: 0.0,
-            multi_shot: 60.0,
-            low_gravity: 60.0,
-            portal_gun: 0.0,
-            health_potion: 60.0,
-            gold: 60.0,
-            key: 30.0,
-            missile_pack: 30.0,
+            gold: Some(60.0),
+            ..Default::default()
         },
     }
 }
@@ -193,8 +190,9 @@ fn parse_map_entry(portals: &str, weather: Option<&str>) -> Result<MapServerConf
         "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
         "actor_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
         "random_items": null,
+        "grounds": null,
         "respawn": { "players": "individual", "actors": { "on_player_death": "never", "scope": "dead" } },
-        "power_ups": { "duration_secs": { "speed": 30.0, "single_shot": 0.0, "multi_shot": 25.0, "low_gravity": 20.0, "portal_gun": 0.0 } },
+        "power_ups": { "speed": {"mode":"pickup","duration_secs":30.0}, "single_shot": {"mode":"pickup","duration_secs":null}, "multi_shot": {"mode":"pickup","duration_secs":25.0}, "low_gravity": {"mode":"pickup","duration_secs":20.0}, "portal_gun": {"mode":"pickup","duration_secs":null} },
         "placed_items": {
             "respawn_secs": {
                 "speed": 60.0,
@@ -440,20 +438,34 @@ fn map_entry_requires_placed_items() {
 }
 
 #[test]
-fn validate_maps_rejects_negative_placed_item_respawn() {
-    let mut maps = one_map("hotel");
-    maps.get_mut("hotel")
-        .expect("hotel entry missing")
-        .placed_items
-        .respawn_secs
-        .gold = -1.0;
+fn map_entry_accepts_null_placed_items() {
+    let mut source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
+    source["placed_items"] = serde_json::Value::Null;
+    let entry: MapServerConfig = serde_json::from_value(source).expect("null placed items rejected");
+    assert!(entry.placed_items.is_none());
+    let maps = HashMap::from([("hotel".to_owned(), entry)]);
+    validate_test_maps(&maps, "hotel").expect("null placed items failed validation");
+}
 
-    let error = validate_test_maps(&maps, "hotel").expect_err("negative respawn time must be rejected");
-    assert!(
-        error
-            .to_string()
-            .contains("settings.json: placed_items.respawn_secs.gold")
-    );
+#[test]
+fn validate_maps_rejects_invalid_placed_item_respawn() {
+    for seconds in [-1.0, f32::NAN, f32::INFINITY] {
+        let mut maps = one_map("hotel");
+        maps.get_mut("hotel")
+            .expect("hotel entry missing")
+            .placed_items
+            .as_mut()
+            .expect("placed item settings missing")
+            .respawn_secs
+            .gold = Some(seconds);
+
+        let error = validate_test_maps(&maps, "hotel").expect_err("invalid respawn time accepted");
+        assert!(
+            error
+                .to_string()
+                .contains("settings.json: placed_items.respawn_secs.gold")
+        );
+    }
 }
 
 #[test]
@@ -559,4 +571,43 @@ fn validate_maps_rejects_zero_random_item_max_number() {
     let maps = one_map_with_random_items("hotel", random_items);
     let err = validate_test_maps(&maps, "hotel").expect_err("zero max_number must be rejected");
     assert!(err.to_string().contains("max_number"));
+}
+
+#[test]
+fn optional_feature_blocks_require_explicit_null_and_collections_require_their_type() {
+    let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map fixture is invalid");
+    for key in ["grounds", "random_items"] {
+        let mut value = source.clone();
+        value[key] = serde_json::Value::Null;
+        serde_json::from_value::<MapServerConfig>(value.clone()).expect("disabled feature rejected");
+        value.as_object_mut().expect("map fixture is not an object").remove(key);
+        assert!(
+            serde_json::from_value::<MapServerConfig>(value).is_err(),
+            "missing {key} accepted"
+        );
+    }
+    for key in ["quests", "textures"] {
+        let mut value = source.clone();
+        value[key] = serde_json::Value::Null;
+        assert!(
+            serde_json::from_value::<MapServerConfig>(value).is_err(),
+            "null {key} accepted"
+        );
+    }
+}
+
+#[test]
+fn always_active_power_ups_cannot_have_random_pickup_weights() {
+    for weight in [0.0, 1.0] {
+        let mut maps = one_map_with_random_items("hotel", ok_random_items(&["single_shot", "gold"]));
+        let map = maps.get_mut("hotel").expect("map missing");
+        map.power_ups.single_shot = PowerUpMode::Always {};
+        map.random_items
+            .as_mut()
+            .expect("random items missing")
+            .weights
+            .insert("single_shot".into(), weight);
+        let error = validate_test_maps(&maps, "hotel").expect_err("always-active pickup accepted");
+        assert!(error.to_string().contains("random_items.weights.single_shot"));
+    }
 }

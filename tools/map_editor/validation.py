@@ -307,6 +307,8 @@ def validate_document(
             validate_catalog(catalog, root.get(catalog, []))
     except (ValueError, TypeError, AttributeError) as exc:
         errors.append(str(exc))
+    if "fireworks" not in root:
+        errors.append("fireworks requires an object or explicit null")
     fireworks = root.get("fireworks")
     if fireworks is not None and not isinstance(fireworks, dict):
         errors.append("fireworks must be an object or null")
@@ -355,6 +357,10 @@ def validate_document(
             wall_light_kinds=wall_light_kinds,
             checkpoint_numbers=numbers,
         )
+        for index, item in enumerate(geometry.get("items", [])):
+            if item.get("type") in ITEM_TYPES and item["type"] not in catalogs.pickup_types:
+                found.locate("items", item)
+                found.append(f"items[{index}] {item['type']} is always active and cannot be a pickup")
         errors.merge(found, label, name)
     if not _has_start([root, *placed.values()]):
         errors.append(f"The placed map has no checkpoint {START_CHECKPOINT}, the start.")

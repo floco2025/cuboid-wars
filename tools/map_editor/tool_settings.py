@@ -17,7 +17,6 @@ from .constants import (
     MODE_CHECKPOINT,
     MODE_SELECT,
     ITEM_KEY_TYPE,
-    ITEM_TYPES,
     MODE_ACTOR_SPAWN_ZONE,
     MODE_BARRIER,
     MODE_FLOOR,
@@ -101,6 +100,7 @@ class ToolSettings(QWidget):
         window = self.window
         signature = (
             window.mode,
+            window.pickup_types,
             tuple(window.actor_kinds),
             tuple(window.wall_light_kinds),
             tuple(window.barrier_kinds),
@@ -196,7 +196,7 @@ class ToolSettings(QWidget):
             self.sync_checkpoint_type()
 
         def item_controls():
-            item, _ = combo("Item", "recent_item_type", list(ITEM_TYPES), required=True)
+            item, _ = combo("Item", "recent_item_type", list(window.pickup_types), required=True)
             key, label = combo("Kind", "recent_item_key_kind", window.key_kinds, colors=window.barrier_kind_colors)
             self.key_controls = (key, label)
 

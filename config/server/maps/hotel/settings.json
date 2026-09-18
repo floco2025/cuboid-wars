@@ -73,9 +73,15 @@
     "actors": { "on_player_death": "never", "scope": "dead" }
   },
   "portals": "both",
+  "power_ups": {
+    "single_shot": { "mode": "always" },
+    "multi_shot": { "mode": "pickup", "duration_secs": 30.0 },
+    "portal_gun": { "mode": "pickup", "duration_secs": 60.0 },
+    "speed": { "mode": "pickup", "duration_secs": 30.0 },
+    "low_gravity": { "mode": "pickup", "duration_secs": 30.0 }
+  },
   "random_items": {
     "weights": {
-      "single_shot": 20,
       "multi_shot": 10,
       "missile_pack": 10,
       "portal_gun": 5,
@@ -83,31 +89,10 @@
       "speed": 10,
       "low_gravity": 10
     },
-    "max_number": 25,
+    "max_number": 20,
     "despawn_secs": 60.0
   },
-  "power_ups": {
-    "duration_secs": {
-      "single_shot": 120.0,
-      "multi_shot": 30.0,
-      "portal_gun": 90.0,
-      "speed": 30.0,
-      "low_gravity": 30.0
-    }
-  },
-  "placed_items": {
-    "respawn_secs": {
-      "single_shot": 5.0,
-      "multi_shot": 60.0,
-      "missile_pack": 30.0,
-      "portal_gun": 1.0,
-      "health_potion": 60.0,
-      "speed": 60.0,
-      "low_gravity": 60.0,
-      "gold": 60.0,
-      "key": 30.0
-    }
-  },
+  "placed_items": { "respawn_secs": { "gold": 60.0, "key": 30.0 } },
   "quests": [
     {
       "id": "destroy_zappers",

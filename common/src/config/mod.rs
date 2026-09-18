@@ -24,4 +24,4 @@ pub use network::{NetworkConfig, UpdateCadence};
 pub use portals::PortalsConfig;
 pub use projectiles::{MultiShotConfig, MultiShotPatternConfig, ProjectilesConfig};
 pub use switch::{SwitchActivation, SwitchConfig, SwitchHold};
-pub use validation::{validate_non_negative_finite, validate_positive_finite};
+pub use validation::{deserialize_required_option, validate_non_negative_finite, validate_positive_finite};

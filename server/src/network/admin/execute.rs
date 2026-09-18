@@ -7,7 +7,7 @@ use super::{
 use crate::{
     actors::{ActorMap, PendingActorSpawns, expedite_actor_respawns},
     combat::{DeathSource, kill_player},
-    config::ServerGameplayConfig,
+    config::{PowerUpMode, ServerGameplayConfig},
     network::{SharedWorld, broadcast_firework_show, broadcast_to_all, handlers::CharacterQueries},
     players::{
         PlayerMap, PlayerStateQuery, checkpoint_numbered, occupied_player_positions, place_player_body,
@@ -269,8 +269,9 @@ pub(super) fn run_admin_command(
         }
         AdminCommand::GivePowerup(power_up) => {
             let power_up_ids = PowerUpKind::ALL.map(|kind| kind.to_item_type().config_id());
-            let Some(item_type) =
-                ItemType::from_config_id(&power_up).filter(|_| power_up_ids.contains(&power_up.as_str()))
+            let Some(kind) = PowerUpKind::ALL
+                .into_iter()
+                .find(|kind| kind.to_item_type().config_id() == power_up)
             else {
                 return Private(format!(
                     "unknown power-up {power_up:?} (power-ups: {})",
@@ -280,6 +281,10 @@ pub(super) fn run_admin_command(
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };
+            if matches!(admin.power_ups.mode(kind), PowerUpMode::Always {}) {
+                return Private(format!("{power_up} is always active on this map"));
+            }
+            let item_type = kind.to_item_type();
             info.grant_power_up(item_type, &admin.power_ups);
             let status = SPlayerStatus {
                 collected: Some(item_type),

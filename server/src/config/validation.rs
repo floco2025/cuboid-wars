@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{Result, bail};
-use serde::{Deserialize, Deserializer};
 
 use super::{Quest, QuestKind, RandomItemsConfig, ServerGameplayConfig};
 use crate::map::MapConfig;
@@ -76,15 +75,7 @@ pub(crate) fn validate_map_quests(
 
 pub(super) use common::config::{validate_non_negative_finite, validate_positive_finite};
 
-// Serde fills an absent `Option` field with `None`; routing it through
-// `deserialize_with` makes the key mandatory, so `null` is always a choice.
-pub(crate) fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    Option::<T>::deserialize(deserializer)
-}
+pub(crate) use common::config::deserialize_required_option;
 
 #[cfg(test)]
 #[path = "tests/validation.rs"]

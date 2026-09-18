@@ -9,9 +9,8 @@ use crate::{
     actors::{ActorInfo, ActorMap},
     config::{
         ActorSettingsConfig, ActorsConfig, BlastConfig, CombatConfig, CyclesConfig, DamageConfig, FallDamageConfig,
-        FeedConfig, HealthConfig, MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig,
-        PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig, ScoringConfig, ServerGameplayConfig, WeaponsConfig,
-        WeatherCycleConfig, WeatherMode,
+        FeedConfig, HealthConfig, MapServerConfig, MissilesServerConfig, PlayerHealthConfig, PowerUpMode,
+        PowerUpsConfig, ScoringConfig, ServerGameplayConfig, WeaponsConfig, WeatherCycleConfig, WeatherMode,
     },
     players::{PlayerInfo, PlayerMap, PowerUpState},
 };
@@ -110,27 +109,19 @@ fn server_gameplay_config() -> ServerGameplayConfig {
                 },
                 respawn: Default::default(),
                 power_ups: PowerUpsConfig {
-                    duration_secs: PowerUpDurationSecs {
-                        speed: 1.0,
-                        single_shot: 0.0,
-                        multi_shot: 1.0,
-                        low_gravity: 1.0,
-                        portal_gun: 0.0,
+                    speed: PowerUpMode::Pickup {
+                        duration_secs: Some(1.0),
                     },
-                },
-                placed_items: PlacedItemsConfig {
-                    respawn_secs: PlacedItemRespawnSecs {
-                        speed: 60.0,
-                        single_shot: 0.0,
-                        multi_shot: 60.0,
-                        low_gravity: 60.0,
-                        portal_gun: 0.0,
-                        health_potion: 60.0,
-                        gold: 60.0,
-                        key: 30.0,
-                        missile_pack: 30.0,
+                    single_shot: PowerUpMode::Pickup { duration_secs: None },
+                    multi_shot: PowerUpMode::Pickup {
+                        duration_secs: Some(1.0),
                     },
+                    low_gravity: PowerUpMode::Pickup {
+                        duration_secs: Some(1.0),
+                    },
+                    portal_gun: PowerUpMode::Pickup { duration_secs: None },
                 },
+                placed_items: None,
                 weather: WeatherMode::Clear,
                 quests: Vec::new(),
             },

@@ -117,12 +117,15 @@ fn build_server_app_with_loader(
         &map_server_config.settings,
     )?;
     let power_ups_config = map_server_config.power_ups.clone();
-    let placed_items_config = map_server_config.placed_items.clone();
+    let placed_items_config = map_server_config.placed_items.clone().unwrap_or_default();
     let weather_state = WeatherState::new(server_gameplay_config.cycles.weather.clone(), map_server_config.weather);
     let celestial_clock = CelestialClockAnchor::initial(&map_settings.celestial, 0);
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref());
     let portal_assignments = PortalAssignments::new(map_settings.portals);
     let map_geometry = map_config.root_grid().geometry;
+    for (index, item) in map_config.placed_items.iter().enumerate() {
+        power_ups_config.validate_pickup(item.item_type, &format!("map {map_name} placed_items[{index}]"))?;
+    }
     let map_items = map_config.available_items(random_items.pool.iter().map(|&(item_type, _)| item_type));
     let collision_world = CollisionWorld::from_map_layout(&map_layout);
     let carriers = Carriers::from_layout(&map_layout);
@@ -217,7 +220,10 @@ fn build_server_app_with_loader(
         .insert_resource(server_gameplay_config)
         .insert_resource(quest_catalog)
         .insert_resource(quest_board)
-        .insert_resource(PlayerMap::new(map_server_config.respawn))
+        .insert_resource(PlayerMap::new(
+            map_server_config.respawn,
+            power_ups_config.always_active(),
+        ))
         .insert_resource(actors)
         .insert_resource(ItemMap::default())
         .insert_resource(ItemSpawner::default())

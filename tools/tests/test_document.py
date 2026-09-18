@@ -134,7 +134,7 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(doc.undo_stack.count(), 0)
 
     def test_untitled_recovery_preserves_data_and_rejects_an_active_session(self):
-        self.doc.replace_with_new(empty_map())
+        self.doc.replace_with_new({"fireworks": None, **empty_map()})
         self.doc.write_autosave()
         recovery = self.doc.autosave_path()
         self.assertTrue(recovery.exists())

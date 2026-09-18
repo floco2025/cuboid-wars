@@ -50,6 +50,7 @@ pub(crate) fn server_app_with_options(options: ServerAppOptions, listener: Optio
         fs::create_dir(&directory)?;
         let path = directory.join("layout.json");
         let source = json!({"map": {
+            "fireworks": null,
             "grid_cols": 2, "grid_rows": 2,
             "levels": [{"floors": [
                 {"col": 0, "row": 0, "all": "basement-floor"},

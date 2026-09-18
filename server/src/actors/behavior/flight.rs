@@ -25,8 +25,8 @@ use common::{
     map::{CarrierPose, Carriers},
     physics::{CollisionWorld, character_hitbox_center, character_movement_center},
     protocol::{
-        ActorId, ActorMarker, ItemType, MapItems, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage,
-        ServerTick, SwitchState,
+        ActorId, ActorMarker, MapItems, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage, ServerTick,
+        SwitchState,
     },
 };
 use rand::{Rng, RngExt, rng};
@@ -53,13 +53,7 @@ pub(crate) fn flying_actors_behavior_system(
 ) {
     let delta = time.delta_secs();
     let states = player_states(&players, actors.peaceful, player_query.iter());
-    let armed = [
-        ItemType::SingleShotPowerUp,
-        ItemType::MultiShotPowerUp,
-        ItemType::MissilePack,
-    ]
-    .into_iter()
-    .any(|item| items.contains(item));
+    let armed = players.players_can_be_armed(&items);
     let count = actor_query.iter().filter(|(_, _, c)| c.0.flies()).count().max(1);
 
     let mut rng = rng();

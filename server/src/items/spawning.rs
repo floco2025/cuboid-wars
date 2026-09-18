@@ -43,7 +43,9 @@ pub fn placed_item_spawn_system(
             ItemInfo {
                 entity,
                 item_type: placed.item_type,
-                placement: ItemPlacement::Placed { respawn_countdown: 0.0 },
+                placement: ItemPlacement::Placed {
+                    respawn_countdown: Some(0.0),
+                },
                 carrier: placed.carrier,
             },
         );

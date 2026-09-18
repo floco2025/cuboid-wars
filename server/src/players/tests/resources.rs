@@ -4,13 +4,13 @@ use crossbeam_channel::unbounded;
 
 use super::{PowerUpState, resources::*};
 use crate::config::{
-    ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, PowerUpDurationSecs, PowerUpsConfig, RespawnConfig,
+    ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, PowerUpMode, PowerUpsConfig, RespawnConfig,
 };
 use common::{
     config::DeathTrigger,
     protocol::{
-        BarrierKindId, Health, ItemType, PlayerId, PlayerMoveIntent, PlayerMovementState, PortalAccess, PortalPairId,
-        Position, PowerUpKind, QuestId, SPlayerStatus,
+        BarrierKindId, Health, ItemType, MapItems, PlayerId, PlayerMoveIntent, PlayerMovementState, PortalAccess,
+        PortalPairId, Position, PowerUpKind, QuestId, SPlayerStatus,
     },
 };
 
@@ -22,13 +22,17 @@ fn dummy_info() -> PlayerInfo {
 
 fn test_power_ups_config() -> PowerUpsConfig {
     PowerUpsConfig {
-        duration_secs: PowerUpDurationSecs {
-            speed: 1.0,
-            single_shot: 0.0,
-            multi_shot: 1.0,
-            low_gravity: 1.0,
-            portal_gun: 0.0,
+        speed: PowerUpMode::Pickup {
+            duration_secs: Some(1.0),
         },
+        single_shot: PowerUpMode::Pickup { duration_secs: None },
+        multi_shot: PowerUpMode::Pickup {
+            duration_secs: Some(1.0),
+        },
+        low_gravity: PowerUpMode::Pickup {
+            duration_secs: Some(1.0),
+        },
+        portal_gun: PowerUpMode::Pickup { duration_secs: None },
     }
 }
 
@@ -49,13 +53,16 @@ fn actor_respawn_policies_use_logged_in_counts_and_preserve_the_requested_scope(
         ] {
             for scope in [ActorRespawnScope::Dead, ActorRespawnScope::All] {
                 for count in 1..=2 {
-                    let mut players = PlayerMap::new(RespawnConfig {
-                        players: mode,
-                        actors: ActorRespawnConfig {
-                            on_player_death: trigger,
-                            scope,
+                    let mut players = PlayerMap::new(
+                        RespawnConfig {
+                            players: mode,
+                            actors: ActorRespawnConfig {
+                                on_player_death: trigger,
+                                scope,
+                            },
                         },
-                    });
+                        Default::default(),
+                    );
                     players.insert(PlayerId(0), dummy_info());
                     for id in 1..=count {
                         players.insert(PlayerId(id), active_info());
@@ -81,13 +88,13 @@ fn solo_actor_reset_eligibility_survives_membership_changes_and_counts_dead_play
             scope: ActorRespawnScope::All,
         },
     };
-    let mut solo = PlayerMap::new(config);
+    let mut solo = PlayerMap::new(config, Default::default());
     solo.insert(PlayerId(1), active_info());
     solo.begin_respawn(PlayerId(1), 2.0);
     solo.insert(PlayerId(2), active_info());
     assert_eq!(solo.tick_respawns(2.0).1, Some(ActorRespawnScope::All));
 
-    let mut multiplayer = PlayerMap::new(config);
+    let mut multiplayer = PlayerMap::new(config, Default::default());
     multiplayer.insert(PlayerId(1), active_info());
     multiplayer.insert(PlayerId(2), active_info());
     multiplayer.begin_respawn(PlayerId(2), 2.0);
@@ -98,13 +105,16 @@ fn solo_actor_reset_eligibility_survives_membership_changes_and_counts_dead_play
 
 #[test]
 fn all_actor_reset_waits_for_the_last_death_and_keeps_its_eligibility() {
-    let mut players = PlayerMap::new(RespawnConfig {
-        actors: ActorRespawnConfig {
-            on_player_death: DeathTrigger::All,
-            scope: ActorRespawnScope::All,
+    let mut players = PlayerMap::new(
+        RespawnConfig {
+            actors: ActorRespawnConfig {
+                on_player_death: DeathTrigger::All,
+                scope: ActorRespawnScope::All,
+            },
+            ..default()
         },
-        ..default()
-    });
+        Default::default(),
+    );
     players.insert(PlayerId(1), active_info());
     players.insert(PlayerId(2), active_info());
     players.begin_respawn(PlayerId(1), 2.0);
@@ -124,13 +134,16 @@ fn all_actor_reset_waits_for_the_last_death_and_keeps_its_eligibility() {
 
 #[test]
 fn disconnecting_the_last_survivor_arms_an_all_actor_reset() {
-    let mut players = PlayerMap::new(RespawnConfig {
-        actors: ActorRespawnConfig {
-            on_player_death: DeathTrigger::All,
-            scope: ActorRespawnScope::All,
+    let mut players = PlayerMap::new(
+        RespawnConfig {
+            actors: ActorRespawnConfig {
+                on_player_death: DeathTrigger::All,
+                scope: ActorRespawnScope::All,
+            },
+            ..default()
         },
-        ..default()
-    });
+        Default::default(),
+    );
     players.insert(PlayerId(1), active_info());
     players.insert(PlayerId(2), active_info());
     players.begin_respawn(PlayerId(1), 2.0);
@@ -152,13 +165,16 @@ fn logout_actor_policies_use_membership_before_departure_and_do_not_respawn_surv
         ] {
             for scope in [ActorRespawnScope::Dead, ActorRespawnScope::All] {
                 for count in 1..=2 {
-                    let mut players = PlayerMap::new(RespawnConfig {
-                        players: mode,
-                        actors: ActorRespawnConfig {
-                            on_player_death: trigger,
-                            scope,
+                    let mut players = PlayerMap::new(
+                        RespawnConfig {
+                            players: mode,
+                            actors: ActorRespawnConfig {
+                                on_player_death: trigger,
+                                scope,
+                            },
                         },
-                    });
+                        Default::default(),
+                    );
                     players.insert(PlayerId(0), dummy_info());
                     for id in 1..=count {
                         players.insert(PlayerId(id), active_info());
@@ -183,13 +199,16 @@ fn logout_actor_policies_use_membership_before_departure_and_do_not_respawn_surv
 #[test]
 fn logout_during_respawn_keeps_the_remaining_actor_countdown_when_the_server_empties() {
     for mode in [PlayerRespawnMode::Individual, PlayerRespawnMode::Group] {
-        let mut players = PlayerMap::new(RespawnConfig {
-            players: mode,
-            actors: ActorRespawnConfig {
-                on_player_death: DeathTrigger::Solo,
-                scope: ActorRespawnScope::All,
+        let mut players = PlayerMap::new(
+            RespawnConfig {
+                players: mode,
+                actors: ActorRespawnConfig {
+                    on_player_death: DeathTrigger::Solo,
+                    scope: ActorRespawnScope::All,
+                },
             },
-        });
+            Default::default(),
+        );
         players.insert(PlayerId(1), active_info());
         players.begin_respawn(PlayerId(1), 2.0);
         assert_eq!(players.tick_respawns(1.0), (vec![], None));
@@ -203,13 +222,16 @@ fn logout_during_respawn_keeps_the_remaining_actor_countdown_when_the_server_emp
 
 #[test]
 fn pending_actor_reset_survives_a_logout_that_no_longer_qualifies() {
-    let mut players = PlayerMap::new(RespawnConfig {
-        actors: ActorRespawnConfig {
-            on_player_death: DeathTrigger::Solo,
-            scope: ActorRespawnScope::All,
+    let mut players = PlayerMap::new(
+        RespawnConfig {
+            actors: ActorRespawnConfig {
+                on_player_death: DeathTrigger::Solo,
+                scope: ActorRespawnScope::All,
+            },
+            ..default()
         },
-        ..default()
-    });
+        Default::default(),
+    );
     players.insert(PlayerId(1), active_info());
     players.begin_respawn(PlayerId(1), 2.0);
     players.tick_respawns(1.0);
@@ -221,13 +243,16 @@ fn pending_actor_reset_survives_a_logout_that_no_longer_qualifies() {
 
 #[test]
 fn unlogged_and_unknown_disconnects_do_not_trigger_world_resets() {
-    let mut players = PlayerMap::new(RespawnConfig {
-        actors: ActorRespawnConfig {
-            on_player_death: DeathTrigger::Any,
-            scope: ActorRespawnScope::All,
+    let mut players = PlayerMap::new(
+        RespawnConfig {
+            actors: ActorRespawnConfig {
+                on_player_death: DeathTrigger::Any,
+                scope: ActorRespawnScope::All,
+            },
+            ..default()
         },
-        ..default()
-    });
+        Default::default(),
+    );
     players.insert(PlayerId(1), active_info());
     players.insert(PlayerId(0), dummy_info());
     players.disconnect(&PlayerId(0), 2.0);
@@ -285,7 +310,9 @@ fn grant_power_up_sets_matching_status_flag() {
 fn single_shot_can_expire_or_last_until_death() {
     let mut info = dummy_info();
     let mut config = test_power_ups_config();
-    config.duration_secs.single_shot = 2.0;
+    config.single_shot = PowerUpMode::Pickup {
+        duration_secs: Some(2.0),
+    };
     info.grant_power_up(ItemType::SingleShotPowerUp, &config);
     assert!(info.has(PowerUpKind::SingleShot));
     info.tick_timers(2.0);
@@ -305,7 +332,9 @@ fn missing_or_expired_gun_rejects_portal_fire() {
     assert!(!info.try_start_portal_shot(1.0, 0.1));
     assert!(info.has(PowerUpKind::SingleShot));
     let mut config = test_power_ups_config();
-    config.duration_secs.portal_gun = 2.0;
+    config.portal_gun = PowerUpMode::Pickup {
+        duration_secs: Some(2.0),
+    };
     info.grant_power_up(ItemType::PortalGunPowerUp, &config);
     info.tick_timers(1.0);
     assert!(info.try_start_portal_shot(2.0, 0.1));
@@ -460,13 +489,16 @@ fn begin_respawn_preserves_session_state() {
 
 #[test]
 fn a_blocked_respawns_logout_owes_the_full_actor_reset_delay() {
-    let mut players = PlayerMap::new(RespawnConfig {
-        players: PlayerRespawnMode::Individual,
-        actors: ActorRespawnConfig {
-            on_player_death: DeathTrigger::Any,
-            scope: ActorRespawnScope::Dead,
+    let mut players = PlayerMap::new(
+        RespawnConfig {
+            players: PlayerRespawnMode::Individual,
+            actors: ActorRespawnConfig {
+                on_player_death: DeathTrigger::Any,
+                scope: ActorRespawnScope::Dead,
+            },
         },
-    });
+        Default::default(),
+    );
     players.insert(PlayerId(1), active_info());
     players.insert(PlayerId(2), active_info());
     assert!(players.begin_respawn(PlayerId(1), 2.0));
@@ -489,4 +521,38 @@ fn a_blocked_respawns_logout_owes_the_full_actor_reset_delay() {
         "the logout waits the full delay"
     );
     assert!(players.tick_respawns(1.0).1.is_some());
+}
+
+#[test]
+fn always_active_abilities_survive_equipment_and_life_resets() {
+    for group in [false, true] {
+        let mut config = test_power_ups_config();
+        config.single_shot = PowerUpMode::Always {};
+        let mut players = PlayerMap::new(RespawnConfig::default(), config.always_active());
+        players.insert(PlayerId(1), active_info());
+        let info = players.get_mut(&PlayerId(1)).expect("player missing");
+        assert!(info.has(PowerUpKind::SingleShot));
+        assert!(info.status(PlayerId(1)).power_up(PowerUpKind::SingleShot));
+        assert!(!info.erase_equipment());
+        info.grant_power_up(ItemType::SingleShotPowerUp, &config);
+        info.grant_power_up(ItemType::SpeedPowerUp, &config);
+        info.life.missiles = 2;
+        assert!(info.erase_equipment());
+        assert!(info.has(PowerUpKind::SingleShot));
+        assert!(!info.has(PowerUpKind::Speed));
+        assert_eq!(info.life.missiles, 0);
+        if group {
+            info.begin_group_respawn();
+        } else {
+            info.begin_respawn(1.0);
+        }
+        info.finish_respawn(Entity::PLACEHOLDER);
+        info.tick_timers(1000.0);
+        assert!(info.has(PowerUpKind::SingleShot));
+        assert!(!info.erase_equipment());
+        let pickups = MapItems(vec![]);
+        assert!(players.players_can_be_armed(&pickups));
+        assert!(!pickups.contains(ItemType::SingleShotPowerUp));
+        assert!(!PlayerMap::default().players_can_be_armed(&pickups));
+    }
 }

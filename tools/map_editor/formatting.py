@@ -72,7 +72,7 @@ def _catalog_lines(key: str, entries) -> list[str]:
     return [f'    "{key}": {json.dumps(entries)},']
 
 
-def format_map_file(wrapper: dict) -> str:
+def format_map_file(wrapper: dict, *, root: bool = True) -> str:
     map_data = wrapper["map"]
     lines = ["{", '  "map": {']
     if "switches" in map_data:
@@ -80,8 +80,8 @@ def format_map_file(wrapper: dict) -> str:
     for key in ("barrier_kinds", "bridge_kinds"):
         if key in map_data:
             lines.extend(_catalog_lines(key, map_data[key]))
-    if "fireworks" in map_data:
-        lines.append(f'    "fireworks": {json.dumps(map_data["fireworks"])},')
+    if root or "fireworks" in map_data:
+        lines.append(f'    "fireworks": {json.dumps(map_data.get("fireworks"))},')
     lines += [
         f'    "grid_cols": {map_data["grid_cols"]},',
         f'    "grid_rows": {map_data["grid_rows"]},',
@@ -126,7 +126,7 @@ def format_map_file(wrapper: dict) -> str:
         lines.append('    "nested_geometry": {')
         definitions = list(map_data["nested_geometry"].items())
         for index, (name, geometry) in enumerate(definitions):
-            body = format_map_file({"map": geometry}).splitlines()[2:-2]
+            body = format_map_file({"map": geometry}, root=False).splitlines()[2:-2]
             lines.append(f"      {json_scalar(name)}: {{")
             lines.extend("    " + line for line in body)
             lines.append("      }" + ("," if index + 1 < len(definitions) else ""))

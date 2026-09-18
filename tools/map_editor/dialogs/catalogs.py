@@ -168,16 +168,24 @@ class ItemTypeDialog(QDialog):
     Returns (type, kind-or-None) on accept, None on cancel."""
 
     def __init__(
-        self, parent, title: str, kinds: list[str], current_type: str | None, current_kind: str | None, colors=None
+        self,
+        parent,
+        title: str,
+        kinds: list[str],
+        current_type: str | None,
+        current_kind: str | None,
+        colors=None,
+        *,
+        item_types=ITEM_TYPES,
     ):
         super().__init__(parent)
         self.setWindowTitle(title)
 
         self._type_combo = QComboBox()
-        for item_type in ITEM_TYPES:
+        for item_type in item_types:
             self._type_combo.addItem(item_type)
-        if current_type and current_type in ITEM_TYPES:
-            self._type_combo.setCurrentIndex(ITEM_TYPES.index(current_type))
+        if current_type and current_type in item_types:
+            self._type_combo.setCurrentIndex(item_types.index(current_type))
 
         self._kind_combo = QComboBox()
         for id_ in kinds:
@@ -209,9 +217,17 @@ class ItemTypeDialog(QDialog):
 
     @classmethod
     def prompt(
-        cls, parent, title: str, kinds: list[str], current_type: str | None, current_kind: str | None, colors=None
+        cls,
+        parent,
+        title: str,
+        kinds: list[str],
+        current_type: str | None,
+        current_kind: str | None,
+        colors=None,
+        *,
+        item_types=ITEM_TYPES,
     ) -> tuple[str, str | None] | None:
-        dialog = cls(parent, title, kinds, current_type, current_kind, colors)
+        dialog = cls(parent, title, kinds, current_type, current_kind, colors, item_types=item_types)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         item_type, kind = dialog.values()

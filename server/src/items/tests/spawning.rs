@@ -81,51 +81,51 @@ fn first_tick_fills_target_and_expiry_replaces_every_item_in_one_tick() {
 
 #[test]
 fn refill_reserves_hidden_placed_cells_and_uses_each_free_cell_once() {
-    let (mut world, mut schedule) = spawn_world(4, 10);
-    world.resource_mut::<MapConfig>().placed_items.push(PlacedItem {
-        carrier: CarrierId::WORLD,
-        level: 0,
-        col: 0,
-        row: 0,
-        item_type: ItemType::Gold,
-    });
-    let mut startup = Schedule::default();
-    startup.add_systems(placed_item_spawn_system);
-    startup.run(&mut world);
-    let placed_id = *world
-        .resource::<ItemMap>()
-        .iter()
-        .next()
-        .expect("placed item missing")
-        .0;
-    world
-        .resource_mut::<ItemMap>()
-        .get_mut(&placed_id)
-        .expect("placed item missing")
-        .placement = ItemPlacement::Placed {
-        respawn_countdown: 30.0,
-    };
-
-    schedule.run(&mut world);
-    assert_eq!(random_ids(&world).len(), 3);
-    assert_distinct_cells(&mut world, 4);
-
-    let removed: Vec<_> = random_ids(&world).into_iter().take(2).collect();
-    for id in &removed {
-        let item = world.resource_mut::<ItemMap>().remove(id).expect("random item missing");
-        world.despawn(item.entity);
-    }
-    schedule.run(&mut world);
-    assert_eq!(random_ids(&world).len(), 3);
-    assert!(removed.iter().all(|id| world.resource::<ItemMap>().get(id).is_none()));
-    assert!(
-        world
+    for respawn_countdown in [Some(30.0), None] {
+        let (mut world, mut schedule) = spawn_world(4, 10);
+        world.resource_mut::<MapConfig>().placed_items.push(PlacedItem {
+            carrier: CarrierId::WORLD,
+            level: 0,
+            col: 0,
+            row: 0,
+            item_type: ItemType::Gold,
+        });
+        let mut startup = Schedule::default();
+        startup.add_systems(placed_item_spawn_system);
+        startup.run(&mut world);
+        let placed_id = *world
             .resource::<ItemMap>()
-            .get(&placed_id)
+            .iter()
+            .next()
             .expect("placed item missing")
-            .is_hidden()
-    );
-    assert_distinct_cells(&mut world, 4);
+            .0;
+        world
+            .resource_mut::<ItemMap>()
+            .get_mut(&placed_id)
+            .expect("placed item missing")
+            .placement = ItemPlacement::Placed { respawn_countdown };
+
+        schedule.run(&mut world);
+        assert_eq!(random_ids(&world).len(), 3);
+        assert_distinct_cells(&mut world, 4);
+
+        let removed: Vec<_> = random_ids(&world).into_iter().take(2).collect();
+        for id in &removed {
+            let item = world.resource_mut::<ItemMap>().remove(id).expect("random item missing");
+            world.despawn(item.entity);
+        }
+        schedule.run(&mut world);
+        assert_eq!(random_ids(&world).len(), 3);
+        assert!(removed.iter().all(|id| world.resource::<ItemMap>().get(id).is_none()));
+        assert!(
+            world
+                .resource::<ItemMap>()
+                .get(&placed_id)
+                .expect("placed item missing")
+                .is_hidden()
+        );
+        assert_distinct_cells(&mut world, 4);
+    }
 }
 
 #[test]

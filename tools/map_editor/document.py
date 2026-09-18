@@ -50,7 +50,7 @@ class MapDocument(QObject):
             # pulled).
             self.path_mtime: float | None = path.stat().st_mtime
         else:
-            self.root_data = empty_map()
+            self.root_data = {"fireworks": None, **empty_map()}
             self.path_mtime = None
         self._saved_data = copy.deepcopy(self.root_data) if self.path_mtime is not None else None
         self.dirty = self._saved_data is None

@@ -1118,10 +1118,13 @@ fn group_death_resets_all_switches_and_momentary_holders_before_snapshot() {
     for activation in [SwitchActivation::Toggle, SwitchActivation::Momentary] {
         let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
         configure_switches(&mut app, activation, DeathTrigger::All);
-        app.insert_resource(PlayerMap::new(RespawnConfig {
-            players: PlayerRespawnMode::Group,
-            ..default()
-        }));
+        app.insert_resource(PlayerMap::new(
+            RespawnConfig {
+                players: PlayerRespawnMode::Group,
+                ..default()
+            },
+            Default::default(),
+        ));
         standing_player(&mut app, 1);
         standing_player(&mut app, 2);
         app.update();

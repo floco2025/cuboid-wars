@@ -23,7 +23,7 @@ def placement(name, col=0):
 
 
 def parent_map():
-    root = empty_map(8, 8)
+    root = {"fireworks": None, **empty_map(8, 8)}
     root["levels"][0]["floors"] = [
         {"col": col, "row": row, "all": DEFAULT_ALIAS} for col in range(2) for row in range(2)
     ]

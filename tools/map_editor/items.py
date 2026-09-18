@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from .constants import ITEM_KEY_TYPE, ITEMS_LIST, ITEM_TYPES
+from .constants import ITEM_KEY_TYPE, ITEMS_LIST
 from .dialogs import ItemTypeDialog
 from .normalization import item_cell_error
 
@@ -26,7 +26,7 @@ class ItemsMixin:
         if self.item_at(col, row) is not None:
             self.notify(f"Item not placed: cell [{col}, {row}] already holds one; right-click it to edit or erase.")
             return
-        if self.recent_item_type in ITEM_TYPES:
+        if self.recent_item_type in self.pickup_types:
             if self.recent_item_type != ITEM_KEY_TYPE or self.recent_item_key_kind in self.key_kinds:
                 self.add_item(col, row, self.recent_item_type, self.recent_item_key_kind)
                 return
@@ -37,6 +37,7 @@ class ItemsMixin:
             self.recent_item_type,
             self.recent_item_key_kind,
             self.barrier_kind_colors,
+            item_types=self.pickup_types,
         )
         if result is None:
             return
@@ -47,6 +48,9 @@ class ItemsMixin:
         self.add_item(col, row, item_type, kind)
 
     def add_item(self, col: int, row: int, item_type: str, kind: str | None, label: str | None = None) -> None:
+        if item_type not in self.pickup_types:
+            self.notify(f"Item not placed: {item_type} is unavailable as a pickup.")
+            return
         error = item_cell_error(self.map_data, self.current_level, col, row)
         if error is not None:
             self.notify(f"Item not placed: cell {error}.")

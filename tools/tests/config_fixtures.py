@@ -19,6 +19,13 @@ def gameplay():
 
 def map_settings(name="hotel"):
     return {
+        "grounds": None,
+        "random_items": None,
+        "placed_items": None,
+        "power_ups": {
+            kind: {"mode": "pickup", "duration_secs": None}
+            for kind in ("single_shot", "multi_shot", "portal_gun", "speed", "low_gravity")
+        },
         "geometry": {"grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3},
         "movement": {
             "gravity": 25,

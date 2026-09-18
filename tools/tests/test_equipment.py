@@ -16,7 +16,7 @@ from map_editor.validation import validate_map
 
 class EquipmentTests(unittest.TestCase):
     def test_projectile_pickups_round_trip_through_the_map_editor(self):
-        data = empty_map(4, 4)
+        data = {"fireworks": None, **empty_map(4, 4)}
         data["checkpoints"] = []
         data["levels"][0]["floors"] = [{"col": col, "row": 1, "all": DEFAULT_ALIAS} for col in (1, 2)]
         data["items"] = [
@@ -28,7 +28,7 @@ class EquipmentTests(unittest.TestCase):
         self.assertFalse(validate_map(data, [], []))
 
     def test_fields_and_gun_round_trip_and_resize(self):
-        data = empty_map(4, 4)
+        data = {"fireworks": None, **empty_map(4, 4)}
         data["checkpoints"] = []
         data["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "portal_gun"}]
@@ -50,7 +50,7 @@ class EquipmentTests(unittest.TestCase):
         self.assertEqual(after["checkpoints"], data["checkpoints"])
 
     def test_invalid_and_duplicate_fields_are_reported_without_losing_records_on_load(self):
-        data = empty_map(4, 4)
+        data = {"fireworks": None, **empty_map(4, 4)}
         data["levels"][0]["erasers"] = [
             {"c0": 1, "r0": 0, "c1": 1, "r1": 1},
             {"c0": 1, "r0": 1, "c1": 1, "r1": 0},

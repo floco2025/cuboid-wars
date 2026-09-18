@@ -46,16 +46,14 @@
     "actors": { "on_player_death": "never", "scope": "dead" }
   },
   "portals": "single",
-  "random_items": null,
   "power_ups": {
-    "duration_secs": {
-      "single_shot": 0.0,
-      "multi_shot": 0.0,
-      "portal_gun": 0.0,
-      "speed": 0.0,
-      "low_gravity": 0.0
-    }
+    "single_shot": { "mode": "pickup", "duration_secs": null },
+    "multi_shot": { "mode": "pickup", "duration_secs": null },
+    "portal_gun": { "mode": "pickup", "duration_secs": null },
+    "speed": { "mode": "pickup", "duration_secs": null },
+    "low_gravity": { "mode": "pickup", "duration_secs": null }
   },
+  "random_items": null,
   "placed_items": {
     "respawn_secs": {
       "single_shot": 5.0,

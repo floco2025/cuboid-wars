@@ -16,6 +16,7 @@ fn carrier_fixture(settings: &MapSettings) -> MapLayout {
     let floor = |col: i32, row: i32| format!(r#"{{"col": {col}, "row": {row}, "all": "basement-floor"}}"#);
     let text = format!(
         r#"{{"map": {{
+            "fireworks": null,
             "grid_cols": 8, "grid_rows": 8,
             "checkpoints": [{{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 0}}],
             "levels": [{{"floors": [{}]}}, {{}}],

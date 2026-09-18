@@ -72,7 +72,7 @@ def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_
 # A fresh document that saves as it is: the empty map with `material`
 # floored under its start.
 def started_map(grid_cols: int, grid_rows: int, material: str) -> dict:
-    data = empty_map(grid_cols, grid_rows)
+    data = {"fireworks": None, **empty_map(grid_cols, grid_rows)}
     start = data["checkpoints"][0]
     data["levels"][0]["floors"] = [
         {"col": col, "row": row, "all": material}
@@ -340,7 +340,7 @@ def normalize_nested_map(entry: dict) -> dict:
         "level": level,
         "from": [int(entry["from"][0]), int(entry["from"][1])],
         "to": [int(entry["to"][0]), int(entry["to"][1])],
-        "to_level": int(entry.get("to_level", level)),
+        "to_level": level if entry.get("to_level") is None else int(entry["to_level"]),
         "travel_secs": float(entry.get("travel_secs", 2.0)),
         "pause_secs": float(entry.get("pause_secs", 0.0)),
         "phase_secs": float(entry.get("phase_secs", 0.0)),

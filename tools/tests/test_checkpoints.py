@@ -85,7 +85,7 @@ class CheckpointTests(unittest.TestCase):
             self.assertEqual(canonical["checkpoints"][ref.index]["type"], zone["type"])
 
     def test_roundtrip_including_nested_geometry_and_absent_list(self):
-        data = checkpoint_map()
+        data = {"fireworks": None, **checkpoint_map()}
         data["nested_geometry"] = {"platform": checkpoint_map(2)}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "layout.json"
@@ -167,6 +167,7 @@ class CheckpointTests(unittest.TestCase):
 
     def test_entries_and_the_next_number_span_the_document(self):
         root = with_start(checkpoint_map(1))
+        root["fireworks"] = None
         root["checkpoints"].append({"level": 0, "cols": [5, 6], "rows": [5, 6], "type": "individual", "number": 4})
         root["nested_geometry"] = {"room": checkpoint_map(2)}
         self.assertEqual(
@@ -178,6 +179,7 @@ class CheckpointTests(unittest.TestCase):
 
     def test_groups_list_each_number_once_with_its_instances_maps_and_types(self):
         root = with_start(checkpoint_map(1))
+        root["fireworks"] = None
         root["checkpoints"].append({"level": 0, "cols": [4, 5], "rows": [4, 5], "type": "group_any", "number": "x"})
         room = checkpoint_map(1)
         room["checkpoints"][0]["type"] = "group_all"
@@ -195,6 +197,7 @@ class CheckpointTests(unittest.TestCase):
 
     def test_renumbering_moves_every_instance_of_a_number_and_the_zones_ending_there(self):
         root = with_start(checkpoint_map(1))
+        root["fireworks"] = None
         root["checkpoints"].append({"level": 0, "cols": [5, 6], "rows": [5, 6], "type": "individual", "number": 4})
         root["actor_spawn_zones"] = [zone(until_checkpoint=4)]
         room = checkpoint_map(1)
@@ -516,6 +519,7 @@ class CheckpointWindowTests(WindowTestCase):
     def test_the_placed_map_needs_a_start_while_numbers_may_repeat_across_definitions(self):
         window = self.window
         root = checkpoint_map(1)
+        root["fireworks"] = None
         root["nested_geometry"] = {"room": checkpoint_map(1)}
         root["nested_maps"] = [nested("room", 0, [0, 0], [0, 0])]
         root["actor_spawn_zones"] = [zone(until_checkpoint=1)]
@@ -538,6 +542,7 @@ class CheckpointWindowTests(WindowTestCase):
         room["checkpoints"] = [{"level": 0, "cols": [0, 2], "rows": [0, 2], "type": "individual", "number": 5}]
         room["actor_spawn_zones"] = [{**zone(until_checkpoint=5), "cols": [0, 1], "rows": [0, 1]}]
         root = with_start(checkpoint_map(1))
+        root["fireworks"] = None
         root["actor_spawn_zones"] = [zone(until_checkpoint=5)]
         root["nested_geometry"] = {"room": room}
         root["nested_maps"] = [nested("room", 0, [5, 1], [5, 1]), nested("room", 0, [5, 4], [5, 4])]
@@ -562,6 +567,7 @@ class CheckpointWindowTests(WindowTestCase):
     def test_edit_checkpoints_dialog_lists_numbers_once_and_renumbers_every_instance(self):
         window = self.window
         root = with_start(checkpoint_map(1))
+        root["fireworks"] = None
         root["checkpoints"][0]["cols"] = [1, 2]
         root["checkpoints"].append({"level": 0, "cols": [2, 4], "rows": [1, 4], "type": "individual", "number": 2})
         root["actor_spawn_zones"] = [zone(until_checkpoint=3)]

@@ -28,7 +28,7 @@ pub use cycles::{CyclesConfig, WeatherCycleConfig};
 pub use falling::{FallDamageConfig, FallDamageConfigs};
 pub use feed::FeedConfig;
 pub use gameplay::{PlayerServerConfig, ServerGameplayConfig};
-pub use items::{PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpDurationSecs, PowerUpsConfig};
+pub use items::{PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpMode, PowerUpsConfig};
 pub(crate) use maps::is_valid_map_name;
 pub use maps::{MapServerConfig, RandomItemsConfig, WeatherMode};
 pub use missiles::MissilesServerConfig;

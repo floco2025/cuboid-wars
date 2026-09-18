@@ -75,13 +75,16 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
         .insert_resource(map)
         .insert_resource(CollisionWorld::from_map_layout(&layout))
         .insert_resource(layout)
-        .insert_resource(PlayerMap::new(RespawnConfig {
-            players: mode,
-            actors: ActorRespawnConfig {
-                on_player_death: DeathTrigger::Any,
-                scope,
+        .insert_resource(PlayerMap::new(
+            RespawnConfig {
+                players: mode,
+                actors: ActorRespawnConfig {
+                    on_player_death: DeathTrigger::Any,
+                    scope,
+                },
             },
-        }))
+            Default::default(),
+        ))
         .init_resource::<Carriers>()
         .init_resource::<ActorMap>()
         .init_resource::<ActorSpawner>()

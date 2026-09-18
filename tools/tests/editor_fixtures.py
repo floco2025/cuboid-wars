@@ -11,7 +11,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from config_fixtures import install_catalogs, map_kinds
-from map_editor.constants import FACES, MODE_SELECT
+from map_editor.constants import FACES, ITEM_TYPES, MODE_SELECT
 from map_editor.erase_tools import EraseMixin
 from map_editor.io import write_map
 from map_editor.items import ItemsMixin
@@ -135,6 +135,7 @@ class EditorHost(
         self.recent_barrier_controls = {}
         self.recent_bridge_controls = {}
         self.key_kinds = self.barrier_kinds
+        self.pickup_types = ITEM_TYPES
         self.canvas = StubCanvas()
         self.current_material = DEFAULT_ALIAS
         self.statuses: list[str] = []

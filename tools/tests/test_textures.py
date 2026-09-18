@@ -26,7 +26,11 @@ class TextureCatalogTests(unittest.TestCase):
                 {"material": "stone", "portalable": 1},
                 {"material": "stone", "portalable": "false"},
             ):
-                settings.write_text(json.dumps({"textures": {"stone": entry}}))
+                settings.write_text(
+                    json.dumps(
+                        {"textures": {"stone": entry}, "grounds": None, "random_items": None, "placed_items": None}
+                    )
+                )
                 with patch("map_editor.catalogs.GAMEPLAY_PATH", path), patch("map_editor.catalogs.MAPS_DIR", maps):
                     with self.assertRaisesRegex(ValueError, "settings.json: textures.stone"):
                         load_texture_catalog("host")

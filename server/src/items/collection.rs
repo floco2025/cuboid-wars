@@ -38,8 +38,6 @@ pub fn item_collection_system(
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
         .iter()
         .filter_map(|(item_id, item_info)| {
-            // A placed item counting down its respawn exists server-side but
-            // is invisible and uncollectable until the timer elapses.
             if item_info.is_hidden() {
                 return None;
             }

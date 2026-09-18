@@ -14,7 +14,7 @@ BRIDGE_KIND = "skyway"
 
 class FileIoTests(unittest.TestCase):
     def test_map_files_carry_the_catalogs_and_no_schema_version(self) -> None:
-        data = empty_map(2, 2)
+        data = {"fireworks": None, **empty_map(2, 2)}
         data["barrier_kinds"] = [{"id": KIND, "color": "#ff3333"}]
         data["bridge_kinds"] = []
         data["levels"][0]["floors"] = [floor(0, 0)]
@@ -30,7 +30,7 @@ class FileIoTests(unittest.TestCase):
             self.assertEqual(read_map(path), canonicalize_map(data))
 
     def test_plates_round_trip_through_the_file_format(self) -> None:
-        data = empty_map(2, 2)
+        data = {"fireworks": None, **empty_map(2, 2)}
         data["levels"][0]["floors"] = [floor(0, 0), floor(1, 0)]
         data["pressure_plates"] = [
             {"level": 0, "col": 0, "row": 0, "switch": KIND},
@@ -45,7 +45,7 @@ class FileIoTests(unittest.TestCase):
             self.assertEqual(read_map(path)["pressure_plates"], data["pressure_plates"])
 
     def test_bridges_switched_zones_and_nested_maps_round_trip_through_the_file_format(self) -> None:
-        data = empty_map(2, 2)
+        data = {"fireworks": None, **empty_map(2, 2)}
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["levels"][0]["light_bridges"] = [{"col": 1, "row": 0, "kind": BRIDGE_KIND}]
         data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": BRIDGE_KIND}]

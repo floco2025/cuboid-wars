@@ -28,7 +28,8 @@ pub struct MapServerConfig {
     // `None` = no random item spawning on this map.
     #[serde(deserialize_with = "deserialize_required_option")]
     pub random_items: Option<RandomItemsConfig>,
-    pub placed_items: PlacedItemsConfig,
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub placed_items: Option<PlacedItemsConfig>,
     pub power_ups: PowerUpsConfig,
     pub respawn: RespawnConfig,
     // A concrete state holds until an admin command; `auto` runs the
@@ -100,9 +101,17 @@ pub(super) fn validate_maps(
             .validate(&format!("{path} actor_fall"), movement.gravity)?;
         if let Some(random_items) = &entry.random_items {
             random_items.validate(&format!("{path} random_items"))?;
+            for id in random_items.weights.keys() {
+                entry.power_ups.validate_pickup(
+                    ItemType::from_config_id(id).expect("validated random item type missing"),
+                    &format!("{path} random_items.weights.{id}"),
+                )?;
+            }
         }
         entry.power_ups.validate(&format!("{path} power_ups"))?;
-        entry.placed_items.validate(&format!("{path} placed_items"))?;
+        if let Some(placed_items) = &entry.placed_items {
+            placed_items.validate(&format!("{path} placed_items"))?;
+        }
         validate_quests(&entry.quests, actors, &format!("{path} quests"))?;
     }
     Ok(())
