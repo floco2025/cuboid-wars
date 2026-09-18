@@ -2,7 +2,7 @@
 
 Reviewed on 2026-09-18 against `2b4977b0` (`Standardize JSON absence and add always-active power-ups`). The checkout was refreshed during the review, and the Rust and editor checks were repeated against that revision.
 
-This review covers correctness, structure, simplification, maintainability, assets, tooling, and selected runtime behavior. The initial review produced this report and the follow-ups in [TODO.md](TODO.md), without changing production behavior. The subsequent implementation of R1 and R5 and reclassification of R2–R4 as accepted behavior are noted below; the other findings and the validation table describe the original review baseline. Temporary diagnostic harnesses and captures remain outside the repository.
+This review covers correctness, structure, simplification, maintainability, assets, tooling, and selected runtime behavior. The initial review produced this report and the follow-ups in [TODO.md](TODO.md), without changing production behavior. The subsequent implementation of R1, R5, and R7 and reclassification of R2–R4 as accepted behavior are noted below; the other findings and the validation table describe the original review baseline. Temporary diagnostic harnesses and captures remain outside the repository.
 
 ## Assessment
 
@@ -90,6 +90,8 @@ Map validation requires at least one level but does not enforce the runtime coun
 
 ### R7 — P3: audio freshness checking fails on insignificant numeric differences
 
+**Status: implemented.** The check uses absolute tolerances of 0.0001 dB for measured levels/gain and 0.000001 seconds for duration, below one analysis sample frame. Hashes, file membership, settings, schema, and discrete metadata remain exact; nulls stay distinct from missing fields and zero. Failures identify the affected file/field and differing values. All 10 audio tests passed, and `--check` passed for all 57 audio files without rewriting the saved analysis.
+
 **Location:** [`analyze_audio.py --check`](client/assets/sounds/analyze_audio.py).
 
 The check compares the entire regenerated JSON value using exact equality. On this machine it reports stale analysis even though every audio hash and all nonnumeric metadata match. There are 33 changed numeric fields across 28 files, with a maximum difference of approximately 0.000002 dB. The observed discrepancy is numeric reproducibility, not changed source audio or a meaningful normalization change; its precise decoder/toolchain cause was not isolated.
@@ -122,7 +124,7 @@ The validator checks positivity and the relative send rates. `tick_duration` com
 | Dependencies | Consider `[workspace.dependencies]` for versions repeated across the four manifests, especially Bevy, serde, bincode, renet, and Rapier. Preserve each consumer's feature selections, including disabled defaults. This is maintenance cleanup, not a recommendation to upgrade versions. |
 | Editor undo | Whole-document snapshots are simple and capped. Measure transaction latency and retained memory on large nested documents before replacing them with patch-based history; no editor memory defect was established here. |
 | Client memory | The existing texture-loading/allocator follow-up remains the useful target. Measure peak and settled memory while experimenting with bounded decode/mipmap batches; avoid adding unrelated caches. This review did not reproduce the earlier allocator live-set experiment. |
-| CI | Current CI covers Rust formatting, Clippy, Rust tests, and editor tests. Add the existing audio unit suite and an exact-case asset-path check; make the audio freshness check reproducible before enforcing it. The Linux input-helper parser test can run without Qt or a desktop. |
+| CI | Current CI covers Rust formatting, Clippy, Rust tests, and editor tests. Add the existing audio unit suite, the audio freshness check (now reproducible after R7), and an exact-case asset-path check. The Linux input-helper parser test can run without Qt or a desktop. |
 | Documentation | Keep README player-facing. Keep implementation ownership in AGENTS and outstanding work in TODO. This report records a dated baseline and should not become another architecture specification. |
 
 No dependency vulnerability audit or recommendation to expose the server publicly is implied. Cooperative private/LAN clients remain the documented threat model; intentionally excluded abuse-hardening work is not listed as a new defect. Wire/config versioning is likewise not recommended merely for a pre-release project.
@@ -176,6 +178,6 @@ The floor-portal walking failure and memory work remain in Fixes. Pressure-plate
 
 Two portal-visual entries described mechanisms already present in this revision: `portal_body_clipping_system` preserves a mapped pose during handoff, and `straddled_gate` uses rendered carrier frames. The tests `a_floor_handoff_starts_the_body_inverted_about_its_centre` and `a_carried_gate_is_straddled_where_it_is_drawn` pass. TODO now asks for integrated visual verification, including fast crossings and frame stalls, instead of requesting those mechanisms again. This does not assert that every remaining visual symptom is resolved.
 
-R1 and R5 have been implemented with focused behavioral regressions and removed from TODO. R2–R4 are accepted behavior and have also been removed from Fixes; network testing now targets convergence and existing explicit guarantees. Resolve R6 and R8 at the validation boundaries, then fix R7 before adding audio checking to CI. Keep dependency centralization and any shared-map extraction separate from behavioral fixes so their effects remain easy to assess.
+R1, R5, and R7 have been implemented with focused behavioral regressions and removed from TODO. R2–R4 are accepted behavior and have also been removed from Fixes; network testing now targets convergence and existing explicit guarantees. Resolve R6 and R8 at the validation boundaries; audio freshness checking is ready to add to CI. Keep dependency centralization and any shared-map extraction separate from behavioral fixes so their effects remain easy to assess.
 
 Follow-up validation: all 1,608 release workspace tests passed (524 client, 350 common, 10 executable, 724 server), including seven added regressions. Clippy passed with warnings treated as errors. The input tests use the production movement-input registration, with a fixed-step recorder and overlay-state transitions; they are headless checks, not a new rendered playtest.

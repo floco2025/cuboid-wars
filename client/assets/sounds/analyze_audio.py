@@ -14,6 +14,15 @@ EXTENSIONS = {".ogg", ".wav", ".mp3", ".flac"}
 SAMPLE_RATE = 48000
 TARGET_DBFS = -24.0
 PEAK_CEILING_DBFS = -6.0
+# Decoder rounding can vary across platforms. Duration tolerance stays below
+# one sample frame; dB tolerances cover measurement noise, not gain changes.
+MEASUREMENT_TOLERANCES = {
+    "duration_secs": 0.000001,
+    "peak_dbfs": 0.0001,
+    "rms_dbfs": 0.0001,
+    "strongest_50ms_rms_dbfs": 0.0001,
+    "suggested_gain_db": 0.0001,
+}
 
 
 def decode(path):
@@ -98,6 +107,31 @@ def catalog(assets):
     }
 
 
+def analysis_differences(saved, current, path=()):
+    if isinstance(saved, dict) and isinstance(current, dict):
+        for key in sorted(saved.keys() | current.keys()):
+            field = (*path, key)
+            if key not in saved:
+                yield f"{'.'.join(field)}: missing from saved analysis"
+            elif key not in current:
+                yield f"{'.'.join(field)}: no longer present"
+            else:
+                yield from analysis_differences(saved[key], current[key], field)
+        return
+
+    tolerance = MEASUREMENT_TOLERANCES.get(path[2]) if len(path) == 3 and path[0] == "sounds" else None
+    if tolerance is not None and type(saved) in (int, float) and type(current) in (int, float):
+        matches = (
+            math.isfinite(saved)
+            and math.isfinite(current)
+            and math.isclose(saved, current, rel_tol=0.0, abs_tol=tolerance)
+        )
+    else:
+        matches = type(saved) is type(current) and saved == current
+    if not matches:
+        yield f"{'.'.join(path) or 'analysis'}: saved {saved!r}, current {current!r}"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Fail if the saved analysis differs from the audio assets")
@@ -105,8 +139,17 @@ def main():
     result = catalog(ASSETS)
     destination = ASSETS / "sounds" / "analysis.json"
     if args.check:
-        if not destination.exists() or json.loads(destination.read_text()) != result:
-            raise SystemExit("Audio analysis is stale; run client/assets/sounds/analyze_audio.py")
+        differences = (
+            list(analysis_differences(json.loads(destination.read_text()), result))
+            if destination.exists()
+            else ["sounds/analysis.json: missing saved analysis"]
+        )
+        if differences:
+            raise SystemExit(
+                "Audio analysis is stale:\n"
+                + "\n".join(f"  {difference}" for difference in differences)
+                + "\nRun client/assets/sounds/analyze_audio.py to update it"
+            )
     else:
         destination.write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")
     print(f"{'Checked' if args.check else 'Analyzed'} {len(result['sounds'])} audio files")

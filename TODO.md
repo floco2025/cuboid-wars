@@ -4,8 +4,6 @@
 
 - **Map level-count validation:** reject root and nested grids beyond the supported runtime count before compiling geometry or building bootstrap data; 256 levels currently compile but overflow the bootstrap's `u8` count. Mirror the limit in editor diagnostics. See [review R6](REVIEW.md#r6--p2-a-validated-256-level-map-exceeds-the-bootstrap-representation).
 
-- **Audio analysis reproducibility:** make `analyze_audio.py --check` tolerate insignificant measurement noise while checking audio hashes, membership, settings, and discrete metadata exactly; report useful differences. Unchanged audio currently fails with differences no larger than 0.000002 dB. See [review R7](REVIEW.md#r7--p3-audio-freshness-checking-fails-on-insignificant-numeric-differences).
-
 - **Server rate bounds:** reject unsupported rates whose derived tick duration is zero; `u32::MAX` currently passes shared validation. See [review R8](REVIEW.md#r8--p3-accepted-server-rates-can-produce-a-zero-duration-tick).
 
 - **Client memory:** the hotel client sits at ~2.0 GB RSS with mimalloc, while forcing every freed block back to the OS measured the live set at ~1.2 GB; the rest is allocator slack behind the load-time peak, when every texture decodes before the mipmap pass releases it. Lower that peak (decode and release the textures a few at a time) or tune mimalloc's purge if the gap matters.
@@ -18,7 +16,7 @@
 
 - **Workspace dependency declarations:** centralize repeated dependency versions with `[workspace.dependencies]`, preserving each crate's features and disabled defaults. Keep this cleanup separate from dependency upgrades and behavioral fixes.
 
-- **CI coverage for existing tools:** run the audio unit suite, exact-case asset-path validation with glTF fragment handling, and the standalone Linux input-helper parser test. Add audio freshness checking after its numeric reproducibility issue is fixed.
+- **CI coverage for existing tools:** run the audio unit suite, audio freshness check, exact-case asset-path validation with glTF fragment handling, and the standalone Linux input-helper parser test.
 
 - **Obby player speed:** Once Obby is debugged, reduce `movement.player.walk_speed` and `run_speed` in `config/server/maps/obby/settings.json` to 5.0 m/s. The temporary 5.1 m/s setting makes testing easier.
 
