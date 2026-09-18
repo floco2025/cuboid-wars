@@ -4,6 +4,7 @@ mod diagnostics;
 mod fade;
 pub mod floating_labels;
 mod hud_banner;
+mod loading;
 mod message_feed;
 mod player_list;
 mod quest_panel;
@@ -21,6 +22,7 @@ pub use diagnostics::{
 };
 pub use fade::fade_out_alpha;
 pub use hud_banner::{BannerMessage, HudBanner, ui_hud_banner_system};
+pub(crate) use loading::loading_screen_plugin;
 pub use message_feed::{MessageFeed, ui_message_feed_system};
 pub use player_list::{
     HudShapeAssets, ui_health_bar_fill_system, ui_player_list_rebuild_system, ui_stunned_blink_system,

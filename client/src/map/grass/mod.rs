@@ -19,4 +19,5 @@ pub use material::setup_grass_materials_system;
 pub(in crate::map) use patch::GrassPatch;
 pub(in crate::map) use sources::{ChunkEntry, ChunkKey, ChunkKind, GrassChunkSource};
 pub use sources::{GrassSources, grass_sources_reset_system};
+pub(crate) use streaming::GrassChunkBuild;
 pub use streaming::{GrassChunkMarker, GrassChunks, grass_chunk_finish_system, grass_streaming_system};

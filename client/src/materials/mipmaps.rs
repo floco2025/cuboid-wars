@@ -15,11 +15,17 @@ use crate::config::ClientSettings;
 const MAX_PENDING_MIPMAP_TASKS: usize = 2;
 
 #[derive(Resource, Default)]
-pub(super) struct MaterialMipmapState {
+pub(crate) struct MaterialMipmapState {
     processed: HashSet<AssetId<Image>>,
     pending: HashMap<AssetId<Image>, (Handle<Image>, Task<Option<Image>>)>,
     // Material events can arrive before their images, so candidates retry until the image loads.
     queued: HashMap<AssetId<Image>, MipmapCandidate>,
+}
+
+impl MaterialMipmapState {
+    pub(crate) fn is_loading(&self) -> bool {
+        !self.queued.is_empty() || !self.pending.is_empty()
+    }
 }
 
 #[derive(Clone)]

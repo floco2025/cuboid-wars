@@ -12,7 +12,7 @@ mod trees;
 mod weather_surfaces;
 
 pub use celestial::setup_scene_lighting_system;
-pub(crate) use grass::GrassBurn;
+pub(crate) use grass::{GrassBurn, GrassChunkBuild};
 pub use grass::{
     GrassChunkMarker, GrassChunks, GrassSources, grass_burn_system, grass_chunk_finish_system,
     grass_sources_reset_system, grass_streaming_system, setup_grass_materials_system,

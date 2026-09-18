@@ -51,6 +51,10 @@ impl FromWorld for MaterialTextures {
 }
 
 impl MaterialTextures {
+    pub(crate) fn is_loading(&self) -> bool {
+        !self.queued.is_empty() || !self.loading.is_empty()
+    }
+
     pub(super) fn load(&mut self, path: &str, mut settings: ImageLoaderSettings) -> Handle<Image> {
         if let Some(handle) = self.handles.get(path) {
             return handle.clone();

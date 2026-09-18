@@ -54,6 +54,7 @@ pub struct GrassChunkVisual {
 #[derive(Resource, Default)]
 pub struct GrassChunks {
     pub(super) spawned: HashMap<(ChunkKey, GrassLod), Entity>,
+    pub(crate) waiting_for_chunks: bool,
 }
 
 impl GrassLod {
@@ -96,6 +97,7 @@ pub fn grass_streaming_system(
     carriers: Res<Carriers>,
     camera: Query<&GlobalTransform, With<MainCameraMarker>>,
 ) {
+    chunks.waiting_for_chunks = false;
     if !settings.grass.enabled {
         return;
     }
@@ -155,6 +157,7 @@ pub fn grass_streaming_system(
         }
     }
 
+    chunks.waiting_for_chunks = !wanted.is_empty();
     wanted.sort_by(|a, b| a.0.total_cmp(&b.0));
     let mut budget = [GrassLod::Near.chunks_per_frame(), GrassLod::Mid.chunks_per_frame()];
     for (_, key, lod) in wanted {

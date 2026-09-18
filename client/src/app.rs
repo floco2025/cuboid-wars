@@ -32,7 +32,7 @@ use crate::{
     portals::{PortalAssets, PortalMap, portal_render_plugin},
     projectiles::LastBounceSound,
     schedule::configure_client_sets,
-    ui::{ConsoleState, HudShapeAssets, MessageFeed, hud_plugin, setup_ui_system},
+    ui::{ConsoleState, HudShapeAssets, MessageFeed, hud_plugin, loading_screen_plugin, setup_ui_system},
     vfx::{ExplosionAssets, ExplosionVfxBudget, ParticleClouds, WeatherIntensity, presentation_plugin},
 };
 use common::{
@@ -243,7 +243,7 @@ pub fn build_client_app(
 
     install_bootstrap(&mut app, bootstrap, &asset_set)?;
 
-    app.add_plugins(material_textures_plugin);
+    app.add_plugins((material_textures_plugin, loading_screen_plugin));
 
     Ok(app)
 }
