@@ -10,10 +10,6 @@
 
 - **Shared editor/game map logic:** start with a small shared contract corpus covering absence/null rules, nesting, transforms, validation failures, and level bounds. Then evaluate a Rust core for source types, validation, normalization, and geometry rules, preserving invalid authored data and structured editor diagnostics. Consider a thin Python binding for the existing PySide6 UI before a full Rust editor rewrite; assess a full rewrite separately if game-rendered 3D previews become a goal.
 
-- **Workspace dependency declarations:** centralize repeated dependency versions with `[workspace.dependencies]`, preserving each crate's features and disabled defaults. Keep this cleanup separate from dependency upgrades and behavioral fixes.
-
-- **CI coverage for existing tools:** run the audio unit suite, audio freshness check, exact-case asset-path validation with glTF fragment handling, and the standalone Linux input-helper parser test.
-
 - **Obby player speed:** Once Obby is debugged, reduce `movement.player.walk_speed` and `run_speed` in `config/server/maps/obby/settings.json` to 5.0 m/s. The temporary 5.1 m/s setting makes testing easier.
 
 - **Pressure plates cover characters' feet:** give plates collision geometry so players and other characters stand on their surface instead of intersecting the model. Keep the support height aligned with the tread in both active and inactive states.

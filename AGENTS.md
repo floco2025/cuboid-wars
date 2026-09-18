@@ -311,6 +311,7 @@ Use a distinct model texture only when it contributes visibly at normal gameplay
 ## Coding style
 
 - Rust edition 2024. Format with `cargo fmt` (see `rustfmt.toml`).
+- Repeated dependency versions and the shared `common` crate path live in the root `Cargo.toml` under `[workspace.dependencies]`; members inherit them with `workspace = true`. Keep member-specific features in their manifests. Bevy defaults are disabled at workspace level and explicitly enabled by the client; preserve that distinction when updating dependencies.
 - Workspace lints (root `Cargo.toml`): `unsafe_code = "forbid"`; `unwrap_used = "warn"` — prefer `expect("…")` with a message, or proper error handling; `todo = "warn"`.
 - Naming: `snake_case` functions/modules, `CamelCase` types, `SCREAMING_SNAKE_CASE` constants.
 - Reserve `constants.rs` for appearance, gameplay, and performance tuning; keep implementation details beside their owning code, with shared definitions where consumers must agree.
