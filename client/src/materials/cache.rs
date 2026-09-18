@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
+use super::MaterialTextures;
 use crate::config::MaterialDef;
 
 #[derive(Default)]
@@ -14,14 +15,14 @@ impl MaterialHandleCache {
         &mut self,
         id: &str,
         material_def: &MaterialDef,
-        asset_server: &AssetServer,
+        textures: &mut MaterialTextures,
         materials: &mut Assets<StandardMaterial>,
         anisotropy: u16,
         mipmaps_enabled: bool,
     ) -> Handle<StandardMaterial> {
         self.standard
             .entry(id.to_owned())
-            .or_insert_with(|| materials.add(material_def.standard_material(asset_server, anisotropy, mipmaps_enabled)))
+            .or_insert_with(|| materials.add(material_def.standard_material(textures, anisotropy, mipmaps_enabled)))
             .clone()
     }
 }

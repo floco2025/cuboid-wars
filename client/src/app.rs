@@ -21,7 +21,7 @@ use crate::{
     map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
     materials::{
         FieldMaterialPlugin, FlagMaterialPlugin, GrassMaterialPlugin, PortalClipMaterialPlugin,
-        ProceduralSkyMaterialPlugin, TerrainMaterialPlugin, TreeMaterialPlugin, generate_material_mipmaps_system,
+        ProceduralSkyMaterialPlugin, TerrainMaterialPlugin, TreeMaterialPlugin, material_textures_plugin,
     },
     missiles::{LockOnTarget, MissileAssets, MissileMap},
     network::{
@@ -243,10 +243,7 @@ pub fn build_client_app(
 
     install_bootstrap(&mut app, bootstrap, &asset_set)?;
 
-    // Materials often reference images that are still loading when their
-    // material event arrives, so this retrying system owns mipmap generation
-    // and, mipmaps or not, releases each texture's main-memory copy.
-    app.add_systems(Update, generate_material_mipmaps_system);
+    app.add_plugins(material_textures_plugin);
 
     Ok(app)
 }

@@ -127,7 +127,7 @@ The validator checks positivity and the relative send rates. `tick_duration` com
 | Map editor and server | Start the existing shared-map-core investigation with a small contract corpus run through both implementations: absence/null rules, nesting, transformations, validation failures, and level limits. Preserve invalid authored records and structured diagnostics. Extract pure rules incrementally before considering a Python binding or an editor rewrite. |
 | Dependencies | Implemented: repeated dependencies inherit from the root `[workspace.dependencies]`, including the shared `common` path. Cargo metadata confirms identical requirements, sources, defaults, and features for all four crates, an unchanged resolved host graph, and an unchanged lockfile. Dependencies used by only one crate stay local to it. |
 | Editor undo | Whole-document snapshots are simple and capped. Measure transaction latency and retained memory on large nested documents before replacing them with patch-based history; no editor memory defect was established here. |
-| Client memory | The existing texture-loading/allocator follow-up remains the useful target. Measure peak and settled memory while experimenting with bounded decode/mipmap batches; avoid adding unrelated caches. This review did not reproduce the earlier allocator live-set experiment. |
+| Client memory | Implemented bounded catalog-texture loading through mipmap generation and renderer extraction. Hotel loading peak fell from 3.52 GiB to 2.31–2.32 GiB; settled RSS remains around 1.8 GiB. See the memory follow-up below. |
 | CI | Current CI covers Rust formatting, Clippy, Rust tests, and editor tests. Additional test/CI coverage was declined as unnecessary for this review; the expansion recommendation is withdrawn. |
 | Documentation | Keep README player-facing. Keep implementation ownership in AGENTS and outstanding work in TODO. This report records a dated baseline and should not become another architecture specification. |
 
@@ -178,7 +178,7 @@ The review inventories the repository and checks the areas above; it is not a cl
 
 ## Existing follow-ups and implementation order
 
-Memory work remains in Fixes. The earlier floor-portal walking report now belongs with portal verification: a current in-game walk-over check reported no issue, and this review has not reproduced the narrow-axis case described in the original TODO. It is not an established current defect. Pressure-plate support geometry, stairs rendering, Obby speed tuning, and the Rapier workaround review remain Enhancements. Sliding-carrier pushing remains Testing.
+The texture-loading peak fix is complete; further reductions in settled memory remain an Enhancement. The earlier floor-portal walking report now belongs with portal verification: a current in-game walk-over check reported no issue, and this review has not reproduced the narrow-axis case described in the original TODO. It is not an established current defect. Pressure-plate support geometry, stairs rendering, Obby speed tuning, and the Rapier workaround review remain Enhancements. Sliding-carrier pushing remains Testing.
 
 Two portal-visual entries described mechanisms already present in this revision: `portal_body_clipping_system` preserves a mapped pose during handoff, and `straddled_gate` uses rendered carrier frames. The tests `a_floor_handoff_starts_the_body_inverted_about_its_centre` and `a_carried_gate_is_straddled_where_it_is_drawn` pass. TODO now asks for integrated visual verification, including fast crossings and frame stalls, instead of requesting those mechanisms again. This does not assert that every remaining visual symptom is resolved.
 
@@ -187,3 +187,21 @@ R1 and R5–R8 have been implemented with focused behavioral regressions and rem
 Follow-up validation: all 1,608 release workspace tests passed (524 client, 350 common, 10 executable, 724 server), including seven added regressions. Clippy passed with warnings treated as errors. The input tests use the production movement-input registration, with a fixed-step recorder and overlay-state transitions; they are headless checks, not a new rendered playtest.
 
 Validation-boundary follow-up: all 1,612 release workspace tests and 443 editor tests passed, including four new Rust regressions and two editor regressions for R6/R8.
+
+### Texture-loading memory follow-up (2026-09-18)
+
+On the same Linux/Vulkan machine and deterministic Hotel view, sampled process RSS every 100 ms for 75 seconds. Peak uses the process high-water mark; settled RSS is the mean over seconds 60–75. The runs used the deferred renderer, mipmaps enabled, unchanged texture sizes and anisotropy, and the same 1280×720 logical / 1920×1080 render resolution.
+
+| Loading path | Peak RSS (MiB) | Settled RSS (MiB) |
+| --- | ---: | ---: |
+| Original | 3,602 | 1,853 |
+| Bounded catalog queue | 2,361 | 1,897 |
+| Bounded queue, repeat | 2,379 | 1,850 |
+
+Temporary tracing found about 1.1 GiB of decoded image data waiting in the original pipeline. Catalog images now enter a two-slot queue: decode, generate mipmaps, upload once, then release their CPU pixels before another load uses the slot. Embedded model textures continue through the existing mipmap pass. Existing mip chains, disabled mipmaps, incompatible formats, and generation failures also finish the handoff.
+
+The repeat completed all 62 catalog images, each with mipmaps and no retained pixel buffer, about 2.9 seconds after geometry spawning; the original traced mipmap backlog cleared in about 1.6 seconds. The trade-off is a longer progressive texture fill during startup. A forward-renderer check with mipmaps disabled completed all 62 without mipmaps or retained pixel buffers. Terrain and Hotel material captures showed no missing textures. The existing Wayland cursor-position diagnostic still appeared at startup; no new asset or rendering error was logged. Temporary tracing and graphics overrides were removed afterward.
+
+This reduces loading peak by about 34%; it does not establish a reduction in settled memory. The older forced-purge estimate was not reproduced, so attributing the remaining RSS entirely to allocator slack would be premature.
+
+Validation for this change: all 524 existing release client tests passed, workspace/all-target Clippy passed with warnings denied, and the repository formatter and diff whitespace check passed. No new tests were added.

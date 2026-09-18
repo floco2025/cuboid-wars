@@ -1,6 +1,6 @@
 use crate::{
     map::grass::setup_grass_materials_system,
-    materials::{GrassMaterial, TerrainMaterial},
+    materials::{GrassMaterial, MaterialTextures, TerrainMaterial},
     test_fixtures,
 };
 use bevy::{app::TaskPoolPlugin, asset::AssetPlugin, image::ImagePlugin, prelude::*};
@@ -14,6 +14,7 @@ pub fn app() -> App {
     ))
     .init_asset::<GrassMaterial>()
     .init_asset::<TerrainMaterial>()
+    .init_resource::<MaterialTextures>()
     .insert_resource(test_fixtures::client_settings())
     .insert_resource(test_fixtures::asset_set())
     .add_systems(Startup, setup_grass_materials_system);

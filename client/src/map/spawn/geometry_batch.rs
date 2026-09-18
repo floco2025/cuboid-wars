@@ -7,7 +7,7 @@ use crate::{
     carriers::CarrierEntities,
     config::{ClientSettings, MapMaterials},
     map::{DebugColorMode, GroundMarker, MapLevel, RampMarker, RoofMarker, WallMarker},
-    materials::MaterialHandleCache,
+    materials::{MaterialHandleCache, MaterialTextures},
 };
 use common::protocol::CarrierId;
 
@@ -135,7 +135,7 @@ impl MapGeometryBatch {
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
         material_cache: &mut MaterialHandleCache,
-        asset_server: &AssetServer,
+        textures: &mut MaterialTextures,
         map_materials: MapMaterials<'_>,
         client_settings: &ClientSettings,
         carrier_entities: &CarrierEntities,
@@ -152,7 +152,7 @@ impl MapGeometryBatch {
                     material_cache.standard(
                         &batch.material_id,
                         material_def,
-                        asset_server,
+                        textures,
                         materials,
                         client_settings.rendering.texture_anisotropy,
                         client_settings.rendering.mipmaps,

@@ -8,6 +8,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     constants::{CHECKPOINT_COLOR, CHECKPOINT_OUTLINE_WIDTH, CHECKPOINT_PAINT_OFFSET},
     map::spawn::tiled_floor_top_mesh,
+    materials::MaterialTextures,
 };
 
 #[derive(SystemParam)]
@@ -15,7 +16,7 @@ pub(crate) struct CheckpointPaint<'w> {
     settings: Res<'w, MapSettings>,
     client: Res<'w, ClientSettings>,
     assets: Res<'w, AssetSet>,
-    server: Res<'w, AssetServer>,
+    textures: ResMut<'w, MaterialTextures>,
     meshes: ResMut<'w, Assets<Mesh>>,
     materials: ResMut<'w, Assets<StandardMaterial>>,
 }
@@ -64,7 +65,7 @@ impl CheckpointPaint<'_> {
             let definition = map_materials.get(&faces.top);
             let material = cache.entry(faces.top.clone()).or_insert_with(|| {
                 let mut paint = definition.standard_material(
-                    &self.server,
+                    &mut self.textures,
                     self.client.rendering.texture_anisotropy,
                     self.client.rendering.mipmaps,
                 );

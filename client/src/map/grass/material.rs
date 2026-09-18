@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     config::{AssetSet, ClientSettings},
     constants::{GRASS_WIND_DIRECTION_DEGREES, GRASS_WIND_SPEED, GRASS_WIND_STRENGTH},
-    materials::{GrassMaterial, GrassWindExtension, TerrainMaterial, terrain_material},
+    materials::{GrassMaterial, GrassWindExtension, MaterialTextures, TerrainMaterial, terrain_material},
 };
 
 pub(super) fn grass_material() -> GrassMaterial {
@@ -39,14 +39,14 @@ pub fn setup_grass_materials_system(
     mut commands: Commands,
     settings: Res<ClientSettings>,
     asset_set: Res<AssetSet>,
-    server: Res<AssetServer>,
+    mut textures: ResMut<MaterialTextures>,
     mut grass: ResMut<Assets<GrassMaterial>>,
     mut terrain: ResMut<Assets<TerrainMaterial>>,
 ) {
     commands.insert_resource(GrassMaterials {
         grass: grass.add(grass_material()),
         terrain: terrain.add(terrain_material(
-            &server,
+            &mut textures,
             asset_set.terrain_material_def(),
             settings.rendering.texture_anisotropy,
             settings.rendering.mipmaps,

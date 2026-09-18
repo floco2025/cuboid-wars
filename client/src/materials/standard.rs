@@ -3,13 +3,14 @@ use bevy::{
     prelude::*,
 };
 
+use super::MaterialTextures;
 use crate::config::MaterialDef;
 
 impl MaterialDef {
     #[must_use]
     pub fn standard_material(
         &self,
-        asset_server: &AssetServer,
+        material_textures: &mut MaterialTextures,
         anisotropy: u16,
         mipmaps_enabled: bool,
     ) -> StandardMaterial {
@@ -22,7 +23,7 @@ impl MaterialDef {
         };
         StandardMaterial {
             base_color_texture: Some(load_texture(
-                asset_server,
+                material_textures,
                 &textures.base_color,
                 self.repeat,
                 false,
@@ -30,7 +31,7 @@ impl MaterialDef {
                 mipmaps_enabled,
             )),
             normal_map_texture: Some(load_texture(
-                asset_server,
+                material_textures,
                 &textures.normal,
                 self.repeat,
                 self.linear_data_textures,
@@ -38,7 +39,7 @@ impl MaterialDef {
                 mipmaps_enabled,
             )),
             occlusion_texture: Some(load_texture(
-                asset_server,
+                material_textures,
                 &textures.occlusion,
                 self.repeat,
                 self.linear_data_textures,
@@ -46,7 +47,7 @@ impl MaterialDef {
                 mipmaps_enabled,
             )),
             metallic_roughness_texture: Some(load_texture(
-                asset_server,
+                material_textures,
                 &textures.metallic_roughness,
                 self.repeat,
                 self.linear_data_textures,
@@ -65,37 +66,32 @@ impl MaterialDef {
 }
 
 pub(super) fn load_texture(
-    asset_server: &AssetServer,
+    material_textures: &mut MaterialTextures,
     path: &str,
     repeat: bool,
     linear: bool,
     anisotropy: u16,
     mipmaps_enabled: bool,
 ) -> Handle<Image> {
-    if !repeat && !linear {
-        return asset_server.load(path.to_owned());
+    let mut settings = ImageLoaderSettings {
+        is_srgb: !linear,
+        ..default()
+    };
+    if repeat {
+        settings.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+            address_mode_u: ImageAddressMode::Repeat,
+            address_mode_v: ImageAddressMode::Repeat,
+            address_mode_w: ImageAddressMode::Repeat,
+            mag_filter: ImageFilterMode::Linear,
+            min_filter: ImageFilterMode::Linear,
+            mipmap_filter: if mipmaps_enabled {
+                ImageFilterMode::Linear
+            } else {
+                ImageFilterMode::Nearest
+            },
+            anisotropy_clamp: if mipmaps_enabled { anisotropy } else { 1 },
+            ..default()
+        });
     }
-
-    asset_server
-        .load_builder()
-        .with_settings(move |settings: &mut ImageLoaderSettings| {
-            settings.is_srgb = !linear;
-            if repeat {
-                settings.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-                    address_mode_u: ImageAddressMode::Repeat,
-                    address_mode_v: ImageAddressMode::Repeat,
-                    address_mode_w: ImageAddressMode::Repeat,
-                    mag_filter: ImageFilterMode::Linear,
-                    min_filter: ImageFilterMode::Linear,
-                    mipmap_filter: if mipmaps_enabled {
-                        ImageFilterMode::Linear
-                    } else {
-                        ImageFilterMode::Nearest
-                    },
-                    anisotropy_clamp: if mipmaps_enabled { anisotropy } else { 1 },
-                    ..default()
-                });
-            }
-        })
-        .load(path.to_owned())
+    material_textures.load(path, settings)
 }

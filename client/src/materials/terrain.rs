@@ -6,7 +6,7 @@ use bevy::{
     shader::ShaderRef,
 };
 
-use super::standard::load_texture;
+use super::{MaterialTextures, standard::load_texture};
 use crate::{
     config::MaterialDef,
     constants::{TERRAIN_GRASS_TILE_SIZE, TERRAIN_RELIEF, TERRAIN_SOIL_RELIEF, TERRAIN_SOIL_TILE_SIZE},
@@ -46,7 +46,7 @@ impl MaterialExtension for TerrainExtension {
 // `definition` is the `procedural-terrain` entry in assets.json: it carries
 // the surface response and the footstep sound, while the textures are fixed.
 pub fn terrain_material(
-    server: &AssetServer,
+    textures: &mut MaterialTextures,
     definition: &MaterialDef,
     anisotropy: u16,
     mipmaps: bool,
@@ -67,7 +67,7 @@ pub fn terrain_material(
                 TERRAIN_SOIL_TILE_SIZE,
             ),
             grass: load_texture(
-                server,
+                textures,
                 "textures/meadow/meadow-albedo.png",
                 true,
                 false,
@@ -75,7 +75,7 @@ pub fn terrain_material(
                 mipmaps,
             ),
             soil: load_texture(
-                server,
+                textures,
                 "textures/soil/soil-albedo.png",
                 true,
                 false,

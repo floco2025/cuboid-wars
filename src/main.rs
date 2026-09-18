@@ -20,10 +20,9 @@ use crate::host::spawn_embedded_server;
 
 mod host;
 
-// The system allocator keeps the load-time peak resident for good: glibc
-// raises its mmap threshold while the textures decode and the meshes build,
-// then never returns those gigabytes once they are freed. mimalloc gives
-// them back within milliseconds.
+// Earlier profiling found that glibc retained large loading allocations.
+// Keep mimalloc alongside the bounded texture queue; settled process memory
+// also includes live assets and graphics-driver allocations.
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 

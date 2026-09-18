@@ -4,7 +4,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     constants::{DECORATION_FAR_CHUNK_SIZE, DECORATION_FAR_FADE, DECORATION_NEAR_BAND},
     map::grass::GrassMaterials,
-    materials::TreeMaterial,
+    materials::{MaterialTextures, TreeMaterial},
 };
 use bevy::{
     asset::RenderAssetUsages,
@@ -31,6 +31,7 @@ pub(super) fn grounds_spawn_system(
     settings: Res<ClientSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut textures: ResMut<MaterialTextures>,
     mut tree_materials: ResMut<Assets<TreeMaterial>>,
     grass_materials: Res<GrassMaterials>,
     existing: Query<Entity, With<GroundsVisual>>,
@@ -64,7 +65,7 @@ pub(super) fn grounds_spawn_system(
     ));
 
     let trees = TreeAssets::new(&server, &mut meshes, &mut materials, &mut tree_materials);
-    let rocks = RockAssets::new(&server, &asset_set, &settings, &mut meshes, &mut materials);
+    let rocks = RockAssets::new(&mut textures, &asset_set, &settings, &mut meshes, &mut materials);
     let mut far: BTreeMap<(i32, i32), Vec<GroundDecoration>> = BTreeMap::new();
     for decoration in grounds.decorations() {
         let outside = grounds.distance_outside_footprint(decoration.position.x, decoration.position.z);

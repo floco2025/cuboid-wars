@@ -2,9 +2,9 @@
 
 ## Fixes
 
-- **Client memory:** the hotel client sits at ~2.0 GB RSS with mimalloc, while forcing every freed block back to the OS measured the live set at ~1.2 GB; the rest is allocator slack behind the load-time peak, when every texture decodes before the mipmap pass releases it. Lower that peak (decode and release the textures a few at a time) or tune mimalloc's purge if the gap matters.
-
 ## Enhancements
+
+- **Client settled memory:** Hotel still settles around 1.8 GiB RSS after bounding catalog texture loading. Profile live CPU and graphics-driver allocations before further allocator tuning; the earlier forced-purge live-set estimate has not been reproduced. Peak-loading measurements and the completed queue change are recorded in [REVIEW.md](REVIEW.md).
 
 - **Shared editor/game map logic:** start with a small shared contract corpus covering absence/null rules, nesting, transforms, validation failures, and level bounds. Then evaluate a Rust core for source types, validation, normalization, and geometry rules, preserving invalid authored data and structured editor diagnostics. Consider a thin Python binding for the existing PySide6 UI before a full Rust editor rewrite; assess a full rewrite separately if game-rendered 3D previews become a goal.
 

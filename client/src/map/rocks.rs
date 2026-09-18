@@ -15,6 +15,7 @@ use crate::{
         ROCK_BOULDER_LOD_DISTANCES, ROCK_LICHEN_COLOR, ROCK_PEBBLE_FADE, ROCK_STONE_LOD_DISTANCES, ROCK_TEXTURE_SPAN,
         ROCK_TINTS,
     },
+    materials::MaterialTextures,
 };
 
 // Faces meeting at more than this angle keep a hard edge; flatter joins are
@@ -77,7 +78,7 @@ fn lod_range(class: RockClass, lod: usize) -> VisibilityRange {
 
 impl RockAssets {
     pub(super) fn new(
-        server: &AssetServer,
+        textures: &mut MaterialTextures,
         asset_set: &AssetSet,
         settings: &ClientSettings,
         meshes: &mut Assets<Mesh>,
@@ -85,7 +86,7 @@ impl RockAssets {
     ) -> Self {
         let definition = asset_set.rock_material_def();
         let material = materials.add(definition.standard_material(
-            server,
+            textures,
             settings.rendering.texture_anisotropy,
             settings.rendering.mipmaps,
         ));

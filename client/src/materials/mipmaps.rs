@@ -14,8 +14,8 @@ use crate::config::ClientSettings;
 
 const MAX_PENDING_MIPMAP_TASKS: usize = 2;
 
-#[derive(Default)]
-pub struct MaterialMipmapState {
+#[derive(Resource, Default)]
+pub(super) struct MaterialMipmapState {
     processed: HashSet<AssetId<Image>>,
     pending: HashMap<AssetId<Image>, (Handle<Image>, Task<Option<Image>>)>,
     // Material events can arrive before their images, so candidates retry until the image loads.
@@ -29,8 +29,8 @@ struct MipmapCandidate {
     material_label: String,
 }
 
-pub fn generate_material_mipmaps_system(
-    mut state: Local<MaterialMipmapState>,
+pub(super) fn generate_material_mipmaps_system(
+    mut state: ResMut<MaterialMipmapState>,
     mut material_events: MessageReader<AssetEvent<StandardMaterial>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut terrain_events: MessageReader<AssetEvent<TerrainMaterial>>,
@@ -88,15 +88,14 @@ pub fn generate_material_mipmaps_system(
             .texture_descriptor
             .usage
             .contains(TextureUsages::RENDER_ATTACHMENT)
-            || image.texture_descriptor.mip_level_count > 1
         {
             state.queued.remove(&image_id);
             state.processed.insert(image_id);
             continue;
         }
-        // Without mipmaps there is nothing to generate; the image still
-        // leaves main memory once uploaded.
-        if !client_settings.rendering.mipmaps {
+        // Ready-made mipmaps and unfiltered textures still need uploading
+        // before their main-memory copy can be released.
+        if !client_settings.rendering.mipmaps || image.texture_descriptor.mip_level_count > 1 {
             release_main_world_copy(&mut images, &candidate.image_handle);
             state.queued.remove(&image_id);
             state.processed.insert(image_id);
@@ -168,7 +167,7 @@ fn terrain_material_images(material: &TerrainMaterial) -> impl Iterator<Item = (
     ])
 }
 
-fn queue_images<'a>(
+pub(super) fn queue_images<'a>(
     state: &mut MaterialMipmapState,
     images: impl Iterator<Item = (&'static str, &'a Handle<Image>)>,
     material_label: String,
@@ -200,13 +199,14 @@ fn finish_mipmap_tasks(state: &mut MaterialMipmapState, images: &mut Assets<Imag
             continue;
         };
 
-        if let Some(mut image) = image
-            && let Some(mut target) = images.get_mut(image_handle)
-        {
+        if let Some(mut target) = images.get_mut(image_handle) {
+            if let Some(image) = image {
+                *target = image;
+            }
             // Nothing reads texels back on the CPU, so the decoded pixels
-            // are dead weight in main memory once the GPU has them.
-            image.asset_usage = RenderAssetUsages::RENDER_WORLD;
-            *target = image;
+            // are dead weight in main memory once the GPU has them. Publish
+            // the original image too if mipmap generation failed.
+            target.asset_usage = RenderAssetUsages::RENDER_WORLD;
             updated.insert(*image_id);
         }
         completed.push(*image_id);

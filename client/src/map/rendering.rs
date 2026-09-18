@@ -11,7 +11,7 @@ use crate::{
         MapGeometryBatch, MapLevel, RampMarker, RoofMarker, TerrainMarker, WallLightMarker, WallMarker, batch_floor,
         batch_ramp, batch_wall, spawn_ladder_from_layout, spawn_wall_light_from_layout,
     },
-    materials::MaterialHandleCache,
+    materials::{MaterialHandleCache, MaterialTextures},
     players::LocalPlayerMarker,
 };
 use common::protocol::{ItemMarker, MapLayout, MapSettings};
@@ -47,6 +47,7 @@ pub fn map_spawn_geometry_system(
     >,
     mut last_spawn: Local<Option<DebugColorMode>>,
     mut material_cache: Local<MaterialHandleCache>,
+    mut textures: ResMut<MaterialTextures>,
 ) {
     if last_spawn.as_ref() == Some(&debug_colors.0) {
         return;
@@ -84,7 +85,7 @@ pub fn map_spawn_geometry_system(
         let ladder_material = material_cache.standard(
             ladder_material_id,
             asset_set.ladder_material_def(),
-            &asset_server,
+            &mut textures,
             &mut materials,
             client_settings.rendering.texture_anisotropy,
             client_settings.rendering.mipmaps,
@@ -141,7 +142,7 @@ pub fn map_spawn_geometry_system(
         &mut meshes,
         &mut materials,
         &mut material_cache,
-        &asset_server,
+        &mut textures,
         map_materials,
         &client_settings,
         &carrier_entities,
