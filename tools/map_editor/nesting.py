@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from .constants import NESTED_MAPS_LIST
+from .core import call, shapes, tuples
 
 Nudge = tuple[float, float, float]
 Footprint = tuple[float, float, float, float]
@@ -24,11 +25,8 @@ def motion_uses_cycle(motion) -> bool:
     return motion == DEFAULT_MOTION
 
 
-def nested_map_starts_at_end_2(entry: dict) -> bool:
-    """Where the nested map rests before any switch input: end 1, unless it
-    follows a switch whose Off response sends it to end 2, as the game's
-    `CarrierRun::initial` does."""
-    return entry.get("motion") == "follow_switch" and bool(entry.get("switch_inverted"))
+def nested_map_starts_at_end_2(entry: dict):
+    return call("nested_map_starts_at_end_2", entry)
 
 
 @dataclass(frozen=True)
@@ -104,46 +102,12 @@ def nested_map_shape(data: dict | None) -> NestedMapShape | None:
     )
 
 
-def nested_map_cycle(edited: str | None, entries: list[dict], lookup) -> list[str] | None:
-    """The chain of names along which a map nests itself, starting from the
-    edited map's entries, or None. `lookup(name)` gives a map's shape (None
-    for unknown geometry, which ends that branch)."""
-    checked: set[str] = set()
-
-    def visit(name: str, chain: list[str]) -> list[str] | None:
-        if name in chain:
-            return chain[chain.index(name) :] + [name]
-        if name in checked:
-            return None
-        shape = lookup(name)
-        if shape is None:
-            return None
-        for child in shape.nested_names:
-            found = visit(child, chain + [name])
-            if found:
-                return found
-        checked.add(name)
-        return None
-
-    root = edited or "(this map)"
-    for entry in entries:
-        found = visit(entry["map"], [root])
-        if found:
-            return found
-    return None
+def nested_map_cycle(edited: str | None, entries: list[dict], lookup):
+    return call("nested_map_cycle", edited, entries, shapes(entries, lookup))
 
 
-def nested_map_rest_points(entry: dict, wall_width_cells: float) -> tuple[tuple[float, float], tuple[float, float]]:
-    """Where the nested map's cell (0, 0) rests at each end, in cell units:
-    the anchor plus the nudge's x and z parts. The y part is left out; the
-    canvas shows the plan, and a storey's height is not a canvas distance."""
-
-    def rest(anchor: list[int], nudge: list[float]) -> tuple[float, float]:
-        if len(nudge) != 3:
-            return tuple(anchor)
-        return (anchor[0] + nudge[0] * wall_width_cells, anchor[1] + nudge[2] * wall_width_cells)
-
-    return rest(entry["from"], entry["from_nudge"]), rest(entry["to"], entry["to_nudge"])
+def nested_map_rest_points(entry: dict, wall_width_cells: float):
+    return tuples(call("nested_map_rest_points", entry, wall_width_cells))
 
 
 def nested_map_footprint(anchor: Sequence[float], shape: NestedMapShape | None) -> Footprint:
@@ -154,12 +118,8 @@ def nested_map_footprint(anchor: Sequence[float], shape: NestedMapShape | None) 
     return (anchor[0], anchor[1], anchor[0] + cols, anchor[1] + rows)
 
 
-def nested_map_footprints(
-    entry: dict, shape: NestedMapShape | None, wall_width_cells: float
-) -> tuple[Footprint, Footprint]:
-    """The footprint where the nested map rests at each end."""
-    start, end = nested_map_rest_points(entry, wall_width_cells)
-    return nested_map_footprint(start, shape), nested_map_footprint(end, shape)
+def nested_map_footprints(entry: dict, shape: NestedMapShape | None, wall_width_cells: float):
+    return tuples(call("nested_map_footprints", entry, shape, wall_width_cells))
 
 
 def nested_map_label(name: str | None, nudge: Sequence[float] = (), *, known: bool = True) -> str:

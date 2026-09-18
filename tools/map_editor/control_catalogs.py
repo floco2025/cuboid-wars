@@ -2,7 +2,7 @@
 
 import copy
 
-from .catalogs import HEX_COLOR, SWITCH_ACTIVATIONS, SWITCH_HOLDS, SWITCH_RESETS
+from .core import call
 
 
 def geometries(root: dict):
@@ -32,29 +32,7 @@ def references(root: dict, catalog: str):
 
 
 def validate_catalog(catalog: str, entries: list[dict]) -> None:
-    if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
-        raise ValueError(f"{catalog}: expected a list of definitions")
-    if catalog == "barrier_kinds" and len(entries) > 256:
-        raise ValueError("barrier_kinds: at most 256 kinds fit in the key inventory")
-    seen = set()
-    for entry in entries:
-        name = entry.get("id")
-        if not isinstance(name, str) or not name.strip() or name != name.strip() or name in seen:
-            raise ValueError(f"{catalog}: names must be nonempty, unique, and have no surrounding spaces")
-        seen.add(name)
-        color = entry.get("color")
-        if color is not None and (not isinstance(color, str) or not HEX_COLOR.fullmatch(color)):
-            raise ValueError(f"{name}: color must look like #rrggbb")
-        if catalog != "switches" and color is None:
-            raise ValueError(f"{name}: a color is required")
-        if catalog == "switches":
-            for field, choices in (
-                ("activation", SWITCH_ACTIVATIONS),
-                ("reset_on_player_death", SWITCH_RESETS),
-                ("held", SWITCH_HOLDS),
-            ):
-                if entry.get(field, "any" if field == "held" else None) not in choices:
-                    raise ValueError(f"{name}: {field} must be one of {', '.join(choices)}")
+    call("validate_catalog", catalog, entries)
 
 
 def edit_catalog(root: dict, catalog: str, entries: list[dict], renames: dict[str, str]) -> dict:

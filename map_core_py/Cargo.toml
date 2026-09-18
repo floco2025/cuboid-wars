@@ -1,0 +1,16 @@
+[package]
+name = "map_core_py"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "_map_core"
+crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+map_core.workspace = true
+serde_json.workspace = true
+pyo3 = { version = "=0.28.2", features = ["abi3-py310"] }

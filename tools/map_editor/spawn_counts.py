@@ -1,24 +1,10 @@
 """Actor population settings shared by editor validation and controls."""
 
-MAX_ACTOR_COUNT = 2**32 - 1
+from .core import call
 
 
 def actor_count_error(count):
-    if not isinstance(count, list):
-        return "Count must be a list, for example [3] or [2, 3, 4]."
-    if not count:
-        return "Count needs at least one entry."
-    if any(type(value) is not int or not 0 <= value <= MAX_ACTOR_COUNT for value in count):
-        return f"Count entries must be whole numbers from 0 to {MAX_ACTOR_COUNT}."
-    if any(left > right for left, right in zip(count, count[1:])):
-        return "Counts must stay the same or increase as players join."
-    return None
-
-
-def actor_count_key(count):
-    if actor_count_error(count):
-        return (2, type(count).__name__, repr(count))
-    return (0, tuple(count))
+    return call("actor_count_error", count)
 
 
 def actor_count_summary(count):

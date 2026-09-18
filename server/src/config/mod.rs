@@ -29,13 +29,12 @@ pub use falling::{FallDamageConfig, FallDamageConfigs};
 pub use feed::FeedConfig;
 pub use gameplay::{PlayerServerConfig, ServerGameplayConfig};
 pub use items::{PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpMode, PowerUpsConfig};
-pub(crate) use maps::is_valid_map_name;
 pub use maps::{MapServerConfig, RandomItemsConfig, WeatherMode};
 pub use missiles::MissilesServerConfig;
 pub use quests::{Quest, QuestKind};
 pub use respawn::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, RespawnConfig};
 pub use scoring::ScoringConfig;
-pub(crate) use validation::{deserialize_required_option, validate_map_actor_kinds, validate_map_quests};
+pub(crate) use validation::{validate_map_actor_kinds, validate_map_quests};
 pub use weapons::WeaponsConfig;
 
 #[cfg(test)]

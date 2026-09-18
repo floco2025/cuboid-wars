@@ -26,9 +26,9 @@ mod carrier_tests;
 
 pub(crate) use edges::{CellSide, has_edge_on_cell_side};
 
-pub use definition::FireworksConfig;
 pub use generation::{GeneratedMap, generate_map};
 pub use grid::grid_coords_from_position;
+pub use map_core::schema::FireworksConfig;
 pub use plugin::map_plugin;
 pub(crate) use resources::zone_cells;
 pub use resources::{

@@ -2,7 +2,7 @@ import copy
 import unittest
 
 from editor_fixtures import DEFAULT_ALIAS, floor, nested
-from map_editor.block_transforms import transform_block
+from map_editor.transforms import transform_block
 from map_editor.geometry import wall_endpoints_for_cell_side
 from map_editor.normalization import empty_level, empty_map, normalize_map
 

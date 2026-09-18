@@ -4,8 +4,6 @@
 
 ## Enhancements
 
-- **Shared editor/game map logic:** start with a small shared contract corpus covering absence/null rules, nesting, transforms, validation failures, and level bounds. Then evaluate a Rust core for source types, validation, normalization, and geometry rules, preserving invalid authored data and structured editor diagnostics. Consider a thin Python binding for the existing PySide6 UI before a full Rust editor rewrite; assess a full rewrite separately if game-rendered 3D previews become a goal.
-
 - **Obby player speed:** Once Obby is debugged, reduce `movement.player.walk_speed` and `run_speed` in `config/server/maps/obby/settings.json` to 5.0 m/s. The temporary 5.1 m/s setting makes testing easier.
 
 - **Render ramps as stairs:** add an option to show ramps as stairs while retaining smooth ramp collision and movement. Make stair use configurable per actor kind, like ladder use.

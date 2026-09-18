@@ -36,7 +36,7 @@ pub(crate) fn generate_map_at(
     server_hz: u32,
     settings: &MapSettings,
 ) -> Result<GeneratedMap> {
-    let source = definition::load_map(path).with_context(|| format!("failed to load map at {}", path.display()))?;
+    let source = map_core::load_map(path).with_context(|| format!("failed to load map at {}", path.display()))?;
     let barrier_kinds = BarrierKindTable::from_defs(&source.barrier_kinds)
         .with_context(|| format!("invalid barrier_kinds in {}", path.display()))?;
     let bridge_kinds = BridgeKindTable::from_defs(&source.bridge_kinds)

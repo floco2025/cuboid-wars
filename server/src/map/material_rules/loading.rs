@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use common::{config::MapGeometryConfig, map::MapGeometry, protocol::FaceMaterials};
 
 use super::{MaterialRules, query::SegmentMaterials};
-use crate::map::definition::MapDef;
+use map_core::schema::MapDef;
 
 impl MaterialRules {
     pub(crate) fn from_def(map_def: &MapDef, sizes: MapGeometryConfig) -> Self {

@@ -27,6 +27,12 @@ impl fmt::Display for HexColor {
     }
 }
 
+impl serde::Serialize for HexColor {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
 impl<'de> Deserialize<'de> for HexColor {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Self::parse(&String::deserialize(deserializer)?).map_err(de::Error::custom)

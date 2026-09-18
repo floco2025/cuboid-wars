@@ -1,15 +1,8 @@
 mod compile;
 mod geometry;
 mod grounds;
-mod load;
-mod schema;
-mod validation;
 
 #[cfg(test)]
 mod tests;
 
 pub(super) use compile::compile_map;
-pub(super) use load::load_map;
-pub use schema::FireworksConfig;
-pub(crate) use schema::MapDef;
-pub(super) use schema::{WallLightDef, WallSide};

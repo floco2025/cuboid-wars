@@ -1,7 +1,7 @@
 use bincode::{Decode, Encode};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeathTrigger {
     #[default]

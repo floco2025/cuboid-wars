@@ -7,11 +7,10 @@ from dataclasses import dataclass, field
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPen
 
-from .block_transforms import transform_block
 from .object_selection import block_fits, copy_objects, selected_data, paste_objects, refs_for_block
 from .constants import MODE_SELECT
 from .regions import copy_region, delete_region, nested_map_ends_inside, paste_region
-from .transforms import record_levels, record_lists, translate_entry
+from .transforms import record_levels, record_lists, transform_block, translate_entry
 from .selection_painting import paint_outline, paint_caption
 
 

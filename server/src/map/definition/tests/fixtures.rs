@@ -8,19 +8,18 @@ pub(super) use common::{
     },
 };
 
-pub(super) use super::super::{
-    compile_map,
-    load::LoadedMaps,
-    schema::{
-        ActorSpawnZoneDef, BarrierDef, EraserDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef, MapDef,
-        MotionDef, NestedMapDef, PressurePlateDef, RampDef, TerrainDef, WallDef, WallSide, ZoneDef,
-    },
-    validation::{canonicalize, validate_map},
-};
+pub(super) use super::super::compile_map;
 pub(super) use crate::{
     actors::navigation::NavGraph,
     map::MapConfig,
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, map_settings, sizes},
+};
+pub(super) use map_core::{
+    load::{LoadedMaps, canonicalize, validate_map},
+    schema::{
+        ActorSpawnZoneDef, BarrierDef, EraserDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef, MapDef,
+        MotionDef, NestedMapDef, PressurePlateDef, RampDef, TerrainDef, WallDef, WallSide, ZoneDef,
+    },
 };
 
 // The switch every plate in these tests may name: one per barrier and

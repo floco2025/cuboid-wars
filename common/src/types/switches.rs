@@ -1,5 +1,5 @@
 use bincode::{Decode, Encode};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{
     HexColor, MapLayout, MapSettings,
@@ -28,7 +28,7 @@ impl KindId for SwitchId {
 pub type SwitchTable = KindTable<SwitchId>;
 
 // One entry of the root layout's `switches` catalog.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize, Serialize)]
 pub struct SwitchDef {
     pub id: String,
     #[serde(default)]

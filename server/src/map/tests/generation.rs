@@ -105,7 +105,7 @@ fn excessive_level_counts_fail_loading_root_placed_and_unplaced_geometry() {
                 "{error}"
             );
             if nested_placement.is_some() {
-                assert!(error.contains("nested geometry \"room\""), "{error}");
+                assert!(error.contains("Nested room:"), "{error}");
             }
         }
     }
@@ -203,7 +203,7 @@ fn fireworks_must_name_a_catalogued_switch_with_a_plate_and_a_finite_cooldown() 
                     .push(json!({"id": "spare", "activation": "toggle", "reset_on_player_death": "never"}));
                 map["fireworks"]["switch"] = json!("spare");
             },
-            "operated by no pressure plate",
+            "which no pressure plate operates",
         ),
     ] {
         let error = TestMap::new(edit).error();

@@ -1,12 +1,10 @@
-use super::{
-    definition::{WallLightDef, WallSide},
-    edges::{CellSide, has_edge_on_cell_side},
-};
+use super::edges::{CellSide, has_edge_on_cell_side};
 use crate::map::LevelGrid;
 use common::{
     map::MapGeometry,
     protocol::{CarrierId, Position, WallLight},
 };
+use map_core::schema::{WallLightDef, WallSide};
 use std::f32::consts::{FRAC_PI_2, PI};
 
 // Lamps hang this far in front of the wall face so the lamp body sits just

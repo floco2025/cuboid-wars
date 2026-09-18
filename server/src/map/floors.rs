@@ -9,37 +9,8 @@ use common::{
     protocol::{CarrierId, FaceMaterials, Floor},
 };
 
-// One floor cell's 8 neighbours within the level's slab mask.
-struct Neighbors {
-    n: bool,
-    s: bool,
-    e: bool,
-    w: bool,
-    nw: bool,
-    ne: bool,
-    sw: bool,
-    se: bool,
-}
+use map_core::geometry::{FloorNeighbors, RampLandings, floor_rectangles};
 
-// Emit a `Floor` cuboid for every cell in `mask` at level `level` (Y = `y`).
-//
-// Slab + extensions: each cell starts at its grid bounds. Sides without a
-// 4-connected neighbour extend outward by half the wall thickness so the slab
-// covers where a perimeter wall would sit; sides with a neighbour stop at
-// the grid line (their slabs meet there). N/S extensions are additionally
-// suppressed when a diagonal cell sits on that side, since the diagonal's
-// W/E extension would already overlap the N/S extension.
-//
-// Corner fillers: when a diagonal suppresses the N/S extension, the cell is
-// left L-shaped with a small gap at the corner opposite the diagonal. A
-// thin strip patches that gap out to the wall face. Fillers exist only in the
-// N/S direction (E/W extensions don't have a diagonal-suppression case).
-//
-// All tiers use the map's floor thickness so a hole in any level reads as
-// a real slab edge from below.
-//
-// Ramp landings suppress extensions and fillers so slabs meet slopes without a raised lip.
-// Keep expansion changes in sync with tools/map_editor/floor_footprints.py::FloorFootprints.rectangles.
 #[must_use]
 pub fn emit_floor_tier(
     mask: &Mask,
@@ -49,122 +20,54 @@ pub fn emit_floor_tier(
     y: f32,
     carrier: CarrierId,
 ) -> Vec<Floor> {
-    let grid_cols = geometry.grid_cols;
-    let grid_rows = geometry.grid_rows;
-    let thickness = geometry.floor_thickness();
-    let wall_half_thickness = geometry.wall_half_thickness();
     let mut floors = Vec::new();
-
-    let in_mask = |r: i32, c: i32| r >= 0 && r < grid_rows && c >= 0 && c < grid_cols && mask[r as usize][c as usize];
-
-    for row in 0..grid_rows {
-        for col in 0..grid_cols {
-            if !mask[row as usize][col as usize] {
+    let in_mask = |r: i32, c: i32| {
+        r >= 0 && r < geometry.grid_rows && c >= 0 && c < geometry.grid_cols && mask[r as usize][c as usize]
+    };
+    for row in 0..geometry.grid_rows {
+        for col in 0..geometry.grid_cols {
+            if !in_mask(row, col) {
                 continue;
             }
-
-            let x1_orig = grid_x(geometry, col);
-            let x2_orig = grid_x(geometry, col + 1);
-            let z1_orig = grid_z(geometry, row);
-            let z2_orig = grid_z(geometry, row + 1);
-
-            let n = Neighbors {
-                w: in_mask(row, col - 1),
-                e: in_mask(row, col + 1),
+            let neighbors = FloorNeighbors {
                 n: in_mask(row - 1, col),
                 s: in_mask(row + 1, col),
+                e: in_mask(row, col + 1),
+                w: in_mask(row, col - 1),
                 nw: in_mask(row - 1, col - 1),
                 ne: in_mask(row - 1, col + 1),
                 sw: in_mask(row + 1, col - 1),
                 se: in_mask(row + 1, col + 1),
             };
-
-            let landing_n = ramp_landings.horizontal[row as usize][col as usize];
-            let landing_s = ramp_landings.horizontal[row as usize + 1][col as usize];
-            let extend_w = !n.w && !ramp_landings.vertical[row as usize][col as usize];
-            let extend_e = !n.e && !ramp_landings.vertical[row as usize][col as usize + 1];
-            // Diagonal suppression: skip the N/S extension when a diagonal
-            // cell sits on that side. Otherwise the N/S extension would
-            // overlap the diagonal cell's W/E extension.
-            let extend_n = !n.n && !n.nw && !n.ne && !landing_n;
-            let extend_s = !n.s && !n.sw && !n.se && !landing_s;
-
-            let x1 = if extend_w {
-                x1_orig - wall_half_thickness
-            } else {
-                x1_orig
+            let landings = RampLandings {
+                n: ramp_landings.horizontal[row as usize][col as usize],
+                s: ramp_landings.horizontal[row as usize + 1][col as usize],
+                w: ramp_landings.vertical[row as usize][col as usize],
+                e: ramp_landings.vertical[row as usize][col as usize + 1],
             };
-            let x2 = if extend_e {
-                x2_orig + wall_half_thickness
-            } else {
-                x2_orig
-            };
-            let z1 = if extend_n {
-                z1_orig - wall_half_thickness
-            } else {
-                z1_orig
-            };
-            let z2 = if extend_s {
-                z2_orig + wall_half_thickness
-            } else {
-                z2_orig
-            };
-
-            floors.push(Floor {
-                x1,
-                z1,
-                x2,
-                z2,
-                y,
-                thickness,
-                level,
-                carrier,
-            });
-
-            // Corner fillers. Use the *unextended* grid line
-            // (`x1_orig`/`x2_orig`) plus `pad`, because the diagonal cell's
-            // W/E extension also reaches `pad` past the grid line. The N
-            // filler lands at horizontal[row][col]; the S filler at
-            // horizontal[row+1][col]. Ramp landings omit these strips.
-            let pad = wall_half_thickness;
-            if pad <= 0.0 {
-                continue;
-            }
-            if !extend_n && !n.n && (n.nw || n.ne) && !landing_n {
-                let fx1 = if n.nw { x1_orig + pad } else { x1 };
-                let fx2 = if n.ne { x2_orig - pad } else { x2 };
-                if fx2 > fx1 {
-                    floors.push(Floor {
-                        x1: fx1,
-                        z1: z1_orig - pad,
-                        x2: fx2,
-                        z2: z1_orig,
-                        y,
-                        thickness,
-                        level,
-                        carrier,
-                    });
-                }
-            }
-            if !extend_s && !n.s && (n.sw || n.se) && !landing_s {
-                let fx1 = if n.sw { x1_orig + pad } else { x1 };
-                let fx2 = if n.se { x2_orig - pad } else { x2 };
-                if fx2 > fx1 {
-                    floors.push(Floor {
-                        x1: fx1,
-                        z1: z2_orig,
-                        x2: fx2,
-                        z2: z2_orig + pad,
-                        y,
-                        thickness,
-                        level,
-                        carrier,
-                    });
-                }
+            let bounds = [
+                grid_x(geometry, col),
+                grid_z(geometry, row),
+                grid_x(geometry, col + 1),
+                grid_z(geometry, row + 1),
+            ]
+            .map(f64::from);
+            for [x1, z1, x2, z2] in
+                floor_rectangles(bounds, f64::from(geometry.wall_half_thickness()), neighbors, landings)
+            {
+                floors.push(Floor {
+                    x1: x1 as f32,
+                    z1: z1 as f32,
+                    x2: x2 as f32,
+                    z2: z2 as f32,
+                    y,
+                    thickness: geometry.floor_thickness(),
+                    level,
+                    carrier,
+                });
             }
         }
     }
-
     floors
 }
 

@@ -8,6 +8,7 @@ workspace = true
 
 [dependencies]
 common.workspace = true
+map_core.workspace = true
 bincode.workspace = true
 renet.workspace = true
 renet_netcode.workspace = true

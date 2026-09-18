@@ -1,6 +1,5 @@
 use super::{FireworksConfig, ZoneVolume};
 use bevy::prelude::Resource;
-use serde::Deserialize;
 
 use common::{
     map::MapGeometry,
@@ -109,15 +108,7 @@ pub struct LevelGrid {
     pub barrier_edges: EdgeGrid,
 }
 
-// What a zone does once any player has reached its `until_checkpoint`:
-// `stop` spawns nothing more, `destroy` also removes its remaining actors.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CheckpointResponse {
-    #[default]
-    Stop,
-    Destroy,
-}
+pub use map_core::CheckpointResponse;
 
 // `respawn_secs` is the delay before a vacancy refills; `None` never refills.
 // `switch` and `until_checkpoint` gate the zone: it spawns nothing while the

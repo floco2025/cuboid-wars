@@ -2,10 +2,7 @@ use std::collections::BTreeMap;
 
 use anyhow::Context;
 
-use super::{
-    compile::{CompileOutput, CompileScope},
-    schema::{LadderDef, LevelDef, MapDef, RampDef, WallSide},
-};
+use super::compile::{CompileOutput, CompileScope};
 use crate::map::{
     ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, PlacedItem, PressurePlateRuntime,
     barriers::{BarrierEdge, merge_barriers, stack_barriers},
@@ -25,6 +22,7 @@ use common::{
         LightBridge, PressurePlate, Ramp, SwitchId, TerrainCell, Wall, WallLight,
     },
 };
+use map_core::schema::{LadderDef, LevelDef, MapDef, RampDef, WallSide};
 
 // One map's records, each born on `carrier` in this map's own frame, appended
 // to the tree's layout and config.

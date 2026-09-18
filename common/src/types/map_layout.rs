@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     celestial::CelestialMapSettings,
@@ -163,7 +163,7 @@ impl LightBridge {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CarrierMotion {
     #[default]
@@ -252,7 +252,7 @@ pub struct TerrainCell {
     pub carrier: CarrierId,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CheckpointKind {
     Individual,

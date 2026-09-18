@@ -3,12 +3,7 @@ use std::{collections::HashSet, iter::once};
 use anyhow::{Context, ensure};
 use bevy::math::Vec3;
 
-use super::{
-    geometry::compile_geometry,
-    grounds::compile_grounds,
-    load::LoadedMaps,
-    schema::{MapDef, MotionDef},
-};
+use super::{geometry::compile_geometry, grounds::compile_grounds};
 use crate::{map::MapConfig, schedule::ticks_from_secs};
 use common::{
     config::MapGeometryConfig,
@@ -17,6 +12,10 @@ use common::{
         BarrierId, BarrierKindTable, BridgeId, BridgeKindTable, Carrier, CarrierId, LightBridge, MapLayout,
         MapSettings, SwitchId, SwitchTable,
     },
+};
+use map_core::{
+    load::LoadedMaps,
+    schema::{MapDef, MotionDef},
 };
 
 // The map being played and every map it nests, into one layout and one

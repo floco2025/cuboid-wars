@@ -251,22 +251,16 @@ fn validate_rejects_a_plate_without_a_floor_or_on_a_ramp() {
 
     map_def.pressure_plates.push(plate(0, 0, 3));
     let err = validate_map(&map_def).expect_err("a plate on a floorless cell accepted");
-    assert!(err.to_string().contains("has no floor at level 0 col 0 row 3"), "{err}");
+    assert!(err.to_string().contains("[0, 3] has no floor"), "{err}");
 
     map_def.pressure_plates[0] = plate(0, 1, 0);
     let err = validate_map(&map_def).expect_err("a plate under a ramp accepted");
-    assert!(
-        err.to_string().contains("sits on a ramp at level 0 col 1 row 0"),
-        "{err}"
-    );
+    assert!(err.to_string().contains("[1, 0] is inside a ramp footprint"), "{err}");
 
     map_def.levels[1].floors.push(floor_def(2, 0));
     map_def.pressure_plates[0] = plate(1, 2, 0);
     let err = validate_map(&map_def).expect_err("a plate on a ramp's arrival cell accepted");
-    assert!(
-        err.to_string().contains("sits on a ramp at level 1 col 2 row 0"),
-        "{err}"
-    );
+    assert!(err.to_string().contains("[2, 0] is inside a ramp footprint"), "{err}");
 
     map_def.pressure_plates[0] = plate(0, 0, 1);
     validate_map(&map_def).expect("a plate on an inaccessible floor rejected");
@@ -279,7 +273,10 @@ fn validate_rejects_duplicate_light_bridge_cells() {
     let map_def = map_with_bridges(&[[1, 0], [1, 0]]);
 
     let err = validate_map(&map_def).expect_err("duplicate bridge cells must fail");
-    assert!(err.to_string().contains("duplicate light_bridge"), "got: {err}");
+    assert!(
+        err.to_string().contains("duplicates another light bridge"),
+        "got: {err}"
+    );
 }
 
 #[test]
@@ -346,7 +343,7 @@ fn validation_rejects_item_outside_grid() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 4, 0, "gold", None));
     let err = validate_map(&map_def).expect_err("out-of-bounds item must be rejected");
-    assert!(err.to_string().contains("col"));
+    assert!(err.to_string().contains("[4, 0] is outside the grid"));
 }
 
 #[test]
@@ -370,7 +367,7 @@ fn validation_rejects_unknown_item_type() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 0, 0, "banana", None));
     let err = validate_map(&map_def).expect_err("unknown item type must be rejected");
-    assert!(err.to_string().contains("unknown item type"));
+    assert!(err.to_string().contains("unknown type"));
 }
 
 #[test]
@@ -406,7 +403,7 @@ fn validation_rejects_duplicate_barrier() {
         kind: "green".into(),
     });
     let err = validate_map(&map_def).expect_err("duplicate barrier edge must be rejected");
-    assert!(err.to_string().contains("duplicate barrier"));
+    assert!(err.to_string().contains("duplicates another barrier"));
 }
 
 #[test]
@@ -437,7 +434,7 @@ fn validation_rejects_ladder_span_past_top_level() {
         "{:#}",
         validate_map(&map_def).expect_err("span past the top level must be rejected")
     );
-    assert!(err.contains("does not exist"));
+    assert!(err.contains("spans levels 0..2 but the map has 2 level(s)"));
 }
 
 #[test]
@@ -503,7 +500,7 @@ fn validation_rejects_out_of_bounds_ladder() {
         "{:#}",
         validate_map(&map_def).expect_err("out-of-bounds ladder must be rejected")
     );
-    assert!(err.contains("out of grid bounds"));
+    assert!(err.contains("outside the grid"));
 }
 
 #[test]
@@ -556,16 +553,13 @@ fn validate_rejects_empty_switch_names() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], vec![actor_zone(0, 0, 0)], Vec::new());
     map_def.pressure_plates.push(plate_def(0, 0, 0, ""));
     let err = validate_map(&map_def).expect_err("a plate with an empty switch accepted");
-    assert!(
-        err.to_string().contains("pressure_plates[0] has empty `switch`"),
-        "{err}"
-    );
+    assert!(err.to_string().contains("pressure_plates[0] has no switch"), "{err}");
     map_def.pressure_plates.clear();
 
     map_def.actor_spawn_zones[0].switch = Some(String::new());
     let err = validate_map(&map_def).expect_err("a zone with an empty switch accepted");
     assert!(
-        err.to_string().contains("actor_spawn_zones[0] has empty `switch`"),
+        err.to_string().contains("actor_spawn_zones[0] has an empty switch"),
         "{err}"
     );
 }
@@ -577,7 +571,7 @@ fn actor_count_lists_validate_and_canonicalize() {
     for counts in [vec![], vec![2, 1]] {
         map.actor_spawn_zones[0].count = counts;
         let error = validate_map(&map).expect_err("invalid count list");
-        assert!(error.to_string().contains("actor_spawn_zones[0].count"));
+        assert!(error.to_string().contains("actor_spawn_zones[0] Count"));
     }
     zone.count = vec![0, 2, 4];
     map.actor_spawn_zones = vec![zone.clone(), actor_zone(0, 0, 0), zone];

@@ -3,12 +3,12 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 use anyhow::{Result, anyhow, bail};
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::color::HexColor;
 
 // A reusable appearance or key identity with its display color.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct KindDef {
     pub id: String,

@@ -2,21 +2,11 @@
 
 from __future__ import annotations
 import math
+from .core import call
 
 
-def wall_endpoints_for_cell_side(col: int, row: int, side: str) -> tuple[int, int, int, int]:
-    """Return the canonical (c0, r0, c1, r1) of the wall on a cell's side."""
-    if side == "N":
-        c0, r0, c1, r1 = col, row, col + 1, row
-    elif side == "S":
-        c0, r0, c1, r1 = col, row + 1, col + 1, row + 1
-    elif side == "W":
-        c0, r0, c1, r1 = col, row, col, row + 1
-    elif side == "E":
-        c0, r0, c1, r1 = col + 1, row, col + 1, row + 1
-    else:
-        raise ValueError(f"unknown side {side!r}")
-    return tuple(normalized_wall([c0, r0, c1, r1]))
+def wall_endpoints_for_cell_side(col: int, row: int, side: str):
+    return tuple(call("wall_endpoints_for_cell_side", col, row, side))
 
 
 def cell_side_from_click(col: int, row: int, px: float, py: float) -> str:
@@ -31,11 +21,8 @@ def cell_side_from_click(col: int, row: int, px: float, py: float) -> str:
     return min(distances, key=distances.get)
 
 
-def normalized_wall(wall: list[int]) -> list[int]:
-    c0, r0, c1, r1 = wall
-    if (c1, r1) < (c0, r0):
-        return [c1, r1, c0, r0]
-    return [c0, r0, c1, r1]
+def normalized_wall(wall: list[int]):
+    return call("normalized_wall", wall)
 
 
 # The eight resize handles of a zone, nw clockwise, in grid units.
@@ -45,8 +32,8 @@ def zone_handle_centers(zone: dict) -> list[tuple[float, float]]:
     return [(c0, r0), (mx, r0), (c1, r0), (c1, my), (c1, r1), (mx, r1), (c0, r1), (c0, my)]
 
 
-def zone_rect(zone: dict) -> tuple[int, int, int, int]:
-    return zone["cols"][0], zone["rows"][0], zone["cols"][1], zone["rows"][1]
+def zone_rect(zone: dict):
+    return tuple(call("zone_rect", zone))
 
 
 def zone_intersects_rect(zone: dict, rect: tuple[int, int, int, int]) -> bool:
@@ -58,55 +45,28 @@ def zone_contains_cell(zone: dict, col: int, row: int) -> bool:
     return c0 <= col < c1 and r0 <= row < r1
 
 
-def grid_point_in_bounds(col: int, row: int, cols: int, rows: int) -> bool:
-    return 0 <= col <= cols and 0 <= row <= rows
+def grid_point_in_bounds(col: int, row: int, cols: int, rows: int):
+    return call("grid_point_in_bounds", col, row, cols, rows)
 
 
-def ramp_error(low: list[int], high: list[int], lower_level: int, cols: int, rows: int, level_count: int) -> str | None:
-    if lower_level < 0 or lower_level + 1 >= level_count:
-        return "lower_level must have an upper level"
-    if not grid_point_in_bounds(low[0], low[1], cols, rows):
-        return "low point is outside the grid-line bounds"
-    if not grid_point_in_bounds(high[0], high[1], cols, rows):
-        return "high point is outside the grid-line bounds"
-    width = abs(high[0] - low[0])
-    height = abs(high[1] - low[1])
-    if width == 0 or height == 0:
-        return "ramp must span a non-empty rectangular footprint"
-    if width == height:
-        return "ramp needs one clear longer axis"
-    return None
+def ramp_error(low: list[int], high: list[int], lower_level: int, cols: int, rows: int, level_count: int):
+    return call("ramp_error", low, high, lower_level, cols, rows, level_count)
 
 
-def ramp_rect(ramp: dict) -> tuple[int, int, int, int]:
-    low = ramp["low"]
-    high = ramp["high"]
-    return min(low[0], high[0]), min(low[1], high[1]), max(low[0], high[0]), max(low[1], high[1])
+def ramp_rect(ramp: dict):
+    return tuple(call("ramp_rect", ramp))
 
 
-def ramp_cells(ramp: dict) -> set[tuple[int, int]]:
-    c0, r0, c1, r1 = ramp_rect(ramp)
-    return {(col, row) for row in range(r0, r1) for col in range(c0, c1)}
+def ramp_cells(ramp: dict):
+    return {tuple(cell) for cell in call("ramp_cells", ramp)}
 
 
-def ramp_cells_on_level(ramps: list[dict], level_idx: int) -> set[tuple[int, int]]:
-    """Footprint cells of every ramp touching a level — a ramp occupies its
-    cells on both the lower and the upper level."""
-    cells: set[tuple[int, int]] = set()
-    for ramp in ramps:
-        if level_idx in (ramp["lower_level"], ramp["lower_level"] + 1):
-            cells.update(ramp_cells(ramp))
-    return cells
+def ramp_cells_on_level(ramps: list[dict], level_idx: int):
+    return {tuple(cell) for cell in call("ramp_cells_on_level", ramps, level_idx)}
 
 
-def ramp_axis(ramp: dict) -> str:
-    low = ramp["low"]
-    high = ramp["high"]
-    dx = high[0] - low[0]
-    dy = high[1] - low[1]
-    if abs(dx) > abs(dy):
-        return "east" if dx > 0 else "west"
-    return "south" if dy > 0 else "north"
+def ramp_axis(ramp: dict):
+    return call("ramp_axis", ramp)
 
 
 def opposite_direction(direction: str) -> str:
@@ -144,8 +104,8 @@ def ramp_points_from_cells(start: tuple[int, int], end: tuple[int, int]) -> tupl
     return [c0, r1], [c1, r0]
 
 
-def rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
-    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+def rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]):
+    return call("rects_overlap", a, b)
 
 
 def wall_overlaps_rect(wall: list[int], rect: tuple[int, int, int, int]) -> bool:

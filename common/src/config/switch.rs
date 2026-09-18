@@ -1,11 +1,11 @@
 use bincode::{Decode, Encode};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::DeathTrigger;
 
 // One switch's policy: how its plates activate it, what holds it, and which
 // player deaths reset a toggle.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode, Deserialize, Serialize)]
 pub struct SwitchConfig {
     pub activation: SwitchActivation,
     pub reset_on_player_death: DeathTrigger,
@@ -13,7 +13,7 @@ pub struct SwitchConfig {
     pub held: SwitchHold,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SwitchActivation {
     Momentary,
@@ -35,7 +35,7 @@ impl SwitchActivation {
 // What counts as the switch's plates being held: any one occupied plate, or
 // every living player on one of them (every plate when players outnumber
 // them).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SwitchHold {
     #[default]

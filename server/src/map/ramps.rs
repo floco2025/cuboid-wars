@@ -16,41 +16,24 @@ pub struct RampSpec {
 
 impl RampSpec {
     pub(super) fn footprint_cells(&self) -> Vec<(i32, i32)> {
-        let [col0, row0, col_end, row_end] = self.rect();
-        let mut cells = Vec::new();
-        for col in col0..col_end {
-            for row in row0..row_end {
-                cells.push((row, col));
-            }
-        }
-        cells
+        map_core::geometry::ramp_cells(self.low, self.high)
+            .into_iter()
+            .map(|[col, row]| (row, col))
+            .collect()
     }
 
-    // Keep changes in sync with tools/map_editor/floor_footprints.py::ramp_landing_edges.
     pub(super) fn mark_high_end(&self, edges: &mut EdgeGrid) {
-        let [col0, row0, col_end, row_end] = self.rect();
-        let width = (self.high[0] - self.low[0]).abs();
-        let height = (self.high[1] - self.low[1]).abs();
-        if width > height {
-            let col = if self.high[0] > self.low[0] { col_end } else { col0 };
-            for row in row0..row_end {
-                edges.vertical[row as usize][col as usize] = true;
-            }
-        } else {
-            let row = if self.high[1] > self.low[1] { row_end } else { row0 };
-            for col in col0..col_end {
+        for (axis, row, col) in map_core::geometry::landing_edges(self.low, self.high) {
+            if axis == 'h' {
                 edges.horizontal[row as usize][col as usize] = true;
+            } else {
+                edges.vertical[row as usize][col as usize] = true;
             }
         }
     }
 
     fn rect(&self) -> [i32; 4] {
-        [
-            self.low[0].min(self.high[0]),
-            self.low[1].min(self.high[1]),
-            self.low[0].max(self.high[0]),
-            self.low[1].max(self.high[1]),
-        ]
+        map_core::geometry::ramp_rect(self.low, self.high)
     }
 
     fn to_ramp(&self, geometry: &MapGeometry, carrier: CarrierId) -> Ramp {

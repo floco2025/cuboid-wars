@@ -18,7 +18,7 @@ mimalloc = "0.1"
 whoami = "2"
 
 [workspace]
-members = ["common", "server", "client"]
+members = ["common", "server", "client", "map_core", "map_core_py"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -26,6 +26,7 @@ anyhow = "1"
 bevy = { version = "0.19", default-features = false }
 bincode = "2.0"
 common = { path = "common" }
+map_core = { path = "map_core" }
 crossbeam-channel = "0.5"
 rand = "0.10"
 rapier3d = "0.35"

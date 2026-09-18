@@ -1,5 +1,6 @@
-use super::{super::schema::CheckpointDef, *};
+use super::*;
 use common::protocol::CarrierMotion;
+use map_core::schema::CheckpointDef;
 
 fn motion(level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> MotionDef {
     MotionDef {
@@ -505,7 +506,7 @@ fn follow_switch_motion_requires_a_switch_assignment() {
     let mut map = host(vec![entry]);
     let error = validate_map(&map).expect_err("unassigned follow motion accepted");
     assert!(
-        format!("{error:#}").contains("follow_switch motion requires a switch"),
+        format!("{error:#}").contains("Follow switch motion requires a switch"),
         "{error:#}"
     );
     map.nested_maps[0].motion.switch = Some(FIREWORKS.into());

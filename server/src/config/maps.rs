@@ -4,6 +4,7 @@ use std::{
 };
 
 use anyhow::{Result, bail};
+use map_core::is_valid_map_name;
 use serde::Deserialize;
 
 use super::{
@@ -55,12 +56,6 @@ pub struct RandomItemsConfig {
     // How long an uncollected random item sits in the world before being
     // removed. Placed items use the map's `placed_items.respawn_secs` instead.
     pub despawn_secs: f32,
-}
-
-// Registry map names become file names, so nothing that could traverse paths passes.
-#[must_use]
-pub(crate) fn is_valid_map_name(name: &str) -> bool {
-    !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
 pub(super) fn validate_maps(

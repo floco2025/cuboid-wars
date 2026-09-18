@@ -1,4 +1,6 @@
-use super::*;
+use super::prepare_source;
+use crate::schema::*;
+use anyhow::Result;
 use serde_json::{Value, json};
 
 // A floored corner with the start on it, placing `names` along the top row.
@@ -79,7 +81,7 @@ fn the_placed_tree_starts_at_checkpoint_zero_and_zones_end_at_a_placed_number() 
     let error = prepare_source(parse(&startless))
         .expect_err("a course without a start accepted")
         .to_string();
-    assert!(error.contains("checkpoint numbered 0"), "{error}");
+    assert!(error.contains("checkpoint 0"), "{error}");
     startless["nested_geometry"]["room"]["checkpoints"][0]["number"] = json!(0);
     prepare_source(parse(&startless)).expect("a nested start rejected");
 
@@ -134,6 +136,7 @@ fn root_catalogs_move_off_the_geometry_and_nested_geometry_may_not_define_them()
     value["barrier_kinds"] = json!([{"id": "red", "color": "#ff0000"}]);
     value["bridge_kinds"] = json!([{"id": "skyway", "color": "#30d8ff"}]);
     value["fireworks"] = json!({"switch": "door", "cooldown_secs": 3.0});
+    value["pressure_plates"] = json!([{"level": 0, "col": 0, "row": 0, "switch": "door"}]);
     value["nested_geometry"] = json!({"room": geometry(&[])});
     let loaded = prepare_source(serde_json::from_value::<MapDef>(value.clone()).expect("test source is invalid"))
         .expect("root catalogs rejected");

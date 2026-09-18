@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import copy
 from dataclasses import dataclass
-from math import ceil, floor
 
 from .constants import ZONE_LISTS
-from .nesting import nested_map_footprints, nested_map_shape
-from .normalization import empty_level
+from .nesting import nested_map_shape
+from .core import call, shapes
 
 CELL_LISTS = ("floors", "inaccessible_floors", "terrain", "light_bridges", "lights")
 EDGE_LISTS = ("walls", "barriers", "erasers")
@@ -24,39 +22,12 @@ def record_lists(data: dict):
         yield (None, name), data.get(name, [])
 
 
-def record_rect(name: str, entry: dict) -> tuple[int, int, int, int]:
-    if name in ZONE_LISTS:
-        return entry["cols"][0], entry["rows"][0], entry["cols"][1], entry["rows"][1]
-    if name in EDGE_LISTS:
-        return (
-            min(entry["c0"], entry["c1"]),
-            min(entry["r0"], entry["r1"]),
-            max(entry["c0"], entry["c1"]),
-            max(entry["r0"], entry["r1"]),
-        )
-    if name in ("ramps", "nested_maps"):
-        start, end = (entry["low"], entry["high"]) if name == "ramps" else (entry["from"], entry["to"])
-        extra = int(name == "nested_maps")
-        return (
-            min(start[0], end[0]),
-            min(start[1], end[1]),
-            max(start[0], end[0]) + extra,
-            max(start[1], end[1]) + extra,
-        )
-    return entry["col"], entry["row"], entry["col"] + 1, entry["row"] + 1
+def record_rect(name: str, entry: dict):
+    return tuple(call("record_rect", name, entry))
 
 
-def record_levels(entry: dict, level: int | None = None) -> tuple[int, int]:
-    if level is not None:
-        return level, level
-    if "lower_level" in entry:
-        return entry["lower_level"], entry["lower_level"] + entry.get("levels", 1)
-    if "cols" in entry and "rows" in entry:
-        span = entry.get("levels", 1)
-        return entry["level"], entry["level"] + (span if type(span) is int and span > 0 else 1) - 1
-    return min(entry["level"], entry.get("to_level", entry["level"])), max(
-        entry["level"], entry.get("to_level", entry["level"])
-    )
+def record_levels(entry: dict, level: int | None = None):
+    return tuple(call("record_levels", entry, level))
 
 
 @dataclass(frozen=True)
@@ -66,117 +37,28 @@ class ContentBounds:
     last_level: int
 
 
-def map_content_bounds(
-    data: dict, *, nested_lookup=None, wall_width_cells=0.0, floor_height_levels=0.0
-) -> ContentBounds:
-    rectangles, spans = [], []
-    for (level, name), entries in record_lists(data):
-        for entry in entries:
-            rectangles.append(record_rect(name, entry))
-            spans.append(record_levels(entry, level))
-            if name == "nested_maps":
-                shape = (
-                    nested_lookup(entry["map"])
-                    if nested_lookup
-                    else nested_map_shape(data.get("nested_geometry", {}).get(entry["map"]))
-                )
-                rectangles.extend(nested_map_footprints(entry, shape, wall_width_cells))
-                for end, end_level in (("from", entry["level"]), ("to", entry["to_level"])):
-                    nudge = entry[end + "_nudge"]
-                    # compile.rs::carrier_from_motion scales y in floor thicknesses, x/z in wall widths.
-                    base = end_level + (nudge[1] * floor_height_levels if len(nudge) == 3 else 0)
-                    spans.append((floor(base), ceil(base + (shape.level_count if shape else 1)) - 1))
-
-    # Trim only existing empty borders, including degenerate bounds such as a lone boundary wall.
-    def trim(low, high, size):
-        start = max(0, min(size - 1, floor(low)))
-        return start, max(start + 1, min(size, ceil(high)))
-
-    left, right = trim(
-        min((r[0] for r in rectangles), default=0), max((r[2] for r in rectangles), default=1), data["grid_cols"]
+def map_content_bounds(data: dict, *, nested_lookup=None, wall_width_cells=0.0, floor_height_levels=0.0):
+    lookup = nested_lookup or (lambda name: nested_map_shape(data.get("nested_geometry", {}).get(name)))
+    result = call(
+        "map_content_bounds", data, shapes(data.get("nested_maps", []), lookup), wall_width_cells, floor_height_levels
     )
-    top, bottom = trim(
-        min((r[1] for r in rectangles), default=0), max((r[3] for r in rectangles), default=1), data["grid_rows"]
-    )
-    first, end = trim(
-        min((s[0] for s in spans), default=0), max((s[1] + 1 for s in spans), default=1), len(data["levels"])
-    )
-    return ContentBounds((left, top, right, bottom), first, end - 1)
+    return ContentBounds(tuple(result["rect"]), result["first_level"], result["last_level"])
 
 
-def translate_entry(name: str, entry: dict, dc: int = 0, dr: int = 0, dl: int = 0) -> dict:
-    moved = copy.deepcopy(entry)
-    if name in ZONE_LISTS:
-        moved["cols"] = [c + dc for c in entry["cols"]]
-        moved["rows"] = [r + dr for r in entry["rows"]]
-    elif name in EDGE_LISTS:
-        for key in ("c0", "c1"):
-            moved[key] += dc
-        for key in ("r0", "r1"):
-            moved[key] += dr
-    elif name in ("ramps", "nested_maps"):
-        for key in ("low", "high") if name == "ramps" else ("from", "to"):
-            moved[key] = [entry[key][0] + dc, entry[key][1] + dr]
-    else:
-        moved["col"] += dc
-        moved["row"] += dr
-    for key in ("level", "lower_level", "to_level"):
-        if key in moved:
-            moved[key] += dl
-    return moved
+def translate_entry(name: str, entry: dict, dc: int = 0, dr: int = 0, dl: int = 0):
+    return call("translate_entry", name, entry, dc, dr, dl)
 
 
-def translate_map(data: dict, dc: int, dr: int, dl: int = 0) -> dict:
-    moved = copy.deepcopy(data)
-    for (_, name), entries in record_lists(moved):
-        entries[:] = [translate_entry(name, entry, dc, dr, dl) for entry in entries]
-    return moved
+def translate_map(data: dict, dc: int, dr: int, dl: int = 0):
+    return call("translate_map", data, dc, dr, dl)
 
 
-def resize_map_offset(data: dict, cols: int, rows: int, dc: int, dr: int) -> dict:
-    moved = translate_map(data, dc, dr)
-    moved["grid_cols"], moved["grid_rows"] = cols, rows
-    for (_, name), entries in record_lists(moved):
-        kept = []
-        for entry in entries:
-            c0, r0, c1, r1 = record_rect(name, entry)
-            if name in ZONE_LISTS:
-                c0, r0, c1, r1 = max(0, c0), max(0, r0), min(cols, c1), min(rows, r1)
-                if c0 >= c1 or r0 >= r1:
-                    continue
-                entry["cols"], entry["rows"] = [c0, c1], [r0, r1]
-            if 0 <= c0 <= c1 <= cols and 0 <= r0 <= r1 <= rows:
-                kept.append(entry)
-        entries[:] = kept
-    return moved
+def resize_map_offset(data: dict, cols: int, rows: int, dc: int, dr: int):
+    return call("resize_map_offset", data, cols, rows, dc, dr)
 
 
-def remap_levels(data: dict, pivot: int, *, remove: bool) -> dict:
-    moved = copy.deepcopy(data)
-    for name in GLOBAL_LISTS:
-        kept = []
-        for entry in moved.get(name, []):
-            lower, upper = record_levels(entry)
-            if name in ZONE_LISTS and lower <= pivot <= upper:
-                if remove:
-                    if entry.get("levels", 1) == 1:
-                        continue
-                    entry["levels"] -= 1
-                elif lower < pivot:
-                    entry["levels"] = entry.get("levels", 1) + 1
-                if remove:
-                    kept.append(entry)
-                    continue
-            if remove and lower <= pivot <= upper:
-                continue
-            if name == "ladders" and lower < pivot <= upper:
-                entry["levels"] += 1
-            for key in ("level", "lower_level", "to_level"):
-                if key in entry and entry[key] >= pivot:
-                    entry[key] += -1 if remove else 1
-            kept.append(entry)
-        moved[name] = kept
-    return moved
+def remap_levels(data: dict, pivot: int, *, remove: bool):
+    return call("remap_levels", data, pivot, remove)
 
 
 def element_counts(data: dict) -> dict[str, int]:
@@ -203,73 +85,18 @@ def crossing_ramps(map_data: dict, insert_at: int) -> list[dict]:
     return [ramp for ramp in map_data["ramps"] if ramp["lower_level"] + 1 == insert_at]
 
 
-def insert_level_data(map_data: dict, insert_at: int, *, remove_crossing_ramps: bool = False) -> dict:
-    if crossing_ramps(map_data, insert_at) and not remove_crossing_ramps:
-        raise ValueError("The inserted level separates ramp endpoints.")
-    after = remap_levels(map_data, insert_at, remove=False)
-    after["ramps"] = [ramp for ramp in after["ramps"] if ramp["lower_level"] + 1 != insert_at]
-    after["levels"].insert(insert_at, empty_level(insert_at))
-    return after
+def insert_level_data(map_data: dict, insert_at: int, *, remove_crossing_ramps: bool = False):
+    return call("insert_level_data", map_data, insert_at, remove_crossing_ramps)
 
 
-def _without_level(map_data: dict, removed: int) -> dict:
-    after = remap_levels(map_data, removed, remove=True)
-    after["levels"].pop(removed)
-    return after
+def remove_level_data(map_data: dict, removed: int):
+    return call("remove_level_data", map_data, removed)
 
 
-def remove_level_data(map_data: dict, removed: int) -> dict:
-    if len(map_data["levels"]) <= 1:
-        raise ValueError("A map needs at least one level.")
-    return _without_level(map_data, removed)
+def edit_levels_data(map_data: dict, levels: list[tuple[int | None, str]]):
+    return call("edit_levels_data", map_data, levels)
 
 
-def edit_levels_data(map_data: dict, levels: list[tuple[int | None, str]]) -> dict:
-    if not levels:
-        raise ValueError("A map needs at least one level.")
-    kept = [original for original, _ in levels if original is not None]
-    if len(kept) != len(set(kept)) or any(index < 0 or index >= len(map_data["levels"]) for index in kept):
-        raise ValueError("Existing levels must be unique and within the map.")
-    after = copy.deepcopy(map_data)
-    # Derive geometry from the final rows so adding then removing a new row
-    # cannot leave behind a deleted ramp or an expanded spawn zone.
-    for index in reversed(range(len(map_data["levels"]))):
-        if index not in kept:
-            after = _without_level(after, index)
-    remaining = {original: index for index, original in enumerate(sorted(kept))}
-    positions = {remaining[original]: index for index, (original, _) in enumerate(levels) if original is not None}
-
-    def remap(level):
-        if level >= len(remaining):
-            return level + len(levels) - len(remaining)
-        return positions.get(level, level)
-
-    for list_name in GLOBAL_LISTS:
-        entries = []
-        for entry in after.get(list_name, []):
-            lower, upper = record_levels(entry)
-            if list_name == "ramps" and remap(upper) != remap(lower) + 1:
-                continue
-            if list_name in ZONE_LISTS and type(entry.get("levels", 1)) is int and entry.get("levels", 1) > 0:
-                covered = [remap(lower), remap(upper)]
-                covered.extend(new for old, new in positions.items() if lower <= old <= upper)
-                entry["level"] = min(covered)
-                if "levels" in entry:
-                    entry["levels"] = max(covered) - min(covered) + 1
-            elif list_name == "ladders" and entry["levels"] > 0:
-                entry["lower_level"] = min(remap(lower), remap(upper))
-                entry["levels"] = abs(remap(upper) - remap(lower))
-            else:
-                for key in ("level", "lower_level", "to_level"):
-                    if key in entry:
-                        entry[key] = remap(entry[key])
-            entries.append(entry)
-        after[list_name] = entries
-    after["levels"] = [
-        {
-            **(after["levels"][remaining[original]] if original is not None else empty_level(index)),
-            "name": name.strip() or f"Level {index}",
-        }
-        for index, (original, name) in enumerate(levels)
-    ]
-    return after
+def transform_block(block, operation, definitions):
+    result, additions = call("transform_block", block, operation, definitions)
+    return result, additions

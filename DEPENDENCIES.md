@@ -24,7 +24,7 @@ cargo run --release
 
 These additional tools are needed for editing maps, generating assets, and formatting code.
 
-- Map editor: Python and PySide6.
+- Map editor: Rust/Cargo, Python 3.10 or newer, and PySide6. The launcher builds its native Rust map library automatically on first use and refreshes it after source changes; the initial build can take a few minutes. To build it ahead of time, run `cargo build --release -p map_core_py`.
 - Model and audio tools: Blender, FFmpeg, and ImageMagick for textures; NumPy and Pillow for the generated ones.
 - Formatting: rustfmt, Clippy, Prettier, and Ruff.
 

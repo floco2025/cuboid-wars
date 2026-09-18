@@ -1,7 +1,7 @@
 use bincode::{Decode, Encode};
-use serde::{Deserialize, Deserializer, de};
+use serde::{Deserialize, Deserializer, Serialize, de};
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Serialize)]
 pub struct FaceMaterials {
     pub north: String,
     pub south: String,
