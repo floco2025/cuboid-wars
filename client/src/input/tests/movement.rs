@@ -1,6 +1,5 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, time::Duration};
 
-#[cfg(target_os = "macos")]
 use crate::constants::INPUT_MOUSE_SENSITIVITY_BASE;
 
 use bevy::{
@@ -9,6 +8,7 @@ use bevy::{
         touch::TouchPhase,
     },
     prelude::*,
+    time::TimeUpdateStrategy,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow, WindowFocused},
 };
 use common::{
@@ -16,15 +16,12 @@ use common::{
     map::Carriers,
     physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
     protocol::{
-        CarrierId, ClientMessage, FaceYaw, Ladder, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess, PortalPairId,
-        Position,
+        CarrierId, ClientMessage, FaceYaw, Floor, Ladder, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess,
+        PortalPairId, Position,
     },
 };
 
-use super::{
-    WeaponMode, focus::input_focus_system, input_camera_view_toggle_system, input_camera_zoom_system,
-    input_cursor_capture_system, input_facing_lock_toggle_system, input_movement_system,
-};
+use super::{WeaponMode, plugin::movement_input_plugin};
 use crate::{
     cameras::{CameraInputState, CameraViewMode, FollowCamera},
     config::ClientSettings,
@@ -34,6 +31,7 @@ use crate::{
     players::{
         LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap, report_player_movement_system,
     },
+    schedule::{ClientSet, configure_client_sets},
     test_fixtures,
     ui::{ConsoleState, SettingsMenuState},
 };
@@ -67,17 +65,7 @@ fn input_app() -> (App, Entity, Entity) {
         .add_message::<MouseMotion>()
         .add_message::<MouseWheel>()
         .add_message::<WindowFocused>()
-        .add_systems(
-            Update,
-            (
-                input_camera_view_toggle_system,
-                input_facing_lock_toggle_system,
-                input_cursor_capture_system,
-                input_camera_zoom_system,
-                input_movement_system,
-            )
-                .chain(),
-        );
+        .add_plugins((configure_client_sets, movement_input_plugin));
     let cursor = app
         .world_mut()
         .spawn((Window::default(), PrimaryWindow, CursorOptions::default()))
@@ -102,6 +90,163 @@ fn input_app() -> (App, Entity, Entity) {
         ))
         .id();
     (app, player, cursor)
+}
+
+#[derive(Resource, Default)]
+struct FixedInputs(Vec<(PlayerMoveIntent, f32, f32)>);
+
+fn fixed_input_app() -> (App, Entity, Entity) {
+    let (mut app, player, window) = input_app();
+    app.add_plugins(MinimalPlugins)
+        .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO))
+        .insert_resource(Time::<Fixed>::from_hz(30.0))
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout {
+            floors: vec![Floor {
+                x1: -5.0,
+                z1: -5.0,
+                x2: 5.0,
+                z2: 5.0,
+                y: 0.0,
+                thickness: 0.2,
+                level: 0,
+                carrier: CarrierId::WORLD,
+            }],
+            ..default()
+        }))
+        .init_resource::<FixedInputs>()
+        .add_systems(
+            FixedUpdate,
+            |players: Query<(&PlayerMoveIntent, &FaceYaw, &CharacterVerticalVelocity)>,
+             mut inputs: ResMut<FixedInputs>| {
+                for (intent, facing, velocity) in &players {
+                    inputs.0.push((*intent, facing.0, velocity.0));
+                }
+            },
+        );
+    app.update();
+    (app, player, window)
+}
+
+#[test]
+fn released_movement_is_idle_for_every_fixed_catchup_step() {
+    let (mut app, _, _) = fixed_input_app();
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyW);
+    app.update();
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::KeyW);
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(250)));
+    app.update();
+
+    let inputs = &app.world().resource::<FixedInputs>().0;
+    assert_eq!(inputs.len(), 7);
+    assert!(inputs.iter().all(|(intent, _, _)| *intent == PlayerMoveIntent::Idle));
+}
+
+#[test]
+fn fixed_steps_use_the_current_mouse_direction_and_facing_lock() {
+    let (mut app, _, _) = fixed_input_app();
+    app.world_mut()
+        .resource_mut::<ClientSettings>()
+        .preferences
+        .mouse_sensitivity = 0.002 / INPUT_MOUSE_SENSITIVITY_BASE;
+    app.world_mut().resource_mut::<FollowCamera>().locked = false;
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyF);
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyW);
+    app.world_mut().write_message(MouseMotion {
+        delta: Vec2::new(100.0, 0.0),
+    });
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(100)));
+    app.update();
+
+    assert!(app.world().resource::<FollowCamera>().locked);
+    let inputs = &app.world().resource::<FixedInputs>().0;
+    assert!(!inputs.is_empty());
+    for (intent, facing, _) in inputs {
+        let PlayerMoveIntent::Walking { direction } = intent else {
+            panic!("fixed step did not receive walking input");
+        };
+        assert!((*direction - (PI - 0.2)).abs() < 1e-5);
+        assert_eq!(direction, facing);
+    }
+}
+
+#[test]
+fn opening_an_overlay_blocks_movement_and_jump_before_catchup() {
+    for menu in [false, true] {
+        let (mut app, _, _) = fixed_input_app();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Space);
+        app.add_systems(
+            PreUpdate,
+            (move |mut console: ResMut<ConsoleState>, mut settings: ResMut<SettingsMenuState>| {
+                console.open = !menu;
+                settings.open = menu;
+            })
+            .in_set(ClientSet::Console),
+        );
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(250)));
+        app.update();
+
+        let inputs = &app.world().resource::<FixedInputs>().0;
+        assert_eq!(inputs.len(), 7);
+        assert!(
+            inputs
+                .iter()
+                .all(|(intent, _, velocity)| *intent == PlayerMoveIntent::Idle && *velocity == 0.0)
+        );
+    }
+}
+
+#[test]
+fn jump_survives_a_frame_without_steps_and_is_not_reapplied_during_catchup() {
+    let (mut app, player, _) = fixed_input_app();
+    app.world_mut()
+        .resource_mut::<common::protocol::MapSettings>()
+        .movement
+        .player
+        .jump_speed = 12.0;
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::Space);
+    app.update();
+    assert!(app.world().resource::<FixedInputs>().0.is_empty());
+    assert_eq!(
+        app.world()
+            .get::<CharacterVerticalVelocity>(player)
+            .expect("jump velocity missing")
+            .0,
+        12.0
+    );
+
+    // A fixed consumer clears the impulse so a repeated input write is observable.
+    app.add_systems(
+        FixedPostUpdate,
+        |mut velocities: Query<&mut CharacterVerticalVelocity>| {
+            for mut velocity in &mut velocities {
+                velocity.0 = 0.0;
+            }
+        },
+    );
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear();
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(100)));
+    app.update();
+    app.update();
+    let inputs = &app.world().resource::<FixedInputs>().0;
+    assert!(inputs.len() >= 5);
+    assert_eq!(inputs[0].2, 12.0);
+    assert!(inputs[1..].iter().all(|(_, _, velocity)| *velocity == 0.0));
 }
 
 #[test]
@@ -219,7 +364,6 @@ fn recentering_does_not_turn_the_view_even_when_mouse_motion_is_delayed() {
 fn losing_focus_clears_movement_before_physics_even_if_focus_returns_in_the_same_frame() {
     for immediate_refocus in [false, true] {
         let (mut app, player, window) = input_app();
-        app.add_systems(PreUpdate, input_focus_system);
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::KeyW);
@@ -430,7 +574,7 @@ fn unlocked_firing_faces_view_without_changing_movement_or_lock_and_commits_faci
         app.insert_resource(ClientToServerChannel::new(sender))
             .insert_resource(weapon)
             .insert_resource(access)
-            .add_systems(Update, report_player_movement_system.after(input_movement_system));
+            .add_systems(Update, report_player_movement_system);
         app.world_mut().resource_mut::<FollowCamera>().locked = false;
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()

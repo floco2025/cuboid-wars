@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     actors::actor_visuals_plugin, cameras::camera_plugin, characters::character_sync_plugin, input::input_plugin,
-    network::network_plugin,
+    network::network_plugin, ui::hud_plugin,
 };
 
 #[test]
@@ -13,6 +13,12 @@ fn input_network_camera_and_weapon_ordering_has_no_cycles() {
     camera_plugin(&mut app);
     character_sync_plugin(&mut app);
     actor_visuals_plugin(&mut app);
+    hud_plugin(&mut app);
+    app.world_mut().schedule_scope(PreUpdate, |world, schedule| {
+        schedule
+            .initialize(world)
+            .expect("movement/overlay input schedule contains conflicting ordering");
+    });
     app.world_mut().schedule_scope(Update, |world, schedule| {
         schedule
             .initialize(world)

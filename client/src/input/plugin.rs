@@ -16,33 +16,16 @@ fn gameplay_input_active(console: Res<ConsoleState>, menu: Res<SettingsMenuState
 
 pub fn input_plugin(app: &mut App) {
     app.init_resource::<PendingWeaponSelection>();
-    // Clear held input and intent before FixedUpdate can simulate another step.
-    app.add_systems(PreUpdate, input_focus_system.after(InputSystems));
+    app.add_plugins(movement_input_plugin);
     app.add_systems(PreUpdate, windowed_frame_system);
     app.add_systems(
         Update,
         (
-            input_movement_system
-                .after(input_cursor_capture_system)
-                .after(input_camera_zoom_system),
-            input_cursor_capture_system.after(input_camera_view_toggle_system),
-            // Zooming in locks the facing, which movement reads this frame.
-            input_camera_zoom_system
-                .after(input_facing_lock_toggle_system)
-                .after(input_cursor_capture_system),
-            input_weapon_select_system
-                .after(input_movement_system)
-                .after(ClientSet::Network),
+            input_weapon_select_system.after(ClientSet::Network),
             // The fullscreen shortcut works with the settings menu open, only
             // the console (which the F key types into) stands it down.
             input_fullscreen_toggle_system.run_if(console_closed),
-            (
-                input_camera_view_toggle_system,
-                input_facing_lock_toggle_system,
-                input_debug_colors_cycle_system,
-                input_bounds_cycle_system,
-            )
-                .run_if(gameplay_input_active),
+            (input_debug_colors_cycle_system, input_bounds_cycle_system).run_if(gameplay_input_active),
         )
             .in_set(ClientSet::Input),
     );
@@ -52,5 +35,29 @@ pub fn input_plugin(app: &mut App) {
             .in_set(ClientSet::Camera)
             .after(lock_on_system)
             .run_if(gameplay_input_active),
+    );
+}
+
+pub(super) fn movement_input_plugin(app: &mut App) {
+    app.add_systems(
+        PreUpdate,
+        input_focus_system
+            .after(InputSystems)
+            .before(ClientSet::Console)
+            .before(ClientSet::Input),
+    );
+    // Capture the view controls as well as keys before fixed catch-up steps:
+    // movement needs this frame's mouse direction, zoom lock, and overlay state.
+    app.add_systems(
+        PreUpdate,
+        (
+            input_camera_view_toggle_system.run_if(gameplay_input_active),
+            input_facing_lock_toggle_system.run_if(gameplay_input_active),
+            input_cursor_capture_system,
+            input_camera_zoom_system,
+            input_movement_system,
+        )
+            .chain()
+            .in_set(ClientSet::Input),
     );
 }

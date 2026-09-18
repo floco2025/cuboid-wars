@@ -79,6 +79,117 @@ fn random(spawned_at: f32) -> ItemPlacement {
     ItemPlacement::Random { spawned_at }
 }
 
+fn simultaneous_pickup_app(player_count: u32, item_type: ItemType, placed: bool) -> App {
+    let mut app = test_app();
+    {
+        let mut config = app.world_mut().resource_mut::<ServerGameplayConfig>();
+        config.combat.health.player.max = 100.0;
+        config.combat.health.player.potion_heal = 0.25;
+        config.weapons.missiles.missiles_per_pack = 3;
+    }
+    app.world_mut().resource_mut::<GameplayConfig>().missiles.max_missiles = 6;
+    app.world_mut().resource_mut::<PowerUpsConfig>().portal_gun = PowerUpMode::Pickup { duration_secs: None };
+    app.insert_resource(PlacedItemsConfig::default());
+    for id in 1..=player_count {
+        let id = PlayerId(id);
+        let (entity, _) = spawn_player(&mut app, id, Position::default());
+        app.world_mut().entity_mut(entity).insert(Health(99.0));
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .get_mut(&id)
+            .expect("player missing")
+            .life
+            .missiles = 5;
+    }
+    for (id, x) in [(1, -0.6), (2, 0.6)] {
+        spawn_item(
+            &mut app,
+            id,
+            item_type,
+            Position { x, ..default() },
+            if placed {
+                ItemPlacement::Placed {
+                    respawn_countdown: Some(0.0),
+                }
+            } else {
+                random(0.0)
+            },
+        );
+    }
+    app
+}
+
+fn assert_pickup_received(app: &App, id: PlayerId, item_type: ItemType) {
+    let player = app.world().resource::<PlayerMap>().get(&id).expect("player missing");
+    match item_type {
+        ItemType::HealthPotion => assert_eq!(
+            app.world().get::<Health>(player.entity().expect("player body missing")),
+            Some(&Health(100.0))
+        ),
+        ItemType::MissilePack => assert_eq!(player.life.missiles, 6),
+        ItemType::Key(kind) => assert_eq!(player.life.held_keys, vec![kind]),
+        ItemType::PortalGunPowerUp => assert!(player.has_permanent(PowerUpKind::PortalGun)),
+        _ => panic!("unexpected test pickup"),
+    }
+}
+
+#[test]
+fn simultaneous_pickups_leave_redundant_items_available() {
+    for item_type in [
+        ItemType::HealthPotion,
+        ItemType::MissilePack,
+        ItemType::Key(BarrierKindId(0)),
+        ItemType::PortalGunPowerUp,
+    ] {
+        for placed in [false, true] {
+            let mut app = simultaneous_pickup_app(1, item_type, placed);
+            app.update();
+            assert_eq!(
+                app.world()
+                    .resource::<ItemMap>()
+                    .values()
+                    .filter(|item| !item.is_hidden())
+                    .count(),
+                1,
+                "{item_type:?}, placed={placed}"
+            );
+            assert_pickup_received(&app, PlayerId(1), item_type);
+        }
+    }
+}
+
+#[test]
+fn simultaneous_pickups_can_help_two_overlapping_players() {
+    for item_type in [
+        ItemType::HealthPotion,
+        ItemType::MissilePack,
+        ItemType::Key(BarrierKindId(0)),
+        ItemType::PortalGunPowerUp,
+    ] {
+        let mut app = simultaneous_pickup_app(2, item_type, false);
+        app.update();
+        assert_eq!(app.world().resource::<ItemMap>().values().count(), 0, "{item_type:?}");
+        for id in [PlayerId(1), PlayerId(2)] {
+            assert_pickup_received(&app, id, item_type);
+        }
+    }
+}
+
+#[test]
+fn successive_potions_and_packs_are_consumed_while_useful() {
+    for item_type in [ItemType::HealthPotion, ItemType::MissilePack] {
+        let mut app = simultaneous_pickup_app(1, item_type, false);
+        let mut players = app.world_mut().resource_mut::<PlayerMap>();
+        let player = players.get_mut(&PlayerId(1)).expect("player missing");
+        player.life.missiles = 0;
+        let entity = player.entity().expect("player body missing");
+        app.world_mut().entity_mut(entity).insert(Health(50.0));
+        app.update();
+        assert_eq!(app.world().resource::<ItemMap>().values().count(), 0, "{item_type:?}");
+        assert_pickup_received(&app, PlayerId(1), item_type);
+    }
+}
+
 #[test]
 fn permanent_single_shot_pickup_grants_fire_and_leaves_duplicates_for_other_players() {
     let mut app = test_app();

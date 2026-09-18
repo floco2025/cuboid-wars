@@ -19,7 +19,7 @@ pub fn settings_menu_plugin(app: &mut App) {
     app.add_observer(on_cycler_activate);
     // After the console's keystroke system, so its Esc handling wins.
     app.add_systems(
-        Update,
+        PreUpdate,
         settings_menu_toggle_system
             .in_set(ClientSet::Console)
             .after(console_input_system),

@@ -35,7 +35,7 @@ pub fn item_collection_system(
     mut quest_board: ResMut<QuestBoard>,
     quest_catalog: Res<QuestCatalog>,
 ) {
-    let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
+    let available_items: Vec<_> = items
         .iter()
         .filter_map(|(item_id, item_info)| {
             if item_info.is_hidden() {
@@ -43,53 +43,41 @@ pub fn item_collection_system(
             }
 
             let item_pos = item_positions.get(item_info.entity).ok()?;
-            let item_pos = &carriers.pose(item_info.carrier).transform_position(item_pos);
-
-            for (player_id, player_info) in players.iter() {
-                // A killed player's entity despawn is deferred, so a same-tick
-                // corpse still overlaps items — and a key collected here would
-                // land after the death reset, surviving into the next life.
-                if player_info.is_dead() {
-                    continue;
-                }
-                if let Some(entity) = player_info.entity()
-                    && let Ok(character_pos) = character_positions.get(entity)
-                {
-                    if (character_pos.y - item_pos.y).abs() > ITEM_PICKUP_FLOOR_EPSILON {
-                        continue;
-                    }
-
-                    if character_overlaps_item(character_pos, item_pos, ITEM_COLLECTION_RADIUS) {
-                        let health = player_health.get(entity).ok();
-                        if !pickup_has_effect(
-                            item_info.item_type,
-                            player_info,
-                            health,
-                            &gameplay_config,
-                            &server_gameplay_config,
-                        ) {
-                            continue;
-                        }
-                        return Some((*player_id, *item_id, item_info.item_type));
-                    }
-                }
-            }
-            None
+            let item_pos = carriers.pose(item_info.carrier).transform_position(item_pos);
+            Some((*item_id, item_info.item_type, item_pos))
         })
         .collect();
 
     let mut status_broadcasts = Vec::new();
     let mut feed_events = Vec::new();
 
-    for (player_id, item_id, item_type) in items_to_collect {
-        // Re-checked after the overlap pass: an earlier pickup in this same
-        // loop can have made the kind permanent, and the second one then stays
-        // in the world.
-        if let Some(kind) = PowerUpKind::from_item_type(item_type)
-            && players.get(&player_id).is_some_and(|info| info.has_permanent(kind))
-        {
+    for (item_id, item_type, item_pos) in available_items {
+        // Earlier pickups can change eligibility, so select the recipient
+        // against current state rather than reserving the whole batch up front.
+        let player_id = players.iter().find_map(|(player_id, player_info)| {
+            // Dead entities may still exist until deferred despawns are flushed.
+            if player_info.is_dead() {
+                return None;
+            }
+            let entity = player_info.entity()?;
+            let character_pos = character_positions.get(entity).ok()?;
+            if (character_pos.y - item_pos.y).abs() > ITEM_PICKUP_FLOOR_EPSILON
+                || !character_overlaps_item(character_pos, &item_pos, ITEM_COLLECTION_RADIUS)
+                || !pickup_has_effect(
+                    item_type,
+                    player_info,
+                    player_health.get(entity).ok(),
+                    &gameplay_config,
+                    &server_gameplay_config,
+                )
+            {
+                return None;
+            }
+            Some(*player_id)
+        });
+        let Some(player_id) = player_id else {
             continue;
-        }
+        };
         consume_item(&mut commands, &mut items, &placed_items_config, item_id, item_type);
         match item_type {
             ItemType::Gold => collect_gold(
@@ -220,9 +208,6 @@ fn collect_key(
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
-    // `add_key` returns true only on a state change — that's the gate for
-    // re-broadcasting `SPlayerStatus`. Already-held kinds are filtered out
-    // by the overlap pass before we get here, but be defensive.
     if player_info.add_key(kind) {
         status_broadcasts.push(SPlayerStatus {
             collected: Some(ItemType::Key(kind)),

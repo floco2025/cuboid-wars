@@ -15,7 +15,7 @@ use crate::{
 pub fn hud_plugin(app: &mut App) {
     app.add_plugins(settings_menu_plugin);
     app.add_message::<ConsoleSubmission>().add_systems(
-        Update,
+        PreUpdate,
         (console_input_system, console_send_system)
             .chain()
             .in_set(ClientSet::Console)

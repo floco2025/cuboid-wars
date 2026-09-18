@@ -2,17 +2,29 @@
 
 ## Fixes
 
-- **Client memory:** the hotel client sits at ~2.0 GB RSS with mimalloc, while forcing every freed block back to the OS measured the live set at ~1.2 GB; the rest is allocator slack behind the load-time peak, when every texture decodes before the mipmap pass releases it. Lower that peak (decode and release the textures a few at a time) or tune mimalloc's purge if the gap matters.
+- **Status and snapshot ordering:** prevent older same-generation status cues or snapshots from restoring outdated keys, power-ups, stun, or ammo. Define ordering for multiple changes within a tick, preserve pickup feedback independently, and account for pending missile expenditure. See [review R2](REVIEW.md#r2--p2-older-status-updates-overwrite-newer-inventory-within-the-same-body).
 
-- **Portal body pose jumps at the crossing:** between floor portals, the emerging twin is upside down but the main body replaces it upright when the center crosses, swapping the visible legs for the upper body. Preserve the rendered pose across the handoff before reorienting it.
+- **Portal placement ordering:** order placement and removal across cues and snapshots so a delayed cue cannot restore a moved or erased end, and an older snapshot cannot undo a new placement. The accepted state must also drive the traversal set. See [review R3](REVIEW.md#r3--p2-reordered-portal-cues-can-restore-an-obsolete-placement).
+
+- **Actor death ordering:** prevent a pre-death snapshot from recreating an actor already removed by a death cue; bound retirement state and preserve legitimate future spawns. See [review R4](REVIEW.md#r4--p2-a-pre-death-snapshot-can-recreate-an-actor-after-its-death-cue).
+
+- **Map level-count validation:** reject root and nested grids beyond the supported runtime count before compiling geometry or building bootstrap data; 256 levels currently compile but overflow the bootstrap's `u8` count. Mirror the limit in editor diagnostics. See [review R6](REVIEW.md#r6--p2-a-validated-256-level-map-exceeds-the-bootstrap-representation).
+
+- **Audio analysis reproducibility:** make `analyze_audio.py --check` tolerate insignificant measurement noise while checking audio hashes, membership, settings, and discrete metadata exactly; report useful differences. Unchanged audio currently fails with differences no larger than 0.000002 dB. See [review R7](REVIEW.md#r7--p3-audio-freshness-checking-fails-on-insignificant-numeric-differences).
+
+- **Server rate bounds:** reject unsupported rates whose derived tick duration is zero; `u32::MAX` currently passes shared validation. See [review R8](REVIEW.md#r8--p3-accepted-server-rates-can-produce-a-zero-duration-tick).
+
+- **Client memory:** the hotel client sits at ~2.0 GB RSS with mimalloc, while forcing every freed block back to the OS measured the live set at ~1.2 GB; the rest is allocator slack behind the load-time peak, when every texture decodes before the mipmap pass releases it. Lower that peak (decode and release the textures a few at a time) or tune mimalloc's purge if the gap matters.
 
 - **Walking across a floor portal does not cross it:** the aperture backing is excluded while the body's centre is inside the aperture rectangle, and at obby's walk speed and gravity the centre walks out of the short axis before it has sunk to the plane. The body then stands inside the slab and surfaces over most of a second instead of emerging from the exit; a jump in crosses because it reaches the plane sooner. Keep the backing excluded until the body has cleared it, or judge the aperture by the capsule rather than its centre.
 
-- **Body clipping flickers on moving portals:** straddle detection uses the current tick's portal frame against the interpolated player position, while the visible portal and clipping planes use the interpolated carrier pose. Use the same rendered frames for detection and clipping.
-
 ## Enhancements
 
-- **Shared editor/game map logic:** evaluate a Rust core for map source types, validation, normalization, and geometry rules, preserving invalid authored data and structured editor diagnostics. Consider a thin Python binding for the existing PySide6 UI before a full Rust editor rewrite; assess a full rewrite separately if game-rendered 3D previews become a goal.
+- **Shared editor/game map logic:** start with a small shared contract corpus covering absence/null rules, nesting, transforms, validation failures, and level bounds. Then evaluate a Rust core for source types, validation, normalization, and geometry rules, preserving invalid authored data and structured editor diagnostics. Consider a thin Python binding for the existing PySide6 UI before a full Rust editor rewrite; assess a full rewrite separately if game-rendered 3D previews become a goal.
+
+- **Workspace dependency declarations:** centralize repeated dependency versions with `[workspace.dependencies]`, preserving each crate's features and disabled defaults. Keep this cleanup separate from dependency upgrades and behavioral fixes.
+
+- **CI coverage for existing tools:** run the audio unit suite, exact-case asset-path validation with glTF fragment handling, and the standalone Linux input-helper parser test. Add audio freshness checking after its numeric reproducibility issue is fixed.
 
 - **Obby player speed:** Once Obby is debugged, reduce `movement.player.walk_speed` and `run_speed` in `config/server/maps/obby/settings.json` to 5.0 m/s. The temporary 5.1 m/s setting makes testing easier.
 
@@ -23,5 +35,11 @@
 - **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier’s slope decomposition; `running_across_flat_floor_tiles_keeps_its_speed` still fails without it on 0.35. Whatever replaces it must keep its contact query bounded, since an unbounded prediction scans the whole terrain trimesh.
 
 ## Testing
+
+- **Portal body visuals:** verify floor-to-floor handoffs and moving-portal clipping in third person, including fast crossings, frame stalls, and interpolated carrier poses. Pose preservation and rendered-frame straddle detection already exist and their focused tests pass; confirm the previously reported upright snap and flicker are gone in the integrated renderer.
+
+- **Network ordering regressions:** exercise status, portal, and actor lifecycle cues before and after snapshots, including same-tick changes, loss, wraparound, and removals. Passing login/snapshot/disconnect checks under lag and loss does not establish these ordering guarantees.
+
+- **Platform and rendering coverage:** repeat focused checks on macOS and Windows; inspect day/night/rain and portals under both renderers, listen to spatial audio, and run a multiplayer soak. Reproduce the Linux startup cursor-position error alongside focus/recapture testing before changing cursor behavior.
 
 - **Sliding-carrier pushing:** Let the moving cabin's wall push you while standing still, walking against it, and stepping sideways out of its path. Confirm open space is safe, being pinned against another wall still crushes, and boarding moving platforms remains safe. Crushed actors should play their normal explosion animation and sound.

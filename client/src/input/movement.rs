@@ -55,11 +55,8 @@ type LocalPlayerInputQuery<'w, 's> = Query<
     With<LocalPlayerMarker>,
 >;
 
-// Handle WASD movement and mouse rotation at render rate. Writes
-// `PlayerMoveIntent` and `FaceYaw` to the local-player ECS components
-// continuously so the camera and local prediction stay smooth; the movement
-// they produce reaches the server once per game tick in
-// `report_player_movement_system`, a jump as the vertical velocity it set.
+// Sample once per frame before fixed simulation. A jump writes the initial
+// vertical velocity once, retaining it if this frame has no fixed step.
 pub fn input_movement_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     camera_input: CameraMovementInput,
@@ -82,8 +79,6 @@ pub fn input_movement_system(
     }
 
     if camera_input.state.released || camera_input.console.open || camera_input.menu.open {
-        // Force idle intent locally; the commit system will pick it up at
-        // the next tick boundary.
         for (_, mut input, _, _, _) in local_player_query.iter_mut() {
             *input = PlayerMoveIntent::Idle;
         }

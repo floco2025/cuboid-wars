@@ -102,6 +102,8 @@ Development and runtime packages: [DEPENDENCIES.md](DEPENDENCIES.md).
 
 ### ECS system ownership and cadence
 
+Client movement/view input runs in `PreUpdate`, after Bevy input processing and console/settings-menu decisions, through `movement_input_plugin` in `client/src/input/plugin.rs`; its comment owns the dependency order before fixed simulation. `input/movement.rs` documents how jumps survive frames without fixed steps. Weapon selection and display toggles remain in `Update`, and firing still follows camera aim.
+
 Prefer handling discrete state at its change boundary when that keeps the code simple: ingress/lifecycle handlers own network-driven entity state, mode transitions own their presentation state, queries filtered with `Added<T>` handle entities created after initial setup, `Changed<T>` propagates component changes, and asset events drive post-load asset work. Small bounded scans are fine—especially for the game's small player, actor, and item collections—and are better than duplicated indexes, caches, or synchronization invariants. Guard equal writes only when they would wake a concrete change-detection consumer or renderer/UI propagation; a nearby comment should name that consequence.
 
 Each output component has one semantic owner. If visibility or another final value combines multiple inputs, one system computes the complete value; independent systems must not overwrite one another in a scheduled race. Zero-data ECS tags use the `...Marker` suffix. Before adding maintenance bookkeeping, compare its complexity and consistency cost with the bounded work it avoids; optimize only when the simpler scan is meaningfully expensive.
