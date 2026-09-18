@@ -29,6 +29,10 @@ impl NetworkConfig {
     pub fn validate(&self) -> Result<()> {
         ensure!(self.server_hz >= 1, "network.server_hz must be positive");
         ensure!(
+            !self.tick_duration().is_zero(),
+            "network.server_hz must be at most 1000000000 Hz so each tick lasts at least 1 ns"
+        );
+        ensure!(
             (1..=self.server_hz).contains(&self.update_hz),
             "network.update_hz must be between 1 and network.server_hz ({})",
             self.server_hz

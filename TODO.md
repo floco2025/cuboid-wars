@@ -2,10 +2,6 @@
 
 ## Fixes
 
-- **Map level-count validation:** reject root and nested grids beyond the supported runtime count before compiling geometry or building bootstrap data; 256 levels currently compile but overflow the bootstrap's `u8` count. Mirror the limit in editor diagnostics. See [review R6](REVIEW.md#r6--p2-a-validated-256-level-map-exceeds-the-bootstrap-representation).
-
-- **Server rate bounds:** reject unsupported rates whose derived tick duration is zero; `u32::MAX` currently passes shared validation. See [review R8](REVIEW.md#r8--p3-accepted-server-rates-can-produce-a-zero-duration-tick).
-
 - **Client memory:** the hotel client sits at ~2.0 GB RSS with mimalloc, while forcing every freed block back to the OS measured the live set at ~1.2 GB; the rest is allocator slack behind the load-time peak, when every texture decodes before the mipmap pass releases it. Lower that peak (decode and release the textures a few at a time) or tune mimalloc's purge if the gap matters.
 
 - **Walking across a floor portal does not cross it:** the aperture backing is excluded while the body's centre is inside the aperture rectangle, and at obby's walk speed and gravity the centre walks out of the short axis before it has sunk to the plane. The body then stands inside the slab and surfaces over most of a second instead of emerging from the exit; a jump in crosses because it reaches the plane sooner. Keep the backing excluded until the body has cleared it, or judge the aperture by the capsule rather than its centre.

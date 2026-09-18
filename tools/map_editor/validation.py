@@ -144,6 +144,9 @@ def validate_map(
         errors.append("grid_cols and grid_rows must be positive")
     if not map_data["levels"]:
         errors.append("at least one level is required")
+    # Match the server's u8 level count in MissileAirGrid, not its largest index.
+    if len(map_data["levels"]) > 255:
+        errors.append(f"at most 255 levels are supported (found {len(map_data['levels'])})")
     kinds = barrier_kinds
 
     # Support and floor capacity belong to the designer, including zones placed on light bridges.

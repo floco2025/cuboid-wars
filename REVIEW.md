@@ -2,7 +2,7 @@
 
 Reviewed on 2026-09-18 against `2b4977b0` (`Standardize JSON absence and add always-active power-ups`). The checkout was refreshed during the review, and the Rust and editor checks were repeated against that revision.
 
-This review covers correctness, structure, simplification, maintainability, assets, tooling, and selected runtime behavior. The initial review produced this report and the follow-ups in [TODO.md](TODO.md), without changing production behavior. The subsequent implementation of R1, R5, and R7 and reclassification of R2–R4 as accepted behavior are noted below; the other findings and the validation table describe the original review baseline. Temporary diagnostic harnesses and captures remain outside the repository.
+This review covers correctness, structure, simplification, maintainability, assets, tooling, and selected runtime behavior. The initial review produced this report and the follow-ups in [TODO.md](TODO.md), without changing production behavior. All five defects (R1 and R5–R8) have since been fixed, and R2–R4 have been reclassified as accepted behavior, as noted below. The evidence and validation table describe the original review baseline. Temporary diagnostic harnesses and captures remain outside the repository.
 
 ## Assessment
 
@@ -78,6 +78,8 @@ The overlap pass builds the entire collection batch against the player's initial
 
 ### R6 — P2: a validated 256-level map exceeds the bootstrap representation
 
+**Status: implemented.** Loading rejects more than 255 levels in the root and every named geometry, including unplaced definitions, before compilation. The editor reports the same limit with the affected geometry's name and preserves the authored levels. Tests cover compilation and bootstrap count conversion at 255 levels, the highest valid storey and nested placement endpoint, and rejection of 256/257 levels in root, placed, and unplaced geometry.
+
 **Locations:** [map validation](server/src/map/definition/validation.rs), [level conversion](server/src/map/definition/geometry.rs), [bootstrap construction](server/src/app.rs).
 
 Map validation requires at least one level but does not enforce the runtime count limit. Bootstrap construction converts `grid.levels.len()` to `u8` with `expect("map level count exceeds u8")`. A 256-level grid therefore gets through map compilation and cannot be represented at startup. Counts and zero-based level indexes have different upper bounds; allowing an index of 255 does not make a count of 256 fit in `u8`.
@@ -101,6 +103,8 @@ The check compares the entire regenerated JSON value using exact equality. On th
 **Verification:** harmless last-decimal differences pass; changed audio hashes, added/removed files, changed analysis settings, and meaningful measurement differences fail. Regenerating the catalog alone would hide this instance without making the check reproducible elsewhere.
 
 ### R8 — P3: accepted server rates can produce a zero-duration tick
+
+**Status: implemented.** Shared network validation requires a positive rate whose derived tick lasts at least one nanosecond, rejecting rates above 1,000,000,000 Hz. The same check covers loaded settings, CLI overrides, and client bootstrap. Tests cover zero, ordinary rates, the maximum representable rate, the next rate, `u32::MAX`, and rejection of invalid overrides before server app creation; existing update/snapshot rate checks remain in place.
 
 **Location:** [`NetworkConfig::validate` and `tick_duration`](common/src/config/network.rs).
 
@@ -178,6 +182,8 @@ The floor-portal walking failure and memory work remain in Fixes. Pressure-plate
 
 Two portal-visual entries described mechanisms already present in this revision: `portal_body_clipping_system` preserves a mapped pose during handoff, and `straddled_gate` uses rendered carrier frames. The tests `a_floor_handoff_starts_the_body_inverted_about_its_centre` and `a_carried_gate_is_straddled_where_it_is_drawn` pass. TODO now asks for integrated visual verification, including fast crossings and frame stalls, instead of requesting those mechanisms again. This does not assert that every remaining visual symptom is resolved.
 
-R1, R5, and R7 have been implemented with focused behavioral regressions and removed from TODO. R2–R4 are accepted behavior and have also been removed from Fixes; network testing now targets convergence and existing explicit guarantees. Resolve R6 and R8 at the validation boundaries; audio freshness checking is ready to add to CI. Keep dependency centralization and any shared-map extraction separate from behavioral fixes so their effects remain easy to assess.
+R1 and R5–R8 have been implemented with focused behavioral regressions and removed from TODO. R2–R4 are accepted behavior and have also been removed from Fixes; network testing now targets convergence and existing explicit guarantees. The next review follow-ups are CI coverage for the existing tools, including audio freshness checking, and dependency centralization. Keep any shared-map extraction separate so its effects remain easy to assess.
 
 Follow-up validation: all 1,608 release workspace tests passed (524 client, 350 common, 10 executable, 724 server), including seven added regressions. Clippy passed with warnings treated as errors. The input tests use the production movement-input registration, with a fixed-step recorder and overlay-state transitions; they are headless checks, not a new rendered playtest.
+
+Validation-boundary follow-up: all 1,612 release workspace tests and 443 editor tests passed, including four new Rust regressions and two editor regressions for R6/R8.

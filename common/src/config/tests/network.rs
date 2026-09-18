@@ -1,6 +1,29 @@
 use super::*;
 
 #[test]
+fn server_rates_require_a_representable_nonzero_tick() {
+    for server_hz in [1, 30, 60, 1_000_000_000] {
+        let config = NetworkConfig {
+            server_hz,
+            update_hz: 1,
+            snapshot_hz: 1,
+        };
+        config.validate().expect("representable tick rejected");
+        assert!(config.tick_duration() >= Duration::from_nanos(1));
+    }
+    for server_hz in [0, 1_000_000_001, u32::MAX] {
+        let error = NetworkConfig {
+            server_hz,
+            update_hz: 1,
+            snapshot_hz: 1,
+        }
+        .validate()
+        .expect_err("invalid server rate accepted");
+        assert!(error.to_string().contains("network.server_hz"), "{error}");
+    }
+}
+
+#[test]
 fn rates_are_independent_and_fit_within_simulation_frequency() {
     for update_hz in [1, 7, TICK_HZ] {
         for snapshot_hz in [1, 4, TICK_HZ] {

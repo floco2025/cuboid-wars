@@ -17,6 +17,40 @@ def terrain(col: int, row: int) -> dict:
 
 
 class ValidationTests(unittest.TestCase):
+    def test_maximum_level_count_accepts_the_last_storey_in_root_and_nested_geometry(self) -> None:
+        data = started_map(1, 1, DEFAULT_ALIAS)
+        data["levels"] = [empty_level(index) for index in range(255)]
+        data["levels"][254]["floors"] = [floor(0, 0)]
+        data["checkpoints"][0]["level"] = 254
+        room = empty_map(1, 1)
+        room["checkpoints"] = []
+        room["levels"] = [empty_level(index) for index in range(255)]
+        data["nested_geometry"] = {"room": room}
+        data["nested_maps"] = [nested("room", 254, [0, 0], [0, 0])]
+        catalogs = MapCatalogs({}, {}, 0.1, {DEFAULT_ALIAS: True}, [])
+        self.assertEqual(validate_document(data, catalogs), [])
+        data["nested_maps"][0]["to_level"] = 255
+        self.assertTrue(any("spans levels 254..255" in error for error in validate_document(data, catalogs)))
+
+    def test_excessive_level_counts_identify_root_placed_and_unplaced_geometry(self) -> None:
+        catalogs = MapCatalogs({}, {}, 0.1, {DEFAULT_ALIAS: True}, [])
+        for level_count in (256, 257):
+            for placement in (None, False, True):
+                with self.subTest(level_count=level_count, placement=placement):
+                    data = started_map(1, 1, DEFAULT_ALIAS)
+                    geometry = data if placement is None else empty_map(1, 1)
+                    geometry["levels"] = [empty_level(index) for index in range(level_count)]
+                    geometry["levels"][0]["floors"] = [floor(0, 0)]
+                    if placement is not None:
+                        data["nested_geometry"] = {"room": geometry}
+                        if placement:
+                            data["nested_maps"] = [nested("room", 0, [0, 0], [0, 0])]
+                    errors = validate_document(data, catalogs)
+                    prefix = "" if placement is None else "Nested room: "
+                    self.assertEqual(list(errors), [f"{prefix}at most 255 levels are supported (found {level_count})"])
+                    self.assertEqual(errors.issues[0].map_name, None if placement is None else "room")
+                    self.assertEqual(len(geometry["levels"]), level_count)
+
     def test_terrain_overlaps_duplicates_and_ramps_are_reported(self) -> None:
         data = empty_map(4, 4)
         level = data["levels"][0]

@@ -56,6 +56,62 @@ impl Drop for TestMap {
 }
 
 #[test]
+fn maximum_level_count_compiles_for_root_and_nested_grids() {
+    let fixture = TestMap::new(|map| {
+        let level = map["levels"][0].clone();
+        map["levels"] = json!(vec![level.clone(); 255]);
+        map["checkpoints"][0]["level"] = json!(254);
+        map["nested_geometry"] = json!({"room": {
+            "grid_cols": 3, "grid_rows": 2, "levels": vec![level; 255]
+        }});
+        map["nested_maps"] = json!([{
+            "map": "room", "level": 0, "from": [0, 0], "to": [0, 0], "travel_secs": 1.0
+        }]);
+    });
+    let generated = fixture.generate().expect("maximum level count rejected");
+    assert_eq!(generated.config.grids.len(), 2);
+    for grid in &generated.config.grids {
+        assert_eq!(
+            u8::try_from(grid.levels.len()).expect("bootstrap level count overflow"),
+            255
+        );
+    }
+    assert_eq!(generated.layout.checkpoints[0].level, 254);
+}
+
+#[test]
+fn excessive_level_counts_fail_loading_root_placed_and_unplaced_geometry() {
+    for level_count in [256, 257] {
+        for nested_placement in [None, Some(false), Some(true)] {
+            let fixture = TestMap::new(|map| {
+                let levels = json!(vec![map["levels"][0].clone(); level_count]);
+                if let Some(placed) = nested_placement {
+                    map["nested_geometry"] = json!({"room": {
+                        "grid_cols": 3, "grid_rows": 2, "levels": levels
+                    }});
+                    if placed {
+                        map["nested_maps"] = json!([{
+                            "map": "room", "level": 0, "from": [0, 0], "to": [0, 0], "travel_secs": 1.0
+                        }]);
+                    }
+                } else {
+                    map["levels"] = levels;
+                }
+            });
+            let error = fixture.error();
+            assert!(error.contains("validating map"), "{error}");
+            assert!(
+                error.contains(&format!("at most 255 levels are supported (found {level_count})")),
+                "{error}"
+            );
+            if nested_placement.is_some() {
+                assert!(error.contains("nested geometry \"room\""), "{error}");
+            }
+        }
+    }
+}
+
+#[test]
 fn missing_map_returns_contextual_error() {
     let directory = TestMap::new(|_| {});
     let missing = directory.0.with_file_name("missing-layout.json");

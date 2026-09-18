@@ -21,6 +21,14 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
     if map_def.levels.is_empty() {
         return Err(anyhow!("at least one level is required"));
     }
+    // Bootstrap's MissileAirGrid stores the count, not the highest index, in a u8.
+    if map_def.levels.len() > usize::from(u8::MAX) {
+        return Err(anyhow!(
+            "at most {} levels are supported (found {})",
+            u8::MAX,
+            map_def.levels.len()
+        ));
+    }
 
     validate_actor_spawn_zones(map_def)?;
     validate_checkpoints(map_def)?;

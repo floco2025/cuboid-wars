@@ -514,6 +514,20 @@ fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
 }
 
 #[test]
+fn server_rate_overrides_reject_zero_duration_ticks_before_app_creation() {
+    for server_hz in [1_000_000_001, u32::MAX] {
+        let error = server_app(NetworkOverrides {
+            server_hz: Some(server_hz),
+            ..default()
+        })
+        .expect_err("zero-duration server tick accepted")
+        .to_string();
+        assert!(error.contains("network.server_hz"), "{error}");
+        assert!(error.contains("at least 1 ns"), "{error}");
+    }
+}
+
+#[test]
 fn independent_rate_overrides_reach_init_and_leave_simulation_unchanged() {
     let mut app = server_app(NetworkOverrides {
         update_hz: Some(2),
