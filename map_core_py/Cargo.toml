@@ -13,4 +13,4 @@ workspace = true
 [dependencies]
 map_core.workspace = true
 serde_json.workspace = true
-pyo3 = { version = "=0.28.2", features = ["abi3-py310"] }
+pyo3 = { version = "0.29", features = ["abi3-py310"] }

@@ -219,11 +219,11 @@ impl GroundNavigation<'_> {
             let point = waypoints[kept];
             let end = pose.transform_position(&point.position);
             if straight.is_none()
-                && !(allowed(anchor, end)
-                    && self
+                && (!allowed(anchor, end)
+                    || !self
                         .world
                         .character_ground_route_clear(anchor, end, self.physics, self.open)
-                    && (!point.is_walk() || !graph.position_over_unpowered_bridge(&point.position)))
+                    || (point.is_walk() && graph.position_over_unpowered_bridge(&point.position)))
             {
                 return false;
             }
