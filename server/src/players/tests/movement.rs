@@ -23,14 +23,7 @@ fn movement_app(layout: MapLayout) -> (App, Entity) {
     time.advance_by(TICK_DURATION);
     app.insert_resource(time)
         .insert_resource(config.gameplay_config())
-        .insert_resource(
-            config
-                .maps
-                .get("hotel")
-                .expect("hotel map missing from the server gameplay config")
-                .settings
-                .clone(),
-        )
+        .insert_resource(config.settings.clone())
         .insert_resource(CollisionWorld::from_map_layout(&layout))
         .insert_resource(Carriers::from_layout(&layout))
         .init_resource::<PortalSet>()

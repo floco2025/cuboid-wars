@@ -92,12 +92,7 @@ class JumpReachTests(unittest.TestCase):
         self.assertTrue(all(0 <= level < 5 and 0 <= col < 20 and 0 <= row < 20 for level, col, row in reach))
 
     def parse_settings(self, settings):
-        return JumpSettings.from_settings(
-            settings,
-            "settings.json",
-            gameplay={"combat": {"health": {"player": {"max": 100}}}},
-            gameplay_source="gameplay.json",
-        )
+        return JumpSettings.from_settings({**settings, "combat": {"health": {"player": {"max": 100}}}}, "settings.json")
 
     def test_invalid_fields_name_the_source_and_field(self):
         settings = {

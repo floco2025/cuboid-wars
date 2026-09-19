@@ -62,6 +62,7 @@ class EditorWorkflowTests(WindowTestCase):
                 "kind": "scuttler",
                 "count": [2, 4, 6],
                 "respawn_secs": None,
+                "beam_in_secs": 2.0,
                 "roam_distance": 7.5,
                 "switch": "barrier_1",
                 "switch_inverted": True,
@@ -76,8 +77,8 @@ class EditorWorkflowTests(WindowTestCase):
             self.window.add_actor_spawn_zone_rect((5, 5), (5, 5))
         placed = self.window.map_data["actor_spawn_zones"][-1]
         self.assertEqual(
-            (placed["kind"], placed["count"], placed["respawn_secs"], placed["roam_distance"]),
-            ("scuttler", [2, 4, 6], None, 7.5),
+            (placed["kind"], placed["count"], placed["respawn_secs"], placed["beam_in_secs"], placed["roam_distance"]),
+            ("scuttler", [2, 4, 6], None, 2.0, 7.5),
         )
         self.assertEqual((placed["switch"], placed["switch_inverted"]), ("barrier_1", True))
 
@@ -244,7 +245,7 @@ class EditorWorkflowTests(WindowTestCase):
         actor = panel.widgets[("kind",)]
         self.edit_text(actor.lineEdit(), "unfinished")
         gameplay = json.loads(self.global_path.read_text())
-        gameplay["actors"]["kinds"]["crawler"] = {"immovable": False}
+        gameplay["actors"]["crawler"] = {"immovable": False}
         self.global_path.write_text(json.dumps(gameplay))
         window.reload_dependencies()
         self.assertIn("crawler", window.actor_kinds)

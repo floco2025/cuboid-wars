@@ -29,8 +29,8 @@ pub(super) fn validate_covers_actor_kinds<'a, T>(
 
 pub(crate) fn validate_map_actor_kinds(config: &ServerGameplayConfig, map_config: &MapConfig) -> Result<()> {
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        if !config.actors.kinds.contains_key(&zone.kind) {
-            let mut known: Vec<&str> = config.actors.kinds.keys().map(String::as_str).collect();
+        if !config.actors.contains_key(&zone.kind) {
+            let mut known: Vec<&str> = config.actors.keys().map(String::as_str).collect();
             known.sort_unstable();
             bail!(
                 "map actor spawn zone {zone_idx} references unknown actor kind {:?} (known kinds: {known:?})",

@@ -334,10 +334,12 @@ pub struct RampDef {
 }
 
 // `respawn_secs` is the delay before a killed actor's slot refills; `null`
-// never refills. `switch` names the map switch that lets the zone spawn;
-// without one the zone fills at startup and refills on its timer.
-// `until_checkpoint` ends the zone once any player has reached that
-// checkpoint, and `on_checkpoint` says whether its remaining actors go too.
+// never refills. `beam_in_secs` is the ghost window before each actor
+// appears, after that delay for a refill; 0 pops it in at once. `switch`
+// names the map switch that lets the zone spawn; without one the zone fills
+// at startup and refills on its timer. `until_checkpoint` ends the zone once
+// any player has reached that checkpoint, and `on_checkpoint` says whether
+// its remaining actors go too.
 #[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
 pub struct ActorSpawnZoneDef {
     pub level: u32,
@@ -353,6 +355,9 @@ pub struct ActorSpawnZoneDef {
     #[serde(deserialize_with = "deserialize_required_option")]
     #[serde(serialize_with = "crate::values::serialize_optional_number")]
     pub respawn_secs: Option<f32>,
+    #[serde(default)]
+    #[serde(serialize_with = "crate::values::serialize_number")]
+    pub beam_in_secs: f32,
     #[serde(default)]
     pub switch: Option<String>,
     #[serde(default)]

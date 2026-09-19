@@ -94,7 +94,7 @@ pub(crate) fn flying_actors_behavior_system(
             *pos,
             character.0.eye_height(),
             kind.vision_range,
-            config.actors.settings.threat_memory_secs,
+            kind.threat_memory_secs,
             gameplay.player.physics(),
             &states,
             &world,

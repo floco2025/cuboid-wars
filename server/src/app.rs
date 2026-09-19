@@ -1,6 +1,6 @@
 use std::{thread, time::Instant};
 
-use anyhow::{Error, Result, bail};
+use anyhow::{Error, Result};
 use bevy::prelude::*;
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
     },
     characters::characters_plugin,
     combat::{PendingExplosions, combat_plugin},
-    config::{FallDamageConfigs, ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
+    config::{FallDamageConfigs, GameplayCatalog, ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
     map::{GeneratedMap, MapFireworks, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
@@ -78,7 +78,7 @@ pub fn build_server_app(
     local: Option<LocalLink>,
 ) -> Result<App> {
     build_server_app_with_loader(
-        ServerGameplayConfig::load_default()?,
+        GameplayCatalog::load_default()?.select(options.map.as_deref())?,
         options,
         listener,
         local,
@@ -96,12 +96,7 @@ fn build_server_app_with_loader(
     options.network.apply(&mut server_gameplay_config.network);
     server_gameplay_config.network.validate()?;
     let gameplay_config = server_gameplay_config.gameplay_config();
-    let map_name = options.map.as_deref().unwrap_or(&server_gameplay_config.default_map);
-    let Some(map_server_config) = server_gameplay_config.maps.get(map_name).cloned() else {
-        let mut known: Vec<&str> = server_gameplay_config.maps.keys().map(String::as_str).collect();
-        known.sort_unstable();
-        bail!("unknown map {map_name:?} (available: {known:?})");
-    };
+    let map_name = server_gameplay_config.map_name.clone();
     let GeneratedMap {
         layout: map_layout,
         config: map_config,
@@ -112,15 +107,18 @@ fn build_server_app_with_loader(
         fireworks,
         fireworks_switch,
     } = load_map(
-        map_name,
+        &map_name,
         server_gameplay_config.network.server_hz,
-        &map_server_config.settings,
+        &server_gameplay_config.settings,
     )?;
-    let power_ups_config = map_server_config.power_ups.clone();
-    let placed_items_config = map_server_config.placed_items.clone().unwrap_or_default();
-    let weather_state = WeatherState::new(server_gameplay_config.cycles.weather.clone(), map_server_config.weather);
+    let power_ups_config = server_gameplay_config.power_ups.clone();
+    let placed_items_config = server_gameplay_config.placed_items.clone().unwrap_or_default();
+    let weather_state = WeatherState::new(
+        server_gameplay_config.cycles.weather.clone(),
+        server_gameplay_config.weather,
+    );
     let celestial_clock = CelestialClockAnchor::initial(&map_settings.celestial, 0);
-    let random_items = RandomItems::from_config(map_server_config.random_items.as_ref());
+    let random_items = RandomItems::from_config(server_gameplay_config.random_items.as_ref());
     let portal_assignments = PortalAssignments::new(map_settings.portals);
     let map_geometry = map_config.root_grid().geometry;
     for (index, item) in map_config.placed_items.iter().enumerate() {
@@ -134,12 +132,12 @@ fn build_server_app_with_loader(
     nav_graphs.add_ladder_routes(&map_layout, &map_settings, &server_gameplay_config);
     validate_map_actor_kinds(&server_gameplay_config, &map_config)?;
     validate_map_quests(
-        &map_server_config.quests,
+        &server_gameplay_config.quests,
         &map_config,
-        map_server_config.random_items.as_ref(),
+        server_gameplay_config.random_items.as_ref(),
         fireworks_switch,
     )?;
-    let quest_catalog = QuestCatalog::from_quests(&map_server_config.quests);
+    let quest_catalog = QuestCatalog::from_quests(&server_gameplay_config.quests);
     let quest_board = QuestBoard::from_catalog(&quest_catalog, fireworks_switch);
     collision_world.set_locked_pressure_plates(quest_board.locked_switches());
     let actor_territories = ActorTerritories::new(&map_config, &server_gameplay_config);
@@ -173,6 +171,7 @@ fn build_server_app_with_loader(
             .map_err(Error::msg)?,
     };
 
+    let respawn = server_gameplay_config.respawn;
     let mut app = App::new();
     // Server time is tick time: every update advances `Time` by exactly one
     // tick, so delta-driven timers and tick-driven carriers agree and the
@@ -199,8 +198,8 @@ fn build_server_app_with_loader(
         .insert_resource(map_items)
         .insert_resource(map_settings)
         .insert_resource(FallDamageConfigs {
-            player: map_server_config.player_fall,
-            actor: map_server_config.actor_fall,
+            player: server_gameplay_config.player_fall,
+            actor: server_gameplay_config.actor_fall,
         })
         .insert_resource(world_bootstrap)
         .insert_resource(weather_state)
@@ -221,10 +220,7 @@ fn build_server_app_with_loader(
         .insert_resource(server_gameplay_config)
         .insert_resource(quest_catalog)
         .insert_resource(quest_board)
-        .insert_resource(PlayerMap::new(
-            map_server_config.respawn,
-            power_ups_config.always_active(),
-        ))
+        .insert_resource(PlayerMap::new(respawn, power_ups_config.always_active()))
         .insert_resource(actors)
         .insert_resource(ItemMap::default())
         .insert_resource(ItemSpawner::default())

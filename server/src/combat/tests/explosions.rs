@@ -28,12 +28,7 @@ use common::{
 fn test_app() -> App {
     let server = fixtures::server_config();
     let gameplay = server.gameplay_config();
-    let map_settings = server
-        .maps
-        .get(&server.default_map)
-        .expect("default map settings missing")
-        .settings
-        .clone();
+    let map_settings = server.settings.clone();
     let collision_world = CollisionWorld::from_map_layout(&MapLayout::default());
     let quest_catalog = QuestCatalog::from_config(&server);
     let quest_board = QuestBoard::from_catalog(&quest_catalog, None);

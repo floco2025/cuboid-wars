@@ -380,7 +380,15 @@ fn plate_zone_and_motion_defs_parse_their_switch() {
         r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [2], "respawn_secs": 90}"#,
     )
     .expect("zone def parses");
-    assert_eq!((zone.respawn_secs, zone.switch), (Some(90.0), None));
+    assert_eq!(
+        (zone.respawn_secs, zone.switch, zone.beam_in_secs),
+        (Some(90.0), None, 0.0)
+    );
+    let zone: ActorSpawnZoneDef = serde_json::from_str(
+        r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [2], "respawn_secs": 90, "beam_in_secs": 2.5}"#,
+    )
+    .expect("zone def with a beam-in parses");
+    assert_eq!(zone.beam_in_secs, 2.5);
     let zone: ActorSpawnZoneDef = serde_json::from_str(
         r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [2], "respawn_secs": null, "switch": "guards"}"#,
     )

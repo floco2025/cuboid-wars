@@ -358,9 +358,10 @@ impl MapLayout {
     }
 }
 
-// Per-map tuning defined in `config/server/maps/<name>/settings.json`, plus
-// the catalogs the root layout defines, shipped to clients in `SInit` so
-// prediction uses the server's values.
+// The map-facing part of a map's effective configuration (the `gameplay.json`
+// defaults with the map's `settings.json` overrides), plus the catalogs the
+// root layout defines, shipped to clients in `SInit` so prediction uses the
+// server's values.
 #[derive(Debug, Clone, Encode, Decode, Resource, Deserialize)]
 pub struct MapSettings {
     #[serde(deserialize_with = "deserialize_required_option")]

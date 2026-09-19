@@ -79,6 +79,7 @@ fn zone_until_two(on_checkpoint: CheckpointResponse) -> ActorSpawnZone {
         kind: test_kinds::CONTACT.into(),
         count: vec![1],
         respawn_secs: None,
+        beam_in_secs: 0.0,
         switch: None,
         until_checkpoint: Some(2),
         on_checkpoint,

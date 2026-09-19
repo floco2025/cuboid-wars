@@ -11,6 +11,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from .constants import ASSETS_PATH, GAMEPLAY_PATH, ITEM_TYPES, MAP_NAME_RE, MAPS_DIR, POWER_UP_TYPES
+from .core import call
 
 
 def pickup_types(settings: dict, source: str) -> tuple[str, ...]:
@@ -45,7 +46,7 @@ def load_wall_light_kinds() -> list[str]:
 
 def load_actor_kinds() -> list[str]:
     with GAMEPLAY_PATH.open(encoding="utf-8") as handle:
-        return sorted(json.load(handle)["actors"]["kinds"])
+        return sorted(json.load(handle)["actors"])
 
 
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
@@ -204,6 +205,8 @@ def map_name_from_path(path: Path) -> str:
     return name
 
 
+# The map's effective settings: the gameplay.json defaults with the map
+# file's overrides applied by the shared map core rule.
 def load_map_settings(name: str) -> dict:
     if name not in list_map_names():
         raise ValueError(f"Map {name!r} is not registered in {GAMEPLAY_PATH}.")
@@ -212,7 +215,13 @@ def load_map_settings(name: str) -> dict:
     for key in ("grounds", "random_items", "placed_items"):
         if key not in settings or (settings[key] is not None and not isinstance(settings[key], dict)):
             raise ValueError(f"{path}: {key} requires an object or explicit null")
-    return settings
+    defaults = {
+        key: value for key, value in read_settings_json(GAMEPLAY_PATH).items() if key not in ("default_map", "maps")
+    }
+    try:
+        return call("merge_map_settings", defaults, settings)
+    except ValueError as error:
+        raise ValueError(f"{path}: {error}") from None
 
 
 def require_map_settings(name: str) -> None:

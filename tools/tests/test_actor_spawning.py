@@ -123,7 +123,7 @@ class SpawnValidationTests(unittest.TestCase):
 
 class SpawnWindowTests(WindowTestCase):
     def test_count_control_edits_lists_and_rejects_invalid_input(self):
-        dialog = ActorSpawnFieldsDialog(self.window, "zapper", [0, 2, 4], None, [], None)
+        dialog = ActorSpawnFieldsDialog(self.window, "zapper", [0, 2, 4], None, 3.0, [], None)
         control = dialog.count_control
         self.assertEqual(dialog.values()[1], [0, 2, 4])
         control.counts.setText("2, 1")
@@ -138,12 +138,12 @@ class SpawnWindowTests(WindowTestCase):
 
     def test_course_control_reports_the_closing_checkpoint_and_response(self):
         dialog = ActorSpawnFieldsDialog(
-            self.window, "zapper", [1], None, [], None, until_checkpoint=4, on_checkpoint="destroy"
+            self.window, "zapper", [1], None, 3.0, [], None, until_checkpoint=4, on_checkpoint="destroy"
         )
-        self.assertEqual(dialog.values()[8:], (4, "destroy"))
+        self.assertEqual(dialog.values()[9:], (4, "destroy"))
         self.assertTrue(dialog.course.response.isEnabled())
         dialog.course.until.setValue(0)
-        self.assertEqual(dialog.values()[8:], (None, None))
+        self.assertEqual(dialog.values()[9:], (None, None))
         self.assertFalse(dialog.course.response.isEnabled())
         dialog.deleteLater()
 

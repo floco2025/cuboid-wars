@@ -388,6 +388,7 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
             kind: kind.into(),
             count: vec![1],
             respawn_secs: None,
+            beam_in_secs: 0.0,
             switch: None,
             until_checkpoint: None,
             on_checkpoint: Default::default(),
@@ -396,12 +397,11 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
     let mut config = test_kinds::server_config();
     config
         .actors
-        .kinds
         .get_mut(CONTACT)
         .expect("contact kind missing")
         .character
         .can_use_ladders = true;
-    let settings = &config.maps[&config.default_map].settings;
+    let settings = &config.settings;
     let mut graphs = NavGraphs::new(&map);
     graphs.add_ladder_routes(&fixture.layout, settings, &config);
     let graph = graphs.get(CarrierId::WORLD);
@@ -499,13 +499,12 @@ fn ladder_links_belong_to_their_carrier_grid() {
     let mut config = test_kinds::server_config();
     config
         .actors
-        .kinds
         .get_mut(CONTACT)
         .expect("contact kind missing")
         .character
         .can_use_ladders = true;
     let mut graphs = NavGraphs::new(&map);
-    graphs.add_ladder_routes(&fixture.layout, &config.maps[&config.default_map].settings, &config);
+    graphs.add_ladder_routes(&fixture.layout, &config.settings, &config);
     assert!(graphs.get(CarrierId::WORLD).ladder_links(CONTACT).is_empty());
     assert_eq!(graphs.get(CarrierId(1)).ladder_links(CONTACT).len(), 2);
 }

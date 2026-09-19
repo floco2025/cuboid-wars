@@ -52,7 +52,7 @@ fn every_carrier_carries_a_standing_player_through_its_cycle() {
     let server_gameplay = fixtures::server_config();
     let gameplay = server_gameplay.gameplay_config();
     let physics = gameplay.player.physics();
-    let map_settings = &server_gameplay.maps["hotel"].settings;
+    let map_settings = &server_gameplay.settings;
     let layout = carrier_fixture(map_settings);
     let mut world = CollisionWorld::from_map_layout(&layout);
     let mut carriers = Carriers::from_layout(&layout);

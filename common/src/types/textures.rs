@@ -7,6 +7,7 @@ use serde::Deserialize;
 use super::{FaceMaterials, TERRAIN_MATERIAL};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TextureSettings {
     // An id in the client's `assets.json::materials`; the server never resolves it.
     pub material: String,

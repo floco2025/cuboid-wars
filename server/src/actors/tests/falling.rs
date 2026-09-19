@@ -19,7 +19,7 @@ const CONTACT_MAX_HEALTH: f32 = 150.0;
 fn fall_app(safe_distance: f32, lethal_distance: f32) -> (App, Receiver<ServerMessage>) {
     let server = test_kinds::server_config();
     assert_eq!(server.combat.health.expect_actor(CONTACT).max, CONTACT_MAX_HEALTH);
-    let mut settings = server.maps[&server.default_map].settings.clone();
+    let mut settings = server.settings.clone();
     settings.movement.gravity = TEST_GRAVITY;
     let mut app = App::new();
     app.insert_resource(server)

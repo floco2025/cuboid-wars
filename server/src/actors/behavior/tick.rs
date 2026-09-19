@@ -151,7 +151,7 @@ pub fn actors_behavior_system(
             *pos,
             character.eye_height(),
             kind_config.vision_range,
-            server_gameplay_config.actors.settings.threat_memory_secs,
+            kind_config.threat_memory_secs,
             gameplay_config.player.physics(),
             &player_states,
             &collision_world,

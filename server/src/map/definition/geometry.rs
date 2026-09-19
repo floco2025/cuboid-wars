@@ -388,6 +388,7 @@ fn actor_spawn_zones(
                 kind: zone.kind.clone(),
                 count: zone.count.clone(),
                 respawn_secs: zone.respawn_secs,
+                beam_in_secs: zone.beam_in_secs,
                 switch: scope
                     .target_switch(zone.switch.as_deref())
                     .with_context(|| format!("actor_spawn_zones[{idx}]"))?,

@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QMessageBox, QVBoxLayout
 
 from ..catalogs import load_actor_kinds
-from .controls import CourseControl, RespawnSpinBox, SwitchControl
+from .controls import BeamInSpinBox, CourseControl, RespawnSpinBox, SwitchControl
 from .spawn_volume import SpawnVolumeControl
 from .spawn_count import SpawnCountControl
 from ..constants import ITEM_KEY_TYPE, ITEM_TYPES
@@ -13,8 +13,8 @@ from ..display import color_icon
 
 class ActorSpawnFieldsDialog(QDialog):
     """Modal dialog with a searchable actor catalog, a count field, the
-    respawn delay, the map switch that activates the zone, if any, and the
-    checkpoint that ends it, if any.
+    respawn delay, the beam-in time, the map switch that activates the zone,
+    if any, and the checkpoint that ends it, if any.
 
     Used both when painting a new actor zone and when editing an existing
     one.
@@ -28,6 +28,7 @@ class ActorSpawnFieldsDialog(QDialog):
         kind: str,
         count: list[int],
         respawn_secs: int | None,
+        beam_in_secs: float,
         switches: list[str],
         switch: str | None,
         inverted: bool = False,
@@ -51,6 +52,7 @@ class ActorSpawnFieldsDialog(QDialog):
         self._kind_edit.completer().setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.count_control = SpawnCountControl(count)
         self._respawn_spin = RespawnSpinBox(respawn_secs)
+        self._beam_in_spin = BeamInSpinBox(beam_in_secs)
         self.control = SwitchControl(switches, switch, inverted)
         self._switch_combo = self.control.switch
         self.volume = SpawnVolumeControl(level_names or ["Level 0"], level, levels, roam_distance)
@@ -60,6 +62,7 @@ class ActorSpawnFieldsDialog(QDialog):
         form.addRow("Kind:", self._kind_edit)
         form.addRow(self.count_control)
         form.addRow("Respawn:", self._respawn_spin)
+        form.addRow("Beam-in:", self._beam_in_spin)
         form.addRow(self.volume)
         form.addRow(self.control)
         form.addRow(self.course)
@@ -88,6 +91,7 @@ class ActorSpawnFieldsDialog(QDialog):
             self._kind_edit.currentText().strip(),
             self.count_control.value(),
             self._respawn_spin.secs(),
+            self._beam_in_spin.secs(),
             switch,
             inverted,
             *self.volume.values(),
@@ -101,12 +105,13 @@ class ActorSpawnFieldsDialog(QDialog):
         kind: str,
         count: list[int],
         respawn_secs: int | None,
+        beam_in_secs: float,
         switches: list[str],
         switch: str | None,
         inverted: bool = False,
         **volume,
     ):
-        dialog = cls(parent, kind, count, respawn_secs, switches, switch, inverted, **volume)
+        dialog = cls(parent, kind, count, respawn_secs, beam_in_secs, switches, switch, inverted, **volume)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         values = dialog.values()

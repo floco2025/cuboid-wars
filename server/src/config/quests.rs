@@ -9,6 +9,7 @@ use common::protocol::{QuestId, QuestScope};
 // One map's server-side quest definition. Quest updates project the display
 // fields, scope, and threshold; advancement rules, filters, and points stay server-only.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Quest {
     pub id: QuestId,
     pub kind: QuestKind,

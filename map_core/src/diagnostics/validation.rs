@@ -186,6 +186,9 @@ pub fn validate_map(data: &Value, context: &Value) -> Vec<Issue> {
             }
             _ => {}
         }
+        if !nonnegative(&get(zone, "beam_in_secs", json!(0.0))) {
+            errors.add(format!("{label} beam_in_secs must be a finite non-negative number"));
+        }
         switch_target(zone, &label, context, &mut errors);
         records::zone_course(
             zone,

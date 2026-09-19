@@ -38,8 +38,9 @@ def _actor_spawn_zone_body(zone: dict) -> str:
         "kind": zone["kind"],
         "count": zone["count"],
     }
-    if "respawn_secs" in zone:
-        body["respawn_secs"] = zone["respawn_secs"]
+    for field in ("respawn_secs", "beam_in_secs"):
+        if field in zone:
+            body[field] = zone[field]
     for field in ("levels", "roam_distance"):
         if field in zone:
             body[field] = zone[field]

@@ -45,12 +45,12 @@ class PortalSettings:
         return self.body_height / 2 + CHARACTER_CONTACT_OFFSET
 
     @classmethod
-    def from_settings(cls, settings, source, *, gameplay, gameplay_source):
-        movement = JumpSettings.from_settings(settings, source, gameplay=gameplay, gameplay_source=gameplay_source)
+    def from_settings(cls, settings, source):
+        movement = JumpSettings.from_settings(settings, source)
         return cls(
             movement,
-            setting_number(gameplay, gameplay_source, "player.movement_collider.height"),
-            setting_number(gameplay, gameplay_source, "player.movement_collider.diameter") / 2,
+            setting_number(settings, source, "player.movement_collider.height"),
+            setting_number(settings, source, "player.movement_collider.diameter") / 2,
         )
 
     def scenarios(self, running):

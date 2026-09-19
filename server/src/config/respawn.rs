@@ -2,6 +2,7 @@ use common::config::DeathTrigger;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RespawnConfig {
     pub players: PlayerRespawnMode,
     pub actors: ActorRespawnConfig,
@@ -16,6 +17,7 @@ pub enum PlayerRespawnMode {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ActorRespawnConfig {
     pub on_player_death: DeathTrigger,
     pub scope: ActorRespawnScope,

@@ -111,6 +111,17 @@ class NormalizationTests(unittest.TestCase):
         result = canonicalize_map(data)
         self.assertEqual([zone["roam_distance"] for zone in result["actor_spawn_zones"]], [1, 2, 10])
 
+    def test_actor_zone_beam_in_is_dropped_at_zero_and_distinguishes_zones(self) -> None:
+        data = empty_map(2, 2)
+        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "respawn_secs": 90}
+        data["actor_spawn_zones"] = [
+            dict(zone, beam_in_secs=2.5),
+            dict(zone, beam_in_secs=0),
+            dict(zone, beam_in_secs=0.0),
+        ]
+        result = canonicalize_map(data)
+        self.assertEqual(result["actor_spawn_zones"], [zone, {**zone, "beam_in_secs": 2.5}])
+
     def test_actor_zone_identity_preserves_switch_inversion(self) -> None:
         data = empty_map(2, 2)
         zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "switch": "guards"}

@@ -28,14 +28,8 @@ use common::{
 fn test_app() -> App {
     let server = fixtures::server_config();
     let gameplay = server.gameplay_config();
-    let power_ups = server.maps[&server.default_map].power_ups.clone();
-    let placed_items = server
-        .maps
-        .get(&server.default_map)
-        .expect("default map settings missing")
-        .placed_items
-        .clone()
-        .unwrap_or_default();
+    let power_ups = server.power_ups.clone();
+    let placed_items = server.placed_items.clone().unwrap_or_default();
     let quest_catalog = QuestCatalog::from_config(&server);
     let quest_board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut app = App::new();

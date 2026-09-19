@@ -4,9 +4,11 @@ use rand::random;
 use serde_json::{Value, json};
 use std::path::PathBuf;
 
+use crate::config::PowerUpMode;
+
 #[test]
 fn shipped_server_settings_load_and_validate() {
-    ServerGameplayConfig::load_default().expect("shipped server settings invalid");
+    GameplayCatalog::load_default().expect("shipped server settings invalid");
 }
 
 struct TestConfigDir(PathBuf);
@@ -21,10 +23,18 @@ impl TestConfigDir {
         config
     }
 
+    fn shipped_gameplay() -> Value {
+        serde_json::from_str(fixtures::GAMEPLAY_JSON).expect("global settings JSON invalid")
+    }
+
     fn write_registry(&self, names: Value, default_map: &str) {
-        let mut global: Value = serde_json::from_str(fixtures::GAMEPLAY_JSON).expect("global settings JSON invalid");
+        let mut global = Self::shipped_gameplay();
         global["maps"] = names;
         global["default_map"] = json!(default_map);
+        self.write_gameplay(&global);
+    }
+
+    fn write_gameplay(&self, global: &Value) {
         fs::write(self.0.join("gameplay.json"), global.to_string()).expect("temporary global settings unwritable");
     }
 
@@ -34,8 +44,19 @@ impl TestConfigDir {
         fs::write(directory.join("settings.json"), text).expect("temporary map settings unwritable");
     }
 
-    fn load(&self) -> Result<ServerGameplayConfig> {
-        ServerGameplayConfig::load_from_path(&self.0.join("gameplay.json"))
+    // The test map with one override written over its file.
+    fn write_hotel_override(&self, edit: impl FnOnce(&mut Value)) {
+        let mut settings: Value = serde_json::from_str(fixtures::MAP_JSON).expect("hotel settings JSON invalid");
+        edit(&mut settings);
+        self.write_settings("hotel", &settings.to_string());
+    }
+
+    fn load(&self) -> Result<GameplayCatalog> {
+        GameplayCatalog::load_from_path(&self.0.join("gameplay.json"))
+    }
+
+    fn load_error(&self, accepted: &str) -> String {
+        format!("{:#}", self.load().expect_err(accepted))
     }
 }
 
@@ -48,14 +69,110 @@ impl Drop for TestConfigDir {
 #[test]
 fn settings_and_controls_resolve_beside_global_config_without_loading_unregistered_folders() {
     let directory = TestConfigDir::new();
-    let mut settings: Value = serde_json::from_str(fixtures::MAP_JSON).expect("hotel settings JSON invalid");
-    settings["celestial"]["north_yaw_degrees"] = json!(37.0);
-    directory.write_settings("hotel", &settings.to_string());
+    directory.write_hotel_override(|settings| settings["celestial"]["north_yaw_degrees"] = json!(37.0));
     directory.write_settings("unregistered", "invalid JSON");
     let loaded = directory.load().expect("valid split config rejected");
     assert_eq!(loaded.default_map, "hotel");
     assert_eq!(loaded.maps.len(), 1);
     assert_eq!(loaded.maps["hotel"].settings.celestial.north_yaw_degrees, 37.0);
+    assert_eq!(loaded.maps["hotel"].map_name, "hotel");
+}
+
+#[test]
+fn a_map_override_replaces_one_leaf_and_inherits_the_rest() {
+    let directory = TestConfigDir::new();
+    directory.write_hotel_override(|settings| settings["movement"]["gravity"] = json!(24.0));
+    let loaded = directory.load().expect("valid override rejected");
+    let movement = &loaded.maps["hotel"].settings.movement;
+    let defaults = TestConfigDir::shipped_gameplay();
+    assert_eq!(movement.gravity, 24.0);
+    assert_eq!(
+        f64::from(movement.low_gravity),
+        defaults["movement"]["low_gravity"].as_f64().expect("default")
+    );
+    assert_eq!(
+        f64::from(movement.player.run_speed),
+        defaults["movement"]["player"]["run_speed"].as_f64().expect("default")
+    );
+}
+
+#[test]
+fn a_tag_change_replaces_the_variant_and_a_matching_tag_merges() {
+    let directory = TestConfigDir::new();
+    directory.write_hotel_override(|settings| {
+        settings["power_ups"]["single_shot"] = json!({"mode": "always"});
+        settings["power_ups"]["speed"] = json!({"duration_secs": null});
+    });
+    let loaded = directory.load().expect("variant overrides rejected");
+    let power_ups = &loaded.maps["hotel"].power_ups;
+    assert_eq!(power_ups.single_shot, PowerUpMode::Always {});
+    assert_eq!(power_ups.speed, PowerUpMode::Pickup { duration_secs: None });
+}
+
+#[test]
+fn an_unknown_override_key_names_the_map_file_and_path() {
+    let directory = TestConfigDir::new();
+    directory.write_hotel_override(|settings| settings["movement"]["playr"] = json!({"run_speed": 1.0}));
+    let error = directory.load_error("typo accepted");
+    assert!(error.contains("maps/hotel/settings.json"), "{error}");
+    assert!(error.contains("movement.playr is not a key in the defaults"), "{error}");
+}
+
+#[test]
+fn a_map_cannot_add_an_actor_kind_or_change_a_kinds_body_class() {
+    let directory = TestConfigDir::new();
+    directory.write_hotel_override(|settings| settings["actors"]["banana"] = json!({"vision_range": 1.0}));
+    let error = directory.load_error("new kind accepted");
+    assert!(error.contains("actors.banana is not a key in the defaults"), "{error}");
+    directory.write_hotel_override(|settings| settings["actors"]["turret"] = json!({"immovable": false}));
+    let error = directory.load_error("immovable override accepted");
+    assert!(
+        error.contains("actors.turret.immovable cannot be overridden per map"),
+        "{error}"
+    );
+    directory.write_hotel_override(|settings| settings["actors"]["turret"] = json!({"vision_range": 12.0}));
+    let loaded = directory.load().expect("vision override rejected");
+    assert_eq!(loaded.maps["hotel"].expect_actor("turret").vision_range, 12.0);
+}
+
+#[test]
+fn a_global_key_in_a_map_file_is_rejected() {
+    let directory = TestConfigDir::new();
+    directory.write_hotel_override(|settings| settings["network"] = json!({"server_hz": 60}));
+    let error = directory.load_error("per-map network accepted");
+    assert!(error.contains("network is global"), "{error}");
+}
+
+#[test]
+fn a_missing_content_section_names_the_map_file() {
+    let directory = TestConfigDir::new();
+    directory.write_hotel_override(|settings| {
+        settings.as_object_mut().expect("settings object").remove("quests");
+    });
+    let error = directory.load_error("missing content accepted");
+    assert!(error.contains("maps/hotel/settings.json"), "{error}");
+    assert!(error.contains("missing field `quests`"), "{error}");
+}
+
+#[test]
+fn a_bad_or_unknown_default_names_the_gameplay_file() {
+    let directory = TestConfigDir::new();
+    let mut global = TestConfigDir::shipped_gameplay();
+    global["combat"]["damage"]["projectile"] = json!(-1.0);
+    directory.write_gameplay(&global);
+    let error = directory.load_error("negative default damage accepted");
+    assert!(error.contains("gameplay.json: combat.damage.projectile"), "{error}");
+    let mut global = TestConfigDir::shipped_gameplay();
+    global["scorring"] = json!({});
+    directory.write_gameplay(&global);
+    let error = directory.load_error("unknown default section accepted");
+    assert!(error.contains("gameplay.json"), "{error}");
+    assert!(error.contains("unknown field `scorring`"), "{error}");
+    let mut global = TestConfigDir::shipped_gameplay();
+    global["quests"] = json!([]);
+    directory.write_gameplay(&global);
+    let error = directory.load_error("content default accepted");
+    assert!(error.contains("unknown field `quests`"), "{error}");
 }
 
 #[test]
@@ -70,6 +187,27 @@ fn a_registered_map_loads_without_a_layout() {
 }
 
 #[test]
+fn select_picks_the_default_or_named_map_and_lists_the_rest() {
+    let directory = TestConfigDir::new();
+    directory.write_settings("fresh", fixtures::MAP_JSON);
+    directory.write_registry(json!(["hotel", "fresh"]), "hotel");
+    let loaded = directory.load().expect("valid catalog rejected");
+    assert_eq!(loaded.select(None).expect("default map missing").map_name, "hotel");
+    assert_eq!(
+        loaded.select(Some("fresh")).expect("named map missing").map_name,
+        "fresh"
+    );
+    let error = loaded
+        .select(Some("lobby"))
+        .expect_err("unknown map accepted")
+        .to_string();
+    assert!(
+        error.contains("unknown map \"lobby\"") && error.contains("[\"fresh\", \"hotel\"]"),
+        "{error}"
+    );
+}
+
+#[test]
 fn registry_errors_are_rejected_before_map_files_are_read() {
     let directory = TestConfigDir::new();
     for (names, default_map, expected) in [
@@ -81,7 +219,7 @@ fn registry_errors_are_rejected_before_map_files_are_read() {
         (json!({"hotel": {}}), "hotel", "expected a sequence"),
     ] {
         directory.write_registry(names, default_map);
-        let error = format!("{:#}", directory.load().expect_err("invalid registry accepted"));
+        let error = directory.load_error("invalid registry accepted");
         assert!(error.contains("gameplay.json"), "{error}");
         assert!(error.contains(expected), "{error}");
     }
@@ -90,7 +228,7 @@ fn registry_errors_are_rejected_before_map_files_are_read() {
 #[test]
 fn maps_load_independent_fall_thresholds() {
     let directory = TestConfigDir::new();
-    let mut settings: Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON invalid");
+    let mut settings: Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
     settings["player_fall"] = json!({"safe_distance": 2.0, "lethal_distance": 6.0});
     settings["actor_fall"] = json!({"safe_distance": 3.0, "lethal_distance": 7.0});
     directory.write_settings("first", &settings.to_string());
@@ -113,70 +251,39 @@ fn maps_load_independent_fall_thresholds() {
 fn every_registered_settings_file_is_required_and_errors_name_its_source() {
     let directory = TestConfigDir::new();
     directory.write_registry(json!(["hotel", "obby"]), "hotel");
-    let error = format!(
-        "{:#}",
-        directory.load().expect_err("missing non-default map settings accepted")
-    );
-    assert!(
-        error.contains(
-            directory
-                .0
-                .join("maps/obby/settings.json")
-                .to_str()
-                .expect("test path is not UTF-8")
-        ),
-        "{error}"
-    );
+    let obby = directory.0.join("maps/obby/settings.json");
+    let obby = obby.to_str().expect("test path is not UTF-8");
+    let error = directory.load_error("missing non-default map settings accepted");
+    assert!(error.contains(obby), "{error}");
     assert!(error.contains("failed to read"), "{error}");
     directory.write_settings("obby", "{");
-    let error = format!("{:#}", directory.load().expect_err("malformed map settings accepted"));
-    assert!(
-        error.contains(
-            directory
-                .0
-                .join("maps/obby/settings.json")
-                .to_str()
-                .expect("test path is not UTF-8")
-        ),
-        "{error}"
-    );
+    let error = directory.load_error("malformed map settings accepted");
+    assert!(error.contains(obby), "{error}");
     assert!(error.contains("failed to parse"), "{error}");
     directory.write_settings("obby", "{}");
-    let error = format!(
-        "{:#}",
-        directory.load().expect_err("missing map settings fields accepted")
-    );
-    assert!(
-        error.contains(
-            directory
-                .0
-                .join("maps/obby/settings.json")
-                .to_str()
-                .expect("test path is not UTF-8")
-        ),
-        "{error}"
-    );
+    let error = directory.load_error("missing map settings fields accepted");
+    assert!(error.contains(obby), "{error}");
     assert!(error.contains("missing field"), "{error}");
 }
 
 #[test]
 fn invalid_map_values_name_the_settings_file_and_field() {
     let directory = TestConfigDir::new();
-    let mut settings: Value = serde_json::from_str(fixtures::MAP_JSON).expect("hotel settings JSON invalid");
-    settings["geometry"]["grid_cell_size"] = json!(0);
-    directory.write_settings("hotel", &settings.to_string());
-    let error = format!("{:#}", directory.load().expect_err("invalid map geometry accepted"));
+    directory.write_hotel_override(|settings| settings["geometry"]["grid_cell_size"] = json!(0));
+    let error = directory.load_error("invalid map geometry accepted");
     assert!(error.contains("settings.json: geometry.grid_cell_size"), "{error}");
+    directory.write_hotel_override(|settings| settings["combat"]["damage"]["projectile"] = json!(-1.0));
+    let error = directory.load_error("negative projectile damage accepted");
+    assert!(error.contains("settings.json: combat.damage.projectile"), "{error}");
 }
 
 #[test]
 fn immovable_actor_rejects_unused_speed_settings() {
     let mut config = fixtures::server_config();
-    let map = config.maps.get_mut("obby").expect("Obby settings missing");
-    let speeds = *map.settings.movement.expect_actor("zapper");
-    map.settings.movement.actors.insert("turret".into(), speeds);
+    let speeds = *config.settings.movement.expect_actor("zapper");
+    config.settings.movement.actors.insert("turret".into(), speeds);
     let error = config
-        .validate(Path::new("."))
+        .validate("settings.json: ")
         .expect_err("immovable actor accepted speed settings");
     assert!(
         error
@@ -188,11 +295,11 @@ fn immovable_actor_rejects_unused_speed_settings() {
 #[test]
 fn movable_actor_requires_speed_settings() {
     let mut config = fixtures::server_config();
-    let actor = config.actors.kinds.get_mut("turret").expect("turret config missing");
+    let actor = config.actors.get_mut("turret").expect("turret config missing");
     actor.character.immovable = false;
 
     let error = config
-        .validate(Path::new("."))
+        .validate("settings.json: ")
         .expect_err("movable actor accepted missing speeds");
     assert!(error.to_string().contains("missing actor kind \"turret\""));
 }

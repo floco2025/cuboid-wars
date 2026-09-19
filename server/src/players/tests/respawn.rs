@@ -30,8 +30,7 @@ use common::{
 pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> App {
     let mut config = fixtures::server_config();
     config.player.respawn_secs = 2.0;
-    config.actors.settings.spawn_warning_secs = 3.0;
-    let settings = config.maps[&config.default_map].settings.clone();
+    let settings = config.settings.clone();
     let mut cells = CellGrid::new(6, 1);
     for cell in &mut cells.rows[0] {
         cell.has_floor = true;
@@ -58,6 +57,7 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
             kind: "turret".into(),
             count: vec![1],
             respawn_secs: None,
+            beam_in_secs: 3.0,
             switch: None,
             until_checkpoint: None,
             on_checkpoint: Default::default(),

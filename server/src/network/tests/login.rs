@@ -37,7 +37,7 @@ fn bootstrap_actor_values_are_sorted_and_match_config() {
     let config = fixtures::server_config();
     let actors = config.gameplay_bootstrap().actors;
     let combat = &config.combat;
-    assert_eq!(actors.len(), config.actors.kinds.len());
+    assert_eq!(actors.len(), config.actors.len());
     let kinds: Vec<&str> = actors.iter().map(|(kind, _)| kind.as_str()).collect();
     let mut sorted = kinds.clone();
     sorted.sort_unstable();
@@ -54,12 +54,7 @@ fn bootstrap_actor_values_are_sorted_and_match_config() {
 #[test]
 fn init_message_round_trips_complete_bootstrap() {
     let config = fixtures::server_config();
-    let map_settings = config
-        .maps
-        .get(&config.default_map)
-        .expect("default map settings missing")
-        .settings
-        .clone();
+    let map_settings = config.settings.clone();
     let message = ServerMessage::Init(SInit {
         current_tick: 42,
         celestial_clock: CelestialClockAnchor {
@@ -123,5 +118,5 @@ fn init_message_round_trips_complete_bootstrap() {
     );
     assert_eq!(kinds[1].color, HexColor([0xf0, 0xc0, 0x20]));
     assert_eq!(decoded.world.map.items.key_kinds(), [BarrierKindId(1)]);
-    assert_eq!(decoded.world.gameplay.actors.len(), config.actors.kinds.len());
+    assert_eq!(decoded.world.gameplay.actors.len(), config.actors.len());
 }

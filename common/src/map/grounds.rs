@@ -31,6 +31,7 @@ const PEBBLE_EXTENT: f32 = 160.0;
 const ROCK_SINK: f32 = 0.1;
 
 #[derive(Debug, Clone, Deserialize, Encode, Decode)]
+#[serde(deny_unknown_fields)]
 pub struct GroundsSettings {
     pub level: u8,
 }

@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use super::*;
 
 fn settings() -> MapSettings {
-    fixtures::server_config().maps["hotel"].settings.clone()
+    fixtures::server_config().settings.clone()
 }
 
 struct TestMap(PathBuf);
@@ -130,7 +130,7 @@ fn missing_map_returns_contextual_error() {
 #[test]
 fn a_map_cannot_reference_an_alias_outside_its_host_catalog() {
     let config = fixtures::server_config();
-    let mut settings = config.maps["obby"].settings.clone();
+    let mut settings = config.settings.clone();
     settings.textures.remove("basement-floor");
     let fixture = TestMap::new(|_| {});
     let error = generate_map_at(&fixture.0, "fixture", 30, &settings)

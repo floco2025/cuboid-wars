@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import constants
-from .catalogs import load_map_settings, map_settings_path, read_settings_json
+from .catalogs import load_map_settings, map_settings_path
 from .compact_widgets import CompactComboBox
 from .portal_jump import PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PortalSettings, calculate_landings, entry_states
 from .portal_surfaces import PortalSurfaces, portals_overlap
@@ -142,12 +142,7 @@ class PortalJumpOverlay:
     def reload_settings(self):
         try:
             name = self.window.catalog_map
-            self.settings = PortalSettings.from_settings(
-                load_map_settings(name),
-                str(map_settings_path(name)),
-                gameplay=read_settings_json(constants.GAMEPLAY_PATH),
-                gameplay_source=str(constants.GAMEPLAY_PATH),
-            )
+            self.settings = PortalSettings.from_settings(load_map_settings(name), str(map_settings_path(name)))
             self.error = None
         except (OSError, ValueError) as exc:
             self.settings = None

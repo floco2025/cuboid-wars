@@ -49,17 +49,44 @@ class MapSettingsTests(ConfigTestCase):
     def test_only_registered_folders_load_and_layout_is_not_required(self):
         settings = map_settings_path("hotel")
         settings.parent.mkdir(parents=True)
-        settings.write_text('{"portals": "both", "grounds": null, "random_items": null, "placed_items": null}')
+        settings.write_text('{"grounds": null, "random_items": null, "placed_items": null}')
         other = map_settings_path("unregistered")
         other.parent.mkdir()
         other.write_text("{}")
         self.assertEqual(list_map_names(), ["hotel"])
-        self.assertEqual(
-            load_map_settings("hotel"), {"portals": "both", "grounds": None, "random_items": None, "placed_items": None}
-        )
+        self.assertEqual(load_map_settings("hotel"), {"grounds": None, "random_items": None, "placed_items": None})
         self.assertFalse(map_layout_path("hotel").exists())
         with self.assertRaisesRegex(ValueError, "not registered"):
             load_map_settings("unregistered")
+
+    def test_settings_merge_over_the_defaults_and_reject_unknown_keys(self):
+        self.global_path.write_text(
+            json.dumps(
+                {
+                    "default_map": "hotel",
+                    "maps": ["hotel"],
+                    "movement": {"gravity": 25, "player": {"run_speed": 9}},
+                    "power_ups": {"speed": {"mode": "pickup", "duration_secs": 30}},
+                }
+            )
+        )
+        settings = map_settings_path("hotel")
+        settings.parent.mkdir(parents=True)
+        content = {"grounds": None, "random_items": None, "placed_items": None}
+        settings.write_text(
+            json.dumps({**content, "movement": {"gravity": 24}, "power_ups": {"speed": {"mode": "always"}}})
+        )
+        self.assertEqual(
+            load_map_settings("hotel"),
+            {
+                "movement": {"gravity": 24, "player": {"run_speed": 9}},
+                "power_ups": {"speed": {"mode": "always"}},
+                **content,
+            },
+        )
+        settings.write_text(json.dumps({**content, "movement": {"playr": {}}}))
+        with self.assertRaisesRegex(ValueError, "hotel/settings.json: movement.playr is not a key in the defaults"):
+            load_map_settings("hotel")
 
     def test_missing_malformed_and_incomplete_settings_identify_the_file(self):
         with self.assertRaisesRegex(OSError, "hotel/settings.json"):

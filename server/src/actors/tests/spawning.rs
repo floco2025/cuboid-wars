@@ -32,7 +32,7 @@ fn multilevel_zone_shares_its_count_and_fills_both_floors_when_needed() {
 
 fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
     let config = test_kinds::server_config();
-    let settings = config.maps[&config.default_map].settings.clone();
+    let settings = config.settings.clone();
     let mut cells = CellGrid::new(cols, 1);
     for cell in &mut cells.rows[0] {
         cell.has_floor = true;
@@ -59,6 +59,7 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
             kind: kind.into(),
             count: vec![count],
             respawn_secs,
+            beam_in_secs: 3.0,
             switch: None,
             until_checkpoint: None,
             on_checkpoint: Default::default(),
@@ -367,6 +368,7 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 kind: CONTACT.to_owned(),
                 count: vec![2],
                 respawn_secs: Some(90.0),
+                beam_in_secs: 3.0,
                 switch: None,
                 until_checkpoint: None,
                 on_checkpoint: Default::default(),
@@ -383,6 +385,7 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 kind: BEAM.to_owned(),
                 count: vec![1],
                 respawn_secs: Some(180.0),
+                beam_in_secs: 3.0,
                 switch: None,
                 until_checkpoint: None,
                 on_checkpoint: Default::default(),
@@ -421,6 +424,15 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
     assert_eq!(pending.0[1].due_tick, 60);
     assert_eq!(spawner.refills[&0], vec![Some(0.0)]);
     assert_eq!(spawner.refills[&1], vec![Some(120.0)]);
+}
+
+#[test]
+fn a_zone_without_beam_in_spawns_its_actors_the_tick_their_slots_fill() {
+    let mut app = spawn_app(2, &[2], None);
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].beam_in_secs = 0.0;
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    assert_eq!(live_count(&app), 2);
 }
 
 #[test]
@@ -717,11 +729,10 @@ fn flying_spawns_reselect_blocked_reservations_and_restart_the_warning() {
     let mut app = spawn_app_for(BEAM, 2, &[1], None);
     {
         let mut config = app.world_mut().resource_mut::<ServerGameplayConfig>();
-        let kind = config.actors.kinds.get_mut(BEAM).expect("test beam kind missing");
+        let kind = config.actors.get_mut(BEAM).expect("test beam kind missing");
         kind.character.locomotion = ActorLocomotion::Flying;
-
-        config.actors.settings.spawn_warning_secs = 1.0;
     }
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].beam_in_secs = 1.0;
     for cell in &mut app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
         .cells
         .rows[0]
@@ -1059,7 +1070,6 @@ fn blocked_flying_beam_ins_retry_only_their_reserved_slot() {
     app.world_mut()
         .resource_mut::<ServerGameplayConfig>()
         .actors
-        .kinds
         .get_mut(BEAM)
         .expect("beam kind")
         .character

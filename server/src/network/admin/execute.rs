@@ -478,10 +478,10 @@ fn quest_status(players: &PlayerMap, board: &QuestBoard, catalog: &QuestCatalog,
 
 fn actor_kind_error(kind: Option<&str>, config: &ServerGameplayConfig) -> Option<String> {
     let kind = kind?;
-    if config.actors.kinds.contains_key(kind) {
+    if config.actors.contains_key(kind) {
         return None;
     }
-    let mut kinds: Vec<&str> = config.actors.kinds.keys().map(String::as_str).collect();
+    let mut kinds: Vec<&str> = config.actors.keys().map(String::as_str).collect();
     kinds.sort_unstable();
     Some(format!("unknown actor kind {kind:?} (kinds: {})", kinds.join(", ")))
 }

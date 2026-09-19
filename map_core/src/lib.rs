@@ -4,11 +4,13 @@ mod diagnostics;
 pub mod geometry;
 pub mod load;
 pub mod schema;
+pub mod settings;
 mod transforms;
 mod values;
 
 pub use authoring::dispatch;
 pub use load::load_map;
+pub use settings::{MAP_CONTENT_KEYS, merge_map_settings};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]

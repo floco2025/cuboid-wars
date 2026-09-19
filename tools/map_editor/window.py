@@ -24,6 +24,7 @@ from .catalogs import (
 )
 from .control_actions import ControlActionsMixin
 from .constants import (
+    DEFAULT_ACTOR_BEAM_IN_SECS,
     DEFAULT_ACTOR_COUNT,
     DEFAULT_ACTOR_RESPAWN_SECS,
     MODE_RAMP_DOWN,
@@ -124,6 +125,7 @@ class EditorWindow(
         self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: list[int] = [DEFAULT_ACTOR_COUNT]
         self.recent_actor_spawn_respawn_secs: int | None = DEFAULT_ACTOR_RESPAWN_SECS
+        self.recent_actor_beam_in_secs: float = DEFAULT_ACTOR_BEAM_IN_SECS
         # Empty = the zone has no switch.
         self.recent_actor_spawn_switch: str = ""
         self.recent_actor_spawn_inverted = False

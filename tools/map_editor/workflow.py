@@ -48,6 +48,7 @@ class WorkflowMixin:
                 ("kind", "recent_actor_spawn_kind", ""),
                 ("count", "recent_actor_spawn_count", [1]),
                 ("respawn_secs", "recent_actor_spawn_respawn_secs", None),
+                ("beam_in_secs", "recent_actor_beam_in_secs", 0.0),
                 ("switch", "recent_actor_spawn_switch", ""),
                 ("switch_inverted", "recent_actor_spawn_inverted", False),
                 ("levels", "recent_actor_spawn_levels", 1),

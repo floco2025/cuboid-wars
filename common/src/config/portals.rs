@@ -5,6 +5,7 @@ use serde::Deserialize;
 use super::validation::validate_positive_finite;
 
 #[derive(Debug, Clone, Copy, Encode, Decode, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PortalsConfig {
     pub range: f32,
 }

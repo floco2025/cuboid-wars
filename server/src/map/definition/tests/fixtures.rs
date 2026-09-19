@@ -181,6 +181,7 @@ pub(crate) fn actor_zone(level: u32, col: i32, row: i32) -> ActorSpawnZoneDef {
         kind: "actor".into(),
         count: vec![1],
         respawn_secs: Some(90.0),
+        beam_in_secs: 0.0,
         switch: None,
         until_checkpoint: None,
         on_checkpoint: None,

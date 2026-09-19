@@ -115,6 +115,7 @@ impl Fixture {
                 kind: kind.to_owned(),
                 count: vec![1],
                 respawn_secs: None,
+                beam_in_secs: 0.0,
                 switch: None,
                 until_checkpoint: None,
                 on_checkpoint: Default::default(),

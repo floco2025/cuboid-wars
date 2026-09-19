@@ -44,14 +44,14 @@ class JumpSettings:
     fall: FallSettings
 
     @classmethod
-    def from_settings(cls, settings: dict, source: str, *, gameplay: dict, gameplay_source: str) -> "JumpSettings":
+    def from_settings(cls, settings: dict, source: str) -> "JumpSettings":
         def number(path: str, *, allow_zero: bool = False) -> float:
             return setting_number(settings, source, path, allow_zero=allow_zero)
 
         fall = FallSettings(
             number("player_fall.safe_distance", allow_zero=True),
             number("player_fall.lethal_distance"),
-            setting_number(gameplay, gameplay_source, "combat.health.player.max"),
+            number("combat.health.player.max"),
         )
         if fall.safe_distance >= fall.lethal_distance:
             raise ValueError(f"{source}: player_fall.safe_distance must be < player_fall.lethal_distance")

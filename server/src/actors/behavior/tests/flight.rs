@@ -42,6 +42,7 @@ fn home(physics: CharacterPhysicsConfig, world: &CollisionWorld) -> AirHome {
         kind: CONTACT.into(),
         count: vec![1],
         respawn_secs: None,
+        beam_in_secs: 0.0,
         switch: None,
         switch_inverted: false,
         until_checkpoint: None,

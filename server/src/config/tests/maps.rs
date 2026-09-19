@@ -1,11 +1,11 @@
 use crate::config::fixtures;
-use std::{collections::HashMap, path::Path};
 
 use anyhow::Result;
+use serde_json::json;
 
 use super::{
-    actors::ActorKindServerConfig,
     falling::FallDamageConfig,
+    gameplay::ServerGameplayConfig,
     items::{PlacedItemsConfig, PowerUpMode, PowerUpsConfig},
     maps::*,
     respawn::RespawnConfig,
@@ -16,12 +16,6 @@ use common::{
     config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
     protocol::{MapSettings, PortalMode},
 };
-
-fn actor_kinds() -> HashMap<String, ActorKindServerConfig> {
-    let mut actors = fixtures::server_config().actors.kinds;
-    actors.remove("turret");
-    actors
-}
 
 fn ok_movement() -> MapMovementConfig {
     MapMovementConfig {
@@ -56,78 +50,86 @@ fn ok_movement() -> MapMovementConfig {
     }
 }
 
-fn ok_map_entry() -> MapServerConfig {
-    MapServerConfig {
-        settings: MapSettings {
-            grounds: None,
-            celestial: CelestialMapSettings {
-                latitude_degrees: 40.0,
-                season: Season::Summer,
-                north_yaw_degrees: 0.0,
-                start_local_time: LocalTime::parse("09:00").expect("valid fixture time"),
-                start_moon_phase: 0.25,
-            },
-            textures: Default::default(),
+fn ok_config() -> ServerGameplayConfig {
+    let mut config = fixtures::server_config();
+    config.settings = MapSettings {
+        grounds: None,
+        celestial: CelestialMapSettings {
+            latitude_degrees: 40.0,
+            season: Season::Summer,
+            north_yaw_degrees: 0.0,
+            start_local_time: LocalTime::parse("09:00").expect("valid fixture time"),
+            start_moon_phase: 0.25,
+        },
+        textures: Default::default(),
+        geometry: sizes(),
+        movement: ok_movement(),
+        portals: PortalMode::Both,
+        switches: Vec::new(),
+        barrier_kinds: Vec::new(),
+        bridge_kinds: Vec::new(),
+    };
+    config.random_items = None;
+    config.player_fall = FallDamageConfig {
+        safe_distance: 8.0,
+        lethal_distance: 15.0,
+    };
+    config.actor_fall = FallDamageConfig {
+        safe_distance: 8.0,
+        lethal_distance: 15.0,
+    };
+    config.respawn = RespawnConfig::default();
+    config.placed_items = Some(ok_placed_items());
+    config.power_ups = PowerUpsConfig {
+        speed: PowerUpMode::Pickup {
+            duration_secs: Some(30.0),
+        },
+        single_shot: PowerUpMode::Pickup { duration_secs: None },
+        multi_shot: PowerUpMode::Pickup {
+            duration_secs: Some(25.0),
+        },
+        low_gravity: PowerUpMode::Pickup {
+            duration_secs: Some(20.0),
+        },
+        portal_gun: PowerUpMode::Pickup { duration_secs: None },
+    };
+    config.weather = WeatherMode::Clear;
+    config.quests = Vec::new();
+    config
+}
 
-            geometry: sizes(),
-            movement: ok_movement(),
-            portals: PortalMode::Both,
-            switches: Vec::new(),
-            barrier_kinds: Vec::new(),
-            bridge_kinds: Vec::new(),
-        },
-        random_items: None,
-        player_fall: FallDamageConfig {
-            safe_distance: 8.0,
-            lethal_distance: 15.0,
-        },
-        actor_fall: FallDamageConfig {
-            safe_distance: 8.0,
-            lethal_distance: 15.0,
-        },
-        respawn: RespawnConfig::default(),
-        placed_items: Some(ok_placed_items()),
-        power_ups: PowerUpsConfig {
-            speed: PowerUpMode::Pickup {
-                duration_secs: Some(30.0),
-            },
-            single_shot: PowerUpMode::Pickup { duration_secs: None },
-            multi_shot: PowerUpMode::Pickup {
-                duration_secs: Some(25.0),
-            },
-            low_gravity: PowerUpMode::Pickup {
-                duration_secs: Some(20.0),
-            },
-            portal_gun: PowerUpMode::Pickup { duration_secs: None },
-        },
-        weather: WeatherMode::Clear,
-        quests: Vec::new(),
-    }
+// A map's own settings parsed over the shipped defaults.
+fn parse_map(map: serde_json::Value) -> Result<ServerGameplayConfig> {
+    ServerGameplayConfig::from_override("hotel", &fixtures::gameplay_defaults(), &map)
+}
+
+fn validate_config(config: &ServerGameplayConfig, name: &str) -> Result<()> {
+    config.validate(&format!("maps/{name}/settings.json: "))
 }
 
 #[test]
-fn map_respawn_policy_requires_every_field_and_rejects_unknown_modes() {
-    let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
-    let mut entry = source.clone();
-    entry
-        .as_object_mut()
-        .expect("map entry is not an object")
-        .remove("respawn");
-    assert!(serde_json::from_value::<MapServerConfig>(entry.clone()).is_err());
+fn map_respawn_policy_rejects_unknown_modes() {
+    let content: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
     for invalid in [
-        serde_json::json!({}),
-        serde_json::json!({"players": "individual"}),
-        serde_json::json!({"actors": {"on_player_death": "never", "scope": "dead"}}),
-        serde_json::json!({"players": "group", "actors": {"scope": "all"}}),
-        serde_json::json!({"players": "group", "actors": {"on_player_death": "any"}}),
-        serde_json::json!({"players": "group_on_respawn", "actors": {"on_player_death": "any", "scope": "all"}}),
-        serde_json::json!({"players": "group", "actors": {"on_player_death": "sometimes", "scope": "all"}}),
-        serde_json::json!({"players": "group", "actors": {"on_player_death": "any", "scope": "some"}}),
-        serde_json::json!({"players": "group", "actors": {"on_player_death": "always", "scope": "all"}}),
+        json!({"players": "group_on_respawn", "actors": {"on_player_death": "any", "scope": "all"}}),
+        json!({"players": "group", "actors": {"on_player_death": "sometimes", "scope": "all"}}),
+        json!({"players": "group", "actors": {"on_player_death": "any", "scope": "some"}}),
+        json!({"players": "group", "actors": {"on_player_death": "always", "scope": "all"}}),
+        json!({"players": "group", "actors": {"on_player_death": "any", "scope": "all", "extra": 1}}),
     ] {
-        entry["respawn"] = invalid;
-        assert!(serde_json::from_value::<MapServerConfig>(entry.clone()).is_err());
+        let mut map = content.clone();
+        map["respawn"] = invalid;
+        assert!(parse_map(map).is_err());
     }
+    let mut map = content.clone();
+    map["respawn"] = json!({"players": "group"});
+    assert_eq!(
+        parse_map(map).expect("partial respawn policy rejected").respawn,
+        RespawnConfig {
+            players: crate::config::PlayerRespawnMode::Group,
+            ..RespawnConfig::default()
+        }
+    );
 }
 
 fn ok_placed_items() -> PlacedItemsConfig {
@@ -147,106 +149,42 @@ fn ok_random_items(types: &[&str]) -> RandomItemsConfig {
     }
 }
 
-fn one_map(name: &str) -> HashMap<String, MapServerConfig> {
-    HashMap::from([(name.to_owned(), ok_map_entry())])
+fn with_random_items(random_items: RandomItemsConfig) -> ServerGameplayConfig {
+    let mut config = ok_config();
+    config.random_items = Some(random_items);
+    config
 }
 
-fn one_map_with_random_items(name: &str, random_items: RandomItemsConfig) -> HashMap<String, MapServerConfig> {
-    let mut maps = one_map(name);
-    maps.get_mut(name).expect("map entry missing").random_items = Some(random_items);
-    maps
-}
-
-fn validate_test_maps(maps: &HashMap<String, MapServerConfig>, default_map: &str) -> Result<()> {
-    validate_maps(maps, default_map, &actor_kinds(), Path::new("maps"))
-}
-
-fn parse_map_entry(portals: &str, weather: Option<&str>) -> Result<MapServerConfig, serde_json::Error> {
-    let mut value = serde_json::json!({
-        "celestial": {
-            "latitude_degrees": 40.0,
-            "season": "summer",
-            "north_yaw_degrees": 0.0,
-            "start_local_time": "09:00",
-            "start_moon_phase": 0.25
-        },
-        "textures": {},
-        "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
-        "movement": {
-            "player": { "walk_speed": 6.0, "run_speed": 9.0, "speed_power_up": 1.6, "jump_speed": 12.0 },
-            "actors": {
-                "scuttler": { "roam_speed": 3.0, "active_speed": 5.0 },
-                "bruiser": { "roam_speed": 5.0, "active_speed": 8.0 },
-                "zapper": { "roam_speed": 2.0, "active_speed": 4.0 }
-            },
-            "missile_speed": 16.0,
-            "projectile_speed": 90.0,
-            "gravity": 25.0,
-            "low_gravity": 5.0,
-            "ladder_climb_ratio": 0.4,
-            "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
-        },
-        "portals": portals,
-        "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
-        "actor_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
-        "random_items": null,
-        "grounds": null,
-        "respawn": { "players": "individual", "actors": { "on_player_death": "never", "scope": "dead" } },
-        "power_ups": { "speed": {"mode":"pickup","duration_secs":30.0}, "single_shot": {"mode":"pickup","duration_secs":null}, "multi_shot": {"mode":"pickup","duration_secs":25.0}, "low_gravity": {"mode":"pickup","duration_secs":20.0}, "portal_gun": {"mode":"pickup","duration_secs":null} },
-        "placed_items": {
-            "respawn_secs": {
-                "speed": 60.0,
-                "single_shot": 5.0,
-                "multi_shot": 60.0,
-                "low_gravity": 60.0,
-                "portal_gun": 1.0,
-                "health_potion": 60.0,
-                "gold": 60.0,
-                "key": 30.0,
-                "missile_pack": 30.0
-            }
-        },
-        "quests": []
-    });
-    let object = value.as_object_mut().expect("map entry JSON is not an object");
+fn parse_map_entry(portals: &str, weather: Option<&str>) -> Result<ServerGameplayConfig> {
+    let mut map: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
+    map["portals"] = portals.into();
     if let Some(weather) = weather {
-        object.insert("weather".to_owned(), weather.into());
+        map["weather"] = weather.into();
     }
-    serde_json::from_value(value)
+    parse_map(map)
 }
 
 #[test]
-fn validate_maps_accepts_single_valid_entry() {
-    validate_test_maps(&one_map("hotel"), "hotel").expect("valid map registry should pass");
+fn validate_accepts_a_valid_config() {
+    validate_config(&ok_config(), "hotel").expect("valid map config should pass");
 }
 
 #[test]
-fn map_fall_thresholds_are_required_and_validated_with_their_source() {
-    let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
-    let thresholds: [(&str, fn(&mut MapServerConfig) -> &mut FallDamageConfig); 2] = [
-        ("player_fall", |entry| &mut entry.player_fall),
-        ("actor_fall", |entry| &mut entry.actor_fall),
+fn map_fall_thresholds_are_validated_with_their_source() {
+    let content: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
+    let thresholds: [(&str, fn(&mut ServerGameplayConfig) -> &mut FallDamageConfig); 2] = [
+        ("player_fall", |config| &mut config.player_fall),
+        ("actor_fall", |config| &mut config.actor_fall),
     ];
     for (key, fall) in thresholds {
-        let mut missing = source.clone();
-        missing
-            .as_object_mut()
-            .expect("map settings is not an object")
-            .remove(key);
-        assert!(
-            serde_json::from_value::<MapServerConfig>(missing).is_err(),
-            "{key} is optional"
-        );
         for invalid in [
-            serde_json::json!({}),
-            serde_json::json!({"safe_distance": 4}),
-            serde_json::json!({"lethal_distance": 12}),
-            serde_json::json!({"safe_distance": true, "lethal_distance": 12}),
-            serde_json::json!({"safe_distance": 4, "lethal_distance": "12"}),
+            json!({"safe_distance": true, "lethal_distance": 12}),
+            json!({"safe_distance": 4, "lethal_distance": "12"}),
+            json!({"safe_distance": 4, "lethal_distance": 12, "extra": 0}),
         ] {
-            let mut entry = source.clone();
-            entry[key] = invalid;
-            assert!(serde_json::from_value::<MapServerConfig>(entry).is_err());
+            let mut map = content.clone();
+            map[key] = invalid;
+            assert!(parse_map(map).is_err());
         }
         for (safe, lethal, field) in [
             (-1.0, 12.0, "safe_distance"),
@@ -257,12 +195,12 @@ fn map_fall_thresholds_are_required_and_validated_with_their_source() {
             (f32::NAN, 12.0, "safe_distance"),
             (4.0, f32::INFINITY, "lethal_distance"),
         ] {
-            let mut maps = one_map("example");
-            *fall(maps.get_mut("example").expect("map missing")) = FallDamageConfig {
+            let mut config = ok_config();
+            *fall(&mut config) = FallDamageConfig {
                 safe_distance: safe,
                 lethal_distance: lethal,
             };
-            let error = validate_test_maps(&maps, "example").expect_err("invalid fall thresholds accepted");
+            let error = validate_config(&config, "example").expect_err("invalid fall thresholds accepted");
             assert!(
                 error
                     .to_string()
@@ -270,132 +208,99 @@ fn map_fall_thresholds_are_required_and_validated_with_their_source() {
                 "{error}"
             );
         }
-        let mut maps = one_map("example");
-        fall(maps.get_mut("example").expect("map missing")).safe_distance = 0.0;
-        validate_test_maps(&maps, "example").expect("zero safe distance rejected");
+        let mut config = ok_config();
+        fall(&mut config).safe_distance = 0.0;
+        validate_config(&config, "example").expect("zero safe distance rejected");
     }
 }
 
 #[test]
 fn validate_maps_rejects_empty_registry() {
-    let err = validate_test_maps(&HashMap::new(), "hotel").expect_err("empty registry must be rejected");
+    let err = validate_map_registry([], "hotel").expect_err("empty registry must be rejected");
     assert!(err.to_string().contains("at least one"));
 }
 
 #[test]
 fn validate_maps_rejects_unknown_default_map() {
-    let err = validate_test_maps(&one_map("hotel"), "lobby").expect_err("unknown default must be rejected");
+    let err = validate_map_registry(["hotel"], "lobby").expect_err("unknown default must be rejected");
     assert!(err.to_string().contains("default_map"));
 }
 
 #[test]
 fn validate_maps_rejects_path_unsafe_name() {
-    let err = validate_test_maps(&one_map("../hotel"), "../hotel").expect_err("path chars must be rejected");
+    let err = validate_map_registry(["../hotel"], "../hotel").expect_err("path chars must be rejected");
     assert!(err.to_string().contains("ASCII"));
 }
 
 #[test]
 fn validate_maps_rejects_non_positive_gravity() {
-    let mut maps = one_map("hotel");
-    maps.get_mut("hotel")
-        .expect("hotel entry missing")
-        .settings
-        .movement
-        .gravity = 0.0;
-    let err = validate_test_maps(&maps, "hotel").expect_err("zero gravity must be rejected");
+    let mut config = ok_config();
+    config.settings.movement.gravity = 0.0;
+    let err = validate_config(&config, "hotel").expect_err("zero gravity must be rejected");
     assert!(err.to_string().contains("gravity"));
 }
 
 #[test]
 fn validate_maps_rejects_non_positive_cell_size() {
-    let mut maps = one_map("hotel");
-    maps.get_mut("hotel")
-        .expect("hotel entry missing")
-        .settings
-        .geometry
-        .grid_cell_size = 0.0;
-    let err = validate_test_maps(&maps, "hotel").expect_err("zero cell size must be rejected");
+    let mut config = ok_config();
+    config.settings.geometry.grid_cell_size = 0.0;
+    let err = validate_config(&config, "hotel").expect_err("zero cell size must be rejected");
     assert!(err.to_string().contains("settings.json: geometry.grid_cell_size"));
 }
 
 #[test]
 fn validate_maps_rejects_non_positive_player_speed() {
-    let mut maps = one_map("hotel");
-    maps.get_mut("hotel")
-        .expect("hotel entry missing")
-        .settings
-        .movement
-        .player
-        .run_speed = 0.0;
-    let err = validate_test_maps(&maps, "hotel").expect_err("zero run speed must be rejected");
+    let mut config = ok_config();
+    config.settings.movement.player.run_speed = 0.0;
+    let err = validate_config(&config, "hotel").expect_err("zero run speed must be rejected");
     assert!(err.to_string().contains("movement.player.run_speed"));
 }
 
 #[test]
 fn validate_maps_rejects_missing_actor_movement() {
-    let mut maps = one_map("hotel");
-    maps.get_mut("hotel")
-        .expect("hotel entry missing")
-        .settings
-        .movement
-        .actors
-        .remove("scuttler");
-    let err = validate_test_maps(&maps, "hotel").expect_err("missing actor movement must be rejected");
+    let mut config = ok_config();
+    config.settings.movement.actors.remove("scuttler");
+    let err = validate_config(&config, "hotel").expect_err("missing actor movement must be rejected");
     assert!(err.to_string().contains("movement.actors"));
     assert!(err.to_string().contains("scuttler"));
 }
 
 #[test]
 fn validate_maps_rejects_unknown_actor_movement() {
-    let mut maps = one_map("hotel");
-    let movement = maps
-        .get_mut("hotel")
-        .expect("hotel entry missing")
+    let mut config = ok_config();
+    let movement = config
         .settings
         .movement
         .actors
         .get("zapper")
         .copied()
         .expect("zapper movement missing");
-    maps.get_mut("hotel")
-        .expect("hotel entry missing")
-        .settings
-        .movement
-        .actors
-        .insert("banana".to_owned(), movement);
-    let err = validate_test_maps(&maps, "hotel").expect_err("unknown actor movement must be rejected");
+    config.settings.movement.actors.insert("banana".to_owned(), movement);
+    let err = validate_config(&config, "hotel").expect_err("unknown actor movement must be rejected");
     assert!(err.to_string().contains("movement.actors"));
     assert!(err.to_string().contains("banana"));
 }
 
 #[test]
 fn validate_maps_rejects_negative_low_gravity() {
-    let mut maps = one_map("hotel");
-    maps.get_mut("hotel")
-        .expect("hotel entry missing")
-        .settings
-        .movement
-        .low_gravity = -1.0;
-    let err = validate_test_maps(&maps, "hotel").expect_err("negative low_gravity must be rejected");
+    let mut config = ok_config();
+    config.settings.movement.low_gravity = -1.0;
+    let err = validate_config(&config, "hotel").expect_err("negative low_gravity must be rejected");
     assert!(err.to_string().contains("low_gravity"));
 }
 
 #[test]
 fn validate_maps_rejects_invalid_latitude() {
-    let mut maps = one_map("hotel");
-    maps.get_mut("hotel")
-        .expect("hotel entry missing")
-        .settings
-        .celestial
-        .latitude_degrees = 91.0;
-    let err = validate_test_maps(&maps, "hotel").expect_err("invalid latitude must be rejected");
+    let mut config = ok_config();
+    config.settings.celestial.latitude_degrees = 91.0;
+    let err = validate_config(&config, "hotel").expect_err("invalid latitude must be rejected");
     assert!(err.to_string().contains("latitude_degrees"));
 }
 
 #[test]
-fn map_entry_requires_explicit_weather() {
-    let missing_both = parse_map_entry("both", None).expect_err("weather must be explicit");
-    assert!(missing_both.to_string().contains("weather"));
+fn map_entry_inherits_the_default_weather() {
+    let entry = parse_map_entry("both", None).expect("weather should come from the defaults");
+    assert_eq!(entry.weather, WeatherMode::Auto);
 }
 
 #[test]
@@ -407,7 +312,7 @@ fn textures_require_an_explicit_catalog_with_materials_and_boolean_permissions()
         .expect("hotel settings is not an object")
         .remove("textures");
     assert!(
-        serde_json::from_value::<MapServerConfig>(hotel)
+        parse_map(hotel)
             .expect_err("missing textures was accepted")
             .to_string()
             .contains("textures")
@@ -419,7 +324,7 @@ fn textures_require_an_explicit_catalog_with_materials_and_boolean_permissions()
     ] {
         let mut hotel = source.clone();
         hotel["textures"] = serde_json::json!({"stone": texture});
-        assert!(serde_json::from_value::<MapServerConfig>(hotel).is_err());
+        assert!(parse_map(hotel).is_err());
     }
 }
 
@@ -432,8 +337,7 @@ fn map_entry_requires_placed_items() {
         .expect("hotel map settings are not an object")
         .remove("placed_items");
 
-    let error =
-        serde_json::from_value::<MapServerConfig>(hotel).expect_err("placed_items must be defined for every map");
+    let error = parse_map(hotel).expect_err("placed_items must be defined for every map");
     assert!(error.to_string().contains("placed_items"));
 }
 
@@ -441,25 +345,23 @@ fn map_entry_requires_placed_items() {
 fn map_entry_accepts_null_placed_items() {
     let mut source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
     source["placed_items"] = serde_json::Value::Null;
-    let entry: MapServerConfig = serde_json::from_value(source).expect("null placed items rejected");
+    let entry = parse_map(source).expect("null placed items rejected");
     assert!(entry.placed_items.is_none());
-    let maps = HashMap::from([("hotel".to_owned(), entry)]);
-    validate_test_maps(&maps, "hotel").expect("null placed items failed validation");
+    validate_config(&entry, "hotel").expect("null placed items failed validation");
 }
 
 #[test]
 fn validate_maps_rejects_invalid_placed_item_respawn() {
     for seconds in [-1.0, f32::NAN, f32::INFINITY] {
-        let mut maps = one_map("hotel");
-        maps.get_mut("hotel")
-            .expect("hotel entry missing")
+        let mut config = ok_config();
+        config
             .placed_items
             .as_mut()
             .expect("placed item settings missing")
             .respawn_secs
             .gold = Some(seconds);
 
-        let error = validate_test_maps(&maps, "hotel").expect_err("invalid respawn time accepted");
+        let error = validate_config(&config, "hotel").expect_err("invalid respawn time accepted");
         assert!(
             error
                 .to_string()
@@ -495,21 +397,21 @@ fn validate_maps_accepts_valid_random_items() {
         r#"{"weights":{"speed":0.5,"gold":3,"missile_pack":0},"max_number":30,"despawn_secs":60}"#,
     )
     .expect("random item weights JSON is invalid");
-    let maps = one_map_with_random_items("hotel", config);
-    validate_test_maps(&maps, "hotel").expect("valid random item weights rejected");
+    let config = with_random_items(config);
+    validate_config(&config, "hotel").expect("valid random item weights rejected");
 }
 
 #[test]
 fn validate_maps_rejects_key_in_random_pool() {
-    let maps = one_map_with_random_items("hotel", ok_random_items(&["speed", "key"]));
-    let err = validate_test_maps(&maps, "hotel").expect_err("key in random pool must be rejected");
+    let config = with_random_items(ok_random_items(&["speed", "key"]));
+    let err = validate_config(&config, "hotel").expect_err("key in random pool must be rejected");
     assert!(err.to_string().contains("barrier kind"));
 }
 
 #[test]
 fn validate_maps_rejects_unknown_random_item_type() {
-    let maps = one_map_with_random_items("hotel", ok_random_items(&["banana"]));
-    let err = validate_test_maps(&maps, "hotel").expect_err("unknown type must be rejected");
+    let config = with_random_items(ok_random_items(&["banana"]));
+    let err = validate_config(&config, "hotel").expect_err("unknown type must be rejected");
     assert!(err.to_string().contains("unknown item type"));
 }
 
@@ -518,16 +420,16 @@ fn validate_maps_rejects_invalid_random_item_weights() {
     for weight in [-1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let mut config = ok_random_items(&["speed", "gold"]);
         config.weights.insert("speed".to_owned(), weight);
-        let maps = one_map_with_random_items("hotel", config);
-        let err = validate_test_maps(&maps, "hotel").expect_err("invalid random item weight accepted");
+        let config = with_random_items(config);
+        let err = validate_config(&config, "hotel").expect_err("invalid random item weight accepted");
         assert!(err.to_string().contains("settings.json: random_items.weights.speed"));
     }
 }
 
 #[test]
 fn validate_maps_rejects_empty_random_item_weights() {
-    let maps = one_map_with_random_items("hotel", ok_random_items(&[]));
-    let err = validate_test_maps(&maps, "hotel").expect_err("empty pool must be rejected");
+    let config = with_random_items(ok_random_items(&[]));
+    let err = validate_config(&config, "hotel").expect_err("empty pool must be rejected");
     assert!(err.to_string().contains("weights"));
 }
 
@@ -535,8 +437,8 @@ fn validate_maps_rejects_empty_random_item_weights() {
 fn validate_maps_rejects_zero_total_random_item_weight() {
     let mut config = ok_random_items(&["speed", "gold"]);
     config.weights.values_mut().for_each(|weight| *weight = 0.0);
-    let maps = one_map_with_random_items("hotel", config);
-    let err = validate_test_maps(&maps, "hotel").expect_err("zero total random item weight accepted");
+    let config = with_random_items(config);
+    let err = validate_config(&config, "hotel").expect_err("zero total random item weight accepted");
     assert!(err.to_string().contains("at least one positive weight"));
 }
 
@@ -544,14 +446,14 @@ fn validate_maps_rejects_zero_total_random_item_weight() {
 fn validate_maps_rejects_overflowing_total_random_item_weight() {
     let mut config = ok_random_items(&["speed", "gold"]);
     config.weights.values_mut().for_each(|weight| *weight = f64::MAX);
-    let maps = one_map_with_random_items("hotel", config);
-    let err = validate_test_maps(&maps, "hotel").expect_err("overflowing total random item weight accepted");
+    let config = with_random_items(config);
+    let err = validate_config(&config, "hotel").expect_err("overflowing total random item weight accepted");
     assert!(err.to_string().contains("weights total must be finite"));
 }
 
 #[test]
 fn random_items_requires_weights() {
-    let err = serde_json::from_str::<RandomItemsConfig>(r#"{"types":["speed"],"max_number":30,"despawn_secs":60}"#)
+    let err = serde_json::from_str::<RandomItemsConfig>(r#"{"max_number":30,"despawn_secs":60}"#)
         .expect_err("random item config without weights accepted");
     assert!(err.to_string().contains("missing field `weights`"));
 }
@@ -559,8 +461,8 @@ fn random_items_requires_weights() {
 #[test]
 fn validate_maps_accepts_projectile_pickups_as_the_only_random_items() {
     for item in ["single_shot", "multi_shot"] {
-        let maps = one_map_with_random_items("hotel", ok_random_items(&[item]));
-        validate_test_maps(&maps, "hotel").expect("projectile pickup pool is invalid");
+        let config = with_random_items(ok_random_items(&[item]));
+        validate_config(&config, "hotel").expect("projectile pickup pool is invalid");
     }
 }
 
@@ -568,8 +470,8 @@ fn validate_maps_accepts_projectile_pickups_as_the_only_random_items() {
 fn validate_maps_rejects_zero_random_item_max_number() {
     let mut random_items = ok_random_items(&["speed"]);
     random_items.max_number = 0;
-    let maps = one_map_with_random_items("hotel", random_items);
-    let err = validate_test_maps(&maps, "hotel").expect_err("zero max_number must be rejected");
+    let config = with_random_items(random_items);
+    let err = validate_config(&config, "hotel").expect_err("zero max_number must be rejected");
     assert!(err.to_string().contains("max_number"));
 }
 
@@ -579,35 +481,29 @@ fn optional_feature_blocks_require_explicit_null_and_collections_require_their_t
     for key in ["grounds", "random_items"] {
         let mut value = source.clone();
         value[key] = serde_json::Value::Null;
-        serde_json::from_value::<MapServerConfig>(value.clone()).expect("disabled feature rejected");
+        parse_map(value.clone()).expect("disabled feature rejected");
         value.as_object_mut().expect("map fixture is not an object").remove(key);
-        assert!(
-            serde_json::from_value::<MapServerConfig>(value).is_err(),
-            "missing {key} accepted"
-        );
+        assert!(parse_map(value).is_err(), "missing {key} accepted");
     }
     for key in ["quests", "textures"] {
         let mut value = source.clone();
         value[key] = serde_json::Value::Null;
-        assert!(
-            serde_json::from_value::<MapServerConfig>(value).is_err(),
-            "null {key} accepted"
-        );
+        assert!(parse_map(value).is_err(), "null {key} accepted");
     }
 }
 
 #[test]
 fn always_active_power_ups_cannot_have_random_pickup_weights() {
     for weight in [0.0, 1.0] {
-        let mut maps = one_map_with_random_items("hotel", ok_random_items(&["single_shot", "gold"]));
-        let map = maps.get_mut("hotel").expect("map missing");
-        map.power_ups.single_shot = PowerUpMode::Always {};
-        map.random_items
+        let mut config = with_random_items(ok_random_items(&["single_shot", "gold"]));
+        config.power_ups.single_shot = PowerUpMode::Always {};
+        config
+            .random_items
             .as_mut()
             .expect("random items missing")
             .weights
             .insert("single_shot".into(), weight);
-        let error = validate_test_maps(&maps, "hotel").expect_err("always-active pickup accepted");
+        let error = validate_config(&config, "hotel").expect_err("always-active pickup accepted");
         assert!(error.to_string().contains("random_items.weights.single_shot"));
     }
 }

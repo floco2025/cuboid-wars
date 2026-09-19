@@ -42,9 +42,7 @@ pub(crate) fn server_app_with_listener(overrides: NetworkOverrides, listener: Op
 
 pub(crate) fn server_app_with_options(options: ServerAppOptions, listener: Option<Listener>) -> Result<App> {
     let mut config = server_config();
-    for map in config.maps.values_mut() {
-        map.random_items = None;
-    }
+    config.random_items = None;
     build_server_app_with_loader(config, options, listener, None, |name, hz, settings| {
         let directory = std::env::temp_dir().join(format!("cuboid_app_{}", random::<u64>()));
         fs::create_dir(&directory)?;

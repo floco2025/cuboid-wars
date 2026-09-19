@@ -81,7 +81,7 @@ fn test_kind(name: &str) -> TestKind {
                     beam_origin_height: None,
                 },
                 vision_range: 60.0,
-
+                threat_memory_secs: 1.0,
                 attack: ActorAttackConfig::Contact(ContactAttackConfig { trigger_gap: 0.4 }),
             },
             max_health: 150.0,
@@ -100,7 +100,7 @@ fn test_kind(name: &str) -> TestKind {
                     beam_origin_height: Some(1.35),
                 },
                 vision_range: 40.0,
-
+                threat_memory_secs: 1.0,
                 attack: ActorAttackConfig::Beam(beam(25.0, 2.0, 8.0)),
             },
             max_health: 50.0,
@@ -119,7 +119,7 @@ fn test_kind(name: &str) -> TestKind {
                     beam_origin_height: None,
                 },
                 vision_range: 60.0,
-
+                threat_memory_secs: 1.0,
                 attack: ActorAttackConfig::ContactBeam(ContactBeamAttackConfig {
                     contact: ContactAttackConfig { trigger_gap: 0.8 },
                     beam: beam(25.0, 2.0, 5.0),
@@ -141,7 +141,7 @@ fn test_kind(name: &str) -> TestKind {
                     beam_origin_height: Some(1.45),
                 },
                 vision_range: 40.0,
-
+                threat_memory_secs: 1.0,
                 attack: ActorAttackConfig::Beam(beam(25.0, 15.0, 0.5)),
             },
             max_health: 50.0,
@@ -165,22 +165,22 @@ pub(crate) fn physics(name: &str) -> CharacterPhysicsConfig {
 pub(crate) fn server_config() -> ServerGameplayConfig {
     let mut config = fixtures::server_config();
     let kinds: Vec<(String, TestKind)> = KINDS.iter().map(|name| ((*name).to_owned(), test_kind(name))).collect();
-    config.actors.kinds = table(&kinds, |kind| kind.server.clone());
-    config.combat.health.actors = table(&kinds, |kind| ActorHealthConfig {
-        max: kind.max_health,
-        regen_rate: 0.01,
-    });
-    config.combat.damage.actors = table(&kinds, |kind| kind.damage);
+    config.actors = table(&kinds, |kind| kind.server.clone());
     config.scoring.actor_hit = table(&kinds, |kind| kind.hit_score);
     config.scoring.actor_kill = table(&kinds, |kind| kind.kill_score);
     config.feed.actor_destroyed = table(&kinds, |_| false);
+    let health = table(&kinds, |kind| ActorHealthConfig {
+        max: kind.max_health,
+        regen_rate: 0.01,
+    });
+    let damage = table(&kinds, |kind| kind.damage);
     let movement: HashMap<String, ActorMovementConfig> = kinds
         .iter()
         .filter_map(|(name, kind)| Some((name.clone(), kind.movement?)))
         .collect();
-    for map in config.maps.values_mut() {
-        map.settings.movement.actors = movement.clone();
-    }
+    config.combat.health.actors = health;
+    config.combat.damage.actors = damage;
+    config.settings.movement.actors = movement;
     config
 }
 

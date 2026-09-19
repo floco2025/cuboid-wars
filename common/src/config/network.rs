@@ -8,7 +8,7 @@ use serde::Deserialize;
 use crate::constants::TICK_HZ;
 
 #[derive(Debug, Clone, Copy, Deserialize, Encode, Decode, Resource)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct NetworkConfig {
     pub server_hz: u32,
     pub update_hz: u32,

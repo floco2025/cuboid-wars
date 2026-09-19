@@ -164,6 +164,11 @@ pub fn normalize_record(kind: &str, v: &Value) -> Value {
                 if let Some(value) = v.get("respawn_secs") {
                     out["respawn_secs"] = value.clone();
                 }
+                if let Some(value) = v.get("beam_in_secs")
+                    && (number(value) != 0.0 || !value.is_number())
+                {
+                    out["beam_in_secs"] = value.clone();
+                }
                 out = merge(out, controls);
                 if let Some(value) = v.get("until_checkpoint").filter(|v| !v.is_null()) {
                     out["until_checkpoint"] = value.clone();
@@ -313,6 +318,7 @@ pub fn record_key(kind: &str, v: &Value) -> Value {
             } else {
                 json!([1, numeric_key(&v["respawn_secs"])])
             },
+            numeric_key(&get(v, "beam_in_secs", json!(0.0))),
             if v["until_checkpoint"].is_null() {
                 json!([0])
             } else {

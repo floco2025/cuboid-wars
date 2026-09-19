@@ -58,11 +58,7 @@ impl QuestCatalog {
     #[cfg(test)]
     #[must_use]
     pub fn from_config(config: &crate::config::ServerGameplayConfig) -> Self {
-        let map = config
-            .maps
-            .get(&config.default_map)
-            .expect("default map missing from server gameplay config");
-        Self::from_quests(&map.quests)
+        Self::from_quests(&config.quests)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &CatalogQuest> {

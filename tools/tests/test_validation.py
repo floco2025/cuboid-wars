@@ -184,6 +184,29 @@ class PressurePlateTests(unittest.TestCase):
                 any(f"actor_spawn_zones[{idx}] respawn_secs must be a non-negative number or null" in e for e in errors)
             )
 
+    def test_actor_zone_beam_in_defaults_to_zero_and_must_be_a_non_negative_number(self) -> None:
+        data = empty_map(4, 4)
+        data["levels"][0]["floors"] = [floor(2, 2)]
+        zone = {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": [1], "respawn_secs": None}
+        data["actor_spawn_zones"] = [
+            zone,
+            {**zone, "beam_in_secs": 0},
+            {**zone, "beam_in_secs": 2.5},
+            {**zone, "beam_in_secs": -1},
+            {**zone, "beam_in_secs": "soon"},
+            {**zone, "beam_in_secs": None},
+        ]
+
+        errors = validate_map(data, [], [])
+
+        self.assertFalse(
+            any("beam_in_secs" in e and f"actor_spawn_zones[{idx}]" in e for e in errors for idx in (0, 1, 2))
+        )
+        for idx in (3, 4, 5):
+            self.assertTrue(
+                any(f"actor_spawn_zones[{idx}] beam_in_secs must be a finite non-negative number" in e for e in errors)
+            )
+
     def test_actor_zone_course_fields_name_a_checkpoint_and_pair_a_response(self) -> None:
         data = empty_map(4, 4)
         data["levels"][0]["floors"] = [floor(2, 2)]

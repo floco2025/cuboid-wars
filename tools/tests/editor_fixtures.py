@@ -132,6 +132,7 @@ class EditorHost(
         self.recent_actor_spawn_inverted = False
         self.recent_actor_spawn_levels = 1
         self.recent_actor_roam_distance = 0.0
+        self.recent_actor_beam_in_secs = 0.0
         self.recent_barrier_controls = {}
         self.recent_bridge_controls = {}
         self.key_kinds = self.barrier_kinds

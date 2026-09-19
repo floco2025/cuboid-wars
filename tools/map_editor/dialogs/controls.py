@@ -1,4 +1,13 @@
-from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QSpinBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..constants import CHECKPOINT_RESPONSE_LABELS
 from ..display import color_icon
@@ -28,6 +37,32 @@ class RespawnSpinBox(QSpinBox):
     def secs(self) -> int | None:
         value = self.value()
         return None if value == self.NEVER else value
+
+
+class BeamInSpinBox(QDoubleSpinBox):
+    """Seconds an actor's ghost shows before it appears; zero pops it in at once."""
+
+    MAX_SECS = 9999.0
+
+    def __init__(self, secs):
+        super().__init__()
+        self.setRange(0.0, self.MAX_SECS)
+        self.setDecimals(1)
+        self.setSuffix(" s")
+        self.setToolTip("Seconds the ghost shows before the actor appears; 0 pops it in at once.")
+        self.set_secs(secs)
+
+    def set_secs(self, secs) -> None:
+        try:
+            value = float(secs)
+        except (TypeError, ValueError):
+            value = 0.0
+        if value != value:
+            value = 0.0
+        self.setValue(max(0.0, min(self.MAX_SECS, value)))
+
+    def secs(self) -> float:
+        return self.value()
 
 
 def choice(values, current, *, optional=False, mixed=False, colors=None):

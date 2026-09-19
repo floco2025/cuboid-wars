@@ -206,7 +206,7 @@ fn switch_def(id: &str, policy: SwitchConfig) -> SwitchDef {
 }
 
 fn harness_settings(config: &ServerGameplayConfig) -> MapSettings {
-    let mut settings = config.maps[&config.default_map].settings.clone();
+    let mut settings = config.settings.clone();
     settings.switches = vec![
         switch_def("lobby", SwitchConfig::default()),
         switch_def("skyway", SwitchConfig::default()),

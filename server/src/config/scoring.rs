@@ -6,6 +6,7 @@ use serde::Deserialize;
 use super::validation::validate_covers_actor_kinds;
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScoringConfig {
     pub player_kill: i32,
     pub player_death: i32,
@@ -15,9 +16,9 @@ pub struct ScoringConfig {
 }
 
 impl ScoringConfig {
-    pub(super) fn validate<T>(&self, actors: &HashMap<String, T>) -> Result<()> {
+    pub(super) fn validate<T>(&self, actors: &HashMap<String, T>, path: &str) -> Result<()> {
         for (map, name) in [(&self.actor_hit, "actor_hit"), (&self.actor_kill, "actor_kill")] {
-            validate_covers_actor_kinds(map.keys(), actors, &format!("scoring.{name}"))?;
+            validate_covers_actor_kinds(map.keys(), actors, &format!("{path}.{name}"))?;
         }
         Ok(())
     }

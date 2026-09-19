@@ -14,8 +14,8 @@ from PySide6.QtWidgets import (
     QWidgetAction,
 )
 
-from .catalogs import load_map_settings, map_settings_path, read_settings_json
-from .constants import GAMEPLAY_PATH, MODE_JUMP_REACH
+from .catalogs import load_map_settings, map_settings_path
+from .constants import MODE_JUMP_REACH
 from .floor_footprints import ramp_landing_edges, slab_cells
 from .jump_reach import JumpSettings, calculate_reach
 from .reach_markers import SCENARIOS, landing_lines, paint_landing_markers
@@ -82,12 +82,7 @@ class JumpReachOverlay:
     def reload_settings(self):
         try:
             name = self.window.catalog_map
-            self.settings = JumpSettings.from_settings(
-                load_map_settings(name),
-                str(map_settings_path(name)),
-                gameplay=read_settings_json(GAMEPLAY_PATH),
-                gameplay_source=str(GAMEPLAY_PATH),
-            )
+            self.settings = JumpSettings.from_settings(load_map_settings(name), str(map_settings_path(name)))
             self.error = None
         except (OSError, ValueError) as exc:
             self.settings = None

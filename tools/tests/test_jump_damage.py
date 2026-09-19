@@ -54,12 +54,10 @@ class JumpDamageTests(ConfigTestCase):
 
     def test_invalid_fall_settings_and_health_name_their_source(self):
         settings = load_map_settings("hotel")
-        gameplay = {"combat": {"health": {"player": {"max": 100}}}}
+        settings["combat"] = {"health": {"player": {"max": 100}}}
 
-        def parse(value, global_value=gameplay):
-            return JumpSettings.from_settings(
-                value, "maps/example/settings.json", gameplay=global_value, gameplay_source="gameplay.json"
-            )
+        def parse(value):
+            return JumpSettings.from_settings(value, "maps/example/settings.json")
 
         for field in ("safe_distance", "lethal_distance"):
             for value in (None, True, "8", -1, float("nan"), float("inf")):
@@ -84,9 +82,10 @@ class JumpDamageTests(ConfigTestCase):
         settings["player_fall"]["safe_distance"] = 0
         self.assertEqual(parse(settings).fall.safe_distance, 0)
         for value in (None, True, "100", 0, -1, float("nan"), float("inf")):
-            gameplay["combat"]["health"]["player"]["max"] = value
-            with self.assertRaisesRegex(ValueError, "gameplay.json: combat.health.player.max"):
-                parse(settings)
+            invalid = copy.deepcopy(settings)
+            invalid["combat"]["health"]["player"]["max"] = value
+            with self.assertRaisesRegex(ValueError, "maps/example/settings.json: combat.health.player.max"):
+                parse(invalid)
 
 
 class JumpDamageWindowTests(WindowTestCase):
@@ -125,15 +124,12 @@ class JumpDamageWindowTests(WindowTestCase):
         settings["movement"]["gravity"] = 2
         settings["movement"]["player"]["jump_speed"] = 2
         settings["player_fall"] = {"safe_distance": 0, "lethal_distance": 200}
-        gameplay = {"combat": {"health": {"player": {"max": 100}}}}
-        with (
-            patch("map_editor.jump_reach_overlay.load_map_settings", return_value=settings),
-            patch("map_editor.jump_reach_overlay.read_settings_json", return_value=gameplay),
-        ):
+        settings["combat"] = {"health": {"player": {"max": 100}}}
+        with patch("map_editor.jump_reach_overlay.load_map_settings", return_value=settings):
             overlay.reload_settings()
             overlay.select(2, 2)
             self.assertEqual(overlay.results[0, 3, 2][NORMAL], 0)
-            gameplay["combat"]["health"]["player"]["max"] = 1000
+            settings["combat"]["health"]["player"]["max"] = 1000
             window.reload_dependencies()
             self.assertEqual(overlay.results[0, 3, 2][NORMAL], 0.005)
             self.assertEqual(overlay.origin, (0, 2, 2))

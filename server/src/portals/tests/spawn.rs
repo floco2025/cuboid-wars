@@ -25,7 +25,7 @@ struct Fixture {
 impl Fixture {
     fn new(mode: PortalMode) -> Self {
         let config = fixtures::server_config();
-        let settings = config.maps["hotel"].settings.clone();
+        let settings = config.settings.clone();
         let layout = MapLayout {
             carriers: vec![Carrier {
                 motion: Default::default(),

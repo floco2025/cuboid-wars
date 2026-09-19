@@ -177,6 +177,7 @@ class EditorEnhancementTests(WindowTestCase):
             "kind": "zapper",
             "count": "0, 2, 4",
             "respawn_secs": 12.5,
+            "beam_in_secs": 2.5,
             "roam_distance": 3.5,
             "switch": "barrier_1",
             "switch_inverted": True,
@@ -191,11 +192,12 @@ class EditorEnhancementTests(WindowTestCase):
                 actor["kind"],
                 actor["count"],
                 actor["respawn_secs"],
+                actor["beam_in_secs"],
                 actor["roam_distance"],
                 actor["switch"],
                 actor["switch_inverted"],
             ),
-            (1, 2, "zapper", [0, 2, 4], 12.5, 3.5, "barrier_1", True),
+            (1, 2, "zapper", [0, 2, 4], 12.5, 2.5, 3.5, "barrier_1", True),
         )
         self.assertEqual(window.undo_stack.count(), 1)
         window.undo_stack.undo()

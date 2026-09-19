@@ -5,6 +5,7 @@ use super::missiles::MissilesServerConfig;
 use common::config::{PortalsConfig, ProjectilesConfig};
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WeaponsConfig {
     pub projectiles: ProjectilesConfig,
     pub missiles: MissilesServerConfig,

@@ -8,6 +8,7 @@ use serde::Deserialize;
 use super::validation::{validate_non_negative_finite, validate_positive_finite};
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MapMovementConfig {
     pub player: PlayerMovementConfig,
     pub actors: HashMap<String, ActorMovementConfig>,
@@ -24,6 +25,7 @@ pub struct MapMovementConfig {
 }
 
 #[derive(Debug, Clone, Copy, Encode, Decode, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PlayerMovementConfig {
     pub walk_speed: f32,
     pub run_speed: f32,
@@ -33,6 +35,7 @@ pub struct PlayerMovementConfig {
 
 // A component on server actors so movement ticks do not hash the kind string.
 #[derive(Debug, Clone, Copy, Component, Encode, Decode, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ActorMovementConfig {
     pub roam_speed: f32,
     pub active_speed: f32,
@@ -76,6 +79,7 @@ impl ActorMovementConfig {
 }
 
 #[derive(Debug, Clone, Copy, Encode, Decode, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct KnockbackConfig {
     pub max_speed: f32,
     pub up_speed: f32,

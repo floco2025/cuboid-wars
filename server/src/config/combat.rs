@@ -11,20 +11,23 @@ use super::{
     },
 };
 
+// Every health and damage number.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CombatConfig {
     pub health: HealthConfig,
     pub damage: DamageConfig,
 }
 
 impl CombatConfig {
-    pub(super) fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>) -> Result<()> {
-        self.health.validate(actors)?;
-        self.damage.validate(actors)
+    pub(super) fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>, path: &str) -> Result<()> {
+        self.health.validate(actors, &format!("{path}.health"))?;
+        self.damage.validate(actors, &format!("{path}.damage"))
     }
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HealthConfig {
     pub player: PlayerHealthConfig,
     pub actors: HashMap<String, ActorHealthConfig>,
@@ -38,17 +41,18 @@ impl HealthConfig {
             .expect("actor kind missing from combat.health.actors")
     }
 
-    fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>) -> Result<()> {
-        self.player.validate("combat.health.player")?;
-        validate_covers_actor_kinds(self.actors.keys(), actors, "combat.health.actors")?;
+    fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>, path: &str) -> Result<()> {
+        self.player.validate(&format!("{path}.player"))?;
+        validate_covers_actor_kinds(self.actors.keys(), actors, &format!("{path}.actors"))?;
         for (kind, health) in &self.actors {
-            health.validate(&format!("combat.health.actors.{kind}"))?;
+            health.validate(&format!("{path}.actors.{kind}"))?;
         }
         Ok(())
     }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PlayerHealthConfig {
     pub max: f32,
     // Regeneration as a fraction of `max` per second, so toughness is tuned
@@ -71,6 +75,7 @@ impl PlayerHealthConfig {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ActorHealthConfig {
     pub max: f32,
     // A fraction of `max` per second, like the player's.
@@ -85,6 +90,7 @@ impl ActorHealthConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DamageConfig {
     // One raw number per hit; players and actors take it alike.
     pub projectile: f32,
@@ -103,14 +109,14 @@ impl DamageConfig {
             .expect("actor kind missing from combat.damage.actors")
     }
 
-    fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>) -> Result<()> {
-        validate_non_negative_finite(self.projectile, "combat.damage.projectile")?;
-        self.missile_blast.validate("combat.damage.missile_blast")?;
-        self.player_blast.validate("combat.damage.player_blast")?;
-        validate_covers_actor_kinds(self.actors.keys(), actors, "combat.damage.actors")?;
+    fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>, path: &str) -> Result<()> {
+        validate_non_negative_finite(self.projectile, &format!("{path}.projectile"))?;
+        self.missile_blast.validate(&format!("{path}.missile_blast"))?;
+        self.player_blast.validate(&format!("{path}.player_blast"))?;
+        validate_covers_actor_kinds(self.actors.keys(), actors, &format!("{path}.actors"))?;
         for (kind, actor) in actors {
             let damage = self.expect_actor(kind);
-            let path = format!("combat.damage.actors.{kind}");
+            let path = format!("{path}.actors.{kind}");
             damage.death_blast.validate(&format!("{path}.death_blast"))?;
             match (damage.beam_dps, actor.attack.beam_range()) {
                 (Some(dps), Some(_)) => {
@@ -130,6 +136,7 @@ impl DamageConfig {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ActorDamageConfig {
     // Present exactly when the kind's `attack` fires a beam.
     #[serde(deserialize_with = "deserialize_required_option")]
@@ -138,6 +145,7 @@ pub struct ActorDamageConfig {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BlastConfig {
     pub radius: f32,
     pub max_damage: f32,

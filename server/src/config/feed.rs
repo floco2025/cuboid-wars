@@ -8,6 +8,7 @@ use super::validation::validate_covers_actor_kinds;
 // Which feed lines everyone sees. The one broadcast gate: `emit_feed`
 // consults it for public audiences, nothing else decides.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FeedConfig {
     pub player_joined: bool,
     pub player_left: bool,
@@ -25,8 +26,8 @@ pub struct FeedConfig {
 }
 
 impl FeedConfig {
-    pub(super) fn validate<T>(&self, actors: &HashMap<String, T>) -> Result<()> {
-        validate_covers_actor_kinds(self.actor_destroyed.keys(), actors, "feed.actor_destroyed")
+    pub(super) fn validate<T>(&self, actors: &HashMap<String, T>, path: &str) -> Result<()> {
+        validate_covers_actor_kinds(self.actor_destroyed.keys(), actors, &format!("{path}.actor_destroyed"))
     }
 
     // Every switch set to `enabled`, with the given actor kinds.

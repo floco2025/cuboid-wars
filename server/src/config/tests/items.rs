@@ -38,7 +38,7 @@ fn placed_item_respawns_allow_sparse_entries_and_explicit_null() {
 
 #[test]
 fn pickup_duration_is_explicit_and_positive_or_null() {
-    let mut config = fixtures::server_config().maps["hotel"].power_ups.clone();
+    let mut config = fixtures::server_config().power_ups.clone();
     for duration_secs in [None, Some(1.0)] {
         config.portal_gun = PowerUpMode::Pickup { duration_secs };
         config.validate("power_ups").expect("valid pickup rejected");

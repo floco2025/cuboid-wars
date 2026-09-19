@@ -1,50 +1,22 @@
 use std::collections::HashMap;
 
-use crate::schedule::ticks_from_secs;
 use anyhow::{Result, bail};
 use common::config::ActorGameplayConfig;
 use serde::Deserialize;
 
 use super::validation::{validate_non_negative_finite, validate_positive_finite};
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct ActorsConfig {
-    pub settings: ActorSettingsConfig,
-    pub kinds: HashMap<String, ActorKindServerConfig>,
-}
-
-impl ActorsConfig {
-    pub(super) fn validate(&self, path: &str) -> Result<()> {
-        self.settings.validate(&format!("{path}.settings"))?;
-        if self.kinds.is_empty() {
-            bail!("{path}.kinds must define at least one kind");
+pub(super) fn validate_actors(kinds: &HashMap<String, ActorKindServerConfig>, path: &str) -> Result<()> {
+    if kinds.is_empty() {
+        bail!("{path} must define at least one kind");
+    }
+    for (kind, actor) in kinds {
+        if kind.is_empty() {
+            bail!("{path} contains an empty kind name");
         }
-        for (kind, actor) in &self.kinds {
-            if kind.is_empty() {
-                bail!("{path}.kinds contains an empty kind name");
-            }
-            actor.validate(&format!("{path}.kinds.{kind}"))?;
-        }
-        Ok(())
+        actor.validate(&format!("{path}.{kind}"))?;
     }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ActorSettingsConfig {
-    pub spawn_warning_secs: f32,
-    pub threat_memory_secs: f32,
-}
-
-impl ActorSettingsConfig {
-    #[must_use]
-    pub fn spawn_warning_ticks(&self, server_hz: u32) -> u32 {
-        ticks_from_secs(self.spawn_warning_secs, server_hz)
-    }
-
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.spawn_warning_secs, &format!("{path}.spawn_warning_secs"))?;
-        validate_non_negative_finite(self.threat_memory_secs, &format!("{path}.threat_memory_secs"))
-    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -52,6 +24,8 @@ pub struct ActorKindServerConfig {
     #[serde(flatten)]
     pub character: ActorGameplayConfig,
     pub vision_range: f32,
+    // How long a threat out of sight stays remembered before the actor returns home.
+    pub threat_memory_secs: f32,
     pub attack: ActorAttackConfig,
 }
 
@@ -59,6 +33,7 @@ impl ActorKindServerConfig {
     fn validate(&self, path: &str) -> Result<()> {
         self.character.validate(path)?;
         validate_positive_finite(self.vision_range, &format!("{path}.vision_range"))?;
+        validate_non_negative_finite(self.threat_memory_secs, &format!("{path}.threat_memory_secs"))?;
         self.attack.validate(&format!("{path}.attack"))
     }
 }

@@ -18,7 +18,7 @@ fn give_key_and_powerup_mutate_sender_state() {
     assert!(!info.add_key(kind), "second add of the same key must be a no-op");
 
     let config = fixtures::server_config();
-    info.grant_power_up(ItemType::SpeedPowerUp, &config.maps["hotel"].power_ups);
+    info.grant_power_up(ItemType::SpeedPowerUp, &config.power_ups);
     assert!(
         info.has(common::protocol::PowerUpKind::Speed),
         "speed timer must be armed"

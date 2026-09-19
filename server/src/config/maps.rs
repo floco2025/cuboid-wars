@@ -1,43 +1,11 @@
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::Path,
-};
+use std::collections::{BTreeMap, HashSet};
 
 use anyhow::{Result, bail};
 use map_core::is_valid_map_name;
 use serde::Deserialize;
 
-use super::{
-    actors::ActorKindServerConfig,
-    falling::FallDamageConfig,
-    items::{PlacedItemsConfig, PowerUpsConfig},
-    quests::{Quest, validate_quests},
-    respawn::RespawnConfig,
-    validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite},
-};
-use common::protocol::{ItemType, MapSettings, validate_texture_catalog};
-
-// Server-side wrapper around the wire `MapSettings`: the flattened settings
-// ship to clients in `SInit`, while the rest stays server-only.
-#[derive(Debug, Clone, Deserialize)]
-pub struct MapServerConfig {
-    #[serde(flatten)]
-    pub settings: MapSettings,
-    pub player_fall: FallDamageConfig,
-    // Ground actors only; flying actors never land.
-    pub actor_fall: FallDamageConfig,
-    // `None` = no random item spawning on this map.
-    #[serde(deserialize_with = "deserialize_required_option")]
-    pub random_items: Option<RandomItemsConfig>,
-    #[serde(deserialize_with = "deserialize_required_option")]
-    pub placed_items: Option<PlacedItemsConfig>,
-    pub power_ups: PowerUpsConfig,
-    pub respawn: RespawnConfig,
-    // A concrete state holds until an admin command; `auto` runs the
-    // global `cycles.weather`. Mirrors `/weather rain|clear|auto`.
-    pub weather: WeatherMode,
-    pub quests: Vec<Quest>,
-}
+use super::validation::validate_positive_finite;
+use common::protocol::ItemType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -48,6 +16,7 @@ pub enum WeatherMode {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RandomItemsConfig {
     // `ItemType` config ids. Keys are rejected — they're parameterized by
     // barrier kind and must be placed in the map's `items` list.
@@ -56,60 +25,6 @@ pub struct RandomItemsConfig {
     // How long an uncollected random item sits in the world before being
     // removed. Placed items use the map's `placed_items.respawn_secs` instead.
     pub despawn_secs: f32,
-}
-
-pub(super) fn validate_maps(
-    maps: &HashMap<String, MapServerConfig>,
-    default_map: &str,
-    actors: &HashMap<String, ActorKindServerConfig>,
-    directory: &Path,
-) -> Result<()> {
-    validate_map_registry(maps.keys().map(String::as_str), default_map)?;
-    let movable_actors: HashMap<_, _> = actors
-        .iter()
-        .filter(|(_, actor)| !actor.character.immovable)
-        .map(|(kind, actor)| (kind.clone(), actor))
-        .collect();
-    for (name, entry) in maps {
-        let path = format!("{}:", directory.join(name).join("settings.json").display());
-        entry.settings.celestial.validate(&format!("{path} celestial"))?;
-        validate_texture_catalog(&entry.settings.textures, &format!("{path} textures"))?;
-        entry.settings.geometry.validate(&format!("{path} geometry"))?;
-        let movement_path = format!("{path} movement");
-        let movement = &entry.settings.movement;
-        for kind in movement.actors.keys() {
-            if actors.get(kind).is_some_and(|actor| actor.character.immovable) {
-                bail!("{movement_path}.actors.{kind} must be omitted for an immovable actor");
-            }
-        }
-        validate_covers_actor_kinds(
-            movement.actors.keys(),
-            &movable_actors,
-            &format!("{movement_path}.actors"),
-        )?;
-        movement.validate(&movement_path)?;
-        entry
-            .player_fall
-            .validate(&format!("{path} player_fall"), movement.gravity)?;
-        entry
-            .actor_fall
-            .validate(&format!("{path} actor_fall"), movement.gravity)?;
-        if let Some(random_items) = &entry.random_items {
-            random_items.validate(&format!("{path} random_items"))?;
-            for id in random_items.weights.keys() {
-                entry.power_ups.validate_pickup(
-                    ItemType::from_config_id(id).expect("validated random item type missing"),
-                    &format!("{path} random_items.weights.{id}"),
-                )?;
-            }
-        }
-        entry.power_ups.validate(&format!("{path} power_ups"))?;
-        if let Some(placed_items) = &entry.placed_items {
-            placed_items.validate(&format!("{path} placed_items"))?;
-        }
-        validate_quests(&entry.quests, actors, &format!("{path} quests"))?;
-    }
-    Ok(())
 }
 
 pub(super) fn validate_map_registry<'a>(names: impl IntoIterator<Item = &'a str>, default_map: &str) -> Result<()> {
@@ -137,7 +52,7 @@ pub(super) fn validate_map_registry<'a>(names: impl IntoIterator<Item = &'a str>
 }
 
 impl RandomItemsConfig {
-    fn validate(&self, path: &str) -> Result<()> {
+    pub(super) fn validate(&self, path: &str) -> Result<()> {
         if self.weights.is_empty() {
             bail!("{path}.weights must not be empty");
         }

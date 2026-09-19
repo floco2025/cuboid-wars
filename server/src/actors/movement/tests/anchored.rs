@@ -48,7 +48,7 @@ fn step(
 #[test]
 fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
     let server = test_kinds::server_config();
-    let settings = server.maps[&server.default_map].settings.clone();
+    let settings = server.settings.clone();
     let layout = MapLayout {
         carriers: vec![Carrier {
             motion: Default::default(),

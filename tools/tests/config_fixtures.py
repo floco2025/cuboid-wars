@@ -5,23 +5,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 
+# The defaults every map inherits; a map file carries its content and overrides.
 def gameplay():
     return {
         "default_map": "hotel",
         "maps": ["hotel", "obby"],
-        "actors": {
-            "kinds": {name: {"immovable": name == "turret"} for name in ("scuttler", "bruiser", "zapper", "turret")}
-        },
-        "combat": {"health": {"player": {"max": 500}}},
+        "actors": {name: {"immovable": name == "turret"} for name in ("scuttler", "bruiser", "zapper", "turret")},
         "player": {"movement_collider": {"diameter": 0.6, "height": 1.8}},
-    }
-
-
-def map_settings(name="hotel"):
-    return {
-        "grounds": None,
-        "random_items": None,
-        "placed_items": None,
         "power_ups": {
             kind: {"mode": "pickup", "duration_secs": None}
             for kind in ("single_shot", "multi_shot", "portal_gun", "speed", "low_gravity")
@@ -33,6 +23,22 @@ def map_settings(name="hotel"):
             "player": {"walk_speed": 6, "run_speed": 9, "speed_power_up": 1.5, "jump_speed": 12},
         },
         "player_fall": {"safe_distance": 8, "lethal_distance": 15},
+        "combat": {"health": {"player": {"max": 500}}},
+        "portals": "both",
+    }
+
+
+def map_settings(name="hotel"):
+    defaults = gameplay()
+    return {
+        "grounds": None,
+        "random_items": None,
+        "placed_items": None,
+        "power_ups": defaults["power_ups"],
+        "geometry": defaults["geometry"],
+        "movement": defaults["movement"],
+        "player_fall": defaults["player_fall"],
+        "combat": defaults["combat"],
         "textures": {
             alias: {"material": "test", "portalable": alias != "portal-resistant"}
             for alias in (
@@ -76,7 +82,6 @@ def install_catalogs(test, root):
         ("map_editor.constants", ("GAMEPLAY_PATH", "ASSETS_PATH", "MAPS_DIR")),
         ("map_editor.catalogs", ("GAMEPLAY_PATH", "ASSETS_PATH", "MAPS_DIR")),
         ("map_editor.dependencies", ("GAMEPLAY_PATH", "ASSETS_PATH")),
-        ("map_editor.jump_reach_overlay", ("GAMEPLAY_PATH",)),
     ]:
         for name in names:
             value = {"GAMEPLAY_PATH": test.global_path, "ASSETS_PATH": test.assets_path, "MAPS_DIR": root}[name]

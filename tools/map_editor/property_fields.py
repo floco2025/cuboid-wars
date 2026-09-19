@@ -51,6 +51,12 @@ def fields_for(window, name):
         choice("kind", "Actor", window.actor_kinds)
         add("count", "Count", "counts", tooltip="Counts for one, two, three, etc. players. The last count repeats.")
         add("respawn_secs", "Respawn (s)", "respawn", tooltip="Seconds before refilling a slot; Never fills it once.")
+        add(
+            "beam_in_secs",
+            "Beam-in (s)",
+            "nonnegative",
+            tooltip="Seconds the ghost shows before an actor appears; 0 pops it in at once.",
+        )
         add("levels", "Levels", "positive_int")
         add("roam_distance", "Roam (m)", "nonnegative")
         add(
@@ -121,7 +127,7 @@ def property_value(entry, key):
         return entry.get(key[0], False)
     if key[0] == "levels":
         return entry.get(key[0], 1)
-    if key[0] == "roam_distance":
+    if key[0] in ("roam_distance", "beam_in_secs"):
         return entry.get(key[0], 0.0)
     if key[0] == "on_checkpoint":
         return entry.get(key[0], "stop")

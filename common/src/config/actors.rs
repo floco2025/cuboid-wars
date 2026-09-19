@@ -2,7 +2,10 @@ use anyhow::{Result, bail};
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
-use super::{CharacterGameplayConfig, CharacterPhysicsConfig, validation::validate_positive_finite};
+use super::{
+    CharacterGameplayConfig, CharacterPhysicsConfig,
+    validation::{deserialize_required_option, validate_positive_finite},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -19,7 +22,7 @@ pub struct ActorGameplayConfig {
     pub immovable: bool,
     pub locomotion: ActorLocomotion,
     // A gun above a pedestal fires from its head rather than its collision center.
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub beam_origin_height: Option<f32>,
 }
 

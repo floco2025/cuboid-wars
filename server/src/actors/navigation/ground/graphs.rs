@@ -49,12 +49,7 @@ impl NavGraphs {
     }
 
     pub fn add_ladder_routes(&mut self, layout: &MapLayout, settings: &MapSettings, config: &ServerGameplayConfig) {
-        if !config
-            .actors
-            .kinds
-            .values()
-            .any(|actor| actor.character.can_use_ladders)
-        {
+        if !config.actors.values().any(|actor| actor.character.can_use_ladders) {
             return;
         }
         // Barriers some plate opens: a route may plan through them and
@@ -80,7 +75,7 @@ impl NavGraphs {
             }
             let world = CollisionWorld::from_map_layout(&local);
             let carriers = Carriers::default();
-            for (kind, actor) in &config.actors.kinds {
+            for (kind, actor) in &config.actors {
                 if !actor.character.can_use_ladders {
                     continue;
                 }

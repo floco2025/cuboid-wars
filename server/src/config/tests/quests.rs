@@ -22,7 +22,7 @@ fn no_actors() -> HashMap<String, ()> {
 }
 
 fn default_actors() -> HashMap<String, ActorKindServerConfig> {
-    fixtures::server_config().actors.kinds
+    fixtures::server_config().actors
 }
 
 fn validate<T>(quests: &[Quest], actors: &HashMap<String, T>) -> Result<()> {

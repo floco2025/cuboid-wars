@@ -12,6 +12,7 @@ use crate::constants::{
 // `settings.json`, shipped to clients inside the map settings; the derived
 // sizes below are the only other way to obtain a world dimension.
 #[derive(Debug, Clone, Copy, PartialEq, Encode, Decode, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MapGeometryConfig {
     pub grid_cell_size: f32,
     pub level_height: f32,

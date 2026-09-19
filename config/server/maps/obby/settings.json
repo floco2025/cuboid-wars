@@ -5,53 +5,29 @@
     "shuttle": { "material": "orbed-plastic", "portalable": false },
     "walkway": { "material": "steelplate1", "portalable": false }
   },
-  "celestial": {
-    "latitude_degrees": 40.0,
-    "season": "summer",
-    "north_yaw_degrees": 0.0,
-    "start_local_time": "09:00",
-    "start_moon_phase": 0.25
-  },
   "grounds": { "level": 0 },
   "geometry": {
     "grid_cell_size": 4.0,
     "level_height": 2.4,
-    "floor_thickness": 0.4,
     "wall_thickness": 0.4
   },
   "weather": "clear",
-  "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
-  "actor_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
+  "combat": {
+    "health": { "actors": { "turret": { "max": 50.0 } } },
+    "damage": { "actors": { "turret": { "beam_dps": 40.0 } } }
+  },
   "movement": {
     "gravity": 24.0,
     "low_gravity": 13.2,
-    "player": {
-      "walk_speed": 5.1,
-      "run_speed": 5.1,
-      "speed_power_up": 1.818,
-      "jump_speed": 12.0
-    },
-    "actors": {
-      "scuttler": { "roam_speed": 3.0, "active_speed": 5.0 },
-      "bruiser": { "roam_speed": 5.0, "active_speed": 8.0 },
-      "zapper": { "roam_speed": 2.0, "active_speed": 4.0 }
-    },
-    "projectile_speed": 90.0,
-    "missile_speed": 16.0,
-    "ladder_climb_ratio": 0.4,
-    "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
-  },
-  "respawn": {
-    "players": "individual",
-    "actors": { "on_player_death": "never", "scope": "dead" }
+    "player": { "walk_speed": 5.1, "run_speed": 5.1, "speed_power_up": 1.818 }
   },
   "portals": "single",
   "power_ups": {
     "single_shot": { "mode": "pickup", "duration_secs": null },
-    "multi_shot": { "mode": "pickup", "duration_secs": null },
-    "portal_gun": { "mode": "pickup", "duration_secs": null },
-    "speed": { "mode": "pickup", "duration_secs": null },
-    "low_gravity": { "mode": "pickup", "duration_secs": null }
+    "multi_shot": { "duration_secs": null },
+    "portal_gun": { "duration_secs": null },
+    "speed": { "duration_secs": null },
+    "low_gravity": { "duration_secs": null }
   },
   "random_items": null,
   "placed_items": {

@@ -68,7 +68,7 @@ fn active_power_ups_are_still_collected_to_reset_their_timer() {
     let server_config = fixtures::server_config();
     let config = server_config.gameplay_config();
     let mut player = player();
-    player.grant_power_up(ItemType::SpeedPowerUp, &server_config.maps["hotel"].power_ups);
+    player.grant_power_up(ItemType::SpeedPowerUp, &server_config.power_ups);
     assert!(player.has_speed());
 
     assert!(pickup_has_effect(

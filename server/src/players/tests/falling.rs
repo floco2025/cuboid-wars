@@ -301,7 +301,7 @@ fn landing_damage_uses_impact_speed_and_map_thresholds() {
     ] {
         let mut server = fixtures::server_config();
         server.combat.health.player.max = max_health;
-        let mut settings = server.maps["hotel"].settings.clone();
+        let mut settings = server.settings.clone();
         settings.movement.gravity = 2.0;
         settings.movement.low_gravity = 1.0;
         let mut app = App::new();

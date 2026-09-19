@@ -8,9 +8,9 @@ use super::{PendingExplosions, damage::*};
 use crate::{
     actors::{ActorInfo, ActorMap},
     config::{
-        ActorSettingsConfig, ActorsConfig, BlastConfig, CombatConfig, CyclesConfig, DamageConfig, FallDamageConfig,
-        FeedConfig, HealthConfig, MapServerConfig, MissilesServerConfig, PlayerHealthConfig, PowerUpMode,
-        PowerUpsConfig, ScoringConfig, ServerGameplayConfig, WeaponsConfig, WeatherCycleConfig, WeatherMode,
+        BlastConfig, CombatConfig, CyclesConfig, DamageConfig, FallDamageConfig, FeedConfig, HealthConfig,
+        MissilesServerConfig, PlayerHealthConfig, PowerUpMode, PowerUpsConfig, ScoringConfig, ServerGameplayConfig,
+        WeaponsConfig, WeatherCycleConfig, WeatherMode,
     },
     players::{PlayerInfo, PlayerMap, PowerUpState},
 };
@@ -72,68 +72,51 @@ fn kill_with(players: &mut PlayerMap, victim: PlayerId, source: DeathSource) {
 
 fn server_gameplay_config() -> ServerGameplayConfig {
     let default = fixtures::server_config();
-    let movement = default
-        .maps
-        .get("hotel")
-        .expect("hotel map settings missing")
-        .settings
-        .movement
-        .clone();
-    let celestial = default.maps["hotel"].settings.celestial;
+    let movement = default.settings.movement.clone();
+    let celestial = default.settings.celestial;
     ServerGameplayConfig {
         network: Default::default(),
-        default_map: "hotel".to_owned(),
-        maps: HashMap::from([(
-            "hotel".to_owned(),
-            MapServerConfig {
-                settings: common::protocol::MapSettings {
-                    grounds: None,
-                    celestial,
-                    textures: Default::default(),
+        map_name: "hotel".to_owned(),
+        settings: common::protocol::MapSettings {
+            grounds: None,
+            celestial,
+            textures: Default::default(),
 
-                    geometry: crate::test_geometry::sizes(),
-                    movement,
-                    portals: PortalMode::Both,
-                    switches: Vec::new(),
-                    barrier_kinds: Vec::new(),
-                    bridge_kinds: Vec::new(),
-                },
-                random_items: None,
-                player_fall: FallDamageConfig {
-                    safe_distance: 4.0,
-                    lethal_distance: 12.0,
-                },
-                actor_fall: FallDamageConfig {
-                    safe_distance: 4.0,
-                    lethal_distance: 12.0,
-                },
-                respawn: Default::default(),
-                power_ups: PowerUpsConfig {
-                    speed: PowerUpMode::Pickup {
-                        duration_secs: Some(1.0),
-                    },
-                    single_shot: PowerUpMode::Pickup { duration_secs: None },
-                    multi_shot: PowerUpMode::Pickup {
-                        duration_secs: Some(1.0),
-                    },
-                    low_gravity: PowerUpMode::Pickup {
-                        duration_secs: Some(1.0),
-                    },
-                    portal_gun: PowerUpMode::Pickup { duration_secs: None },
-                },
-                placed_items: None,
-                weather: WeatherMode::Clear,
-                quests: Vec::new(),
-            },
-        )]),
-        player: default.player,
-        actors: ActorsConfig {
-            settings: ActorSettingsConfig {
-                spawn_warning_secs: 0.0,
-                threat_memory_secs: 0.0,
-            },
-            kinds: HashMap::new(),
+            geometry: crate::test_geometry::sizes(),
+            movement,
+            portals: PortalMode::Both,
+            switches: Vec::new(),
+            barrier_kinds: Vec::new(),
+            bridge_kinds: Vec::new(),
         },
+        random_items: None,
+        player_fall: FallDamageConfig {
+            safe_distance: 4.0,
+            lethal_distance: 12.0,
+        },
+        actor_fall: FallDamageConfig {
+            safe_distance: 4.0,
+            lethal_distance: 12.0,
+        },
+        respawn: Default::default(),
+        power_ups: PowerUpsConfig {
+            speed: PowerUpMode::Pickup {
+                duration_secs: Some(1.0),
+            },
+            single_shot: PowerUpMode::Pickup { duration_secs: None },
+            multi_shot: PowerUpMode::Pickup {
+                duration_secs: Some(1.0),
+            },
+            low_gravity: PowerUpMode::Pickup {
+                duration_secs: Some(1.0),
+            },
+            portal_gun: PowerUpMode::Pickup { duration_secs: None },
+        },
+        placed_items: None,
+        weather: WeatherMode::Clear,
+        quests: Vec::new(),
+        player: default.player,
+        actors: HashMap::new(),
         weapons: WeaponsConfig {
             projectiles: default.weapons.projectiles,
             missiles: MissilesServerConfig {

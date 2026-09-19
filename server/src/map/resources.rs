@@ -111,9 +111,11 @@ pub struct LevelGrid {
 pub use map_core::CheckpointResponse;
 
 // `respawn_secs` is the delay before a vacancy refills; `None` never refills.
-// `switch` and `until_checkpoint` gate the zone: it spawns nothing while the
-// switch does not match or the course has passed its checkpoint, but its
-// countdown keeps running meanwhile (`actors_respawn_system`).
+// `beam_in_secs` is the ghost window before each spawn appears; 0 spawns it
+// the tick its slot fills. `switch` and `until_checkpoint` gate the zone: it
+// spawns nothing while the switch does not match or the course has passed
+// its checkpoint, but its countdown keeps running meanwhile
+// (`actors_respawn_system`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActorSpawnZone {
     pub switch_inverted: bool,
@@ -126,6 +128,7 @@ pub struct ActorSpawnZone {
     pub kind: String,
     pub count: Vec<u32>,
     pub respawn_secs: Option<f32>,
+    pub beam_in_secs: f32,
     pub switch: Option<SwitchId>,
     pub until_checkpoint: Option<u32>,
     pub on_checkpoint: CheckpointResponse,

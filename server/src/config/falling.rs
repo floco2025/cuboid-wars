@@ -14,6 +14,7 @@ pub struct FallDamageConfigs {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FallDamageConfig {
     pub safe_distance: f32,
     pub lethal_distance: f32,

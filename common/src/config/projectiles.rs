@@ -7,6 +7,7 @@ use serde::Deserialize;
 use super::validation::{validate_non_negative_finite, validate_positive_finite};
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProjectilesConfig {
     pub lifetime_secs: f32,
     pub spawn_offset: f32,
@@ -51,6 +52,7 @@ pub struct MultiShotPatternConfig {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct MultiShotSource {
     spread_degrees: f32,
     allowed_patterns: Vec<String>,
@@ -58,6 +60,7 @@ struct MultiShotSource {
 }
 
 #[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct MultiShotPattern {
     column_scale: f32,
     row_scale: f32,

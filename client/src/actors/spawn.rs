@@ -130,7 +130,7 @@ pub fn spawn_actor(
 }
 
 // Fade state for a ghost, straight from the wire ticks. Re-inserted onto
-// an existing ghost on every snapshot, since `/spawn` moves the due tick.
+// an existing ghost on every snapshot, since `/respawn` moves the due tick.
 #[must_use]
 pub fn beam_in_ghost_state(gameplay_config: &GameplayConfig, spawning: &SpawningActor) -> BeamInGhost {
     let collider = gameplay_config.expect_actor(&spawning.kind).physics().hitbox;

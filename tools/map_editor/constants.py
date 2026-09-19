@@ -133,6 +133,7 @@ MAP_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 DEFAULT_ACTOR_COUNT = 1
 DEFAULT_ACTOR_RESPAWN_SECS = 90
+DEFAULT_ACTOR_BEAM_IN_SECS = 3.0
 SPAWN_ZONE_HANDLE_PIXELS = 8.0
 # Screen distance within which a click picks a wall, barrier, eraser, or ladder edge.
 EDGE_PICK_PIXELS = 6.0

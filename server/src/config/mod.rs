@@ -18,8 +18,7 @@ mod weapons;
 mod maps_tests;
 
 pub use actors::{
-    ActorAttackConfig, ActorBeamAttackConfig, ActorKindServerConfig, ActorSettingsConfig, ActorsConfig,
-    ContactAttackConfig, ContactBeamAttackConfig,
+    ActorAttackConfig, ActorBeamAttackConfig, ActorKindServerConfig, ContactAttackConfig, ContactBeamAttackConfig,
 };
 pub use combat::{
     ActorDamageConfig, ActorHealthConfig, BlastConfig, CombatConfig, DamageConfig, HealthConfig, PlayerHealthConfig,
@@ -27,9 +26,9 @@ pub use combat::{
 pub use cycles::{CyclesConfig, WeatherCycleConfig};
 pub use falling::{FallDamageConfig, FallDamageConfigs};
 pub use feed::FeedConfig;
-pub use gameplay::{PlayerServerConfig, ServerGameplayConfig};
+pub use gameplay::{GameplayCatalog, PlayerServerConfig, ServerGameplayConfig};
 pub use items::{PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpMode, PowerUpsConfig};
-pub use maps::{MapServerConfig, RandomItemsConfig, WeatherMode};
+pub use maps::{RandomItemsConfig, WeatherMode};
 pub use missiles::MissilesServerConfig;
 pub use quests::{Quest, QuestKind};
 pub use respawn::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, RespawnConfig};

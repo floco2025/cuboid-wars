@@ -28,11 +28,7 @@ pub(crate) fn quest(id: &str, kind: QuestKind, scope: QuestScope, threshold: u32
 
 pub(crate) fn catalog(quests: Vec<Quest>) -> ServerGameplayConfig {
     let mut config = fixtures::server_config();
-    config
-        .maps
-        .get_mut(&config.default_map)
-        .expect("default map missing from server gameplay config")
-        .quests = quests;
+    config.quests = quests;
     config
 }
 

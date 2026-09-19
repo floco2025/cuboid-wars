@@ -1,26 +1,31 @@
-use crate::config::MapServerConfig;
+use std::sync::OnceLock;
 
-use super::{GameplayFile, ServerGameplayConfig};
+use serde_json::Value;
+
+use super::{ServerGameplayConfig, strip_registry};
 
 // The shipped gameplay file is the base of every whole-schema config; each
-// test pins the values its assertions depend on, and maps come from the
-// small test map alone.
+// test pins the values its assertions depend on, and the map comes from the
+// small test map alone, merged over the shipped defaults like a real one.
 pub(crate) const GAMEPLAY_JSON: &str = include_str!("../../../../config/server/gameplay.json");
 pub(crate) const MAP_JSON: &str = include_str!("fixtures/map.json");
 
+// The shipped defaults without the registry keys.
+pub(crate) fn gameplay_defaults() -> Value {
+    let mut defaults: Value = serde_json::from_str(GAMEPLAY_JSON).expect("test gameplay config is invalid");
+    strip_registry(&mut defaults);
+    defaults
+}
+
 pub(crate) fn server_config() -> ServerGameplayConfig {
-    let source: GameplayFile = serde_json::from_str(GAMEPLAY_JSON).expect("test gameplay config is invalid");
-    let map: MapServerConfig = serde_json::from_str(MAP_JSON).expect("test map settings are invalid");
-    ServerGameplayConfig {
-        network: source.network,
-        default_map: source.default_map,
-        maps: source.maps.into_iter().map(|name| (name, map.clone())).collect(),
-        player: source.player,
-        actors: source.actors,
-        weapons: source.weapons,
-        combat: source.combat,
-        scoring: source.scoring,
-        cycles: source.cycles,
-        feed: source.feed,
-    }
+    static CONFIG: OnceLock<ServerGameplayConfig> = OnceLock::new();
+    CONFIG
+        .get_or_init(|| {
+            let map: Value = serde_json::from_str(MAP_JSON).expect("test map settings are invalid");
+            let config = ServerGameplayConfig::from_override("hotel", &gameplay_defaults(), &map)
+                .expect("test map settings do not merge");
+            config.validate("test: ").expect("test config is invalid");
+            config
+        })
+        .clone()
 }

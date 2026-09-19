@@ -54,6 +54,7 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
             normalize_map(&a[0])
         }
         "canonicalize_map" => canonicalize_map(&a[0]),
+        "merge_map_settings" => crate::settings::merge_map_settings(&a[0], &a[1])?,
         "enforce_ramp_floor_rules" => {
             let mut v = a[0].clone();
             enforce_ramp_floor_rules(&mut v);

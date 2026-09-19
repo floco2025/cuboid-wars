@@ -76,7 +76,7 @@ The server accepts anyone who can reach its port; keep it on a LAN you trust.
 python3 tools/editor.py hotel      # edits config/server/maps/hotel/layout.json in place
 ```
 
-Maps are listed by name in `config/server/gameplay.json` (`maps` + `default_map`). Each map has a folder containing `layout.json` and a hand-edited `settings.json` for movement, respawn policies, quests, and other tuning. To add a map, register its name and create its settings file; the editor can then create its layout.
+Maps are listed by name in `config/server/gameplay.json` (`maps` + `default_map`). Each map has a folder containing `layout.json` and a hand-edited `settings.json` for its textures, items, and quests, plus any tuning that differs from the defaults in `gameplay.json`. To add a map, register its name and create its settings file; the editor can then create its layout.
 
 ## License
 

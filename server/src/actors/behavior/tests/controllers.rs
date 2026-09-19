@@ -182,7 +182,7 @@ fn beam_actor_acquires_visible_cross_level_player_in_beam_range() {
         actor_pos,
         fixture.gameplay.expect_actor(BEAM).eye_height(),
         kind.vision_range,
-        fixture.server.actors.settings.threat_memory_secs,
+        kind.threat_memory_secs,
         fixture.gameplay.player.physics(),
         &[PlayerState {
             id: PlayerId(7),

@@ -314,6 +314,7 @@ class ToolSettings(QWidget):
             window.recent_actor_spawn_kind,
             window.recent_actor_spawn_count,
             window.recent_actor_spawn_respawn_secs,
+            window.recent_actor_beam_in_secs,
             window.switches,
             window.recent_actor_spawn_switch or None,
             window.recent_actor_spawn_inverted,
@@ -325,10 +326,13 @@ class ToolSettings(QWidget):
             on_checkpoint=window.recent_actor_on_checkpoint,
         )
         if result is not None:
-            kind, count, respawn_secs, switch, inverted, level, levels, roam_distance, until, response = result
+            kind, count, respawn_secs, beam_in_secs, switch, inverted, level, levels, roam_distance, until, response = (
+                result
+            )
             window.recent_actor_spawn_kind = kind
             window.recent_actor_spawn_count = count
             window.recent_actor_spawn_respawn_secs = respawn_secs
+            window.recent_actor_beam_in_secs = beam_in_secs
             window.recent_actor_spawn_switch = switch or ""
             window.recent_actor_spawn_inverted = inverted
             window.recent_actor_spawn_levels = levels

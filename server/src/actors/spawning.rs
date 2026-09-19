@@ -11,9 +11,10 @@ use crate::{
     config::{ActorRespawnScope, ServerGameplayConfig},
     map::{ActorSpawnZone, MapConfig},
     players::{PlayerMap, checkpoint_progress},
+    schedule::ticks_from_secs,
 };
 use common::{
-    config::{ActorGameplayConfig, ActorMovementConfig, CharacterPhysicsConfig},
+    config::{ActorGameplayConfig, CharacterPhysicsConfig},
     map::Carriers,
     physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, character_positions_intersect},
     protocol::{
@@ -49,12 +50,18 @@ pub(crate) fn reset_actors(
 // deficit: the target for the logged-in players less its live, announced, and
 // waiting slots. The deficit fills every tick the zone's gates allow, so the
 // first fill, joins, resets, and expired countdowns all spawn the same way.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the fill reads the world, the zone gates, and every spawn tuning"
+)]
 pub fn actors_respawn_system(
+    mut commands: Commands,
     mut pending: ResMut<PendingActorSpawns>,
     mut spawner: ResMut<ActorSpawner>,
     mut actors: ResMut<ActorMap>,
     time: Res<Time>,
     map_config: Res<MapConfig>,
+    map_settings: Res<MapSettings>,
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
     server_gameplay_config: Res<ServerGameplayConfig>,
@@ -108,11 +115,14 @@ pub fn actors_respawn_system(
         ));
     }
     let mut planner = SpawnPlanner {
+        commands: &mut commands,
+        actors: &mut actors,
         pending: &mut pending,
         spawner: &mut spawner,
         occupied_positions,
         rng: rng(),
         map_config: &map_config,
+        map_settings: &map_settings,
         carriers: &carriers,
         collision_world: &collision_world,
         config: &server_gameplay_config,
@@ -136,9 +146,11 @@ pub fn actors_respawn_system(
     }
 }
 
-// Queues beam-ins for zones' deficits within one system run, reserving an
-// id, spot, and heading for each.
-struct SpawnPlanner<'a> {
+// Fills zones' deficits within one system run, reserving an id, spot, and
+// heading for each spawn and queueing its beam-in.
+struct SpawnPlanner<'a, 'w, 's> {
+    commands: &'a mut Commands<'w, 's>,
+    actors: &'a mut ActorMap,
     pending: &'a mut PendingActorSpawns,
     spawner: &'a mut ActorSpawner,
     // Every spot already taken: players, live actors, and the spawns reserved so far.
@@ -146,14 +158,15 @@ struct SpawnPlanner<'a> {
     open: &'a [BarrierId],
     rng: ThreadRng,
     map_config: &'a MapConfig,
+    map_settings: &'a MapSettings,
     carriers: &'a Carriers,
     collision_world: &'a CollisionWorld,
     config: &'a ServerGameplayConfig,
     tick: u32,
 }
 
-impl SpawnPlanner<'_> {
-    // Queues `missing` beam-ins. A zone with no clear spot keeps its deficit for
+impl SpawnPlanner<'_, '_, '_> {
+    // Queues `missing` spawns. A zone with no clear spot keeps its deficit for
     // the next tick and warns once, again after a later spawn has succeeded.
     fn queue_zone(&mut self, zone_idx: usize, zone: &ActorSpawnZone, missing: u32) {
         let config = self.config;
@@ -172,11 +185,12 @@ impl SpawnPlanner<'_> {
         }
     }
 
-    // Reserve an id, spot, and heading for one actor and queue it for beam-in.
-    // The heading is rolled now so the client ghost and the materialized actor
-    // face the same way. The spot is kept in the zone's carrier frame, so it
-    // rides the carrier through the warning window, which runs from `tick`.
-    // False when the zone has no clear spot.
+    // Reserve an id, spot, and heading for one actor. The heading is rolled
+    // now so the client ghost and the materialized actor face the same way.
+    // The spot is kept in the zone's carrier frame, so it rides the carrier
+    // through the zone's beam-in window, which runs from `tick`; a zone
+    // without one materializes the actor right here, so no ghost ever rides
+    // a snapshot. False when the zone has no clear spot.
     fn queue_one(&mut self, zone_idx: usize, zone: &ActorSpawnZone, actor_config: &ActorGameplayConfig) -> bool {
         let pos = if actor_config.flies() {
             generate_flying_spawn_position(
@@ -203,7 +217,8 @@ impl SpawnPlanner<'_> {
         };
         self.occupied_positions.push((pos, actor_config.physics()));
 
-        self.pending.0.push(PendingActorSpawn {
+        let beam_in_ticks = ticks_from_secs(zone.beam_in_secs, self.config.network.server_hz);
+        let spawn = PendingActorSpawn {
             actor_id: self.spawner.allocate(),
             zone_idx,
             kind: zone.kind.clone(),
@@ -211,13 +226,20 @@ impl SpawnPlanner<'_> {
             pos: self.carriers.pose(zone.carrier).inverse_transform_position(&pos),
             face_yaw: self.rng.random_range(0.0..TAU),
             reserved_tick: self.tick,
-            due_tick: self.tick.wrapping_add(
-                self.config
-                    .actors
-                    .settings
-                    .spawn_warning_ticks(self.config.network.server_hz),
-            ),
-        });
+            due_tick: self.tick.wrapping_add(beam_in_ticks),
+        };
+        if beam_in_ticks == 0 {
+            materialize_actor(
+                self.commands,
+                self.actors,
+                self.carriers,
+                self.config,
+                self.map_settings,
+                spawn,
+            );
+        } else {
+            self.pending.0.push(spawn);
+        }
         true
     }
 }
@@ -298,7 +320,6 @@ pub fn actors_pending_spawn_system(
         })
         .collect();
     for spawn in due {
-        let max_health = server_gameplay_config.combat.health.expect_actor(&spawn.kind).max;
         let character = &server_gameplay_config.expect_actor(&spawn.kind).character;
         let pos = spawn.world_position(&carriers);
         if character.flies()
@@ -312,14 +333,12 @@ pub fn actors_pending_spawn_system(
             continue;
         }
         occupied.push((pos, character.physics()));
-        let movement = (!character.immovable).then(|| *map_settings.movement.expect_actor(&spawn.kind));
         materialize_actor(
             &mut commands,
             &mut actors,
             &carriers,
-            max_health,
-            character,
-            movement,
+            &server_gameplay_config,
+            &map_settings,
             spawn,
         );
     }
@@ -333,15 +352,19 @@ fn take_due_spawns(pending: &mut Vec<PendingActorSpawn>, tick: u32) -> Vec<Pendi
     due
 }
 
+// Spawns the actor's entity and registers it. The kind's health, body, and
+// per-map speeds resolve here so a beam-in and a direct spawn agree.
 fn materialize_actor(
     commands: &mut Commands,
     actors: &mut ActorMap,
     carriers: &Carriers,
-    max_health: f32,
-    character: &ActorGameplayConfig,
-    movement: Option<ActorMovementConfig>,
+    config: &ServerGameplayConfig,
+    map_settings: &MapSettings,
     spawn: PendingActorSpawn,
 ) {
+    let max_health = config.combat.health.expect_actor(&spawn.kind).max;
+    let character = &config.expect_actor(&spawn.kind).character;
+    let movement = (!character.immovable).then(|| *map_settings.movement.expect_actor(&spawn.kind));
     let move_intent = ActorMoveIntent::Idle;
     let entity = commands
         .spawn((

@@ -299,10 +299,10 @@ class PortalJumpTests(unittest.TestCase):
         self.assertFalse(portals_overlap(a, replace(a, col=10), self.settings))
 
     def test_invalid_configuration_has_a_diagnostic(self):
-        global_settings = gameplay()
-        global_settings["player"]["movement_collider"]["height"] = 0
+        settings = {**gameplay(), **map_settings()}
+        settings["player"]["movement_collider"]["height"] = 0
         with self.assertRaisesRegex(ValueError, "player.movement_collider.height"):
-            PortalSettings.from_settings(map_settings(), "map", gameplay=global_settings, gameplay_source="gameplay")
+            PortalSettings.from_settings(settings, "map")
 
 
 class PortalJumpWindowTests(WindowTestCase):
@@ -567,7 +567,7 @@ class PortalJumpWindowTests(WindowTestCase):
         overlay.movement.setCurrentText("Walk")
         self.assertIsNot(overlay.results, before)
         positions = overlay.origin, overlay.entry, overlay.exit
-        settings = map_settings()
+        settings = {**gameplay(), **map_settings()}
         settings["movement"]["gravity"] = None
         with patch("map_editor.portal_jump_overlay.load_map_settings", return_value=settings):
             self.window.reload_dependencies()
@@ -586,7 +586,7 @@ class PortalJumpWindowTests(WindowTestCase):
 
     def test_unreachable_entry_is_retained_when_jump_position_changes(self):
         overlay = self.pair()
-        settings = map_settings()
+        settings = {**gameplay(), **map_settings()}
         settings["movement"]["player"]["run_speed"] = 0.1
         with patch("map_editor.portal_jump_overlay.load_map_settings", return_value=settings):
             self.window.reload_dependencies()
