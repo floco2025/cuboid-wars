@@ -19,7 +19,7 @@ use crate::{
     config::ClientSettings,
     map::{GrassChunkBuild, GrassChunks},
     materials::{MaterialMipmapState, MaterialTextures, TreeMaterial},
-    players::LocalPlayerMarker,
+    network::LastSnapshotTick,
     schedule::ClientSet,
 };
 
@@ -130,7 +130,7 @@ fn finish_loading(
     spawner: Res<WorldInstanceSpawner>,
     server: Res<AssetServer>,
     trees: Res<Assets<TreeMaterial>>,
-    players: Query<(), With<LocalPlayerMarker>>,
+    snapshot: Res<LastSnapshotTick>,
     mut failures: MessageReader<UntypedAssetLoadFailedEvent>,
     mut text: Query<&mut Text, With<LoadingText>>,
     screens: Query<Entity, With<LoadingScreen>>,
@@ -145,7 +145,9 @@ fn finish_loading(
         }
         return;
     }
-    let ready = !players.is_empty()
+    // The first snapshot spawns every model there is to wait for; a joiner
+    // held back for a group respawn or a blocked start has no body in it.
+    let ready = snapshot.0.is_some()
         && !textures.is_loading()
         && !mipmaps.is_loading()
         && !grass.waiting_for_chunks

@@ -69,7 +69,11 @@ impl<'a> Plan<'a> {
             return side.into();
         };
         let v = self.vector(*x, *y);
-        dirs.iter().find(|(_, p)| *p == v).expect("cardinal transform").0.into()
+        dirs.iter()
+            .find(|(_, p)| *p == v)
+            .expect("transformed side is not cardinal")
+            .0
+            .into()
     }
 }
 struct Context<'a> {
@@ -168,7 +172,8 @@ impl Context<'_> {
                     let key = format!("{end}_nudge");
                     let v = &entry[&key];
                     let [nx, nz] = plan.vector(number(&v[0]), number(&v[2]));
-                    entry[&key] = json!([n(nx), v[1], n(nz)]);
+                    // Nudges stay fractions in the file; adding zero clears a mirrored -0.0.
+                    entry[&key] = json!([nx + 0.0, v[1], nz + 0.0]);
                 }
                 entry["map"] = json!(self.definition(&original)?);
             } else {
@@ -184,7 +189,11 @@ impl Context<'_> {
             for (face, side) in faces {
                 if let Some(value) = old.get(face) {
                     let transformed = plan.direction(side);
-                    let key = faces.iter().find(|(_, s)| *s == transformed).expect("cardinal face").0;
+                    let key = faces
+                        .iter()
+                        .find(|(_, s)| *s == transformed)
+                        .expect("transformed face is not cardinal")
+                        .0;
                     entry[key] = value.clone();
                 }
             }

@@ -1,7 +1,7 @@
 //! Editable source documents. Normalization preserves invalid policy values;
 //! canonicalization is the editor's explicit repair after a geometry edit.
 use super::{canonical::*, normalize::*, placement::*};
-use crate::values::*;
+use crate::{diagnostics, geometry, transforms, values::*};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 pub const FACES: [&str; 6] = ["top", "bottom", "north", "south", "east", "west"];
@@ -24,7 +24,7 @@ pub fn level_lists() -> impl Iterator<Item = &'static str> {
 
 pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
     Ok(match op {
-        "floor_rectangles" => json!(crate::geometry::floor_rectangles(
+        "floor_rectangles" => json!(geometry::floor_rectangles(
             serde_json::from_value(a[0].clone())?,
             number(&a[1]),
             serde_json::from_value(a[2].clone())?,
@@ -74,7 +74,7 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
         | "normalize_checkpoint"
         | "normalize_item"
         | "normalize_pressure_plate" => normalize_record(op.trim_start_matches("normalize_"), &a[0]),
-        "edge_key" => json!(crate::geometry::edge(&a[0])),
+        "edge_key" => json!(geometry::edge(&a[0])),
         "ladder_key" | "light_key" | "nested_map_key" | "pressure_plate_key" | "actor_zone_key" | "checkpoint_key" => {
             record_key(op.trim_end_matches("_key"), &a[0])
         }
@@ -86,7 +86,7 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
             },
             &a[1],
         ),
-        "ladder_edge_key" => json!(crate::geometry::wall_endpoints(
+        "ladder_edge_key" => json!(geometry::wall_endpoints(
             i(&a[0], "col") as i32,
             i(&a[0], "row") as i32,
             s(&a[0], "side")
@@ -115,21 +115,21 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
             a[4].as_str().unwrap_or("")
         )),
         "actor_count_error" => json!(actor_count_error(&a[0])),
-        "validate_map" => json!(crate::diagnostics::validate_map(&a[0], &a[1])),
-        "validate_document" => json!(crate::diagnostics::validate_document(&a[0], &a[1])),
+        "validate_map" => json!(diagnostics::validate_map(&a[0], &a[1])),
+        "validate_document" => json!(diagnostics::validate_document(&a[0], &a[1])),
         "validate_catalog" => {
-            crate::diagnostics::validate_catalog(a[0].as_str().unwrap_or(""), &a[1])?;
+            diagnostics::validate_catalog(a[0].as_str().unwrap_or(""), &a[1])?;
             Value::Null
         }
-        "document_checkpoint_numbers" => json!(crate::diagnostics::checkpoint_numbers(
+        "document_checkpoint_numbers" => json!(diagnostics::checkpoint_numbers(
             &array(&a[0]).iter().collect::<Vec<_>>()
         )),
-        "plated_switches" => json!(crate::diagnostics::plates(&array(&a[0]).iter().collect::<Vec<_>>())),
-        "placed_definitions" => crate::diagnostics::placed_definitions(&a[0], &a[1]),
-        "nested_map_cycle" => json!(crate::diagnostics::nested_cycle(a[0].as_str(), array(&a[1]), &a[2])),
+        "plated_switches" => json!(diagnostics::plates(&array(&a[0]).iter().collect::<Vec<_>>())),
+        "placed_definitions" => diagnostics::placed_definitions(&a[0], &a[1]),
+        "nested_map_cycle" => json!(diagnostics::nested_cycle(a[0].as_str(), array(&a[1]), &a[2])),
         "translate_entry" | "translate_map" | "resize_map_offset" | "record_rect" | "record_levels"
         | "map_content_bounds" | "remap_levels" | "insert_level_data" | "remove_level_data" | "edit_levels_data"
-        | "transform_block" => crate::transforms::dispatch(op, a)?,
+        | "transform_block" => transforms::dispatch(op, a)?,
         "normalized_wall"
         | "wall_endpoints_for_cell_side"
         | "ramp_rect"
@@ -143,7 +143,7 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
         | "nested_map_rest_points"
         | "nested_map_footprints"
         | "nested_map_starts_at_end_2"
-        | "ramp_landing_edges" => crate::geometry::dispatch(op, a)?,
+        | "ramp_landing_edges" => geometry::dispatch(op, a)?,
         _ => bail!("Unknown map operation: {op}"),
     })
 }

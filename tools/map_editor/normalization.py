@@ -5,6 +5,7 @@ from __future__ import annotations
 from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS
 
 from .core import call, tuples
+from .geometry import normalized_wall
 
 
 def empty_level(index: int):
@@ -91,16 +92,23 @@ def ladders_overlap(a: dict, b: dict):
     return call("ladders_overlap", a, b)
 
 
+# A placement rule reads its own level and the ramps. The hover ghost asks on
+# every repaint, so only those cross the boundary, not the whole document.
+def _placement_view(data: dict, level_idx: int) -> dict:
+    levels = [level if index == level_idx else {} for index, level in enumerate(data["levels"])]
+    return {"levels": levels, "ramps": data["ramps"]}
+
+
 def item_cell_error(data: dict, level_idx: int, col: int, row: int):
-    return call("item_cell_error", data, level_idx, col, row)
+    return call("item_cell_error", _placement_view(data, level_idx), level_idx, col, row)
 
 
 def plate_cell_error(data: dict, level_idx: int, col: int, row: int):
-    return call("plate_cell_error", data, level_idx, col, row)
+    return call("plate_cell_error", _placement_view(data, level_idx), level_idx, col, row)
 
 
 def light_placement_error(data: dict, level_idx: int, col: int, row: int, side: str):
-    return call("light_placement_error", data, level_idx, col, row, side)
+    return call("light_placement_error", _placement_view(data, level_idx), level_idx, col, row, side)
 
 
 def ladder_spans_level(ladder: dict, level_idx: int):
@@ -123,8 +131,9 @@ def normalize_light(light: dict):
     return call("normalize_light", light)
 
 
-def edge_key(entry: dict):
-    return tuples(call("edge_key", entry))
+# Python, not map_core: the canvas calls this per record on every mouse move (see `grid_int` in core.py).
+def edge_key(entry: dict) -> tuple[int, int, int, int]:
+    return tuple(normalized_wall([entry.get(key) for key in ("c0", "r0", "c1", "r1")]))
 
 
 def light_key(light: dict):

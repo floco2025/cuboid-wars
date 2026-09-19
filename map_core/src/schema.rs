@@ -3,10 +3,12 @@ use std::collections::HashMap;
 use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::{Value, from_value};
 
-use common::protocol::{CarrierMotion, CheckpointKind, FaceMaterials, KindDef, SwitchDef, TERRAIN_MATERIAL};
+use common::{
+    config::deserialize_required_option,
+    protocol::{CarrierMotion, CheckpointKind, FaceMaterials, KindDef, SwitchDef, TERRAIN_MATERIAL},
+};
 
 use crate::CheckpointResponse;
-use common::config::deserialize_required_option;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct MapFile {

@@ -6,6 +6,7 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub fn record_rect(name: &str, v: &Value) -> [i64; 4] {
     if ZONE_LISTS.contains(&name) {
@@ -197,7 +198,7 @@ fn edit_levels(data: &Value, levels: &[Value]) -> Result<Value> {
         bail!("A map needs at least one level.");
     }
     let kept: Vec<_> = levels.iter().filter(|v| !v[0].is_null()).map(|v| int(&v[0])).collect();
-    let unique: std::collections::BTreeSet<_> = kept.iter().copied().collect();
+    let unique: BTreeSet<_> = kept.iter().copied().collect();
     if unique.len() != kept.len() || kept.iter().any(|n| *n < 0 || *n >= list(data, "levels").len() as i64) {
         bail!("Existing levels must be unique and within the map.");
     }
@@ -207,8 +208,8 @@ fn edit_levels(data: &Value, levels: &[Value]) -> Result<Value> {
             after = without_level(&after, idx);
         }
     }
-    let remaining: std::collections::BTreeMap<_, _> = unique.iter().enumerate().map(|(i, n)| (*n, i)).collect();
-    let positions: std::collections::BTreeMap<_, _> = levels
+    let remaining: BTreeMap<_, _> = unique.iter().enumerate().map(|(i, n)| (*n, i)).collect();
+    let positions: BTreeMap<_, _> = levels
         .iter()
         .enumerate()
         .filter(|(_, v)| !v[0].is_null())
@@ -238,8 +239,8 @@ fn edit_levels(data: &Value, levels: &[Value]) -> Result<Value> {
                         .filter(|(old, _)| lower <= **old && **old <= upper)
                         .map(|(_, new)| *new),
                 );
-                let min = *covered.iter().min().expect("span has endpoints");
-                let max = *covered.iter().max().expect("span has endpoints");
+                let min = *covered.iter().min().expect("moved span covers no level");
+                let max = *covered.iter().max().expect("moved span covers no level");
                 e["level"] = json!(min);
                 if e.get("levels").is_some() {
                     e["levels"] = json!(max - min + 1);
@@ -345,7 +346,9 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
                     .cloned()
                     .collect::<Vec<_>>()
             );
-            let levels = after["levels"].as_array_mut().expect("editable map levels");
+            let levels = after["levels"]
+                .as_array_mut()
+                .expect("levels missing from the edited map");
             levels.insert((idx.max(0) as usize).min(levels.len()), empty_level(idx));
             after
         }

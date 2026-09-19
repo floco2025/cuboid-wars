@@ -1,9 +1,12 @@
 use crate::{
+    authoring::record_key,
+    diagnostics,
     geometry::normalized_wall,
     schema::{MapDef, MapFile, MapSource},
+    values::SortKey,
 };
 use anyhow::{Context, Result, anyhow};
-use serde_json::json;
+use serde_json::{Value, json};
 use std::{collections::HashMap, fs, mem, path::Path};
 
 pub type LoadedMaps = HashMap<String, MapDef>;
@@ -18,11 +21,12 @@ pub fn load_map(path: &Path) -> Result<MapSource> {
 pub fn prepare_source(mut root: MapDef) -> Result<MapSource> {
     let source = source_value(&root)?;
     let context = json!({
+        "typed_source": true,
         "switches": root.switches.iter().map(|entry| &entry.id).collect::<Vec<_>>(),
         "barrier_kinds": root.barrier_kinds.iter().map(|entry| &entry.id).collect::<Vec<_>>(),
         "bridge_kinds": root.bridge_kinds.iter().map(|entry| &entry.id).collect::<Vec<_>>(),
     });
-    let issues = crate::diagnostics::validate_document(&source, &context);
+    let issues = diagnostics::validate_document(&source, &context);
     if !issues.is_empty() {
         return Err(anyhow!(
             issues
@@ -32,7 +36,7 @@ pub fn prepare_source(mut root: MapDef) -> Result<MapSource> {
                 .join("\n")
         ));
     }
-    let used = crate::diagnostics::placed_definitions(&source, &source["nested_geometry"]);
+    let used = diagnostics::placed_definitions(&source, &source["nested_geometry"]);
     let switches = mem::take(&mut root.switches);
     let barrier_kinds = mem::take(&mut root.barrier_kinds);
     let bridge_kinds = mem::take(&mut root.bridge_kinds);
@@ -56,8 +60,8 @@ pub fn prepare_source(mut root: MapDef) -> Result<MapSource> {
 
 pub fn validate_map(map_def: &MapDef) -> Result<()> {
     let source = source_value(map_def)?;
-    let context = json!({"defer_course_references": true});
-    if let Some(issue) = crate::diagnostics::validate_map(&source, &context).into_iter().next() {
+    let context = json!({"typed_source": true, "defer_course_references": true});
+    if let Some(issue) = diagnostics::validate_map(&source, &context).into_iter().next() {
         return Err(anyhow!(issue.message));
     }
     Ok(())
@@ -65,9 +69,9 @@ pub fn validate_map(map_def: &MapDef) -> Result<()> {
 
 pub fn canonicalize(map_def: &mut MapDef) {
     map_def.actor_spawn_zones.sort_by_cached_key(|zone| {
-        crate::values::SortKey(crate::authoring::record_key(
+        SortKey(record_key(
             "actor_zone",
-            &serde_json::to_value(zone).expect("source serializes"),
+            &serde_json::to_value(zone).expect("actor spawn zone does not serialize to JSON"),
         ))
     });
     map_def.actor_spawn_zones.dedup();
@@ -112,17 +116,17 @@ pub fn canonicalize(map_def: &mut MapDef) {
     });
 }
 
-fn source_value(map_def: &MapDef) -> Result<serde_json::Value> {
-    fn resolve(data: &mut serde_json::Value) {
-        for entry in data["nested_maps"].as_array_mut().expect("serialized map list") {
+fn source_value(map_def: &MapDef) -> Result<Value> {
+    fn resolve(data: &mut Value) {
+        for entry in data["nested_maps"]
+            .as_array_mut()
+            .expect("nested_maps missing from the serialized map")
+        {
             if entry["to_level"].is_null() {
                 entry["to_level"] = entry["level"].clone();
             }
         }
-        if let Some(definitions) = data
-            .get_mut("nested_geometry")
-            .and_then(serde_json::Value::as_object_mut)
-        {
+        if let Some(definitions) = data.get_mut("nested_geometry").and_then(Value::as_object_mut) {
             for geometry in definitions.values_mut() {
                 resolve(geometry);
             }

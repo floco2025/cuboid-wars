@@ -1,6 +1,5 @@
 use super::validation::*;
-use crate::values::*;
-use crate::{authoring::cell_error, geometry};
+use crate::{authoring::cell_error, geometry, values::*};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 pub(super) fn zone_rect(zone: &Value, label: &str, data: &Value, errors: &mut Errors) {

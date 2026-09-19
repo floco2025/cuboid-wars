@@ -102,6 +102,25 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(any("has no regular floor" in error for error in errors))
         self.assertTrue(any("but the map has 1 level(s)" in error for error in errors))
 
+    def test_an_authored_side_that_is_no_side_survives_loading_and_is_reported(self) -> None:
+        data = empty_map(2, 2)
+        data["levels"].append(empty_level(1))
+        data["levels"][0]["walls"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, **faces()}]
+        data["levels"][0]["lights"] = [{"col": 0, "row": 0, "side": None, "kind": "utility"}]
+        data["ladders"] = [
+            {"lower_level": 0, "col": 0, "row": 0, "side": None, "levels": 1},
+            {"lower_level": 0, "col": 1, "row": 1, "levels": 1},
+        ]
+
+        loaded = normalize_map(data)
+
+        self.assertEqual([ladder["side"] for ladder in loaded["ladders"]], [None, "N"])
+        self.assertIsNone(loaded["levels"][0]["lights"][0]["side"])
+        errors = validate_map(loaded, [], [])
+        self.assertTrue(any("ladders[0] has invalid side None" in error for error in errors), errors)
+        self.assertTrue(any("light [0, 0, ] has invalid side" in error for error in errors), errors)
+        self.assertFalse(any("ladders[1]" in error for error in errors), errors)
+
     def test_material_validation_uses_the_supplied_catalog(self) -> None:
         data = paint_floors(empty_map(), 0, (3, 3, 4, 4), "fresh_alias")
         data["checkpoints"] = []

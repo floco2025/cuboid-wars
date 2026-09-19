@@ -194,3 +194,44 @@ fn root_fireworks_is_required_and_nullable_without_requiring_it_on_nested_geomet
         assert!(serde_json::from_value::<MapFile>(json!({"map": root.clone()})).is_err());
     }
 }
+
+#[test]
+fn unplaced_geometry_may_target_its_own_plates_and_checkpoints() {
+    let mut value = geometry(&[]);
+    value["switches"] = json!([{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]);
+    let mut scratch = geometry(&[]);
+    scratch["pressure_plates"] = json!([{"level": 0, "col": 0, "row": 0, "switch": "door"}]);
+    scratch["checkpoints"][0]["number"] = json!(4);
+    scratch["actor_spawn_zones"] = json!([{
+        "level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "actor", "count": [1], "respawn_secs": null,
+        "switch": "door", "until_checkpoint": 4,
+    }]);
+    value["nested_geometry"] = json!({ "scratch": scratch });
+    let parse = |value: &Value| serde_json::from_value::<MapDef>(value.clone()).expect("test source is invalid");
+    let loaded = prepare_source(parse(&value)).expect("self-contained scratch geometry rejected");
+    assert!(loaded.nested_geometry.is_empty());
+
+    value["nested_geometry"]["scratch"]["pressure_plates"] = json!([]);
+    let error = prepare_source(parse(&value))
+        .expect_err("a switch no plate operates accepted")
+        .to_string();
+    assert!(error.contains("no pressure plate operates"), "{error}");
+}
+
+#[test]
+fn duplicate_ramps_are_rejected() {
+    let mut value = geometry(&[]);
+    value["levels"] = json!([
+        {"floors": [{"col": 0, "row": 0, "all": "test"}]},
+        {"floors": []}
+    ]);
+    let ramp = json!({"lower_level": 0, "low": [1, 1], "high": [3, 2], "all": "test"});
+    value["ramps"] = json!([ramp]);
+    let parse = |value: &Value| serde_json::from_value::<MapDef>(value.clone()).expect("test source is invalid");
+    prepare_source(parse(&value)).expect("single ramp rejected");
+    value["ramps"] = json!([ramp, ramp]);
+    let error = prepare_source(parse(&value))
+        .expect_err("duplicate ramp accepted")
+        .to_string();
+    assert!(error.contains("duplicates another ramp"), "{error}");
+}

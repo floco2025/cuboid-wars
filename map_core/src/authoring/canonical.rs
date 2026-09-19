@@ -93,7 +93,10 @@ pub fn canonicalize_map(v: &Value) -> Value {
         ("pressure_plates", "pressure_plate"),
     ] {
         if key == "checkpoints" {
-            for v in b[key].as_array_mut().expect("normalized list") {
+            for v in b[key]
+                .as_array_mut()
+                .expect("checkpoints missing from the normalized map")
+            {
                 if whole(&v["number"]) && int(&v["number"]) == 0 {
                     v["type"] = json!("individual");
                 }

@@ -68,7 +68,7 @@ pub fn compact_materials(v: &Value, faces: &[&str]) -> Value {
     if *count <= 1 {
         return select(v, faces);
     }
-    let value: Value = serde_json::from_str(best).expect("material value serialized by serde_json");
+    let value: Value = serde_json::from_str(best).expect("counted material value is not JSON");
     let mut out = json!({"all":value});
     for face in faces {
         if let Some(v) = v.get(face)
@@ -78,6 +78,14 @@ pub fn compact_materials(v: &Value, faces: &[&str]) -> Value {
         }
     }
     out
+}
+// Only an absent side takes the default; any other authored value survives for validation to report.
+fn side(v: &Value) -> Value {
+    match v.get("side") {
+        None => json!("N"),
+        Some(Value::String(side)) => json!(side.to_uppercase()),
+        Some(other) => other.clone(),
+    }
 }
 pub fn normalize_record(kind: &str, v: &Value) -> Value {
     let controls = select(v, &["switch", "switch_inverted"]);
@@ -104,12 +112,12 @@ pub fn normalize_record(kind: &str, v: &Value) -> Value {
         "ladder" => {
             let mut out = coords(v, &["lower_level", "col", "row"]);
             out["levels"] = get(v, "levels", json!(1));
-            out["side"] = json!(v["side"].as_str().unwrap_or("N").to_uppercase());
+            out["side"] = side(v);
             out
         }
         "light" => {
             let mut out = coords(v, &["col", "row"]);
-            out["side"] = json!(v["side"].as_str().unwrap_or("N").to_uppercase());
+            out["side"] = side(v);
             out["kind"] = get(v, "kind", json!(""));
             out
         }

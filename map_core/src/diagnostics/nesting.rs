@@ -1,6 +1,5 @@
 use super::validation::*;
-use crate::authoring::ladders_overlap;
-use crate::values::*;
+use crate::{authoring::ladders_overlap, values::*};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 pub fn placed_definitions(root: &Value, definitions: &Value) -> Value {

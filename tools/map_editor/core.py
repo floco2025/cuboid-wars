@@ -21,9 +21,12 @@ def _load():
         return _native
     # Ask Cargo for the artifact path: this also respects custom target directories.
     command = ["cargo", "build", "--release", "-p", "map_core_py", "--message-format=json-render-diagnostics"]
-    result = subprocess.run(
-        command, cwd=_ROOT, text=True, capture_output=True, env={**os.environ, "PYO3_PYTHON": sys.executable}
-    )
+    try:
+        result = subprocess.run(
+            command, cwd=_ROOT, text=True, capture_output=True, env={**os.environ, "PYO3_PYTHON": sys.executable}
+        )
+    except OSError as error:
+        raise RuntimeError(f"Cannot build the editor's Rust map library: cargo did not start ({error})") from error
     artifacts = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
     if result.returncode:
         diagnostics = "".join(
@@ -83,6 +86,21 @@ def _decode(value):
 
 def call(operation, *args):
     return _decode(json.loads(_load().call(operation, json.dumps(_encode(args), allow_nan=False))))
+
+
+# The canvas asks for a record's cells and levels once per record on every mouse
+# move, which no boundary crossing is cheap enough for; those few helpers read
+# coordinates in Python the way map_core's `int` does, and
+# tests/test_core_parity.py holds them to the Rust results.
+def grid_int(value) -> int:
+    if type(value) is int:
+        return value
+    return int(value) if type(value) is float and math.isfinite(value) else 0
+
+
+def grid_point(value) -> tuple[int, int]:
+    pair = value if isinstance(value, (list, tuple)) else ()
+    return tuple(grid_int(pair[index]) if index < len(pair) else 0 for index in (0, 1))
 
 
 def tuples(value):

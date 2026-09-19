@@ -69,7 +69,9 @@ impl CollisionWorld {
     }
 
     // Every world surface the ray enters before `max_distance`, nearest
-    // first, one per collider; a solid's far face is never among them.
+    // first, one per collider; a solid's far face is never among them. A
+    // pressure plate is a fixture lying on its floor, not a surface between
+    // two spaces, so it is not among them either.
     #[must_use]
     pub fn world_surfaces_along_ray(&self, origin: Vec3, direction: Vec3, max_distance: f32) -> Vec<WorldSurfaceHit> {
         if !origin.is_finite() || !direction.is_finite() || !max_distance.is_finite() || max_distance <= 0.0 {
@@ -79,7 +81,12 @@ impl CollisionWorld {
             return Vec::new();
         };
         let ray = Ray::new(to_rapier(origin), to_rapier(direction));
-        let pipeline = self.query_pipeline(query_filter(world_collision_groups()));
+        let structural = |_: ColliderHandle, collider: &Collider| {
+            ColliderKind::from_user_data(collider.user_data) != Some(ColliderKind::PressurePlate)
+        };
+        let mut filter = query_filter(world_collision_groups());
+        filter.predicate = Some(&structural);
+        let pipeline = self.query_pipeline(filter);
         let mut hits: Vec<(f32, WorldSurfaceHit)> = pipeline
             .intersect_ray(ray, max_distance, false)
             .filter_map(|(handle, _, hit)| {

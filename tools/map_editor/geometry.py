@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 import math
-from .core import call
+from .core import call, grid_int, grid_point
 
 
 def wall_endpoints_for_cell_side(col: int, row: int, side: str):
@@ -21,8 +21,10 @@ def cell_side_from_click(col: int, row: int, px: float, py: float) -> str:
     return min(distances, key=distances.get)
 
 
-def normalized_wall(wall: list[int]):
-    return call("normalized_wall", wall)
+# Python, not map_core: the canvas calls this per record on every mouse move (see `grid_int` in core.py).
+def normalized_wall(wall: list[int]) -> list[int]:
+    c0, r0, c1, r1 = (grid_int(value) for value in wall)
+    return [c1, r1, c0, r0] if (c1, r1) < (c0, r0) else [c0, r0, c1, r1]
 
 
 # The eight resize handles of a zone, nw clockwise, in grid units.
@@ -32,8 +34,10 @@ def zone_handle_centers(zone: dict) -> list[tuple[float, float]]:
     return [(c0, r0), (mx, r0), (c1, r0), (c1, my), (c1, r1), (mx, r1), (c0, r1), (c0, my)]
 
 
-def zone_rect(zone: dict):
-    return tuple(call("zone_rect", zone))
+# Python, not map_core: the canvas calls this per record on every mouse move (see `grid_int` in core.py).
+def zone_rect(zone: dict) -> tuple[int, int, int, int]:
+    (c0, c1), (r0, r1) = grid_point(zone.get("cols")), grid_point(zone.get("rows"))
+    return c0, r0, c1, r1
 
 
 def zone_intersects_rect(zone: dict, rect: tuple[int, int, int, int]) -> bool:
@@ -104,8 +108,9 @@ def ramp_points_from_cells(start: tuple[int, int], end: tuple[int, int]) -> tupl
     return [c0, r1], [c1, r0]
 
 
-def rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]):
-    return call("rects_overlap", a, b)
+# Python, not map_core: the canvas calls this per record on every mouse move (see `grid_int` in core.py).
+def rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
 def wall_overlaps_rect(wall: list[int], rect: tuple[int, int, int, int]) -> bool:

@@ -1,8 +1,8 @@
 use super::validation::*;
-use crate::values::*;
 use crate::{
     authoring::{FACES, TERRAIN_FACES, level_label},
     geometry,
+    values::*,
 };
 use serde_json::{Value, json};
 use std::collections::BTreeSet;

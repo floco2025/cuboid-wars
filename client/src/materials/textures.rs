@@ -84,7 +84,7 @@ fn load_material_textures_system(
             if let Some(image) = images.remove(source.id()) {
                 images
                     .insert(loading.target.id(), image)
-                    .expect("queued texture handle is still reserved");
+                    .expect("queued texture handle lost its reserved slot");
                 // A caller can discard a texture slot while customizing its material;
                 // completion must not depend on a material event referencing this image.
                 queue_images(

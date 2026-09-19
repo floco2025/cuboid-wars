@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     map::Carriers,
-    protocol::{BarrierId, BridgeId, FaceMaterials, SwitchState},
+    protocol::{BarrierId, BridgeId, FaceMaterials, PressurePlate, SwitchId, SwitchState},
 };
 
 #[test]
@@ -142,6 +142,30 @@ fn world_surfaces_along_ray_lists_each_solid_entered_nearest_first_and_no_field(
     assert_eq!(heights.len(), 2, "hits were {hits:?}");
     assert!((heights[0] - LEVEL_HEIGHT).abs() < 0.001, "hits were {hits:?}");
     assert!((heights[1] - LEVEL_HEIGHT / 4.0).abs() < 0.01, "hits were {hits:?}");
+}
+
+#[test]
+fn world_surfaces_along_ray_skips_a_pressure_plate_lying_on_its_floor() {
+    let mut layout = test_map_layout();
+    layout.pressure_plates.push(PressurePlate {
+        level: 1,
+        center_x: 2.0,
+        center_y: LEVEL_HEIGHT,
+        center_z: 2.0,
+        side: 1.0,
+        switch: SwitchId(0),
+        carrier: CarrierId::WORLD,
+    });
+    let world = CollisionWorld::from_map_layout(&layout);
+    let origin = Vec3::new(2.0, LEVEL_HEIGHT + 0.05, 3.5);
+
+    // The plate stands in the way of a body at foot height.
+    let blocked = world
+        .world_surface_along_ray(origin, Vec3::NEG_Z, 3.0)
+        .expect("plate missing from the world query");
+    assert!((blocked.point.z - 2.5).abs() < 0.001, "hit was {blocked:?}");
+
+    assert!(world.world_surfaces_along_ray(origin, Vec3::NEG_Z, 3.0).is_empty());
 }
 
 #[test]

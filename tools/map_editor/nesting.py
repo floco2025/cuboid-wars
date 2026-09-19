@@ -114,8 +114,7 @@ def nested_map_footprint(anchor: Sequence[float], shape: NestedMapShape | None) 
     """The cells the nested map's grid covers with its cell (0, 0) on
     `anchor`, as (x0, y0, x1, y1); one cell for unknown geometry, so the
     canvas has something to outline."""
-    cols, rows = (shape.grid_cols, shape.grid_rows) if shape else (1, 1)
-    return (anchor[0], anchor[1], anchor[0] + cols, anchor[1] + rows)
+    return nested_map_footprints({"from": list(anchor), "to": list(anchor)}, shape, 0.0)[0]
 
 
 def nested_map_footprints(entry: dict, shape: NestedMapShape | None, wall_width_cells: float):

@@ -1,6 +1,6 @@
 //! Structured source diagnostics; callers keep the original editable document.
 use super::{nesting, placed_definitions, records, surfaces};
-use crate::{authoring::actor_count_error, transforms, values::*};
+use crate::{authoring::actor_count_error, geometry::ramp_error, schema::FireworksConfig, transforms, values::*};
 use anyhow::{Result, bail, ensure};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -153,6 +153,7 @@ pub fn validate_map(data: &Value, context: &Value) -> Vec<Issue> {
     if levels.is_empty() {
         errors.add("at least one level is required");
     }
+    // Bootstrap's MissileAirGrid stores the count, not the highest index, in a u8.
     if levels.len() > 255 {
         errors.add(format!("at most 255 levels are supported (found {})", levels.len()));
     }
@@ -201,9 +202,13 @@ pub fn validate_map(data: &Value, context: &Value) -> Vec<Issue> {
     records::items(data, context, &mut errors);
     records::pressure_plates(data, context, &mut errors);
     surfaces::validate(data, context, &mut errors);
+    let mut ramps = BTreeSet::new();
     for ramp in list(data, "ramps") {
         errors.locate("ramps", ramp, None);
-        if let Some(error) = crate::geometry::ramp_error(
+        if !ramps.insert((i(ramp, "lower_level"), point(&ramp["low"]), point(&ramp["high"]))) {
+            errors.add(format!("ramp {}: duplicates another ramp", repr(ramp)));
+        }
+        if let Some(error) = ramp_error(
             point(&ramp["low"]).map(|v| v as i32),
             point(&ramp["high"]).map(|v| v as i32),
             i(ramp, "lower_level"),
@@ -217,7 +222,8 @@ pub fn validate_map(data: &Value, context: &Value) -> Vec<Issue> {
     nesting::ladders(data, &mut errors);
     nesting::validate(data, context, &mut errors);
     surfaces::materials(data, context, &mut errors);
-    if errors.issues.is_empty() {
+    // A source serialized from the typed schema already has its shape.
+    if errors.issues.is_empty() && context["typed_source"] != true {
         errors.issues.extend(super::shape::validate(data));
     }
     errors.issues
@@ -259,7 +265,7 @@ pub fn validate_document(root: &Value, context: &Value) -> Vec<Issue> {
                 errors.add("fireworks cooldown_secs must be finite and nonnegative");
             }
             if errors.issues.len() == before
-                && let Err(error) = serde_json::from_value::<crate::schema::FireworksConfig>(fireworks.clone())
+                && let Err(error) = serde_json::from_value::<FireworksConfig>(fireworks.clone())
             {
                 errors.add(format!("fireworks: {error}"));
             }
@@ -305,6 +311,21 @@ pub fn validate_document(root: &Value, context: &Value) -> Vec<Issue> {
             }
         }
         context["map_name"] = json!(name);
+        // An unplaced definition is scratch geometry, checked against the tree it
+        // would join: the placed one, itself, and whatever it places.
+        let scratch = name.is_some_and(|name| placed.get(name).is_none());
+        let own = if scratch {
+            placed_definitions(data, definitions)
+        } else {
+            Value::Null
+        };
+        let mut tree = used.clone();
+        if scratch {
+            tree.push(data);
+            tree.extend(own.as_object().into_iter().flat_map(|defs| defs.values()));
+        }
+        context["plated_switches"] = json!(plates(&tree));
+        context["checkpoint_numbers"] = json!(checkpoint_numbers(&tree));
         let mut issues = validate_map(data, &context);
         for (idx, item) in list(data, "items").iter().enumerate() {
             if item_type(s(item, "type")) && check_kind(&item["type"], &context["pickup_types"]) {

@@ -97,9 +97,9 @@ pub fn cmp(a: &Value, b: &Value) -> Ordering {
 
 fn float_value(value: f32) -> Value {
     if value.is_finite() {
-        serde_json::json!(value)
+        json!(value)
     } else {
-        serde_json::json!({"$map_core_float": if value.is_nan() { "nan" } else if value.is_sign_positive() { "inf" } else { "-inf" }})
+        json!({"$map_core_float": if value.is_nan() { "nan" } else if value.is_sign_positive() { "inf" } else { "-inf" }})
     }
 }
 pub fn serialize_number<S: serde::Serializer>(value: &f32, serializer: S) -> Result<S::Ok, S::Error> {

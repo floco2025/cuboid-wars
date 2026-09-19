@@ -3,6 +3,7 @@ use crate::values::*;
 use anyhow::{Result, bail};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
 
 pub fn normalized_wall([a, b, c, d]: [i32; 4]) -> [i32; 4] {
     if (c, d) < (a, b) { [c, d, a, b] } else { [a, b, c, d] }
@@ -42,7 +43,7 @@ pub fn cells(ramp: &Value) -> Vec<[i32; 2]> {
         point(&ramp["high"]).map(|n| n as i32),
     )
 }
-pub fn cells_on_level(ramps: &[Value], level: i64) -> std::collections::BTreeSet<[i32; 2]> {
+pub fn cells_on_level(ramps: &[Value], level: i64) -> BTreeSet<[i32; 2]> {
     ramps
         .iter()
         .filter(|r| i(r, "lower_level") == level || i(r, "lower_level") + 1 == level)
@@ -213,7 +214,7 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
                         point(&r["low"]).map(|n| n as i32),
                         point(&r["high"]).map(|n| n as i32)
                     ))
-                    .collect::<std::collections::BTreeSet<_>>())
+                    .collect::<BTreeSet<_>>())
                 .collect::<Vec<_>>()
         ),
         _ => bail!("Unknown map geometry operation: {op}"),

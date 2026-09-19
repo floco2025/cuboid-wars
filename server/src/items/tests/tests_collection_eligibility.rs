@@ -18,6 +18,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    constants::{CHARACTER_CONTACT_OFFSET, PRESSURE_PLATE_HEIGHT},
     protocol::{
         BarrierKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, PowerUpKind,
         ServerMessage,
@@ -625,4 +626,19 @@ fn item_on_another_floor_is_not_collected() {
         app.world().resource::<ItemMap>().get(&item).is_some(),
         "vertical epsilon keeps cross-floor pickups out"
     );
+}
+
+#[test]
+fn player_standing_on_a_pressure_plate_collects_the_item_on_its_cell() {
+    let mut app = test_app();
+    let on_plate = Position {
+        y: PRESSURE_PLATE_HEIGHT + CHARACTER_CONTACT_OFFSET,
+        ..default()
+    };
+    let (_, _rx) = spawn_player(&mut app, PlayerId(1), on_plate);
+    let item = spawn_item(&mut app, 1, ItemType::Gold, Position::default(), random(0.0));
+
+    app.update();
+
+    assert!(app.world().resource::<ItemMap>().get(&item).is_none());
 }

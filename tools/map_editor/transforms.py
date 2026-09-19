@@ -6,7 +6,8 @@ from dataclasses import dataclass
 
 from .constants import ZONE_LISTS
 from .nesting import nested_map_shape
-from .core import call, shapes
+from .core import call, grid_int, grid_point, shapes
+from .geometry import zone_rect
 
 CELL_LISTS = ("floors", "inaccessible_floors", "terrain", "light_bridges", "lights")
 EDGE_LISTS = ("walls", "barriers", "erasers")
@@ -22,12 +23,35 @@ def record_lists(data: dict):
         yield (None, name), data.get(name, [])
 
 
-def record_rect(name: str, entry: dict):
-    return tuple(call("record_rect", name, entry))
+# Python, not map_core: the canvas calls this per record on every mouse move (see `grid_int` in core.py).
+def record_rect(name: str, entry: dict) -> tuple[int, int, int, int]:
+    if name in ZONE_LISTS:
+        return zone_rect(entry)
+    if name in EDGE_LISTS:
+        c0, r0, c1, r1 = (grid_int(entry.get(key)) for key in ("c0", "r0", "c1", "r1"))
+        return min(c0, c1), min(r0, r1), max(c0, c1), max(r0, r1)
+    if name in ("ramps", "nested_maps"):
+        ends = ("low", "high") if name == "ramps" else ("from", "to")
+        (c0, r0), (c1, r1) = (grid_point(entry.get(end)) for end in ends)
+        extra = int(name == "nested_maps")
+        return min(c0, c1), min(r0, r1), max(c0, c1) + extra, max(r0, r1) + extra
+    col, row = grid_int(entry.get("col")), grid_int(entry.get("row"))
+    return col, row, col + 1, row + 1
 
 
-def record_levels(entry: dict, level: int | None = None):
-    return tuple(call("record_levels", entry, level))
+# Python, not map_core: the canvas calls this per record on every mouse move (see `grid_int` in core.py).
+def record_levels(entry: dict, level: int | None = None) -> tuple[int, int]:
+    if level is not None:
+        return level, level
+    if "lower_level" in entry:
+        lower = grid_int(entry["lower_level"])
+        return lower, lower + (grid_int(entry["levels"]) if "levels" in entry else 1)
+    level = grid_int(entry.get("level"))
+    if "cols" in entry and "rows" in entry:
+        span = entry.get("levels")
+        return level, level + (span if type(span) is int and span > 0 else 1) - 1
+    end = grid_int(entry["to_level"]) if "to_level" in entry else level
+    return min(level, end), max(level, end)
 
 
 @dataclass(frozen=True)

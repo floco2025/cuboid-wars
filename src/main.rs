@@ -20,9 +20,10 @@ use crate::host::spawn_embedded_server;
 
 mod host;
 
-// Earlier profiling found that glibc retained large loading allocations.
-// Keep mimalloc alongside the bounded texture queue; settled process memory
-// also includes live assets and graphics-driver allocations.
+// glibc keeps freed load-time allocations resident: it raises its mmap
+// threshold while textures decode and meshes build, then never returns those
+// pages. mimalloc gives them back, which bounding the texture queue alone does
+// not; what stays resident afterwards is live assets and driver memory.
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
