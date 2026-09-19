@@ -67,7 +67,7 @@
         "type": "beam",
         "range": 15.0,
         "duration_secs": 2.0,
-        "cooldown_secs": 8.0
+        "cooldown_secs": 6.0
       }
     },
     "turret": {
@@ -150,10 +150,10 @@
     "gold": 100,
     "actor_hit": { "scuttler": 5, "bruiser": 10, "zapper": 50, "turret": 50 },
     "actor_kill": {
-      "scuttler": 50,
-      "bruiser": 200,
-      "zapper": 150,
-      "turret": 150
+      "scuttler": 100,
+      "bruiser": 400,
+      "zapper": 100,
+      "turret": 100
     }
   },
   "cycles": {
