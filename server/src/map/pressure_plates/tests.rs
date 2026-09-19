@@ -235,7 +235,8 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
             id: LOBBY,
             kind: BarrierKindId(0),
             switch: Some(LOBBY_SWITCH),
-            switch_inverted: false,
+            // A door: solid until its switch turns on.
+            switch_inverted: true,
             x1: 100.0,
             z1: 100.0,
             x2: 102.0,
@@ -1455,7 +1456,7 @@ fn same_kind_fields_and_an_inverted_carrier_respond_per_target() {
         let mut layout = app.world_mut().resource_mut::<MapLayout>();
         let mut opposite = layout.barriers[0];
         opposite.id = BarrierId(1);
-        opposite.switch_inverted = true;
+        opposite.switch_inverted = false;
         layout.barriers.push(opposite);
         opposite.id = BarrierId(2);
         opposite.switch = None;

@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QDialog
 import pathlib
 
 from .checkpoint_numbers import next_checkpoint_number
-from .control_catalogs import edit_catalog
+from .control_catalogs import catalog_usage, edit_catalog
 from .dialogs import CheckpointsDialog
 from .dialogs.control_catalogs import ControlCatalogDialog, FireworksDialog
 from .nesting import DEFAULT_MOTION
@@ -28,7 +28,7 @@ class ControlActionsMixin:
 
     def edit_control_catalog(self, catalog, title):
         root = self.doc.root_data
-        result = ControlCatalogDialog.prompt(self, title, catalog, root.get(catalog, []))
+        result = ControlCatalogDialog.prompt(self, title, catalog, root.get(catalog, []), catalog_usage(root, catalog))
         if result is None:
             return
         entries, renames = result

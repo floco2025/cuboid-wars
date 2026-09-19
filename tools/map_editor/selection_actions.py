@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from .object_selection import copy_objects, selected_data, paste_objects, refs_for_block
+from .object_selection import copy_objects, selected_data, paste_objects, refs_for_block, with_supported
 
 from PySide6.QtCore import QMimeData
 from PySide6.QtGui import QKeySequence
@@ -100,7 +100,7 @@ class SelectionActionsMixin:
 
     def delete_selection(self) -> None:
         if self.selection.area is None:
-            refs = self.selection_refs()
+            refs = with_supported(self.map_data, self.selection_refs())
             if refs:
                 if self.apply_object_change("Delete Objects", selected_data(self.map_data, refs, remove=True)):
                     self.clear_selection()
@@ -110,6 +110,8 @@ class SelectionActionsMixin:
     def _edit_selection(self, operation: str, *, copy_tiles: bool, delete_tiles: bool) -> None:
         if self.selection.area is None:
             refs = self.selection_refs()
+            if delete_tiles:
+                refs = with_supported(self.map_data, refs)
             if not refs:
                 return
             try:

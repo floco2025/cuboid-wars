@@ -1,14 +1,13 @@
 {
   "map": {
-    "switches": [{"id": "bridge", "activation": "toggle", "reset_on_player_death": "never", "held": "any"}, {"id": "platform", "activation": "toggle", "reset_on_player_death": "never", "held": "any"}, {"id": "turrets", "activation": "toggle", "reset_on_player_death": "never", "held": "any"}],
+    "switches": [{"id": "bridge", "activation": "toggle", "reset_on_player_death": "never", "held": "any"}, {"id": "shuttle", "activation": "toggle", "reset_on_player_death": "never", "held": "any"}, {"id": "turrets", "activation": "toggle", "reset_on_player_death": "never", "held": "any"}],
     "barrier_kinds": [
       {"id": "behind bridge", "color": "#00aa7f"},
-      {"id": "platform", "color": "#aaaa7f"}
+      {"id": "behind turrets", "color": "#005500"}
     ],
     "bridge_kinds": [
-      {"id": "trap 1", "color": "#30d8ff"},
-      {"id": "portal view", "color": "#ffaa7f"},
-      {"id": "behind turrets", "color": "#9f3ceb"}
+      {"id": "trap", "color": "#30d8ff"},
+      {"id": "behind turrets", "color": "#005500"}
     ],
     "fireworks": null,
     "grid_cols": 43,
@@ -16,7 +15,7 @@
     "actor_spawn_zones": [
       {"level": 4, "cols": [21, 23], "rows": [8, 10], "kind": "turret", "count": [4], "respawn_secs": 30, "beam_in_secs": 0.5, "switch": "turrets", "until_checkpoint": 4, "on_checkpoint": "destroy"},
       {"level": 9, "cols": [39, 41], "rows": [13, 15], "kind": "scuttler", "count": [6], "respawn_secs": 4.0, "beam_in_secs": 3.0, "switch": "bridge", "switch_inverted": false, "until_checkpoint": 2, "on_checkpoint": "destroy"},
-      {"level": 9, "cols": [8, 32], "rows": [19, 23], "kind": "zapper", "count": [25, 40, 50], "respawn_secs": 30.0, "beam_in_secs": 1.0, "levels": 3, "roam_distance": 4.0, "switch": "platform", "switch_inverted": false, "until_checkpoint": 3, "on_checkpoint": "destroy"}
+      {"level": 9, "cols": [8, 32], "rows": [19, 23], "kind": "zapper", "count": [25, 40, 50], "respawn_secs": 30.0, "beam_in_secs": 1.0, "levels": 3, "roam_distance": 4.0, "switch": "shuttle", "switch_inverted": false, "until_checkpoint": 3, "on_checkpoint": "destroy"}
     ],
     "checkpoints": [
       {"level": 4, "cols": [2, 4], "rows": [2, 4], "type": "individual", "number": 0},
@@ -26,8 +25,10 @@
       {"level": 4, "cols": [29, 31], "rows": [8, 10], "type": "individual", "number": 4}
     ],
     "pressure_plates": [
+      {"level": 4, "col": 31, "row": 9, "switch": "turrets"},
       {"level": 4, "col": 23, "row": 15, "switch": "turrets"},
       {"level": 4, "col": 23, "row": 16, "switch": "turrets"},
+      {"level": 4, "col": 30, "row": 16, "switch": "shuttle"},
       {"level": 9, "col": 39, "row": 4, "switch": "bridge"},
       {"level": 9, "col": 40, "row": 4, "switch": "bridge"}
     ],
@@ -157,7 +158,8 @@
           {"col": 39, "row": 16, "all": "pedestal"},
           {"col": 40, "row": 16, "all": "pedestal"},
           {"col": 39, "row": 17, "all": "pedestal"},
-          {"col": 40, "row": 17, "all": "pedestal"}
+          {"col": 40, "row": 17, "all": "pedestal"},
+          {"col": 30, "row": 20, "all": "pedestal"}
         ],
         "terrain": [
           {"col": 1, "row": 1, "all": "pedestal"},
@@ -239,7 +241,9 @@
           {"col": 20, "row": 16, "all": "pedestal"},
           {"col": 23, "row": 16, "all": "pedestal"},
           {"col": 30, "row": 16, "all": "walkway"},
-          {"col": 30, "row": 17, "all": "walkway"}
+          {"col": 30, "row": 17, "all": "walkway"},
+          {"col": 30, "row": 18, "all": "pedestal"},
+          {"col": 30, "row": 19, "all": "pedestal"}
         ],
         "walls": [
           {"c0": 2, "r0": 2, "c1": 2, "r1": 3, "all": "pedestal"},
@@ -340,10 +344,14 @@
           {"c0": 30, "r0": 4, "c1": 31, "r1": 4, "all": "pedestal"},
           {"c0": 30, "r0": 8, "c1": 31, "r1": 8, "all": "pedestal"},
           {"c0": 30, "r0": 10, "c1": 31, "r1": 10, "all": "pedestal"},
+          {"c0": 30, "r0": 20, "c1": 30, "r1": 21, "all": "pedestal"},
+          {"c0": 30, "r0": 20, "c1": 31, "r1": 20, "all": "pedestal"},
+          {"c0": 30, "r0": 21, "c1": 31, "r1": 21, "all": "pedestal"},
           {"c0": 31, "r0": 2, "c1": 32, "r1": 2, "all": "pedestal"},
           {"c0": 31, "r0": 4, "c1": 32, "r1": 4, "all": "pedestal"},
           {"c0": 31, "r0": 8, "c1": 31, "r1": 9, "all": "pedestal"},
           {"c0": 31, "r0": 9, "c1": 31, "r1": 10, "all": "pedestal"},
+          {"c0": 31, "r0": 20, "c1": 31, "r1": 21, "all": "pedestal"},
           {"c0": 32, "r0": 2, "c1": 32, "r1": 3, "all": "pedestal"},
           {"c0": 32, "r0": 3, "c1": 32, "r1": 4, "all": "pedestal"},
           {"c0": 33, "r0": 2, "c1": 33, "r1": 3, "all": "pedestal"},
@@ -492,10 +500,14 @@
           {"c0": 30, "r0": 4, "c1": 31, "r1": 4, "all": "pedestal"},
           {"c0": 30, "r0": 8, "c1": 31, "r1": 8, "all": "pedestal"},
           {"c0": 30, "r0": 10, "c1": 31, "r1": 10, "all": "pedestal"},
+          {"c0": 30, "r0": 20, "c1": 30, "r1": 21, "all": "pedestal"},
+          {"c0": 30, "r0": 20, "c1": 31, "r1": 20, "all": "pedestal"},
+          {"c0": 30, "r0": 21, "c1": 31, "r1": 21, "all": "pedestal"},
           {"c0": 31, "r0": 2, "c1": 32, "r1": 2, "all": "pedestal"},
           {"c0": 31, "r0": 4, "c1": 32, "r1": 4, "all": "pedestal"},
           {"c0": 31, "r0": 8, "c1": 31, "r1": 9, "all": "pedestal"},
           {"c0": 31, "r0": 9, "c1": 31, "r1": 10, "all": "pedestal"},
+          {"c0": 31, "r0": 20, "c1": 31, "r1": 21, "all": "pedestal"},
           {"c0": 32, "r0": 2, "c1": 32, "r1": 3, "all": "pedestal"},
           {"c0": 32, "r0": 3, "c1": 32, "r1": 4, "all": "pedestal"},
           {"c0": 33, "r0": 2, "c1": 33, "r1": 3, "all": "pedestal"},
@@ -542,19 +554,7 @@
       },
       {
         "name": "Level 2",
-        "floors": [
-          {"col": 30, "row": 10, "all": "walkway"},
-          {"col": 30, "row": 11, "all": "walkway"},
-          {"col": 30, "row": 12, "all": "walkway"},
-          {"col": 30, "row": 13, "all": "walkway"},
-          {"col": 30, "row": 14, "all": "walkway"},
-          {"col": 30, "row": 15, "all": "walkway"},
-          {"col": 30, "row": 16, "all": "walkway"},
-          {"col": 30, "row": 17, "all": "walkway"},
-          {"col": 30, "row": 18, "all": "walkway"},
-          {"col": 30, "row": 19, "all": "walkway"},
-          {"col": 30, "row": 20, "all": "walkway"}
-        ],
+        "floors": [],
         "inaccessible_floors": [],
         "terrain": [],
         "walls": [
@@ -656,10 +656,14 @@
           {"c0": 30, "r0": 4, "c1": 31, "r1": 4, "all": "pedestal"},
           {"c0": 30, "r0": 8, "c1": 31, "r1": 8, "all": "pedestal"},
           {"c0": 30, "r0": 10, "c1": 31, "r1": 10, "all": "pedestal"},
+          {"c0": 30, "r0": 20, "c1": 30, "r1": 21, "all": "pedestal"},
+          {"c0": 30, "r0": 20, "c1": 31, "r1": 20, "all": "pedestal"},
+          {"c0": 30, "r0": 21, "c1": 31, "r1": 21, "all": "pedestal"},
           {"c0": 31, "r0": 2, "c1": 32, "r1": 2, "all": "pedestal"},
           {"c0": 31, "r0": 4, "c1": 32, "r1": 4, "all": "pedestal"},
           {"c0": 31, "r0": 8, "c1": 31, "r1": 9, "all": "pedestal"},
           {"c0": 31, "r0": 9, "c1": 31, "r1": 10, "all": "pedestal"},
+          {"c0": 31, "r0": 20, "c1": 31, "r1": 21, "all": "pedestal"},
           {"c0": 32, "r0": 2, "c1": 32, "r1": 3, "all": "pedestal"},
           {"c0": 32, "r0": 3, "c1": 32, "r1": 4, "all": "pedestal"},
           {"c0": 33, "r0": 2, "c1": 33, "r1": 3, "all": "pedestal"},
@@ -808,10 +812,14 @@
           {"c0": 30, "r0": 4, "c1": 31, "r1": 4, "all": "pedestal"},
           {"c0": 30, "r0": 8, "c1": 31, "r1": 8, "all": "pedestal"},
           {"c0": 30, "r0": 10, "c1": 31, "r1": 10, "all": "pedestal"},
+          {"c0": 30, "r0": 20, "c1": 30, "r1": 21, "all": "pedestal"},
+          {"c0": 30, "r0": 20, "c1": 31, "r1": 20, "all": "pedestal"},
+          {"c0": 30, "r0": 21, "c1": 31, "r1": 21, "all": "pedestal"},
           {"c0": 31, "r0": 2, "c1": 32, "r1": 2, "all": "pedestal"},
           {"c0": 31, "r0": 4, "c1": 32, "r1": 4, "all": "pedestal"},
           {"c0": 31, "r0": 8, "c1": 31, "r1": 9, "all": "pedestal"},
           {"c0": 31, "r0": 9, "c1": 31, "r1": 10, "all": "pedestal"},
+          {"c0": 31, "r0": 20, "c1": 31, "r1": 21, "all": "pedestal"},
           {"c0": 32, "r0": 2, "c1": 32, "r1": 3, "all": "pedestal"},
           {"c0": 32, "r0": 3, "c1": 32, "r1": 4, "all": "pedestal"},
           {"c0": 33, "r0": 2, "c1": 33, "r1": 3, "all": "pedestal"},
@@ -947,14 +955,24 @@
           {"col": 29, "row": 10, "all": "walkway"},
           {"col": 30, "row": 10, "all": "walkway"},
           {"col": 31, "row": 10, "all": "walkway"},
+          {"col": 30, "row": 11, "all": "walkway"},
+          {"col": 30, "row": 12, "all": "walkway"},
+          {"col": 30, "row": 13, "all": "walkway"},
+          {"col": 30, "row": 14, "all": "walkway"},
           {"col": 20, "row": 15, "all": "walkway"},
           {"col": 21, "row": 15, "all": "walkway"},
           {"col": 22, "row": 15, "all": "walkway"},
           {"col": 23, "row": 15, "all": "walkway"},
+          {"col": 30, "row": 15, "all": "walkway"},
           {"col": 20, "row": 16, "all": "walkway"},
           {"col": 21, "row": 16, "all": "walkway"},
           {"col": 22, "row": 16, "all": "walkway"},
-          {"col": 23, "row": 16, "all": "walkway"}
+          {"col": 23, "row": 16, "all": "walkway"},
+          {"col": 30, "row": 16, "all": "walkway"},
+          {"col": 30, "row": 17, "all": "walkway"},
+          {"col": 30, "row": 18, "all": "walkway"},
+          {"col": 30, "row": 19, "all": "walkway"},
+          {"col": 30, "row": 20, "all": "walkway"}
         ],
         "inaccessible_floors": [],
         "terrain": [],
@@ -1046,7 +1064,12 @@
           {"c0": 42, "r0": 10, "c1": 43, "r1": 10, "all": "pedestal"},
           {"c0": 43, "r0": 9, "c1": 43, "r1": 10, "all": "pedestal"}
         ],
-        "barriers": [],
+        "barriers": [
+          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true},
+          {"c0": 29, "r0": 11, "c1": 30, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true},
+          {"c0": 30, "r0": 11, "c1": 31, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true},
+          {"c0": 31, "r0": 11, "c1": 32, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true}
+        ],
         "erasers": [
           {"c0": 11, "r0": 1, "c1": 11, "r1": 2},
           {"c0": 11, "r0": 2, "c1": 11, "r1": 3},
@@ -1163,7 +1186,12 @@
           {"c0": 42, "r0": 10, "c1": 43, "r1": 10, "all": "pedestal"},
           {"c0": 43, "r0": 9, "c1": 43, "r1": 10, "all": "pedestal"}
         ],
-        "barriers": [],
+        "barriers": [
+          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true},
+          {"c0": 29, "r0": 11, "c1": 30, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true},
+          {"c0": 30, "r0": 11, "c1": 31, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true},
+          {"c0": 31, "r0": 11, "c1": 32, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true}
+        ],
         "erasers": [
           {"c0": 11, "r0": 1, "c1": 11, "r1": 2},
           {"c0": 11, "r0": 2, "c1": 11, "r1": 3},
@@ -1248,7 +1276,12 @@
           {"c0": 42, "r0": 10, "c1": 43, "r1": 10, "all": "pedestal"},
           {"c0": 43, "r0": 9, "c1": 43, "r1": 10, "all": "pedestal"}
         ],
-        "barriers": [],
+        "barriers": [
+          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true},
+          {"c0": 29, "r0": 11, "c1": 30, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true},
+          {"c0": 30, "r0": 11, "c1": 31, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true},
+          {"c0": 31, "r0": 11, "c1": 32, "r1": 11, "kind": "behind turrets", "switch": "turrets", "switch_inverted": true}
+        ],
         "erasers": [
           {"c0": 11, "r0": 1, "c1": 11, "r1": 2},
           {"c0": 11, "r0": 2, "c1": 11, "r1": 3},
@@ -1563,20 +1596,20 @@
           {"c0": 37, "r0": 5, "c1": 37, "r1": 6}
         ],
         "light_bridges": [
-          {"col": 39, "row": 6, "kind": "trap 1", "switch": "bridge"},
-          {"col": 40, "row": 6, "kind": "trap 1", "switch": "bridge"},
-          {"col": 39, "row": 7, "kind": "trap 1", "switch": "bridge"},
-          {"col": 40, "row": 7, "kind": "trap 1", "switch": "bridge"},
-          {"col": 39, "row": 8, "kind": "trap 1", "switch": "bridge"},
-          {"col": 40, "row": 8, "kind": "trap 1", "switch": "bridge"},
-          {"col": 39, "row": 9, "kind": "trap 1", "switch": "bridge"},
-          {"col": 40, "row": 9, "kind": "trap 1", "switch": "bridge"},
-          {"col": 39, "row": 10, "kind": "trap 1", "switch": "bridge"},
-          {"col": 40, "row": 10, "kind": "trap 1", "switch": "bridge"},
-          {"col": 39, "row": 11, "kind": "trap 1", "switch": "bridge"},
-          {"col": 40, "row": 11, "kind": "trap 1", "switch": "bridge"},
-          {"col": 39, "row": 12, "kind": "trap 1", "switch": "bridge"},
-          {"col": 40, "row": 12, "kind": "trap 1", "switch": "bridge"}
+          {"col": 39, "row": 6, "kind": "trap", "switch": "bridge"},
+          {"col": 40, "row": 6, "kind": "trap", "switch": "bridge"},
+          {"col": 39, "row": 7, "kind": "trap", "switch": "bridge"},
+          {"col": 40, "row": 7, "kind": "trap", "switch": "bridge"},
+          {"col": 39, "row": 8, "kind": "trap", "switch": "bridge"},
+          {"col": 40, "row": 8, "kind": "trap", "switch": "bridge"},
+          {"col": 39, "row": 9, "kind": "trap", "switch": "bridge"},
+          {"col": 40, "row": 9, "kind": "trap", "switch": "bridge"},
+          {"col": 39, "row": 10, "kind": "trap", "switch": "bridge"},
+          {"col": 40, "row": 10, "kind": "trap", "switch": "bridge"},
+          {"col": 39, "row": 11, "kind": "trap", "switch": "bridge"},
+          {"col": 40, "row": 11, "kind": "trap", "switch": "bridge"},
+          {"col": 39, "row": 12, "kind": "trap", "switch": "bridge"},
+          {"col": 40, "row": 12, "kind": "trap", "switch": "bridge"}
         ],
         "lights": []
       },
@@ -1696,32 +1729,96 @@
       }
     ],
     "ladders": [
-      {"lower_level": 0, "col": 2, "row": 4, "side": "S", "levels": 4},
-      {"lower_level": 2, "col": 30, "row": 10, "side": "S", "levels": 2}
+      {"lower_level": 0, "col": 2, "row": 4, "side": "S", "levels": 4}
     ],
     "ramps": [],
     "nested_maps": [
-      {"map": "platform", "level": 9, "from": [38, 19], "to": [1, 19], "to_level": 9, "travel_secs": 30.0, "pause_secs": 5.0, "phase_secs": 0.0, "from_nudge": [0.0, 0.0, 1.01], "to_nudge": [0.0, 0.0, 1.01], "switch": "platform", "motion": "cycle"}
+      {"map": "shuttle", "level": 6, "from": [38, 19], "to": [1, 19], "to_level": 6, "travel_secs": 30.0, "pause_secs": 5.0, "phase_secs": 0.0, "from_nudge": [0.0, 0.0, 1.01], "to_nudge": [0.0, 0.0, 1.01], "switch": "shuttle", "motion": "cycle"}
     ],
     "nested_geometry": {
-      "platform": {
+      "shuttle": {
         "grid_cols": 4,
         "grid_rows": 4,
         "actor_spawn_zones": [],
         "checkpoints": [],
         "pressure_plates": [
-          {"level": 0, "col": 0, "row": 3, "switch": "platform"},
-          {"level": 0, "col": 3, "row": 3, "switch": "platform"}
+          {"level": 3, "col": 0, "row": 3, "switch": "shuttle"},
+          {"level": 3, "col": 3, "row": 3, "switch": "shuttle"}
         ],
         "items": [
-          {"level": 0, "col": 1, "row": 1, "type": "multi_shot"},
-          {"level": 0, "col": 2, "row": 1, "type": "multi_shot"},
-          {"level": 0, "col": 1, "row": 2, "type": "multi_shot"},
-          {"level": 0, "col": 2, "row": 2, "type": "multi_shot"}
+          {"level": 3, "col": 1, "row": 1, "type": "multi_shot"},
+          {"level": 3, "col": 2, "row": 1, "type": "multi_shot"},
+          {"level": 3, "col": 1, "row": 2, "type": "multi_shot"},
+          {"level": 3, "col": 2, "row": 2, "type": "multi_shot"}
         ],
         "levels": [
           {
-            "name": "Level 1",
+            "name": "bottom",
+            "floors": [
+              {"col": 1, "row": 1, "all": "shuttle", "bottom": "portal"},
+              {"col": 2, "row": 1, "all": "shuttle", "bottom": "portal"},
+              {"col": 1, "row": 2, "all": "shuttle", "bottom": "portal"},
+              {"col": 2, "row": 2, "all": "shuttle", "bottom": "portal"}
+            ],
+            "inaccessible_floors": [],
+            "terrain": [],
+            "walls": [
+              {"c0": 1, "r0": 1, "c1": 1, "r1": 2, "all": "shuttle"},
+              {"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": "shuttle"},
+              {"c0": 1, "r0": 2, "c1": 1, "r1": 3, "all": "shuttle"},
+              {"c0": 1, "r0": 3, "c1": 2, "r1": 3, "all": "shuttle"},
+              {"c0": 2, "r0": 1, "c1": 3, "r1": 1, "all": "shuttle"},
+              {"c0": 2, "r0": 3, "c1": 3, "r1": 3, "all": "shuttle"},
+              {"c0": 3, "r0": 1, "c1": 3, "r1": 2, "all": "shuttle"},
+              {"c0": 3, "r0": 2, "c1": 3, "r1": 3, "all": "shuttle"}
+            ],
+            "barriers": [],
+            "erasers": [],
+            "light_bridges": [],
+            "lights": []
+          },
+          {
+            "name": "1",
+            "floors": [],
+            "inaccessible_floors": [],
+            "terrain": [],
+            "walls": [
+              {"c0": 1, "r0": 1, "c1": 1, "r1": 2, "all": "shuttle"},
+              {"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": "shuttle"},
+              {"c0": 1, "r0": 2, "c1": 1, "r1": 3, "all": "shuttle"},
+              {"c0": 1, "r0": 3, "c1": 2, "r1": 3, "all": "shuttle"},
+              {"c0": 2, "r0": 1, "c1": 3, "r1": 1, "all": "shuttle"},
+              {"c0": 2, "r0": 3, "c1": 3, "r1": 3, "all": "shuttle"},
+              {"c0": 3, "r0": 1, "c1": 3, "r1": 2, "all": "shuttle"},
+              {"c0": 3, "r0": 2, "c1": 3, "r1": 3, "all": "shuttle"}
+            ],
+            "barriers": [],
+            "erasers": [],
+            "light_bridges": [],
+            "lights": []
+          },
+          {
+            "name": "1",
+            "floors": [],
+            "inaccessible_floors": [],
+            "terrain": [],
+            "walls": [
+              {"c0": 1, "r0": 1, "c1": 1, "r1": 2, "all": "shuttle"},
+              {"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": "shuttle"},
+              {"c0": 1, "r0": 2, "c1": 1, "r1": 3, "all": "shuttle"},
+              {"c0": 1, "r0": 3, "c1": 2, "r1": 3, "all": "shuttle"},
+              {"c0": 2, "r0": 1, "c1": 3, "r1": 1, "all": "shuttle"},
+              {"c0": 2, "r0": 3, "c1": 3, "r1": 3, "all": "shuttle"},
+              {"c0": 3, "r0": 1, "c1": 3, "r1": 2, "all": "shuttle"},
+              {"c0": 3, "r0": 2, "c1": 3, "r1": 3, "all": "shuttle"}
+            ],
+            "barriers": [],
+            "erasers": [],
+            "light_bridges": [],
+            "lights": []
+          },
+          {
+            "name": "top",
             "floors": [
               {"col": 0, "row": 0, "all": "shuttle"},
               {"col": 1, "row": 0, "all": "shuttle"},

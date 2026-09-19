@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..constants import CHECKPOINT_RESPONSE_LABELS
+from ..constants import CHECKPOINT_RESPONSE_LABELS, RESPOND_WHEN, SOLID_WHEN
 from ..display import color_icon
 
 
@@ -118,7 +118,17 @@ class CourseControl(QWidget):
 
 
 class SwitchControl(QWidget):
-    def __init__(self, switches, current=None, inverted=False, *, mixed=False, response_mixed=False, colors=None):
+    def __init__(
+        self,
+        switches,
+        current=None,
+        inverted=False,
+        *,
+        mixed=False,
+        response_mixed=False,
+        colors=None,
+        response_label=RESPOND_WHEN,
+    ):
         super().__init__()
         self.mixed = mixed
         self.initial = (None if mixed else current or None, None if response_mixed else inverted)
@@ -129,7 +139,7 @@ class SwitchControl(QWidget):
         form = QFormLayout(self)
         form.setContentsMargins(0, 0, 0, 0)
         form.addRow("Switch:", self.switch)
-        form.addRow("Respond when:", self.response)
+        form.addRow(response_label + ":", self.response)
         self.switch.currentIndexChanged.connect(self.sync_enabled)
         self.sync_enabled()
 
@@ -171,7 +181,13 @@ class FieldPropertiesDialog(QDialog):
         switch, mixed = initial("switch")
         inverted, response_mixed = initial("switch_inverted", False)
         self.control = SwitchControl(
-            switches, switch, inverted, mixed=mixed, response_mixed=response_mixed, colors=switch_colors
+            switches,
+            switch,
+            inverted,
+            mixed=mixed,
+            response_mixed=response_mixed,
+            colors=switch_colors,
+            response_label=SOLID_WHEN,
         )
         form = QFormLayout()
         form.addRow("Appearance kind:", self.appearance)

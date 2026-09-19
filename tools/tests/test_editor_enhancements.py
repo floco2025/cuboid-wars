@@ -143,19 +143,35 @@ class EditorEnhancementTests(WindowTestCase):
         self.assertEqual(window.map_data, occupied)
         window.clear_selection()
 
-    def test_cutting_only_a_support_floor_refuses_without_changing_the_clipboard(self):
+    def test_deleting_cutting_or_moving_a_support_floor_takes_what_stands_on_it(self):
         window = self.window
         before = self.item_map()
-        window.inspect_hit((c.HIT_ITEM, (1, 1)))
-        window.copy_selection()
-        clipboard = copy.deepcopy(window.tile_clipboard)
+        data = copy.deepcopy(before)
+        data["levels"][0]["floors"].append(floor(6, 5))
+        data["switches"] = [{"id": "gate", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["pressure_plates"] = [
+            {"level": 0, "col": 3, "row": 3, "switch": "gate"},
+            {"level": 0, "col": 5, "row": 5, "switch": "gate"},
+        ]
+        window.doc.replace_with_new(data)
         window.inspect_hit((c.HIT_FLOOR, (1, 1)))
-        with patch.object(window, "notify") as notify:
-            window.cut_selection()
-        self.assertTrue(notify.called)
-        self.assertEqual(window.map_data, before)
-        self.assertEqual(window.tile_clipboard, clipboard)
-        self.assertEqual(window.undo_stack.count(), 0)
+        window.delete_selection()
+        self.assertEqual(window.map_data["items"], [])
+        self.assertNotIn((1, 1), [(f["col"], f["row"]) for f in window.map_data["levels"][0]["floors"]])
+        window.undo_stack.undo()
+        self.assertEqual(len(window.map_data["items"]), 1)
+        window.inspect_hit((c.HIT_FLOOR, (3, 3)))
+        window.cut_selection()
+        self.assertEqual([(p["col"], p["row"]) for p in window.map_data["pressure_plates"]], [(5, 5)])
+        self.assertEqual(len(window.tile_clipboard["pressure_plates"]), 1)
+        # A press on the plate's cell picks the plate, so the move starts on the bare floor.
+        floors = window.map_data["levels"][0]["floors"]
+        window.inspect_refs(
+            [ElementRef("floors", i, 0) for i, f in enumerate(floors) if (f["col"], f["row"]) in ((5, 5), (6, 5))]
+        )
+        self.drag((6.5, 5.5), (6.5, 2.5))
+        self.assertEqual([(p["col"], p["row"]) for p in window.map_data["pressure_plates"]], [(5, 2)])
+        self.assertIn((5, 2), [(f["col"], f["row"]) for f in window.map_data["levels"][0]["floors"]])
 
     def test_actor_properties_edit_first_level_counts_respawn_roam_and_controls_in_one_undo(self):
         window = self.window

@@ -212,11 +212,13 @@ impl Switches {
             if switch.active {
                 state.active_switches.push(SwitchId(index as u16));
             }
+            // A response names when a field is solid, so one setting puts a
+            // barrier and a bridge in the same physical state.
             state.open_barriers.extend(
                 switch
                     .barriers
                     .iter()
-                    .filter(|(_, inverted)| switch.active != *inverted)
+                    .filter(|(_, inverted)| switch.active == *inverted)
                     .map(|(id, _)| *id),
             );
             state.powered_bridges.extend(

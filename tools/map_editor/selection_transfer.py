@@ -7,7 +7,14 @@ from dataclasses import dataclass, field
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPen
 
-from .object_selection import block_fits, copy_objects, selected_data, paste_objects, refs_for_block
+from .object_selection import (
+    block_fits,
+    copy_objects,
+    paste_objects,
+    refs_for_block,
+    selected_data,
+    with_supported,
+)
 from .constants import MODE_SELECT
 from .regions import copy_region, delete_region, nested_map_ends_inside, paste_region
 from .transforms import record_levels, record_lists, transform_block, translate_entry
@@ -42,6 +49,8 @@ class SelectionTransferMixin:
                 if not refs:
                     self.notify("No objects selected.")
                     return False
+                if not duplicate:
+                    refs = tuple(with_supported(self.map_data, refs))
                 block, region = copy_objects(self.map_data, refs, self.definitions)
             else:
                 block = copy_region(self.map_data, region)

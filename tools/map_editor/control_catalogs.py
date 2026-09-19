@@ -10,25 +10,58 @@ def geometries(root: dict):
     yield from root.get("nested_geometry", {}).values()
 
 
-def references(root: dict, catalog: str):
+# Every record that may name an entry of `catalog`, with the list it sits in
+# and the field that holds the name.
+def named_references(root: dict, catalog: str):
     for geometry in geometries(root):
         if catalog == "switches":
             for name in ("pressure_plates", "actor_spawn_zones", "nested_maps"):
                 for entry in geometry.get(name, []):
-                    yield entry, "switch"
+                    yield name, entry, "switch"
         if catalog == "barrier_kinds":
             for item in geometry.get("items", []):
                 if item.get("type") == "key":
-                    yield item, "kind"
+                    yield "items", item, "kind"
         for level in geometry["levels"]:
             for name in ("barriers", "light_bridges"):
                 for entry in level.get(name, []):
                     if catalog == "switches":
-                        yield entry, "switch"
+                        yield name, entry, "switch"
                     elif (catalog, name) in (("barrier_kinds", "barriers"), ("bridge_kinds", "light_bridges")):
-                        yield entry, "kind"
+                        yield name, entry, "kind"
     if catalog == "switches" and root.get("fireworks"):
-        yield root["fireworks"], "switch"
+        yield "fireworks", root["fireworks"], "switch"
+
+
+def references(root: dict, catalog: str):
+    for _name, entry, field in named_references(root, catalog):
+        yield entry, field
+
+
+USAGE_NOUNS = {
+    "pressure_plates": ("plate", "plates"),
+    "barriers": ("barrier", "barriers"),
+    "light_bridges": ("bridge cell", "bridge cells"),
+    "actor_spawn_zones": ("actor zone", "actor zones"),
+    "nested_maps": ("nested map", "nested maps"),
+    "items": ("key", "keys"),
+    "fireworks": ("fireworks", "fireworks"),
+}
+
+
+# What names each entry of `catalog` across the outer map and every nested
+# definition, as text like "2 plates, 3 barriers"; an unused entry is absent.
+def catalog_usage(root: dict, catalog: str) -> dict[str, str]:
+    counts: dict[str, dict[str, int]] = {}
+    for name, entry, field in named_references(root, catalog):
+        value = entry.get(field)
+        if value is not None:
+            uses = counts.setdefault(value, {})
+            uses[name] = uses.get(name, 0) + 1
+    return {
+        value: ", ".join(f"{uses[name]} {USAGE_NOUNS[name][uses[name] != 1]}" for name in USAGE_NOUNS if name in uses)
+        for value, uses in counts.items()
+    }
 
 
 def validate_catalog(catalog: str, entries: list[dict]) -> None:

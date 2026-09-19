@@ -2227,9 +2227,9 @@
         ],
         "barriers": [
           {"c0": 7, "r0": 21, "c1": 8, "r1": 21, "kind": "basement"},
-          {"c0": 9, "r0": 13, "c1": 9, "r1": 14, "kind": "lobby", "switch": "lobby"},
+          {"c0": 9, "r0": 13, "c1": 9, "r1": 14, "kind": "lobby", "switch": "lobby", "switch_inverted": true},
           {"c0": 20, "r0": 8, "c1": 21, "r1": 8, "kind": "basement"},
-          {"c0": 22, "r0": 16, "c1": 22, "r1": 17, "kind": "lobby", "switch": "lobby"}
+          {"c0": 22, "r0": 16, "c1": 22, "r1": 17, "kind": "lobby", "switch": "lobby", "switch_inverted": true}
         ],
         "erasers": [],
         "light_bridges": [],

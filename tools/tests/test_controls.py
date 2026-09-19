@@ -8,7 +8,7 @@ from unittest.mock import patch
 from PySide6.QtWidgets import QDialog
 
 from editor_fixtures import WindowTestCase, qt_app
-from map_editor.control_catalogs import edit_catalog, validate_catalog
+from map_editor.control_catalogs import catalog_usage, edit_catalog, validate_catalog
 from map_editor.dialogs.control_catalogs import ControlCatalogDialog, FireworksDialog
 from map_editor.dialogs.controls import FieldPropertiesDialog
 from map_editor.document import MapDocument
@@ -157,6 +157,31 @@ class ControlTests(unittest.TestCase):
         override.clear_button.click()
         self.assertNotIn("color", switches.values()[0][0])
         switches.deleteLater()
+
+    def test_catalog_dialogs_show_what_uses_each_entry_across_nested_geometry(self):
+        root = empty_map(4, 4)
+        root["switches"] = [{"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in "ab"]
+        root["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": "a"}]
+        root["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green", "switch": "a"}]
+        root["items"] = [{"level": 0, "col": 2, "row": 2, "type": "key", "kind": "green"}]
+        room = empty_map(2, 2)
+        room["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "a"}]
+        room["levels"][0]["barriers"] = [{"c0": 0, "r0": 1, "c1": 1, "r1": 1, "kind": "green"}]
+        root["nested_geometry"] = {"room": room}
+        root["fireworks"] = {"switch": "a", "cooldown_secs": 0}
+        self.assertEqual(catalog_usage(root, "switches"), {"a": "2 plates, 1 barrier, 1 fireworks"})
+        self.assertEqual(catalog_usage(root, "barrier_kinds"), {"green": "2 barriers, 1 key"})
+        self.assertEqual(catalog_usage(root, "bridge_kinds"), {})
+        dialog = ControlCatalogDialog(None, "Switches", "switches", root["switches"], catalog_usage(root, "switches"))
+        column = dialog.table.columnCount() - 1
+        dialog.table.item(0, 0).setText("renamed")
+        dialog.add_entry({"id": "fresh"})
+        self.assertEqual(
+            [dialog.table.item(row, column).text() for row in range(3)],
+            ["2 plates, 1 barrier, 1 fireworks", "Unused", "Unused"],
+        )
+        self.assertEqual([entry["id"] for entry in dialog.values()[0]], ["renamed", "b", "fresh"])
+        dialog.deleteLater()
 
     def test_catalog_dialog_accepts_a_name_still_being_edited(self):
         dialog = ControlCatalogDialog(

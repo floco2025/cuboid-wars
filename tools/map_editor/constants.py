@@ -121,6 +121,10 @@ START_CHECKPOINT_TYPE = "individual"
 CHECKPOINT_TYPE_LABELS = {"individual": "Individual", "group_any": "Group — any", "group_all": "Group — all"}
 # What an actor zone does once any player has reached its `until_checkpoint`.
 CHECKPOINT_RESPONSE_LABELS = {"stop": "Stop spawning", "destroy": "Self-destruct actors"}
+# What `switch_inverted` selects: a barrier or bridge names when the field is
+# solid, a zone or a nested map when it responds.
+SOLID_WHEN = "Solid when"
+RESPOND_WHEN = "Respond when"
 ZONE_LISTS = (ACTOR_ZONE_LIST, CHECKPOINT_LIST)
 # Which zone a pick under the cursor prefers when zones overlap a cell: a
 # checkpoint first, then an actor zone.

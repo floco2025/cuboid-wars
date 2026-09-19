@@ -21,10 +21,12 @@ from .controls import choice
 
 
 class ControlCatalogDialog(QDialog):
-    def __init__(self, parent, title, catalog, entries):
+    # `usage` maps an entry's name in the document to what names it (`catalog_usage`).
+    def __init__(self, parent, title, catalog, entries, usage=None):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.catalog = catalog
+        self.usage = usage or {}
         self.fields = (
             ["id", "color"] if catalog != "switches" else ["id", "activation", "reset_on_player_death", "held", "color"]
         )
@@ -33,8 +35,8 @@ class ControlCatalogDialog(QDialog):
             if catalog != "switches"
             else ["Name", "Activation", "Reset on player death", "Held", "Color"]
         )
-        self.table = QTableWidget(0, len(self.fields))
-        self.table.setHorizontalHeaderLabels(labels)
+        self.table = QTableWidget(0, len(self.fields) + 1)
+        self.table.setHorizontalHeaderLabels([*labels, "Used by"])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -64,7 +66,7 @@ class ControlCatalogDialog(QDialog):
         layout.addWidget(self.table)
         layout.addLayout(row)
         layout.addWidget(buttons)
-        self.resize(820 if catalog == "switches" else 460, 360)
+        self.resize(1040 if catalog == "switches" else 560, 360)
 
     # New kinds start apart on the hue wheel rather than all white.
     def fresh_color(self):
@@ -94,6 +96,9 @@ class ControlCatalogDialog(QDialog):
                 if field == "id":
                     item.setData(Qt.ItemDataRole.UserRole, original)
                 self.table.setItem(row, column, item)
+        used = QTableWidgetItem(self.usage.get(original, "Unused"))
+        used.setFlags(Qt.ItemFlag.ItemIsEnabled if original in self.usage else Qt.ItemFlag.NoItemFlags)
+        self.table.setItem(row, len(self.fields), used)
 
     def values(self):
         entries, renames = [], {}

@@ -2,11 +2,42 @@
 
 import copy
 
+from .constants import ITEMS_LIST, LIGHT_SIDES
 from .elements import element_refs
-from .geometry import ramp_rect
-from .normalization import empty_level, empty_map, ladders_overlap, light_key, normalize_map
+from .geometry import ramp_rect, wall_endpoints_for_cell_side
+from .normalization import edge_key, empty_level, empty_map, ladders_overlap, light_key, normalize_map
 from .regions import TileRegion
 from .transforms import GLOBAL_LISTS, record_levels, record_lists, record_rect, translate_entry, translate_map
+
+
+FLOOR_LISTS = ("floors", "inaccessible_floors", "terrain")
+
+
+# Items and plates stand on floors and lights hang on walls, so removing or
+# moving the support takes what it held, as the erase tools do. A cell that
+# keeps another floor record still supports its contents.
+def with_supported(data, refs):
+    chosen = set(refs)
+    taken, kept = set(), set()
+    for ref, entry in element_refs(data):
+        if ref.name in FLOOR_LISTS:
+            (taken if ref in chosen else kept).add((ref.level, entry["col"], entry["row"]))
+        elif ref.name == "walls":
+            (taken if ref in chosen else kept).add((ref.level, edge_key(entry)))
+    lost = taken - kept
+    result = list(refs)
+    for ref, entry in element_refs(data):
+        if ref in chosen:
+            continue
+        if ref.name in (ITEMS_LIST, "pressure_plates"):
+            held = (entry["level"], entry["col"], entry["row"]) in lost
+        elif ref.name == "lights" and entry["side"] in LIGHT_SIDES:
+            held = (ref.level, wall_endpoints_for_cell_side(entry["col"], entry["row"], entry["side"])) in lost
+        else:
+            held = False
+        if held:
+            result.append(ref)
+    return result
 
 
 def selected_data(data, refs, *, remove=False):

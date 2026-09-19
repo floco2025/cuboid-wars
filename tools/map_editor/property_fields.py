@@ -2,7 +2,14 @@
 
 from dataclasses import dataclass
 
-from .constants import CHECKPOINT_RESPONSE_LABELS, CHECKPOINT_TYPE_LABELS, FACES, TERRAIN_FACES
+from .constants import (
+    CHECKPOINT_RESPONSE_LABELS,
+    CHECKPOINT_TYPE_LABELS,
+    FACES,
+    RESPOND_WHEN,
+    SOLID_WHEN,
+    TERRAIN_FACES,
+)
 from .nesting import MOTION_LABELS, MOTION_TOOLTIPS
 
 NUDGE_TOOLTIPS = ("Wall widths across columns (X) or rows (Z)", "Floor thicknesses upward")
@@ -103,7 +110,8 @@ def fields_for(window, name):
         values = window.switches if name == "pressure_plates" else [None, *window.switches]
         choice("switch", "Switch", values, window.switch_colors)
         if name != "pressure_plates":
-            add("switch_inverted", "Respond when", "choice", [(False, "On"), (True, "Off")])
+            label = SOLID_WHEN if name in ("barriers", "light_bridges") else RESPOND_WHEN
+            add("switch_inverted", label, "choice", [(False, "On"), (True, "Off")])
     if name == "nested_maps":
         add(
             "to_level",

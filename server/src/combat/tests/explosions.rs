@@ -230,7 +230,8 @@ fn missile_destroys_turret_with_normal_death_cue_and_kill_credit() {
     assert_eq!(deaths.len(), 1);
     assert_eq!(deaths[0].id, id);
     assert_eq!(deaths[0].killer, Some(shooter));
-    assert_eq!(deaths[0].killer_score, Some(150));
+    let reward = app.world().resource::<ServerGameplayConfig>().scoring.actor_kill["turret"];
+    assert_eq!(deaths[0].killer_score, Some(reward));
 }
 
 #[test]
