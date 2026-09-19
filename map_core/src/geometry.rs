@@ -269,7 +269,9 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
         }
         "nested_map_rest_points" => json!(nested_rest(&a[0], number(&a[1]))),
         "nested_map_footprints" => json!(nested_footprints(&a[0], &a[1], number(&a[2]))),
-        "nested_map_starts_at_end_2" => json!(s(&a[0], "motion") == "follow_switch" && truth(&a[0]["switch_inverted"])),
+        "nested_map_starts_at_end_2" => {
+            json!(s(&a[0], "motion") == "follow_switch" && a[0].get("initially_on") != Some(&json!(false)))
+        }
         "ramp_landing_edges" => json!(
             (0..list(&a[0], "levels").len())
                 .map(|level| landing_edges(list(&a[0], "ramps"), level as i64))

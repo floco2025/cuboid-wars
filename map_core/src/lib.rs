@@ -25,3 +25,9 @@ pub enum CheckpointResponse {
 pub fn is_valid_map_name(name: &str) -> bool {
     !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
+
+// Named geometry is a key of its document, named as freely as a switch or a kind.
+#[must_use]
+pub fn is_valid_geometry_name(name: &str) -> bool {
+    !name.is_empty() && name == name.trim()
+}

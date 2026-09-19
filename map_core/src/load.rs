@@ -23,13 +23,14 @@ pub fn prepare_source(mut root: MapDef) -> Result<MapSource> {
     let context = json!({
         "typed_source": true,
         "switches": root.switches.iter().map(|entry| &entry.id).collect::<Vec<_>>(),
-        "barrier_kinds": root.barrier_kinds.iter().map(|entry| &entry.id).collect::<Vec<_>>(),
-        "bridge_kinds": root.bridge_kinds.iter().map(|entry| &entry.id).collect::<Vec<_>>(),
+        "field_kinds": root.field_kinds.iter().map(|entry| &entry.id).collect::<Vec<_>>(),
     });
-    let issues = diagnostics::validate_document(&source, &context);
-    if !issues.is_empty() {
+    let (warnings, errors): (Vec<_>, Vec<_>) = diagnostics::validate_document(&source, &context)
+        .into_iter()
+        .partition(|issue| issue.warning);
+    if !errors.is_empty() {
         return Err(anyhow!(
-            issues
+            errors
                 .into_iter()
                 .map(|issue| issue.message)
                 .collect::<Vec<_>>()
@@ -38,8 +39,7 @@ pub fn prepare_source(mut root: MapDef) -> Result<MapSource> {
     }
     let used = diagnostics::placed_definitions(&source, &source["nested_geometry"]);
     let switches = mem::take(&mut root.switches);
-    let barrier_kinds = mem::take(&mut root.barrier_kinds);
-    let bridge_kinds = mem::take(&mut root.bridge_kinds);
+    let field_kinds = mem::take(&mut root.field_kinds);
     let fireworks = root.fireworks.take();
     let mut nested_geometry = mem::take(&mut root.nested_geometry);
     canonicalize(&mut root);
@@ -52,16 +52,19 @@ pub fn prepare_source(mut root: MapDef) -> Result<MapSource> {
         geometry: root,
         nested_geometry,
         switches,
-        barrier_kinds,
-        bridge_kinds,
+        field_kinds,
         fireworks,
+        warnings: warnings.into_iter().map(|issue| issue.message).collect(),
     })
 }
 
 pub fn validate_map(map_def: &MapDef) -> Result<()> {
     let source = source_value(map_def)?;
     let context = json!({"typed_source": true, "defer_course_references": true});
-    if let Some(issue) = diagnostics::validate_map(&source, &context).into_iter().next() {
+    if let Some(issue) = diagnostics::validate_map(&source, &context)
+        .into_iter()
+        .find(|issue| !issue.warning)
+    {
         return Err(anyhow!(issue.message));
     }
     Ok(())

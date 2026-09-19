@@ -514,7 +514,7 @@ fn jump_detaches_mid_climb() {
         y: 2.0,
         z: -0.5,
     };
-    let vertical_velocity = player_jump_velocity(4.0, &world, player_physics(), 12.0, &pos);
+    let vertical_velocity = player_jump_velocity(4.0, &world, player_physics(), 12.0, &pos, &[]);
 
     assert_eq!(vertical_velocity, Some(12.0));
 }
@@ -527,14 +527,20 @@ fn jump_refused_airborne_outside_ladder() {
         y: 2.0,
         z: -3.0,
     };
-    assert_eq!(player_jump_velocity(0.0, &world, player_physics(), 12.0, &pos), None);
+    assert_eq!(
+        player_jump_velocity(0.0, &world, player_physics(), 12.0, &pos, &[]),
+        None
+    );
 }
 
 #[test]
 fn jump_refused_airborne_behind_ladder() {
     let world = ladder_collision_world(&[], &[test_ladder()]);
     let pos = Position { x: 0.0, y: 2.0, z: 0.4 };
-    assert_eq!(player_jump_velocity(0.0, &world, player_physics(), 12.0, &pos), None);
+    assert_eq!(
+        player_jump_velocity(0.0, &world, player_physics(), 12.0, &pos, &[]),
+        None
+    );
 }
 
 #[test]

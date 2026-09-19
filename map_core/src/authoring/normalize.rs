@@ -88,7 +88,7 @@ fn side(v: &Value) -> Value {
     }
 }
 pub fn normalize_record(kind: &str, v: &Value) -> Value {
-    let controls = select(v, &["switch", "switch_inverted"]);
+    let controls = select(v, &["switch", "initially_on"]);
     match kind {
         "floor" | "terrain" => merge(
             coords(v, &["col", "row"]),
@@ -203,7 +203,7 @@ pub fn normalize_record(kind: &str, v: &Value) -> Value {
     }
 }
 pub fn normalize_map(v: &Value) -> Value {
-    let mut out = select(v, &["switches", "barrier_kinds", "bridge_kinds", "fireworks"]);
+    let mut out = select(v, &["switches", "field_kinds", "fireworks"]);
     out["grid_cols"] = get(v, "grid_cols", json!(20));
     out["grid_rows"] = get(v, "grid_rows", json!(20));
     for (key, kind) in [
@@ -325,7 +325,7 @@ pub fn record_key(kind: &str, v: &Value) -> Value {
             v["kind"],
             actor_count_key(&v["count"]),
             control_key(&v["switch"]),
-            control_key(&get(v, "switch_inverted", json!(false))),
+            control_key(&get(v, "initially_on", json!(true))),
             numeric_key(&get(v, "roam_distance", json!(0.0))),
             if v["respawn_secs"].is_null() {
                 json!([0])

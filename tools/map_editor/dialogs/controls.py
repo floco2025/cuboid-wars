@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..constants import CHECKPOINT_RESPONSE_LABELS, RESPOND_WHEN, SOLID_WHEN
+from ..constants import CHECKPOINT_RESPONSE_LABELS, INITIAL_STATE, INITIAL_STATE_LABELS
 from ..display import color_icon
 
 
@@ -118,52 +118,41 @@ class CourseControl(QWidget):
 
 
 class SwitchControl(QWidget):
-    def __init__(
-        self,
-        switches,
-        current=None,
-        inverted=False,
-        *,
-        mixed=False,
-        response_mixed=False,
-        colors=None,
-        response_label=RESPOND_WHEN,
-    ):
+    """A switch target's controls: its state before any switch input, and
+    the switch that flips that state while active, if any."""
+
+    def __init__(self, switches, current=None, initially_on=True, *, mixed=False, state_mixed=False, colors=None):
         super().__init__()
         self.mixed = mixed
-        self.initial = (None if mixed else current or None, None if response_mixed else inverted)
+        self.initial = (None if mixed else current or None, None if state_mixed else initially_on)
         self.switch = choice(switches, current, optional=True, mixed=mixed, colors=colors)
-        self.response = choice(
-            ["On", "Off"], None if response_mixed else "Off" if inverted else "On", mixed=response_mixed
+        self.initially_on = choice(
+            INITIAL_STATE_LABELS.values(),
+            None if state_mixed else INITIAL_STATE_LABELS[initially_on is not False],
+            mixed=state_mixed,
         )
         form = QFormLayout(self)
         form.setContentsMargins(0, 0, 0, 0)
         form.addRow("Switch:", self.switch)
-        form.addRow(response_label + ":", self.response)
-        self.switch.currentIndexChanged.connect(self.sync_enabled)
-        self.sync_enabled()
-
-    def sync_enabled(self):
-        self.response.setEnabled(self.switch.currentData() != "")
+        form.addRow(INITIAL_STATE + ":", self.initially_on)
 
     def state(self):
-        """The selected switch, `None` for none, and whether it responds Off."""
-        return self.switch.currentData() or None, self.response.currentData() == "Off"
+        """The selected switch, `None` for none, and whether the target starts on."""
+        return self.switch.currentData() or None, self.initially_on.currentData() != INITIAL_STATE_LABELS[False]
 
     def values(self):
         """What changed from the initial selection: `switch` None clears the
         assignment, an absent key leaves the records' value alone."""
-        switch, inverted = self.state()
-        initial_switch, initial_inverted = self.initial
+        switch, initially_on = self.state()
+        initial_switch, initial_state = self.initial
         result = {}
         if self.switch.currentData() == "":
             if self.mixed or initial_switch is not None:
                 result["switch"] = None
-            return result
-        if switch is not None and switch != initial_switch:
+        elif switch is not None and switch != initial_switch:
             result["switch"] = switch
-        if self.response.currentData() is not None and inverted != initial_inverted:
-            result["switch_inverted"] = inverted
+        if self.initially_on.currentData() is not None and initially_on != initial_state:
+            result["initially_on"] = initially_on
         return result
 
 
@@ -179,15 +168,9 @@ class FieldPropertiesDialog(QDialog):
         appearance, mixed = initial("kind")
         self.appearance = choice(kinds, appearance, mixed=mixed, colors=kind_colors)
         switch, mixed = initial("switch")
-        inverted, response_mixed = initial("switch_inverted", False)
+        initially_on, state_mixed = initial("initially_on", True)
         self.control = SwitchControl(
-            switches,
-            switch,
-            inverted,
-            mixed=mixed,
-            response_mixed=response_mixed,
-            colors=switch_colors,
-            response_label=SOLID_WHEN,
+            switches, switch, initially_on, mixed=mixed, state_mixed=state_mixed, colors=switch_colors
         )
         form = QFormLayout()
         form.addRow("Appearance kind:", self.appearance)

@@ -61,7 +61,7 @@ fn flying_step(context: &ActorMoveContext<'_>, velocity: Vec3) -> SelectedActorM
             translation,
             context.delta,
             context.actor_physics,
-            context.open_barriers,
+            context.open_fields,
             context.carriers,
         ),
     }

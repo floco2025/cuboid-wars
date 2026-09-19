@@ -3,7 +3,7 @@ use rand::{SeedableRng, rngs::StdRng};
 
 use common::{
     map::MapGeometry,
-    protocol::{BarrierKindId, CarrierId, ItemMarker, ItemType},
+    protocol::{CarrierId, FieldKindId, ItemMarker, ItemType},
 };
 
 use crate::{
@@ -82,7 +82,7 @@ fn placed_item_spawn_system_spawns_every_placed_item_visible() {
             level: 0,
             col: 1,
             row: 0,
-            item_type: ItemType::Key(BarrierKindId(0)),
+            item_type: ItemType::Key(FieldKindId(0)),
         },
     ];
 
@@ -100,7 +100,7 @@ fn placed_item_spawn_system_spawns_every_placed_item_visible() {
     assert!(items.values().all(|info| !info.is_hidden()));
     let spawned_types: Vec<ItemType> = items.values().map(|info| info.item_type).collect();
     assert!(spawned_types.contains(&ItemType::Gold));
-    assert!(spawned_types.contains(&ItemType::Key(BarrierKindId(0))));
+    assert!(spawned_types.contains(&ItemType::Key(FieldKindId(0))));
     let mut marker_query = world.query_filtered::<(), With<ItemMarker>>();
     assert_eq!(marker_query.iter(&world).count(), 2);
 }

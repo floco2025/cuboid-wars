@@ -13,6 +13,7 @@ from map_editor.app import main
 from config_fixtures import ConfigTestCase
 from map_editor.document import MapDocument
 from map_editor.editing import paint_floors
+from map_editor.elements import ElementRef
 from map_editor.io import read_map, write_map
 from map_editor.normalization import empty_map, normalize_map, normalize_nested_map
 from map_editor.window import EditorWindow
@@ -117,21 +118,13 @@ class NestedWindowTests(WindowTestCase):
 
     def test_selector_uses_parent_catalogs_and_clears_selection(self):
         window = self.window
-        catalogs = (
-            window.barrier_kind_colors.copy(),
-            window.bridge_kind_colors.copy(),
-            window.texture_catalog.copy(),
-            window.wall_width_cells,
-        )
+        catalogs = (window.field_kind_colors.copy(), window.texture_catalog.copy(), window.wall_width_cells)
         window.set_tile_selection((4, 4, 5, 5))
         self.select("room")
         self.assertEqual(window.map_data["grid_cols"], 3)
         self.assertTrue(window.selection.empty)
         self.assertFalse(window.dirty)
-        self.assertEqual(
-            (window.barrier_kind_colors, window.bridge_kind_colors, window.texture_catalog, window.wall_width_cells),
-            catalogs,
-        )
+        self.assertEqual((window.field_kind_colors, window.texture_catalog, window.wall_width_cells), catalogs)
         window.apply_change("Paint", paint_floors(window.map_data, 0, (0, 0, 1, 1), DEFAULT_ALIAS))
         self.assertTrue(window.save())
         self.assertEqual(window.doc.active_map, "room")
@@ -194,6 +187,46 @@ class NestedWindowTests(WindowTestCase):
         window.undo_stack.undo()
         self.assertEqual(window.doc.active_map, "room")
         self.assertEqual(window.doc.root_data["nested_maps"][0]["map"], "room")
+
+    def test_a_nested_name_may_hold_spaces_but_not_be_blank(self):
+        window = self.window
+        self.select("room")
+        with patch("map_editor.nested_definitions.QInputDialog.getText", return_value=("  shuttle access ", True)):
+            window.rename_nested_map()
+        self.assertEqual(window.doc.active_map, "shuttle access")
+        self.assertEqual(window.doc.root_data["nested_maps"][0]["map"], "shuttle access")
+        self.assertEqual(window.validate_document(window.doc.root_data).issues, [])
+        with (
+            patch("map_editor.nested_definitions.QInputDialog.getText", return_value=("   ", True)),
+            patch("map_editor.nested_definitions.QMessageBox.warning") as warning,
+        ):
+            window.rename_nested_map()
+        warning.assert_called_once()
+        self.assertEqual(window.doc.active_map, "shuttle access")
+
+    def test_a_switch_with_no_plate_yet_blocks_no_edit_delete_or_save(self):
+        window = self.window
+        root = copy.deepcopy(window.doc.root_data)
+        root["switches"] = [{"id": "shuttle bridge", "activation": "toggle", "reset_on_player_death": "never"}]
+        window.doc.apply_root_change("Add switch", root, None)
+        window.switch_ids = ["shuttle bridge"]
+        window.inspect_refs([ElementRef("nested_maps", 0)], show=True)
+        self.set_property("switch", "shuttle bridge")
+        self.assertFalse(window.properties_panel.error.isVisible())
+        self.assertEqual(window.map_data["nested_maps"][0]["switch"], "shuttle bridge")
+        warning = "nested_maps[0] names switch 'shuttle bridge', which no pressure plate operates"
+        self.assertEqual(window.document_issues().warnings, [warning])
+        self.assertTrue(window.save())
+        self.assertEqual(read_map(self.path)["nested_maps"][0]["switch"], "shuttle bridge")
+
+        plated = copy.deepcopy(window.map_data)
+        plated["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "shuttle bridge"}]
+        window.apply_change("Place plate", plated)
+        self.assertEqual(window.document_issues().warnings, [])
+        window.inspect_refs([ElementRef("pressure_plates", 0)], show=True)
+        window.delete_selection()
+        self.assertEqual(window.map_data["pressure_plates"], [])
+        self.assertEqual(window.document_issues().warnings, [warning])
 
     def test_create_delete_and_undo_keep_the_parent_document(self):
         window = self.window

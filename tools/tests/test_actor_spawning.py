@@ -83,7 +83,7 @@ class SpawnValidationTests(unittest.TestCase):
         self.assertIsNone(roam_slice_radius({**zone, "roam_distance": 0}, 1, 4.0))
 
     def validate(self, data):
-        return validate_map(data, [], ["green"], actor_kinds=ACTOR_KINDS)
+        return validate_map(data, ["green"], actor_kinds=ACTOR_KINDS)
 
     def test_all_spawn_kinds_allow_any_surface_without_floor_capacity_limits(self):
         for kind in ACTOR_KINDS:
@@ -117,7 +117,7 @@ class SpawnValidationTests(unittest.TestCase):
         data["nested_geometry"] = {"turret_room": child}
         errors = validate_document(
             data,
-            MapCatalogs({}, {"green": "#00ff00"}, 0.1, {DEFAULT_ALIAS: True}),
+            MapCatalogs({"green": "#00ff00"}, 0.1, {DEFAULT_ALIAS: True}),
             actor_kinds=ACTOR_KINDS,
         )
         self.assertEqual(errors, [])

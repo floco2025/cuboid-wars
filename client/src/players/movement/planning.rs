@@ -7,7 +7,7 @@ use common::{
         player_control_velocity,
     },
     protocol::{
-        ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind,
+        ActorMarker, FieldKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind,
         SwitchState,
     },
 };
@@ -60,7 +60,7 @@ pub(crate) fn plan_player_moves(
         let has_speed_power_up = info.is_some_and(|i| i.power_up(PowerUpKind::Speed));
         let has_low_gravity = info.is_some_and(|i| i.power_up(PowerUpKind::LowGravity));
         let movement_disabled = info.is_some_and(|i| i.stunned);
-        let held_keys: &[BarrierKindId] = info.map_or(&[], |i| i.held_keys.as_slice());
+        let held_keys: &[FieldKindId] = info.map_or(&[], |i| i.held_keys.as_slice());
 
         let control_velocity = player_control_velocity(
             *move_intent,
@@ -77,7 +77,7 @@ pub(crate) fn plan_player_moves(
             delta,
             has_low_gravity,
             held_keys,
-            open_kinds: &switch_state.open_barriers,
+            open_fields: &switch_state.open_fields,
             knockback,
             airborne_momentum: &mut airborne_momentum,
             collision_world,

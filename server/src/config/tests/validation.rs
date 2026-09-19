@@ -10,7 +10,7 @@ fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
     let server = fixtures::server_config();
     let mut map = MapConfig::for_grid(Vec::new(), geometry(2, 2));
     map.actor_spawn_zones.push(ActorSpawnZone {
-        switch_inverted: false,
+        initially_on: true,
         carrier: CarrierId::WORLD,
         level: 0,
         levels: 1,
@@ -47,7 +47,7 @@ fn immovable_zones_are_not_limited_by_floor_capacity() {
         }],
     ));
     map.actor_spawn_zones.push(ActorSpawnZone {
-        switch_inverted: false,
+        initially_on: true,
 
         carrier: CarrierId(1),
         level: 0,

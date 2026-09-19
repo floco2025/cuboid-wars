@@ -64,7 +64,7 @@ pub fn input_missile_system(
             aim.origin,
             aim.direction * MISSILE_SPAWN_OFFSET,
             MISSILE_RADIUS,
-            &switch_state.open_barriers,
+            &switch_state.open_fields,
         )
     {
         play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
@@ -92,7 +92,7 @@ pub fn input_missile_system(
         speed * 0.5,
         MISSILE_RADIUS,
         &collision_world,
-        &switch_state.open_barriers,
+        &switch_state.open_fields,
         &mut rand::rng(),
     );
     to_server.send(ClientMessage::MissileShot(CMissileShot {

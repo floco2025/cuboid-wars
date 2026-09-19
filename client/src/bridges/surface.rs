@@ -23,7 +23,7 @@ pub(super) fn bridge_visuals(layout: &MapLayout) -> Vec<BridgeVisual> {
             let other = &group.bridge;
             other.kind == bridge.kind
                 && other.switch == bridge.switch
-                && other.switch_inverted == bridge.switch_inverted
+                && other.initially_on == bridge.initially_on
                 && other.carrier == bridge.carrier
                 && other.level == bridge.level
                 && other.y == bridge.y

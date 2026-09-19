@@ -93,7 +93,7 @@ pub fn actors_behavior_system(
                 &collision_world,
                 pos,
                 character.physics(),
-                &switch_state.open_barriers,
+                &switch_state.open_fields,
                 &[],
             );
             if grounding.supported
@@ -124,7 +124,7 @@ pub fn actors_behavior_system(
                         *pos,
                         pose.transform_position(&next.position),
                         character.physics(),
-                        &switch_state.open_barriers,
+                        &switch_state.open_fields,
                     )
                 })
             {
@@ -170,7 +170,7 @@ pub fn actors_behavior_system(
             carriers: &carriers,
             carrier: info.carrier,
             collision_world: &collision_world,
-            open_barriers: &switch_state.open_barriers,
+            open_fields: &switch_state.open_fields,
             kind_config,
             players_armed: players.players_can_be_armed(&map_items),
         };
@@ -238,7 +238,7 @@ pub(super) fn tick_runtime_state(
 // of walking off. One already on the slab is falling.
 pub(super) fn drop_route_onto_lost_bridge(info: &mut ActorInfo, nav_graph: &NavGraph) {
     let next = info.route.as_ref().and_then(ActorRoute::next);
-    if next.is_some_and(|next| next.is_walk() && nav_graph.position_over_unpowered_bridge(&next.position)) {
+    if next.is_some_and(|next| next.is_walk() && nav_graph.position_over_open_bridge(&next.position)) {
         info.set_route(None);
         info.decision_timer = 0.0;
     }

@@ -6,7 +6,7 @@ use crate::{
     constants::TICK_SECS,
     map::Carriers,
     physics::characters::character_movement_pose,
-    protocol::{BarrierId, BridgeId, SwitchState},
+    protocol::{BridgeId, SwitchState},
 };
 
 #[test]
@@ -102,7 +102,7 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         id: Default::default(),
 
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         x1: wall.x1,
         x2: wall.x2,
@@ -113,13 +113,13 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         height: wall.height,
         level: 0,
         levels: 1,
-        kind: BarrierKindId(0),
+        kind: FieldKindId(0),
         carrier,
     };
     let bridge = LightBridge {
         id: Default::default(),
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         x1: -2.0,
         x2: 2.0,
@@ -128,7 +128,7 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         y: 1.5,
         thickness: 1.0,
         level: 0,
-        kind: BridgeKindId(0),
+        kind: FieldKindId(0),
         carrier,
     };
     let physics = load_test_gameplay()
@@ -159,7 +159,7 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
             },
             carriers: vec![Carrier {
                 motion: Default::default(),
-                switch_inverted: false,
+                initially_on: true,
 
                 parent: CarrierId::WORLD,
                 level: 0,
@@ -178,9 +178,15 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         carriers.advance(1, &SwitchState::default());
         world.set_carrier_poses(&carriers);
         let handles: Vec<_> = world.colliders.iter().map(|(handle, _)| handle).collect();
-        for powered in [false, true] {
-            world.set_powered_bridges(if powered { &[BridgeId(0)] } else { &[] });
-            for passable in [vec![], vec![BarrierId(0)]] {
+        for bridge_open in [false, true] {
+            for barrier_open in [false, true] {
+                let mut passable = Vec::new();
+                if bridge_open {
+                    passable.push(FieldId::Bridge(BridgeId(0)));
+                }
+                if barrier_open {
+                    passable.push(FieldId::Barrier(BarrierId(0)));
+                }
                 for excluded in [&[][..], handles.as_slice()] {
                     let movement = world.push_character_from_carriers(
                         TICK_SECS,
@@ -193,12 +199,12 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
                         |_| {},
                     );
                     let solid = excluded.is_empty()
-                        && (kind != ColliderKind::Barrier || passable.is_empty())
-                        && (kind != ColliderKind::Bridge || powered);
+                        && (kind != ColliderKind::Barrier || !barrier_open)
+                        && (kind != ColliderKind::Bridge || !bridge_open);
                     assert_eq!(
                         movement.z > 0.05,
                         solid,
-                        "kind {kind:?}, powered {powered}, passable {passable:?}, excluded {excluded:?}: {movement:?}"
+                        "kind {kind:?}, passable {passable:?}, excluded {excluded:?}: {movement:?}"
                     );
                     if !solid {
                         assert_eq!(movement, Vector::ZERO);

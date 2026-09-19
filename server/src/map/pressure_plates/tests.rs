@@ -27,8 +27,8 @@ use common::{
     map::{CarrierRun, Carriers, MapGeometry},
     physics::CollisionWorld,
     protocol::{
-        Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, Carrier, CarrierId, CarrierMotion, Checkpoint,
-        CheckpointKind, HexColor, KindDef, LightBridge, MapLayout, MapSettings, PlayerId, PlayerMarker, PortalMode,
+        Barrier, BarrierId, BridgeId, Carrier, CarrierId, CarrierMotion, Checkpoint, CheckpointKind, FieldId,
+        FieldKindId, HexColor, KindDef, LightBridge, MapLayout, MapSettings, PlayerId, PlayerMarker, PortalMode,
         Position, QuestId, QuestScope, ServerMessage, ServerTick, SwitchDef, SwitchId, SwitchState, SwitchTable,
         server_tick_advance_system,
     },
@@ -220,8 +220,7 @@ fn harness_settings(config: &ServerGameplayConfig) -> MapSettings {
         ),
         switch_def("spare", SwitchConfig::default()),
     ];
-    settings.barrier_kinds = vec![kind("lobby", "lobby")];
-    settings.bridge_kinds = vec![kind("skyway", "skyway")];
+    settings.field_kinds = vec![kind("lobby", "lobby"), kind("skyway", "skyway")];
     settings
 }
 
@@ -233,10 +232,10 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
     if layout.barriers.is_empty() {
         layout.barriers.push(Barrier {
             id: LOBBY,
-            kind: BarrierKindId(0),
+            kind: FieldKindId(0),
             switch: Some(LOBBY_SWITCH),
             // A door: solid until its switch turns on.
-            switch_inverted: true,
+            initially_on: true,
             x1: 100.0,
             z1: 100.0,
             x2: 102.0,
@@ -252,9 +251,9 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
     if layout.light_bridges.is_empty() {
         layout.light_bridges.push(LightBridge {
             id: SKYWAY,
-            kind: BridgeKindId(0),
+            kind: FieldKindId(1),
             switch: Some(SKYWAY_SWITCH),
-            switch_inverted: false,
+            initially_on: false,
             x1: 100.0,
             z1: 100.0,
             x2: 102.0,
@@ -268,7 +267,7 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
     let quest_catalog = QuestCatalog::from_config(&config);
     let board = QuestBoard::from_catalog(&quest_catalog, Some(FIREWORKS_SWITCH));
     let settings = harness_settings(&config);
-    let (barrier_table, bridge_table) = settings.kind_tables().expect("harness settings rejected");
+    let field_kind_table = settings.field_kind_table().expect("harness settings rejected");
     let switch_table = SwitchTable::from_switch_defs(&settings.switches).expect("harness switches rejected");
     let mut app = App::new();
     app.insert_resource(WeatherState::new(config.cycles.weather.clone(), WeatherMode::Clear))
@@ -293,8 +292,7 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
         .insert_resource(config)
         .insert_resource(quest_catalog)
         .insert_resource(board)
-        .insert_resource(barrier_table)
-        .insert_resource(bridge_table)
+        .insert_resource(field_kind_table)
         .insert_resource(switch_table)
         .insert_resource(MapFireworks(Some(FireworksConfig {
             switch: "fireworks".to_owned(),
@@ -366,12 +364,27 @@ fn step_onto_second_plate(app: &mut App, entity: Entity) {
         .expect("player position missing") = pos;
 }
 
-fn open_kinds(app: &App) -> Vec<BarrierId> {
-    app.world().resource::<SwitchState>().open_barriers.clone()
+fn open_barriers(app: &App) -> Vec<BarrierId> {
+    app.world()
+        .resource::<SwitchState>()
+        .open_fields
+        .iter()
+        .filter_map(|field| match field {
+            FieldId::Barrier(id) => Some(*id),
+            FieldId::Bridge(_) => None,
+        })
+        .collect()
 }
 
-fn powered_kinds(app: &App) -> Vec<BridgeId> {
-    app.world().resource::<SwitchState>().powered_bridges.clone()
+fn solid_bridges(app: &App) -> Vec<BridgeId> {
+    let open = &app.world().resource::<SwitchState>().open_fields;
+    app.world()
+        .resource::<MapLayout>()
+        .light_bridges
+        .iter()
+        .map(|bridge| bridge.id)
+        .filter(|id| !open.contains(&FieldId::Bridge(*id)))
+        .collect()
 }
 
 fn active_switches(app: &App) -> Vec<SwitchId> {
@@ -536,21 +549,21 @@ fn an_everyone_toggle_flips_on_the_thresholds_rising_edge() {
     let (second, _) = standing_player(&mut app, 2);
     step_off(&mut app, second);
     app.update();
-    assert!(open_kinds(&app).is_empty(), "one press of two is no threshold");
+    assert!(open_barriers(&app).is_empty(), "one press of two is no threshold");
 
     step_on(&mut app, second);
     step_onto_second_plate(&mut app, second);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY]);
+    assert_eq!(open_barriers(&app), [LOBBY]);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY], "holding the threshold flips once");
+    assert_eq!(open_barriers(&app), [LOBBY], "holding the threshold flips once");
 
     step_off(&mut app, first);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY], "a toggle keeps its state on release");
+    assert_eq!(open_barriers(&app), [LOBBY], "a toggle keeps its state on release");
     step_on(&mut app, first);
     app.update();
-    assert!(open_kinds(&app).is_empty(), "meeting the threshold again flips back");
+    assert!(open_barriers(&app).is_empty(), "meeting the threshold again flips back");
 }
 
 #[test]
@@ -579,7 +592,7 @@ fn an_everyone_toggle_flips_when_a_death_lowers_its_threshold() {
         let (other, _) = standing_player(&mut app, 2);
         step_off(&mut app, other);
         app.update();
-        assert!(open_kinds(&app).is_empty(), "one holder of two is no threshold");
+        assert!(open_barriers(&app).is_empty(), "one holder of two is no threshold");
 
         // The death leaves one living player, whom the held plate satisfies.
         die(&mut app, 2);
@@ -587,17 +600,17 @@ fn an_everyone_toggle_flips_when_a_death_lowers_its_threshold() {
         app.update();
         if trigger == DeathTrigger::Never {
             assert_eq!(
-                open_kinds(&app),
+                open_barriers(&app),
                 [LOBBY],
                 "the lowered threshold is a fresh rising edge"
             );
         } else {
-            assert!(open_kinds(&app).is_empty(), "a reset switch needs a release first");
+            assert!(open_barriers(&app).is_empty(), "a reset switch needs a release first");
             step_off(&mut app, holder);
             app.update();
             step_on(&mut app, holder);
             app.update();
-            assert_eq!(open_kinds(&app), [LOBBY]);
+            assert_eq!(open_barriers(&app), [LOBBY]);
         }
     }
 }
@@ -608,23 +621,23 @@ fn a_lone_player_toggles_a_barrier_kind_with_each_press() {
     let (entity, mut rx) = standing_player(&mut app, 1);
     step_off(&mut app, entity);
     app.update();
-    assert!(open_kinds(&app).is_empty());
+    assert!(open_barriers(&app).is_empty());
 
     step_on(&mut app, entity);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY]);
+    assert_eq!(open_barriers(&app), [LOBBY]);
     let lines = switch_lines(&drain(&mut rx), "lobby");
     assert_eq!(lines.len(), 1);
     assert!(lines[0].contains("turned on the lobby switch"), "{lines:?}");
 
     step_off(&mut app, entity);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY], "stepping off leaves the switch alone");
+    assert_eq!(open_barriers(&app), [LOBBY], "stepping off leaves the switch alone");
     assert!(switch_lines(&drain(&mut rx), "lobby").is_empty());
 
     step_on(&mut app, entity);
     app.update();
-    assert!(open_kinds(&app).is_empty());
+    assert!(open_barriers(&app).is_empty());
     assert_eq!(switch_lines(&drain(&mut rx), "lobby"), ["The lobby switch turned off"]);
 }
 
@@ -632,12 +645,15 @@ fn a_lone_player_toggles_a_barrier_kind_with_each_press() {
 fn a_first_login_prints_no_off_lines() {
     let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
     app.update();
-    assert!(open_kinds(&app).is_empty(), "empty plates stay off on an empty server");
+    assert!(
+        open_barriers(&app).is_empty(),
+        "empty plates stay off on an empty server"
+    );
 
     let (entity, mut rx) = standing_player(&mut app, 1);
     step_off(&mut app, entity);
     app.update();
-    assert!(open_kinds(&app).is_empty());
+    assert!(open_barriers(&app).is_empty());
     assert!(switch_lines(&drain(&mut rx), "lobby").is_empty());
 }
 
@@ -648,19 +664,19 @@ fn a_second_login_restores_hold_to_open() {
     app.update();
     step_off(&mut app, entity);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY], "switched open");
+    assert_eq!(open_barriers(&app), [LOBBY], "switched open");
 
     let (partner, _partner_rx) = standing_player(&mut app, 2);
     step_off(&mut app, partner);
     app.update();
-    assert!(open_kinds(&app).is_empty(), "two players: open only while held");
+    assert!(open_barriers(&app).is_empty(), "two players: open only while held");
 
     step_on(&mut app, entity);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY]);
+    assert_eq!(open_barriers(&app), [LOBBY]);
     step_off(&mut app, entity);
     app.update();
-    assert!(open_kinds(&app).is_empty());
+    assert!(open_barriers(&app).is_empty());
 }
 
 #[test]
@@ -671,14 +687,14 @@ fn a_bridge_plate_powers_only_its_own_kind_and_says_so() {
     step_off(&mut app, entity);
     step_off(&mut app, partner);
     app.update();
-    assert!(powered_kinds(&app).is_empty());
+    assert!(solid_bridges(&app).is_empty());
     drain(&mut rx);
 
     step_on(&mut app, entity);
     app.update();
-    assert_eq!(powered_kinds(&app), [SKYWAY], "the held plate powers its bridges");
+    assert_eq!(solid_bridges(&app), [SKYWAY], "the held plate powers its bridges");
     assert_eq!(
-        open_kinds(&app),
+        open_barriers(&app),
         [LOBBY],
         "and the barrier plate on the same cell opens its kind"
     );
@@ -688,7 +704,7 @@ fn a_bridge_plate_powers_only_its_own_kind_and_says_so() {
 
     step_off(&mut app, entity);
     app.update();
-    assert!(powered_kinds(&app).is_empty());
+    assert!(solid_bridges(&app).is_empty());
     assert_eq!(
         switch_lines(&drain(&mut rx), "skyway"),
         ["The skyway switch turned off"]
@@ -700,11 +716,11 @@ fn a_barrier_plate_never_powers_a_bridge_kind() {
     let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
     let (entity, _rx) = standing_player(&mut app, 1);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY]);
-    assert!(powered_kinds(&app).is_empty());
+    assert_eq!(open_barriers(&app), [LOBBY]);
+    assert!(solid_bridges(&app).is_empty());
     step_off(&mut app, entity);
     app.update();
-    assert!(powered_kinds(&app).is_empty());
+    assert!(solid_bridges(&app).is_empty());
 }
 
 #[test]
@@ -716,15 +732,15 @@ fn one_switch_opens_a_barrier_kind_and_powers_a_bridge_kind_together() {
 
     let (entity, _rx) = standing_player(&mut app, 1);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY]);
-    assert_eq!(powered_kinds(&app), [SKYWAY]);
+    assert_eq!(open_barriers(&app), [LOBBY]);
+    assert_eq!(solid_bridges(&app), [SKYWAY]);
     assert_eq!(active_switches(&app), [LOBBY_SWITCH]);
     step_off(&mut app, entity);
     app.update();
     step_on(&mut app, entity);
     app.update();
-    assert!(open_kinds(&app).is_empty());
-    assert!(powered_kinds(&app).is_empty());
+    assert!(open_barriers(&app).is_empty());
+    assert!(solid_bridges(&app).is_empty());
 }
 
 #[test]
@@ -738,15 +754,15 @@ fn a_plate_whose_switch_has_no_targets_still_clicks_and_feeds() {
     assert_eq!(lines.len(), 1);
     assert!(lines[0].contains("turned on the spare switch"), "{lines:?}");
     assert_eq!(active_switches(&app), [SPARE_SWITCH]);
-    assert!(open_kinds(&app).is_empty());
-    assert!(powered_kinds(&app).is_empty());
+    assert!(open_barriers(&app).is_empty());
+    assert!(solid_bridges(&app).is_empty());
 }
 
 fn switched_carrier_layout() -> MapLayout {
     MapLayout {
         carriers: vec![Carrier {
             motion: Default::default(),
-            switch_inverted: false,
+            initially_on: false,
 
             parent: CarrierId::WORLD,
             level: 0,
@@ -889,10 +905,10 @@ fn carriers_on_one_switch_can_cycle_or_follow_independently() {
 }
 
 #[test]
-fn an_inverted_carrier_returns_when_its_switch_turns_on() {
+fn a_carrier_that_starts_on_returns_when_its_switch_turns_on() {
     let mut layout = switched_carrier_layout();
     layout.carriers[0].motion = CarrierMotion::FollowSwitch;
-    layout.carriers[0].switch_inverted = true;
+    layout.carriers[0].initially_on = true;
     let mut app = app_with_layout(catalog(Vec::new()), vec![lobby_plate()], layout);
     app.add_systems(
         Update,
@@ -922,19 +938,19 @@ fn a_lone_player_toggles_a_bridge_kind_with_each_press() {
     let (entity, _rx) = standing_player(&mut app, 1);
     step_off(&mut app, entity);
     app.update();
-    assert!(powered_kinds(&app).is_empty());
+    assert!(solid_bridges(&app).is_empty());
 
     step_on(&mut app, entity);
     app.update();
-    assert_eq!(powered_kinds(&app), [SKYWAY]);
+    assert_eq!(solid_bridges(&app), [SKYWAY]);
 
     step_off(&mut app, entity);
     app.update();
-    assert_eq!(powered_kinds(&app), [SKYWAY], "stepping off leaves the switch alone");
+    assert_eq!(solid_bridges(&app), [SKYWAY], "stepping off leaves the switch alone");
 
     step_on(&mut app, entity);
     app.update();
-    assert!(powered_kinds(&app).is_empty());
+    assert!(solid_bridges(&app).is_empty());
 }
 
 #[test]
@@ -944,14 +960,14 @@ fn solo_switches_start_from_the_plates_held_when_the_partner_leaves() {
     let (partner, _partner_rx) = standing_player(&mut app, 2);
     step_off(&mut app, partner);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY], "held open under the hold rule");
+    assert_eq!(open_barriers(&app), [LOBBY], "held open under the hold rule");
     drain(&mut rx);
 
     leave(&mut app, 2, partner);
     app.update();
     step_off(&mut app, entity);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY], "the held plate seeds the switch");
+    assert_eq!(open_barriers(&app), [LOBBY], "the held plate seeds the switch");
     assert!(switch_lines(&drain(&mut rx), "lobby").is_empty());
 }
 
@@ -975,8 +991,8 @@ fn install_switches(app: &mut App, lobby: SwitchConfig, skyway: SwitchConfig) {
 }
 
 fn assert_switches(app: &App, active: bool) {
-    assert_eq!(!open_kinds(app).is_empty(), active, "barrier state");
-    assert_eq!(!powered_kinds(app).is_empty(), active, "bridge state");
+    assert_eq!(!open_barriers(app).is_empty(), active, "barrier state");
+    assert_eq!(!solid_bridges(app).is_empty(), active, "bridge state");
 }
 
 fn die(app: &mut App, id: u32) {
@@ -1283,7 +1299,7 @@ fn logout_reset_wins_over_a_held_plate_until_a_fresh_press() {
 }
 
 #[test]
-fn bridge_collision_loses_power_on_the_death_or_logout_tick() {
+fn a_bridge_stops_blocking_on_the_death_or_logout_tick() {
     for logout in [false, true] {
         let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
         configure_switches(&mut app, SwitchActivation::Toggle, DeathTrigger::All);
@@ -1291,7 +1307,7 @@ fn bridge_collision_loses_power_on_the_death_or_logout_tick() {
             light_bridges: vec![LightBridge {
                 id: Default::default(),
                 switch: None,
-                switch_inverted: false,
+                initially_on: true,
 
                 x1: -1.0,
                 x2: 1.0,
@@ -1300,16 +1316,18 @@ fn bridge_collision_loses_power_on_the_death_or_logout_tick() {
                 y: 0.0,
                 thickness: 0.1,
                 level: 0,
-                kind: BridgeKindId(0),
+                kind: FieldKindId(0),
                 carrier: CarrierId::WORLD,
             }],
             ..default()
         }));
         standing_player(&mut app, 1);
         let clear = |app: &App| {
-            app.world()
-                .resource::<CollisionWorld>()
-                .attack_path_clear(Vec3::Y, Vec3::NEG_Y, &[])
+            app.world().resource::<CollisionWorld>().attack_path_clear(
+                Vec3::Y,
+                Vec3::NEG_Y,
+                &app.world().resource::<SwitchState>().open_fields,
+            )
         };
         app.update();
         assert!(!clear(&app));
@@ -1359,8 +1377,8 @@ fn switches_choose_independent_activation_and_death_policies() {
     step_off(&mut app, first);
     die(&mut app, 1);
     app.update();
-    assert!(open_kinds(&app).is_empty());
-    assert_eq!(powered_kinds(&app), [SKYWAY]);
+    assert!(open_barriers(&app).is_empty());
+    assert_eq!(solid_bridges(&app), [SKYWAY]);
 }
 
 #[test]
@@ -1448,40 +1466,67 @@ fn toggle_switches_reset_before_a_dead_player_respawns() {
 }
 
 #[test]
-fn same_kind_fields_and_an_inverted_carrier_respond_per_target() {
+fn same_kind_fields_and_a_carrier_that_starts_on_respond_per_target() {
     let mut layout = switched_carrier_layout();
-    layout.carriers[0].switch_inverted = true;
+    layout.carriers[0].initially_on = true;
     let mut app = app_with_layout(catalog(vec![]), vec![lobby_plate()], layout);
     {
         let mut layout = app.world_mut().resource_mut::<MapLayout>();
         let mut opposite = layout.barriers[0];
         opposite.id = BarrierId(1);
-        opposite.switch_inverted = false;
+        opposite.initially_on = false;
         layout.barriers.push(opposite);
         opposite.id = BarrierId(2);
         opposite.switch = None;
+        opposite.initially_on = true;
         layout.barriers.push(opposite);
         layout.light_bridges[0].switch = Some(LOBBY_SWITCH);
         let mut opposite = layout.light_bridges[0];
         opposite.id = BridgeId(1);
-        opposite.switch_inverted = true;
+        opposite.initially_on = true;
         layout.light_bridges.push(opposite);
     }
     configure_switches(&mut app, SwitchActivation::Momentary, DeathTrigger::Never);
     app.update();
-    assert_eq!(open_kinds(&app), [BarrierId(1)]);
-    assert_eq!(powered_kinds(&app), [BridgeId(1)]);
+    assert_eq!(open_barriers(&app), [BarrierId(1)]);
+    assert_eq!(solid_bridges(&app), [BridgeId(1)]);
     assert!(carrier_run(&app).active);
     let (player, _) = standing_player(&mut app, 1);
     app.update();
-    assert_eq!(open_kinds(&app), [LOBBY]);
-    assert_eq!(powered_kinds(&app), [SKYWAY]);
+    assert_eq!(open_barriers(&app), [LOBBY]);
+    assert_eq!(solid_bridges(&app), [SKYWAY]);
     assert!(!carrier_run(&app).active);
     step_off(&mut app, player);
     app.update();
-    assert_eq!(open_kinds(&app), [BarrierId(1)]);
-    assert_eq!(powered_kinds(&app), [BridgeId(1)]);
+    assert_eq!(open_barriers(&app), [BarrierId(1)]);
+    assert_eq!(solid_bridges(&app), [BridgeId(1)]);
     assert!(carrier_run(&app).active);
+}
+
+#[test]
+fn a_field_without_a_switch_keeps_its_initial_state() {
+    let mut app = app(catalog(vec![]), vec![lobby_plate()]);
+    {
+        let mut layout = app.world_mut().resource_mut::<MapLayout>();
+        let mut ghost = layout.barriers[0];
+        ghost.id = BarrierId(1);
+        ghost.switch = None;
+        ghost.initially_on = false;
+        layout.barriers.push(ghost);
+        let mut walkway = layout.light_bridges[0];
+        walkway.id = BridgeId(1);
+        walkway.switch = None;
+        walkway.initially_on = true;
+        layout.light_bridges.push(walkway);
+    }
+    configure_switches(&mut app, SwitchActivation::Momentary, DeathTrigger::Never);
+    app.update();
+    assert_eq!(open_barriers(&app), [BarrierId(1)]);
+    assert_eq!(solid_bridges(&app), [BridgeId(1)]);
+    standing_player(&mut app, 1);
+    app.update();
+    assert_eq!(open_barriers(&app), [LOBBY, BarrierId(1)]);
+    assert_eq!(solid_bridges(&app), [BridgeId(1)]);
 }
 
 #[test]

@@ -42,7 +42,7 @@ fn step(
         &mut query,
         &mut planned,
     );
-    apply_actor_moves(&mut query, &actors, &planned, &world, &switch_state.open_barriers);
+    apply_actor_moves(&mut query, &actors, &planned, &world, &switch_state.open_fields);
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
     let layout = MapLayout {
         carriers: vec![Carrier {
             motion: Default::default(),
-            switch_inverted: false,
+            initially_on: true,
 
             parent: CarrierId::WORLD,
             level: 0,

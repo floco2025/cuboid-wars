@@ -20,7 +20,7 @@ class WallLightValidationTests(unittest.TestCase):
         data["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
         data["levels"][0]["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": DEFAULT_ALIAS}]
         data["levels"][0]["lights"] = [{"col": 1, "row": 1, "side": "N", "kind": "unknown"}]
-        errors = validate_map(data, [], [], wall_light_kinds=["decorative", "utility"])
+        errors = validate_map(data, [], wall_light_kinds=["decorative", "utility"])
         self.assertTrue(any("unknown kind 'unknown'" in error for error in errors))
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "layout.json"

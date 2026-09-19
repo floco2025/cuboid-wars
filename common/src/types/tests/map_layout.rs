@@ -3,7 +3,7 @@ use super::*;
 fn carrier(parent: CarrierId, level: u8, levels: u8) -> Carrier {
     Carrier {
         motion: Default::default(),
-        switch_inverted: false,
+        initially_on: true,
 
         parent,
         level,

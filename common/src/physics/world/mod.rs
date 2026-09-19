@@ -1,6 +1,5 @@
 mod ball_casts;
 mod bounds;
-mod bridge_power;
 mod carrier_contacts;
 mod carrier_sync;
 mod character_queries;
@@ -15,12 +14,11 @@ mod rays;
 mod shape_cast;
 mod surface_materials;
 
-pub use bridge_power::powered_bridges_sync_system;
 pub use carrier_sync::carriers_advance_system;
 pub use collision_world::CollisionWorld;
 pub use ladders::LadderVolume;
 pub use rays::WorldSurfaceHit;
-pub use shape_cast::{FieldKind, ShapeCastHit};
+pub use shape_cast::ShapeCastHit;
 
 #[cfg(test)]
 mod tests;

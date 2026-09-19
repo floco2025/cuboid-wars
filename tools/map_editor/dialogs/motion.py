@@ -75,7 +75,7 @@ class MotionDialog(QDialog):
         self._map.addItems(map_names)
         if recent_map in map_names:
             self._map.setCurrentText(recent_map)
-        self.control = SwitchControl(switches, switch, recent.switch_inverted if recent else False)
+        self.control = SwitchControl(switches, switch, recent.initially_on if recent else True)
         self._switch = self.control.switch
         self._motion = QComboBox()
         for value, label in MOTION_LABELS.items():
@@ -125,7 +125,7 @@ class MotionDialog(QDialog):
         layout.addWidget(buttons)
 
     def motion(self) -> tuple[int, float, float, float, Nudge, Nudge, str | None, bool, str]:
-        switch, inverted = self.control.state()
+        switch, initially_on = self.control.state()
         return (
             self._to_level.value(),
             self._travel.value(),
@@ -134,7 +134,7 @@ class MotionDialog(QDialog):
             tuple(box.value() for box in self._from_nudge),
             tuple(box.value() for box in self._to_nudge),
             switch,
-            inverted,
+            initially_on,
             self._motion.currentData(),
         )
 
@@ -143,12 +143,6 @@ class MotionDialog(QDialog):
         for widget in (self._pause, self._phase):
             widget.setEnabled(cycle)
             self.form.labelForField(widget).setEnabled(cycle)
-
-    def accept(self):
-        if self._motion.currentData() == "follow_switch" and not self.control.state()[0]:
-            QMessageBox.warning(self, self.windowTitle(), "Follow switch motion requires a switch.")
-            return
-        super().accept()
 
     @classmethod
     def prompt_nested(

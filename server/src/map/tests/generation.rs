@@ -1,7 +1,7 @@
 use crate::config::fixtures;
 use std::fs;
 
-use common::protocol::{BarrierKindId, BridgeKindId};
+use common::protocol::FieldKindId;
 use rand::random;
 use serde_json::{Value, json};
 
@@ -26,8 +26,7 @@ impl TestMap {
                 {"id": "lobby", "activation": "toggle", "reset_on_player_death": "never"},
                 {"id": "fireworks", "activation": "momentary", "reset_on_player_death": "never"}
             ],
-            "barrier_kinds": [{"id": "lobby", "color": "#22cc33"}],
-            "bridge_kinds": [{"id": "skyway", "color": "#30d8ff"}],
+            "field_kinds": [{"id": "lobby", "color": "#22cc33"}, {"id": "skyway", "color": "#30d8ff"}],
             "pressure_plates": [{"level": 0, "col": 1, "row": 0, "switch": "fireworks"}],
             "fireworks": {"switch": "fireworks", "cooldown_secs": 2.0}
         }});
@@ -145,11 +144,9 @@ fn the_layouts_catalogs_and_fireworks_fill_the_generated_map() {
     let ids: Vec<&str> = map.settings.switches.iter().map(|def| def.id.as_str()).collect();
     assert_eq!(ids, ["lobby", "fireworks"]);
     assert_eq!(map.switch_table.index_of("fireworks"), map.fireworks_switch);
-    let kinds: Vec<&str> = map.settings.barrier_kinds.iter().map(|def| def.id.as_str()).collect();
-    assert_eq!(kinds, ["lobby"]);
-    assert_eq!(map.barrier_kinds.index_of("lobby"), Some(BarrierKindId(0)));
-    assert_eq!(map.settings.bridge_kinds[0].id, "skyway");
-    assert_eq!(map.bridge_kinds.index_of("skyway"), Some(BridgeKindId(0)));
+    let kinds: Vec<&str> = map.settings.field_kinds.iter().map(|def| def.id.as_str()).collect();
+    assert_eq!(kinds, ["lobby", "skyway"]);
+    assert_eq!(map.field_kinds.index_of("skyway"), Some(FieldKindId(1)));
     assert_eq!(
         map.fireworks.as_ref().map(|fireworks| fireworks.switch.as_str()),
         Some("fireworks")
@@ -157,19 +154,16 @@ fn the_layouts_catalogs_and_fireworks_fill_the_generated_map() {
 }
 
 #[test]
-fn duplicate_barrier_kinds_are_rejected_naming_the_layout() {
+fn duplicate_field_kinds_are_rejected_naming_the_layout() {
     let hotel = TestMap::new(|map| {
-        let lobby = map["barrier_kinds"][0].clone();
-        map["barrier_kinds"]
+        let lobby = map["field_kinds"][0].clone();
+        map["field_kinds"]
             .as_array_mut()
-            .expect("barrier_kinds is an array")
+            .expect("field_kinds is an array")
             .push(lobby);
     });
     let error = hotel.error();
-    assert!(
-        error.contains("barrier_kinds") && error.contains("duplicate"),
-        "{error}"
-    );
+    assert!(error.contains("field_kinds") && error.contains("duplicate"), "{error}");
     assert!(error.contains("layout.json"), "{error}");
 }
 
@@ -188,23 +182,13 @@ fn duplicate_switches_are_rejected_naming_the_layout() {
 }
 
 #[test]
-fn fireworks_must_name_a_catalogued_switch_with_a_plate_and_a_finite_cooldown() {
+fn fireworks_must_name_a_catalogued_switch_and_a_finite_cooldown() {
     for (edit, expected) in [
         (
             (|map: &mut Value| map["fireworks"]["switch"] = json!("void")) as fn(&mut Value),
             "void",
         ),
         (|map| map["fireworks"]["cooldown_secs"] = json!(-1.0), "cooldown_secs"),
-        (
-            |map| {
-                map["switches"]
-                    .as_array_mut()
-                    .expect("switches is an array")
-                    .push(json!({"id": "spare", "activation": "toggle", "reset_on_player_death": "never"}));
-                map["fireworks"]["switch"] = json!("spare");
-            },
-            "which no pressure plate operates",
-        ),
     ] {
         let error = TestMap::new(edit).error();
         assert!(error.contains(expected), "{error}");

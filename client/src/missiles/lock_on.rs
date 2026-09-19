@@ -85,7 +85,7 @@ fn compute_lock(
         aim.origin,
         aim.direction * MISSILE_SPAWN_OFFSET,
         MISSILE_RADIUS,
-        &switch_state.open_barriers,
+        &switch_state.open_fields,
     ) {
         return None;
     }
@@ -115,6 +115,7 @@ fn compute_lock(
 
     acquire_lock(
         collision_world,
+        &switch_state.open_fields,
         aim.origin,
         aim.direction,
         gameplay_config.missiles.lock_range,

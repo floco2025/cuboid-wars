@@ -1,4 +1,4 @@
-use common::protocol::{BarrierId, CarrierId, PlayerId, Position};
+use common::protocol::{CarrierId, FieldId, PlayerId, Position};
 
 use super::{GroundNavigation, GroundSearch, GroundSearchOptions, GroundSearchResult};
 
@@ -18,7 +18,7 @@ struct Query {
     carrier: CarrierId,
     search: GroundSearch,
     revision: u64,
-    open: Vec<BarrierId>,
+    open: Vec<FieldId>,
 }
 
 struct Failure {
@@ -26,7 +26,7 @@ struct Failure {
     target: Position,
     start: Position,
     revision: u64,
-    open: Vec<BarrierId>,
+    open: Vec<FieldId>,
     age: f32,
 }
 

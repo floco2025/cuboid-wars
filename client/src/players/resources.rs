@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use std::{collections::HashMap, f32::consts::PI};
 
 use common::protocol::{
-    BarrierKindId, Player, PlayerGeneration, PlayerId, PowerUpKind, SPlayerStatus, sequence_is_newer,
+    FieldKindId, Player, PlayerGeneration, PlayerId, PowerUpKind, SPlayerStatus, sequence_is_newer,
 };
 
 use super::LocalMovementReports;
@@ -23,7 +23,7 @@ pub struct PlayerInfo {
     // Snapshot-owned key inventory; `SPlayerStatus` updates it early for cues.
     // Sorted ascending so HUD icon order is stable and the change-detection
     // diff is a single equality test.
-    pub held_keys: Vec<BarrierKindId>,
+    pub held_keys: Vec<FieldKindId>,
     // Missile ammo, mirrored from the snapshot (`SPlayerStatus` and the
     // local fire prediction update it early; the snapshot self-heals).
     pub missiles: u32,

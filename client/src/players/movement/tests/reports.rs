@@ -23,7 +23,7 @@ fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_worl
     let layout = MapLayout {
         carriers: vec![Carrier {
             motion: Default::default(),
-            switch_inverted: false,
+            initially_on: true,
 
             parent: CarrierId::WORLD,
             level: 0,
@@ -109,7 +109,7 @@ fn boarding_a_carrier_reports_immediately() {
     let layout = MapLayout {
         carriers: vec![Carrier {
             motion: Default::default(),
-            switch_inverted: false,
+            initially_on: true,
 
             parent: CarrierId::WORLD,
             level: 0,

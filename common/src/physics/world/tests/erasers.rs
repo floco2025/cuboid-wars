@@ -89,7 +89,7 @@ fn moving_field_sweeps_stationary_player_without_solid_carrier_geometry() {
         }],
         carriers: vec![Carrier {
             motion: Default::default(),
-            switch_inverted: false,
+            initially_on: true,
 
             parent: CarrierId::WORLD,
             level: 0,
@@ -164,7 +164,7 @@ fn erasers_are_transparent_to_attacks_and_projectile_paths() {
     assert!(world.line_of_sight_clear(from, to));
     assert!(world.attack_path_clear(from, to, &[]));
     assert!(world.projectile_path_clear(from, to - from, 0.3, &[]));
-    assert!(world.cast_moving_ball(from, to - from, 0.3).is_none());
+    assert!(world.cast_moving_ball(from, to - from, 0.3, &[]).is_none());
     assert!(
         world
             .cast_moving_ball_against_fields(from, to - from, 0.3, &[])

@@ -41,9 +41,10 @@ class NestedMotion:
     phase_secs: float
     from_nudge: Nudge
     to_nudge: Nudge
-    # Follow switch requires this; a Cycle without it runs continuously.
+    # Without one the map keeps its initial state: a Follow switch rests at that end.
     switch: str | None = None
-    switch_inverted: bool = False
+    # A Cycle runs while on; a Follow switch heads for end 2 while on.
+    initially_on: bool = True
     motion: str = DEFAULT_MOTION
 
     @classmethod
@@ -60,7 +61,7 @@ class NestedMotion:
             tuple(entry["from_nudge"]),
             tuple(entry["to_nudge"]),
             entry.get("switch") or None,
-            entry.get("switch_inverted", False),
+            entry.get("initially_on") is not False,
             motion if motion in MOTION_LABELS else DEFAULT_MOTION,
         )
 
@@ -77,7 +78,8 @@ class NestedMotion:
         }
         if self.switch:
             entry["switch"] = self.switch
-            entry["switch_inverted"] = self.switch_inverted
+        if not self.initially_on:
+            entry["initially_on"] = False
         return entry
 
 

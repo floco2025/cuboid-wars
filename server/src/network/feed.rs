@@ -1,6 +1,6 @@
 use super::{broadcast_to_all, broadcast_to_others};
 use crate::{config::FeedConfig, players::PlayerMap};
-use common::protocol::{BarrierKindId, FeedSpan, FeedStyle, PlayerId, SFeed, ServerMessage};
+use common::protocol::{FeedSpan, FeedStyle, FieldKindId, PlayerId, SFeed, ServerMessage};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeathCause {
@@ -41,7 +41,7 @@ pub enum FeedEvent {
     },
     KeyFound {
         name: String,
-        kind: BarrierKindId,
+        kind: FieldKindId,
     },
     QuestCompleted {
         name: String,

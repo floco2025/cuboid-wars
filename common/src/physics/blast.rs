@@ -1,4 +1,4 @@
-use crate::{constants::EXPLOSION_BLAST_CORE_FRACTION, physics::CollisionWorld, protocol::BarrierId};
+use crate::{constants::EXPLOSION_BLAST_CORE_FRACTION, physics::CollisionWorld, protocol::FieldId};
 use bevy::prelude::*;
 
 pub fn visible_blast_falloff(
@@ -6,13 +6,13 @@ pub fn visible_blast_falloff(
     target: Vec3,
     radius: f32,
     collision_world: &CollisionWorld,
-    open_barriers: &[BarrierId],
+    open_fields: &[FieldId],
 ) -> Option<f32> {
     let distance_squared = center.distance_squared(target);
     if distance_squared >= radius * radius {
         return None;
     }
-    if !collision_world.attack_path_clear(center, target, open_barriers) {
+    if !collision_world.attack_path_clear(center, target, open_fields) {
         return None;
     }
     Some(blast_falloff_at_distance(distance_squared.sqrt(), radius))
@@ -25,9 +25,9 @@ pub fn blast_hit(
     victim: Vec3,
     radius: f32,
     collision_world: &CollisionWorld,
-    open_barriers: &[BarrierId],
+    open_fields: &[FieldId],
 ) -> Option<(f32, Vec3)> {
-    let falloff = visible_blast_falloff(center, victim, radius, collision_world, open_barriers)?;
+    let falloff = visible_blast_falloff(center, victim, radius, collision_world, open_fields)?;
     Some((falloff, planar_shove(center, victim, 1.0, 1.0)))
 }
 

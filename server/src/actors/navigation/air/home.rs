@@ -8,7 +8,7 @@ use common::{
     config::CharacterPhysicsConfig,
     map::CarrierPose,
     physics::CollisionWorld,
-    protocol::{BarrierId, Position},
+    protocol::{FieldId, Position},
 };
 use rand::{Rng, RngExt};
 
@@ -31,8 +31,8 @@ pub(crate) struct AirHome {
     revision: u64,
     sample: usize,
     points: Vec<Option<Vec3>>,
-    open: Vec<BarrierId>,
-    build_open: Vec<BarrierId>,
+    open: Vec<FieldId>,
+    build_open: Vec<FieldId>,
     pub age: f32,
     pub last_tick: Option<u32>,
 }
@@ -44,7 +44,7 @@ impl AirHome {
         physics: CharacterPhysicsConfig,
         range: f32,
         pose: CarrierPose,
-        open: &[BarrierId],
+        open: &[FieldId],
     ) -> Self {
         let territory = ActorTerritory {
             carrier: zone.carrier,
@@ -72,7 +72,7 @@ impl AirHome {
         }
     }
 
-    pub fn refresh(&mut self, world: &CollisionWorld, pose: CarrierPose, open: &[BarrierId]) {
+    pub fn refresh(&mut self, world: &CollisionWorld, pose: CarrierPose, open: &[FieldId]) {
         let padding = Vec3::splat(self.territory.distance + self.spacing * 2.0);
         let min = pose.transform_point(self.territory.volume.min) - padding;
         let max = pose.transform_point(self.territory.volume.max) + padding;

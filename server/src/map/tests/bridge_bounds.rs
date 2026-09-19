@@ -1,5 +1,5 @@
 use super::*;
-use common::protocol::{BridgeKindId, CarrierId};
+use common::protocol::{CarrierId, FieldKindId};
 
 const PAD: f32 = 0.25;
 
@@ -7,7 +7,7 @@ fn bridge(x1: f32, z1: f32, kind: u16) -> LightBridge {
     LightBridge {
         id: Default::default(),
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         x1,
         x2: x1 + 4.0,
@@ -16,7 +16,7 @@ fn bridge(x1: f32, z1: f32, kind: u16) -> LightBridge {
         y: 4.0,
         thickness: 0.1,
         level: 1,
-        kind: BridgeKindId(kind),
+        kind: FieldKindId(kind),
         carrier: CarrierId::WORLD,
     }
 }

@@ -7,7 +7,7 @@ use common::{
         CharacterEnvironment, CharacterMovementResult, CharacterStep, CollisionWorld, LadderMode,
         step_character_movement,
     },
-    protocol::{ActorMoveIntent, BarrierId, MapSettings, Position},
+    protocol::{ActorMoveIntent, FieldId, MapSettings, Position},
 };
 
 pub struct ActorMovementStep<'a> {
@@ -20,7 +20,7 @@ pub struct ActorMovementStep<'a> {
     pub physics: CharacterPhysicsConfig,
     // Barriers switches hold open (`SwitchState`); actors
     // hold no keys.
-    pub open_kinds: &'a [BarrierId],
+    pub open_fields: &'a [FieldId],
     pub collision_world: &'a CollisionWorld,
     pub map_settings: &'a MapSettings,
     pub carriers: &'a Carriers,
@@ -40,7 +40,7 @@ pub fn step_actor_movement(step: ActorMovementStep<'_>) -> CharacterMovementResu
             ladder_mode: LadderMode::for_actor(step.can_use_ladders, step.intent),
             collision_world: step.collision_world,
             gravity: step.map_settings.movement.gravity,
-            passable_kinds: step.open_kinds,
+            passable_fields: step.open_fields,
             physics: step.physics,
             ladder_climb_ratio: step.map_settings.movement.ladder_climb_ratio,
             portals: None,

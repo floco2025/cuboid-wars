@@ -9,13 +9,11 @@ use rapier3d::{
     },
 };
 
-use super::shape_cast::FieldKind;
-
 use crate::{
     constants::PRESSURE_PLATE_HEIGHT,
     map::{DecorationKind, Grounds, ROCK_HULL_SUBDIVISIONS, rock_shape},
     math::{rapier_pose, to_rapier},
-    protocol::{Barrier, BarrierId, BridgeId, CarrierId, Floor, LightBridge, PressurePlate, Ramp, Wall},
+    protocol::{Barrier, BarrierId, BridgeId, CarrierId, FieldId, Floor, LightBridge, PressurePlate, Ramp, Wall},
 };
 
 pub(super) const WALL_COLLISION_GROUP: Group = Group::GROUP_1;
@@ -30,25 +28,27 @@ const KIND_SHIFT: u32 = 40;
 const ID_MASK: u128 = 0xffff;
 const CARRIER_SHIFT: u32 = 24;
 
-pub(super) fn barrier_blocks(collider: &Collider, passable: &[BarrierId]) -> bool {
-    match ColliderKind::field_kind_from_user_data(collider.user_data) {
-        Some(FieldKind::Barrier(id)) => !passable.contains(&id),
-        _ => true,
-    }
+// A barrier or light bridge blocks a query unless it is among the fields the
+// caller passes through: the ones that are off (`SwitchState.open_fields`)
+// and, for a body's own movement, the ones it holds a key to
+// (`passable_fields`).
+pub(super) fn field_blocks(collider: &Collider, passable: &[FieldId]) -> bool {
+    ColliderKind::field_from_user_data(collider.user_data).is_none_or(|field| !passable.contains(&field))
 }
 
 // World geometry that bounces projectiles (walls, floors, ramps), on any
-// carrier. Barriers terminate projectiles instead, so they're NOT in this
-// mask. Which queries see powered bridges: projectile bounces, sight,
+// carrier. Fields terminate projectiles instead, so they're NOT in this
+// mask. Which queries see light bridges: projectile bounces, sight,
 // rain/scorch/wheel ground probes, portal backing, and the world and wall
 // rays are bridge-blind (this mask); character movement, attacks, portal
-// shots, missile flight, and the camera arm see them
-// (`surface_collision_groups`, `character_collision_groups`).
+// shots, missile flight, and the camera arm see the ones that are on
+// (`surface_collision_groups`, `character_collision_groups`, each with the
+// caller's passable fields).
 pub(super) fn world_collision_groups() -> Group {
     WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP
 }
 
-// Standable surfaces include powered bridges.
+// Standable surfaces include light bridges.
 pub(super) fn surface_collision_groups() -> Group {
     world_collision_groups() | BRIDGE_COLLISION_GROUP
 }
@@ -104,11 +104,11 @@ impl ColliderKind {
         Self::Bridge.user_data(carrier) | (u128::from(kind.0) << KIND_SHIFT)
     }
 
-    pub(super) fn field_kind_from_user_data(user_data: u128) -> Option<FieldKind> {
+    pub(super) fn field_from_user_data(user_data: u128) -> Option<FieldId> {
         let id = ((user_data >> KIND_SHIFT) & u128::from(u32::MAX)) as u32;
         match Self::from_user_data(user_data)? {
-            Self::Barrier => Some(FieldKind::Barrier(BarrierId(id))),
-            Self::Bridge => Some(FieldKind::Bridge(BridgeId(id))),
+            Self::Barrier => Some(FieldId::Barrier(BarrierId(id))),
+            Self::Bridge => Some(FieldId::Bridge(BridgeId(id))),
             _ => None,
         }
     }
@@ -222,7 +222,7 @@ pub(super) fn insert_pressure_plate_collider(colliders: &mut ColliderSet, plate:
 }
 
 // Barriers mirror walls geometrically (a thin cuboid along a grid edge),
-// with instance IDs so each player's query can exclude passable barriers.
+// with instance IDs so each query can exclude the fields it passes.
 pub(super) fn insert_barrier_collider(colliders: &mut ColliderSet, barrier: &Barrier) -> ColliderHandle {
     let (center, half_extents) = edge_cuboid(
         barrier.x1,
@@ -242,9 +242,7 @@ pub(super) fn insert_barrier_collider(colliders: &mut ColliderSet, barrier: &Bar
     )
 }
 
-// A light bridge is a floor slab that starts unpowered: a member of no group,
-// so no query sees it until `set_powered_bridges` moves it into
-// `BRIDGE_COLLISION_GROUP`.
+// Light bridges mirror floor slabs the same way.
 pub(super) fn insert_bridge_collider(colliders: &mut ColliderSet, bridge: &LightBridge) -> ColliderHandle {
     let (center, half_extents) = slab_cuboid(bridge.bounds_xz(), bridge.y, bridge.thickness);
     insert_cuboid_collider(
@@ -252,7 +250,7 @@ pub(super) fn insert_bridge_collider(colliders: &mut ColliderSet, bridge: &Light
         center,
         half_extents,
         ColliderKind::bridge_user_data(bridge.id, bridge.carrier),
-        Group::empty(),
+        BRIDGE_COLLISION_GROUP,
     )
 }
 

@@ -3,7 +3,9 @@ use crate::{
     constants::MISSILE_RADIUS,
     test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
-use common::protocol::{Barrier, BarrierId, BarrierKindId, Carrier, Floor, MapLayout, Position, SwitchState, Wall};
+use common::protocol::{
+    Barrier, BarrierId, Carrier, FieldId, FieldKindId, Floor, MapLayout, Position, SwitchState, Wall,
+};
 
 fn map(cols: i32, rows: i32, levels: usize) -> AirGraph {
     AirGraph {
@@ -195,7 +197,7 @@ fn routes_into_a_shifted_room_keep_clear_of_its_walls_floor_and_roof() {
         ],
         carriers: vec![Carrier {
             motion: Default::default(),
-            switch_inverted: false,
+            initially_on: true,
 
             parent: CarrierId::WORLD,
             level: 0,
@@ -256,7 +258,7 @@ fn opened_barriers_allow_a_route_without_stale_grid_flags() {
             id: Default::default(),
 
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
 
             x1: 0.0,
             z1: -2.0,
@@ -268,7 +270,7 @@ fn opened_barriers_allow_a_route_without_stale_grid_flags() {
             level: 0,
             levels: 1,
             carrier: CarrierId::WORLD,
-            kind: BarrierKindId(0),
+            kind: FieldKindId(0),
         }],
         floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
         ..default()
@@ -285,7 +287,7 @@ fn opened_barriers_allow_a_route_without_stale_grid_flags() {
         graph.path(
             &Carriers::default(),
             &world,
-            &[BarrierId(0)],
+            &[FieldId::Barrier(BarrierId(0))],
             from,
             to,
             MISSILE_RADIUS,

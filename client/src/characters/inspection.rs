@@ -147,7 +147,7 @@ pub(crate) fn refresh_grounding_debug_system(
         let keys = player
             .and_then(|id| players.get(id))
             .map_or(&[][..], |p| p.held_keys.as_slice());
-        let passable = world.passable_barriers(keys, &switch_state.open_barriers);
+        let passable = world.passable_fields(keys, &switch_state.open_fields);
         let excluded = if player.is_some() {
             portals.collision_exclusions(Vec3::from(*pos), bounds.physics)
         } else {

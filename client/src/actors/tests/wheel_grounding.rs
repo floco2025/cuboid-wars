@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
     physics::CollisionWorld,
-    protocol::{ActorMarker, CarrierId, Floor, MapLayout, Position, Ramp, RampDirection, RampShape},
+    protocol::{ActorMarker, CarrierId, Floor, MapLayout, Position, Ramp, RampDirection, RampShape, SwitchState},
 };
 
 use super::wheel_grounding::{WheelGrounding, ground_pose, wheel_grounding_system};
@@ -84,7 +84,7 @@ fn tyres_rest_on_ramp_when_driving_up_down_or_across_it() {
     };
     for angle in [0.0, 1.0, std::f32::consts::FRAC_PI_2, std::f32::consts::PI] {
         let yaw = Quat::from_rotation_y(angle);
-        let (rotation, offset) = ground_pose(&world, &grounding(), position, position.into(), yaw)
+        let (rotation, offset) = ground_pose(&world, &[], &grounding(), position, position.into(), yaw)
             .expect("ramp pose missing for a supported scuttler");
         assert!((rotation * Vec3::Y).abs_diff_eq(normal, 1e-4));
         assert!(
@@ -115,17 +115,17 @@ fn flat_floor_is_level_and_airborne_scuttlers_are_not_pulled_down() {
         z: -2.0,
     };
     let (rotation, offset) =
-        ground_pose(&world, &grounding(), position, position.into(), yaw).expect("flat ground pose missing");
+        ground_pose(&world, &[], &grounding(), position, position.into(), yaw).expect("flat ground pose missing");
     assert!(rotation.abs_diff_eq(yaw, 1e-5));
     assert!(offset.abs() < 1e-5);
     let airborne = Position { y: 1.0, ..position };
-    assert!(ground_pose(&world, &grounding(), airborne, airborne.into(), yaw).is_none());
+    assert!(ground_pose(&world, &[], &grounding(), airborne, airborne.into(), yaw).is_none());
 }
 
 #[test]
 fn visual_tilt_preserves_the_actor_and_its_collider_frame() {
     let mut app = App::new();
-    app.insert_resource(ramp_world());
+    app.insert_resource(ramp_world()).init_resource::<SwitchState>();
     app.add_systems(Update, wheel_grounding_system);
     let position = Position {
         x: 0.0,
@@ -160,7 +160,7 @@ fn wheel_footprint_blends_the_tilt_at_the_foot_of_a_ramp() {
             y: (z * 0.5 + rise).max(0.0),
             z,
         };
-        let (rotation, _) = ground_pose(&world, &grounding(), position, position.into(), Quat::IDENTITY)
+        let (rotation, _) = ground_pose(&world, &[], &grounding(), position, position.into(), Quat::IDENTITY)
             .expect("ground pose missing at the ramp transition");
         let angle = (rotation * Vec3::Y).angle_between(Vec3::Y);
         assert!(angle + 1e-4 >= previous_angle);

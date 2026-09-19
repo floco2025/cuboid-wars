@@ -6,7 +6,7 @@ fn barrier() -> Barrier {
         id: Default::default(),
 
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         x1: 0.0,
         z1: 0.0,
@@ -17,12 +17,12 @@ fn barrier() -> Barrier {
         width: 0.1,
         level: 0,
         levels: 1,
-        kind: BarrierKindId(0),
+        kind: FieldKindId(0),
         carrier: CarrierId::WORLD,
     }
 }
 
-fn field(kind: Option<BarrierKindId>) -> VisualField {
+fn field(kind: Option<FieldKindId>) -> VisualField {
     VisualField {
         kind,
         ..VisualField::from_barrier(&barrier())
@@ -90,7 +90,7 @@ fn barriers_and_erasers_have_identical_visual_bounds_in_both_axes_and_directions
 
 #[test]
 fn adjacent_fields_merge_without_internal_frames_but_not_across_kinds_or_carriers() {
-    for kind in [None, Some(BarrierKindId(0))] {
+    for kind in [None, Some(FieldKindId(0))] {
         let a = field(kind);
         let b = VisualField {
             barrier: Some(BarrierId(1)),
@@ -108,7 +108,7 @@ fn adjacent_fields_merge_without_internal_frames_but_not_across_kinds_or_carrier
         assert_eq!(merged[0].frame_rects(&MapLayout::default()).len(), 4);
         for other in [
             VisualField {
-                kind: Some(BarrierKindId(1)),
+                kind: Some(FieldKindId(1)),
                 ..b
             },
             VisualField {
@@ -120,7 +120,7 @@ fn adjacent_fields_merge_without_internal_frames_but_not_across_kinds_or_carrier
                 ..b
             },
             VisualField {
-                switch_inverted: true,
+                initially_on: false,
                 ..b
             },
             VisualField {
@@ -136,7 +136,7 @@ fn adjacent_fields_merge_without_internal_frames_but_not_across_kinds_or_carrier
 #[test]
 fn scrambled_rectangular_grids_merge_to_one_outer_frame() {
     let order = [(0, 0), (1, 0), (1, 1), (2, 1), (2, 2), (1, 2), (0, 2), (0, 1), (2, 0)];
-    for kind in [None, Some(BarrierKindId(0))] {
+    for kind in [None, Some(FieldKindId(0))] {
         let mut ids = 0..;
         let fields = order.map(|(column, level)| VisualField {
             barrier: ids.next().map(BarrierId),
@@ -158,7 +158,7 @@ fn scrambled_rectangular_grids_merge_to_one_outer_frame() {
 
 #[test]
 fn stacked_fields_bridge_floorless_gaps_and_keep_floor_separated_storeys_apart() {
-    for kind in [None, Some(BarrierKindId(0))] {
+    for kind in [None, Some(FieldKindId(0))] {
         let lower = field(kind);
         let upper = VisualField {
             barrier: Some(BarrierId(1)),
@@ -176,7 +176,7 @@ fn stacked_fields_bridge_floorless_gaps_and_keep_floor_separated_storeys_apart()
 
 #[test]
 fn stacked_fields_merge_between_wall_trim_without_leaving_an_open_seam() {
-    for kind in [None, Some(BarrierKindId(0))] {
+    for kind in [None, Some(FieldKindId(0))] {
         for axis in [0, 2] {
             let lower = VisualField { axis, ..field(kind) };
             let upper = VisualField {

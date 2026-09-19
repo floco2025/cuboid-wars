@@ -154,7 +154,7 @@ fn incompatible_material_impact_keeps_its_carrier_local_position() {
     layout.wall_materials[0] = FaceMaterials::uniform("blocked");
     layout.carriers.push(Carrier {
         motion: Default::default(),
-        switch_inverted: false,
+        initially_on: true,
 
         parent: CarrierId::WORLD,
         level: 0,

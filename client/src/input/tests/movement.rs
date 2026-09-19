@@ -49,6 +49,7 @@ fn input_app() -> (App, Entity, Entity) {
         .insert_resource(test_fixtures::map_settings())
         .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
         .init_resource::<common::protocol::ServerTick>()
+        .init_resource::<common::protocol::SwitchState>()
         .init_resource::<NetworkConfig>()
         .init_resource::<Carriers>()
         .init_resource::<PlayerMap>()

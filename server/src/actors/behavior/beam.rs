@@ -7,7 +7,7 @@ use bevy::prelude::Vec3;
 use common::{
     config::CharacterPhysicsConfig,
     physics::{CollisionWorld, character_hitbox_center},
-    protocol::{ActorBeam, BarrierId, Position},
+    protocol::{ActorBeam, FieldId, Position},
 };
 
 pub(super) struct BeamContext<'a> {
@@ -16,7 +16,7 @@ pub(super) struct BeamContext<'a> {
     pub kind_config: &'a ActorKindServerConfig,
     pub player_physics: CharacterPhysicsConfig,
     pub collision_world: &'a CollisionWorld,
-    pub open_barriers: &'a [BarrierId],
+    pub open_fields: &'a [FieldId],
 }
 impl<'a> From<&BehaviorContext<'a>> for BeamContext<'a> {
     fn from(context: &BehaviorContext<'a>) -> Self {
@@ -26,7 +26,7 @@ impl<'a> From<&BehaviorContext<'a>> for BeamContext<'a> {
             kind_config: context.kind_config,
             player_physics: context.player_physics,
             collision_world: context.collision_world,
-            open_barriers: context.open_barriers,
+            open_fields: context.open_fields,
         }
     }
 }
@@ -81,7 +81,7 @@ fn beam_target_attackable(aware: &AwarePlayer, context: &BeamContext<'_>) -> boo
         && context.collision_world.attack_path_clear(
             Vec3::from(context.world_pos) + Vec3::Y * context.kind_config.character.beam_origin_y_offset(),
             character_hitbox_center(aware.pos, context.player_physics),
-            context.open_barriers,
+            context.open_fields,
         )
 }
 

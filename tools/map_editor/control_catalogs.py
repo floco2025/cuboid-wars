@@ -13,24 +13,22 @@ def geometries(root: dict):
 # Every record that may name an entry of `catalog`, with the list it sits in
 # and the field that holds the name.
 def named_references(root: dict, catalog: str):
+    field = "switch" if catalog == "switches" else "kind"
     for geometry in geometries(root):
         if catalog == "switches":
             for name in ("pressure_plates", "actor_spawn_zones", "nested_maps"):
                 for entry in geometry.get(name, []):
-                    yield name, entry, "switch"
-        if catalog == "barrier_kinds":
+                    yield name, entry, field
+        else:
             for item in geometry.get("items", []):
                 if item.get("type") == "key":
-                    yield "items", item, "kind"
+                    yield "items", item, field
         for level in geometry["levels"]:
             for name in ("barriers", "light_bridges"):
                 for entry in level.get(name, []):
-                    if catalog == "switches":
-                        yield name, entry, "switch"
-                    elif (catalog, name) in (("barrier_kinds", "barriers"), ("bridge_kinds", "light_bridges")):
-                        yield name, entry, "kind"
+                    yield name, entry, field
     if catalog == "switches" and root.get("fireworks"):
-        yield "fireworks", root["fireworks"], "switch"
+        yield "fireworks", root["fireworks"], field
 
 
 def references(root: dict, catalog: str):

@@ -8,14 +8,14 @@ use rapier3d::{
 
 use super::{
     CollisionWorld,
-    colliders::{WALL_COLLISION_GROUP, barrier_blocks, character_collision_groups, query_filter},
+    colliders::{WALL_COLLISION_GROUP, character_collision_groups, field_blocks, query_filter},
 };
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{CHARACTER_CONTACT_OFFSET, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT},
     math::PHYSICS_EPSILON,
     physics::characters::{character_controller, character_movement_pose, character_movement_shape},
-    protocol::{BarrierId, Position},
+    protocol::{FieldId, Position},
 };
 
 impl CollisionWorld {
@@ -26,7 +26,7 @@ impl CollisionWorld {
         start: Position,
         target: Position,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
     ) -> bool {
         let start = self.ground_route_position(start, physics, open, CHARACTER_STEP_HEIGHT);
         let target = self.ground_route_position(target, physics, open, CHARACTER_STEP_HEIGHT);
@@ -39,7 +39,7 @@ impl CollisionWorld {
         start: Position,
         target: Position,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
     ) -> bool {
         let translation = Vector::new(target.x - start.x, target.y - start.y, target.z - start.z);
         let horizontal = translation.with_y(0.0);
@@ -84,7 +84,7 @@ impl CollisionWorld {
         start: Position,
         target: Position,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
     ) -> bool {
         // A descending diagonal sweep pushes into a landing's edge and slides sideways.
         // Retry with horizontal control and ground following, as the walking motor does.
@@ -142,7 +142,7 @@ impl CollisionWorld {
         &self,
         mut position: Position,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
         max_drop: f32,
     ) -> Position {
         let lift = physics.movement_collider.radius() + CHARACTER_STEP_HEIGHT;
@@ -180,7 +180,7 @@ impl CollisionWorld {
         character_movement_shape: &dyn Shape,
         character_pos: &Pose,
         desired_translation: Vector,
-        passable_kinds: &[BarrierId],
+        passable_fields: &[FieldId],
         excluded_colliders: &[ColliderHandle],
         events: impl FnMut(CharacterCollision),
     ) -> EffectiveCharacterMovement {
@@ -188,7 +188,7 @@ impl CollisionWorld {
         // a body overlapping the aperture, which is what lets it pass
         // through the surface.
         let allow = |handle: ColliderHandle, collider: &Collider| {
-            !excluded_colliders.contains(&handle) && barrier_blocks(collider, passable_kinds)
+            !excluded_colliders.contains(&handle) && field_blocks(collider, passable_fields)
         };
         let mut filter = query_filter(character_collision_groups());
         filter.predicate = Some(&allow);
@@ -220,9 +220,9 @@ impl CollisionWorld {
         &self,
         pos: &Position,
         physics: CharacterPhysicsConfig,
-        passable_kinds: &[BarrierId],
+        passable_fields: &[FieldId],
     ) -> bool {
-        let allow = |_: ColliderHandle, collider: &Collider| barrier_blocks(collider, passable_kinds);
+        let allow = |_: ColliderHandle, collider: &Collider| field_blocks(collider, passable_fields);
         let mut filter = query_filter(character_collision_groups());
         filter.predicate = Some(&allow);
         self.shape_overlaps(
@@ -236,7 +236,7 @@ impl CollisionWorld {
         &self,
         pos: &Position,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
     ) -> bool {
         // Contact skin is harmless; crushing requires geometry inside the body.
         let margin = CHARACTER_CONTACT_OFFSET * 0.1;

@@ -31,7 +31,7 @@ pub(super) use common::{
     map::{CarrierPose, Carriers, MapGeometry},
     physics::{CharacterSupport, CollisionWorld},
     protocol::{
-        ActorBeam, ActorId, ActorMarker, Barrier, BarrierKindId, BridgeId, Carrier, CarrierId, Health, MapItems,
+        ActorBeam, ActorId, ActorMarker, Barrier, BridgeId, Carrier, CarrierId, FieldId, FieldKindId, Health, MapItems,
         MapLayout, PlayerId, PlayerMarker, Position, ServerMessage, ServerTick, SwitchState, Wall,
     },
 };
@@ -104,7 +104,7 @@ impl Fixture {
         let carrier = if rest.is_some() { CarrierId(1) } else { CarrierId::WORLD };
         let mut map = MapConfig {
             actor_spawn_zones: vec![ActorSpawnZone {
-                switch_inverted: false,
+                initially_on: true,
 
                 carrier,
                 level: 0,
@@ -127,7 +127,7 @@ impl Fixture {
             map.grids.push(CarrierGrid::new(carrier, geometry, levels(1)));
             layout.carriers.push(Carrier {
                 motion: Default::default(),
-                switch_inverted: false,
+                initially_on: true,
 
                 parent: CarrierId::WORLD,
                 level: 0,
@@ -190,7 +190,7 @@ impl Fixture {
             carrier: self.carrier,
             territory: self.territories.get(0),
             collision_world: &self.collision_world,
-            open_barriers: &[],
+            open_fields: &[],
             kind_config: self.server.expect_actor(kind),
             players_armed: true,
         }

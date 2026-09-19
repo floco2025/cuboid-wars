@@ -98,11 +98,12 @@ pub struct LevelGrid {
     // Wall edges: block movement and generate the visible wall geometry.
     pub edges: EdgeGrid,
     // Barrier edges: block actor pathfinding only. Holds the barriers an actor
-    // can never pass — those NOT controlled by a pressure plate (actors can't
-    // carry keys). Pressure-plate barriers are omitted (treated as open): they
-    // seal a room with no alternate route, so assuming open lets a returning
-    // actor path home and physics holds it at the barrier until someone opens
-    // it. No geometry here; barriers render from their own carrier-local records.
+    // can never pass — those that are on with no pressure plate to turn them
+    // off (actors can't carry keys). Pressure-plate barriers are omitted
+    // (treated as open): they seal a room with no alternate route, so assuming
+    // open lets a returning actor path home and physics holds it at the barrier
+    // until someone opens it. No geometry here; barriers render from their own
+    // carrier-local records.
     pub barrier_edges: EdgeGrid,
 }
 
@@ -110,13 +111,13 @@ pub use map_core::CheckpointResponse;
 
 // `respawn_secs` is the delay before a vacancy refills; `None` never refills.
 // `beam_in_secs` is the ghost window before each spawn appears; 0 spawns it
-// the tick its slot fills. `switch` and `until_checkpoint` gate the zone: it
-// spawns nothing while the switch does not match or the course has passed
+// the tick its slot fills. `initially_on`, `switch`, and `until_checkpoint`
+// gate the zone: it spawns nothing while it is off or the course has passed
 // its checkpoint, but its countdown keeps running meanwhile
 // (`actors_respawn_system`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActorSpawnZone {
-    pub switch_inverted: bool,
+    pub initially_on: bool,
     pub carrier: CarrierId,
     pub level: u8,
     pub levels: u16,
@@ -153,14 +154,14 @@ impl ActorSpawnZone {
         zone_cells(self.cols, self.rows)
     }
 
-    // Whether the zone may spawn now: its switch, if any, matches its On/Off
-    // response, and the course (`progress`, the furthest checkpoint any
-    // logged-in player has saved) has not reached its `until_checkpoint`.
+    // Whether the zone may spawn now: it is on (its initial state, flipped
+    // while its switch is active), and the course (`progress`, the furthest
+    // checkpoint any logged-in player has saved) has not reached its
+    // `until_checkpoint`.
     #[must_use]
     pub fn is_enabled(&self, switch_state: &SwitchState, progress: u32) -> bool {
-        self.switch
-            .is_none_or(|switch| switch_state.is_active(switch) != self.switch_inverted)
-            && !self.checkpoint_reached(progress)
+        let flipped = self.switch.is_some_and(|switch| switch_state.is_active(switch));
+        self.initially_on != flipped && !self.checkpoint_reached(progress)
     }
 
     #[must_use]
@@ -193,7 +194,7 @@ pub(crate) fn zone_cells(cols: [i32; 2], rows: [i32; 2]) -> impl Iterator<Item =
 }
 
 // Map-authored item placement, compiled from the map's `items` list with
-// key kinds already resolved against the `BarrierKindTable`. The cell is in
+// key kinds already resolved against the `FieldKindTable`. The cell is in
 // its carrier's grid.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlacedItem {

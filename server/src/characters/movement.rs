@@ -63,6 +63,6 @@ pub fn characters_movement_system(
         &actors,
         &planned_moves,
         &collision_world,
-        &switch_state.open_barriers,
+        &switch_state.open_fields,
     );
 }

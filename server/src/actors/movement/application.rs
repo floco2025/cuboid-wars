@@ -1,6 +1,6 @@
 use common::{
     physics::{CharacterMovePlan, CollisionWorld},
-    protocol::BarrierId,
+    protocol::FieldId,
 };
 
 use super::{blocking_character_move_plan, query::ActorMovementQuery};
@@ -11,7 +11,7 @@ pub(crate) fn apply_actor_moves(
     actors: &ActorMap,
     planned_moves: &[CharacterMovePlan],
     world: &CollisionWorld,
-    open: &[BarrierId],
+    open: &[FieldId],
 ) {
     for planned_move in planned_moves {
         let Ok((_, id, _, mut pos, mut motion, _, _, _, _, mut crushed, mut landing, character)) =

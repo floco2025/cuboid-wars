@@ -2,10 +2,11 @@ use bevy::prelude::*;
 
 use super::FollowCamera;
 use crate::config::FollowCameraConfig;
-use common::physics::CollisionWorld;
+use common::{physics::CollisionWorld, protocol::FieldId};
 
 pub(super) fn third_person_transform(
     world: &CollisionWorld,
+    open_fields: &[FieldId],
     pivot: Vec3,
     rotation: Quat,
     config: FollowCameraConfig,
@@ -15,7 +16,7 @@ pub(super) fn third_person_transform(
 ) -> Transform {
     let distance = state.distance.clamp(0.0, config.max_distance);
     let offset = rotation * Vec3::new(state.shoulder_offset(config), 0.0, distance);
-    let allowed = world.camera_arm_distance(pivot, offset, radius);
+    let allowed = world.camera_arm_distance(pivot, offset, radius, open_fields);
     let reset = state
         .previous_pivot
         .is_none_or(|previous| previous.distance(pivot) > config.max_distance);

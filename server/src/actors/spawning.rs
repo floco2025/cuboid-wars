@@ -18,7 +18,7 @@ use common::{
     map::Carriers,
     physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, character_positions_intersect},
     protocol::{
-        ActorAnchor, ActorMarker, ActorMoveIntent, BarrierId, FaceYaw, Health, MapSettings, PlayerMarker, Position,
+        ActorAnchor, ActorMarker, ActorMoveIntent, FaceYaw, FieldId, Health, MapSettings, PlayerMarker, Position,
         ServerTick, SwitchState, sequence_is_newer,
     },
 };
@@ -127,7 +127,7 @@ pub fn actors_respawn_system(
         collision_world: &collision_world,
         config: &server_gameplay_config,
         tick: tick.0,
-        open: &switch_state.open_barriers,
+        open: &switch_state.open_fields,
     };
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
         // A zone its switch or the course holds back keeps its deficit and fills the tick the gates allow.
@@ -155,7 +155,7 @@ struct SpawnPlanner<'a, 'w, 's> {
     spawner: &'a mut ActorSpawner,
     // Every spot already taken: players, live actors, and the spawns reserved so far.
     occupied_positions: Vec<(Position, CharacterPhysicsConfig)>,
-    open: &'a [BarrierId],
+    open: &'a [FieldId],
     rng: ThreadRng,
     map_config: &'a MapConfig,
     map_settings: &'a MapSettings,
@@ -323,7 +323,7 @@ pub fn actors_pending_spawn_system(
         let character = &server_gameplay_config.expect_actor(&spawn.kind).character;
         let pos = spawn.world_position(&carriers);
         if character.flies()
-            && (collision_world.character_overlaps_solid(&pos, character.physics(), &switch_state.open_barriers)
+            && (collision_world.character_overlaps_solid(&pos, character.physics(), &switch_state.open_fields)
                 || occupied
                     .iter()
                     .any(|(other, physics)| character_positions_intersect(&pos, character.physics(), other, *physics)))

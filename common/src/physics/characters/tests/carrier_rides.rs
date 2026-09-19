@@ -30,6 +30,7 @@ const RISE_PER_TICK: f32 = LEVEL_HEIGHT / 60.0;
 fn a_rider_stays_on_a_carrier_when_deactivation_reverses_it_home() {
     for (mut carrier, floor) in [slider(), lift()] {
         carrier.switch = Some(SwitchId(0));
+        carrier.initially_on = false;
         carrier.motion = CarrierMotion::FollowSwitch;
         let layout = MapLayout {
             carriers: vec![carrier],

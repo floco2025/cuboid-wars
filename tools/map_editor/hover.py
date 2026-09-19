@@ -20,6 +20,8 @@ from .constants import (
     HIT_CHECKPOINT,
     CHECKPOINT_TYPE_LABELS,
     HIT_SPAWN_ZONE,
+    INITIAL_STATE,
+    INITIAL_STATE_LABELS,
     HIT_WALL,
     ITEMS_LIST,
     NESTED_MAPS_LIST,
@@ -115,9 +117,10 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
                 label += f" · Pause: {entry['pause_secs']:g} s"
                 if entry["phase_secs"]:
                     label += f"\nPhase: {entry['phase_secs']:g} s"
-        if entry.get("switch"):
-            response = "Off" if entry.get("switch_inverted") else "On"
-            label += f"\nSwitch: {entry['switch']} · Respond when {response}"
-        return label
+        # A map that starts on with no switch has no controls to show.
+        controls = [f"Switch: {entry['switch']}"] if entry.get("switch") else []
+        if controls or entry.get("initially_on") is False:
+            controls.append(f"{INITIAL_STATE}: {INITIAL_STATE_LABELS[entry.get('initially_on') is not False]}")
+        return label + "\n" + " · ".join(controls) if controls else label
 
     return kind

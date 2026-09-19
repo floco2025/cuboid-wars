@@ -2,17 +2,14 @@ use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::*;
 
-use super::{BridgeAssets, surface::bridge_visuals};
+use super::surface::bridge_visuals;
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
     config::ClientSettings,
-    fields::{FieldMeshes, FieldSurface, FieldSurfaces, fade_target, spawn_patterned_surface},
+    fields::{FieldAssets, FieldMeshes, FieldSurface, FieldSurfaces, fade_target, spawn_patterned_surface},
     materials::{FieldMaterial, field_material},
 };
-use common::{
-    physics::FieldKind,
-    protocol::{MapLayout, SwitchState},
-};
+use common::protocol::{FieldId, MapLayout, SwitchState};
 
 #[derive(Component)]
 pub struct LightBridgeMarker;
@@ -26,7 +23,7 @@ pub fn bridges_spawn_system(
     map_layout: Res<MapLayout>,
     client_settings: Res<ClientSettings>,
     field_meshes: Res<FieldMeshes>,
-    bridge_assets: Res<BridgeAssets>,
+    field_assets: Res<FieldAssets>,
     switch_state: Res<SwitchState>,
     carrier_entities: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
@@ -50,8 +47,8 @@ pub fn bridges_spawn_system(
         let (x1, x2, z1, z2) = bridge.bounds_xz();
         let center = Rect::new(x1, z1, x2, z2).center();
         // Every member of the group shares the switch, so one stands for all.
-        let state = FieldKind::Bridge(bridge.id);
-        let color = bridge_assets.field_color(bridge.id);
+        let state = FieldId::Bridge(bridge.id);
+        let color = field_assets.base_color(bridge.kind);
         let material = materials.add(field_material(
             color,
             fade_target(&switch_state, state, config),
@@ -77,7 +74,7 @@ pub fn bridges_spawn_system(
                     &mut meshes,
                     &field_meshes,
                     &material,
-                    bridge_assets.kind(bridge.kind),
+                    field_assets.kind(bridge.kind),
                     visual.surfaces,
                     visual.frames,
                     center,

@@ -75,14 +75,14 @@ pub(crate) fn flying_actors_behavior_system(
                 physics,
                 range,
                 pose,
-                &switch_state.open_barriers,
+                &switch_state.open_fields,
             )
         });
         if home.last_tick != Some(tick.0) {
             home.age += delta;
         }
         home.last_tick = Some(tick.0);
-        home.refresh(&world, pose, &switch_state.open_barriers);
+        home.refresh(&world, pose, &switch_state.open_fields);
         let mut home_budget = share / 2;
         home.advance(&world, physics, &mut home_budget);
         let mut budget = share - share / 2 + home_budget;
@@ -105,7 +105,7 @@ pub(crate) fn flying_actors_behavior_system(
             kind_config: kind,
             player_physics: gameplay.player.physics(),
             collision_world: &world,
-            open_barriers: &switch_state.open_barriers,
+            open_fields: &switch_state.open_fields,
         };
         retarget_beam(info, &context);
         let mut flight = info.flight.take().unwrap_or_default();
@@ -133,7 +133,7 @@ pub(crate) fn flying_actors_behavior_system(
                 .normalize_or_zero();
                 let end = Vec3::from(*pos) + direction * home.spacing * 2.0;
                 if (task != Some(FlightTask::Roam) || home.path_contains(Vec3::from(*pos), end, pose))
-                    && world.character_flight_path_clear(*pos, end.into(), physics, &switch_state.open_barriers)
+                    && world.character_flight_path_clear(*pos, end.into(), physics, &switch_state.open_fields)
                 {
                     flight.route.push_back(end.into());
                     flight.task = task;
@@ -179,7 +179,7 @@ fn advance_search(
     };
     let physics = context.kind_config.character.physics();
     let world = context.collision_world;
-    let open = context.open_barriers;
+    let open = context.open_fields;
     let task = flight.task;
     let result = match task {
         Some(FlightTask::Return) => {
@@ -278,7 +278,7 @@ fn advance_route(
     if flight.route.front().is_some_and(|p| {
         !context
             .collision_world
-            .character_flight_path_clear(pos, *p, physics, context.open_barriers)
+            .character_flight_path_clear(pos, *p, physics, context.open_fields)
     }) {
         flight.route.clear();
         flight.search = None;
@@ -290,7 +290,7 @@ fn advance_route(
         for i in (1..flight.route.len().min(8)).rev() {
             if context
                 .collision_world
-                .character_flight_path_clear(pos, flight.route[i], physics, context.open_barriers)
+                .character_flight_path_clear(pos, flight.route[i], physics, context.open_fields)
             {
                 flight.route.drain(..i);
                 break;
@@ -393,7 +393,7 @@ fn decide_flight(
             if context.collision_world.character_overlaps_solid(
                 &candidate.into(),
                 context.kind_config.character.physics(),
-                context.open_barriers,
+                context.open_fields,
             ) {
                 continue;
             }

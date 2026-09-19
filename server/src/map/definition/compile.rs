@@ -9,8 +9,8 @@ use common::{
     config::MapGeometryConfig,
     map::MapGeometry,
     protocol::{
-        BarrierId, BarrierKindTable, BridgeId, BridgeKindTable, Carrier, CarrierId, LightBridge, MapLayout,
-        MapSettings, SwitchId, SwitchTable,
+        BarrierId, BridgeId, Carrier, CarrierId, FieldKindTable, LightBridge, MapLayout, MapSettings, SwitchId,
+        SwitchTable,
     },
 };
 use map_core::{
@@ -27,8 +27,7 @@ pub(crate) fn compile_map(
     server_hz: u32,
     settings: &MapSettings,
     nested: &LoadedMaps,
-    kind_table: &BarrierKindTable,
-    bridge_table: &BridgeKindTable,
+    kind_table: &FieldKindTable,
     switch_table: &SwitchTable,
 ) -> anyhow::Result<(MapLayout, MapConfig)> {
     let mut out = CompileOutput {
@@ -49,7 +48,6 @@ pub(crate) fn compile_map(
         server_hz,
         sizes: settings.geometry,
         kind_table,
-        bridge_table,
         switch_table,
         plated_switches,
     };
@@ -113,25 +111,15 @@ fn mark_bridge_cells(config: &mut MapConfig, bridge: &LightBridge) {
 pub(super) struct CompileScope<'a> {
     server_hz: u32,
     pub(super) sizes: MapGeometryConfig,
-    pub(super) kind_table: &'a BarrierKindTable,
-    pub(super) bridge_table: &'a BridgeKindTable,
+    pub(super) kind_table: &'a FieldKindTable,
     pub(super) switch_table: &'a SwitchTable,
-    // Switches some plate in the tree operates: a carrier or zone naming any other could never start.
+    // Switches some plate in the tree operates: a barrier on any other stays as it starts.
     pub(super) plated_switches: HashSet<&'a str>,
 }
 
 impl CompileScope<'_> {
-    // A target's switch: known to the catalog and operated by a plate somewhere in the tree.
     pub(super) fn target_switch(&self, switch: Option<&str>) -> anyhow::Result<Option<SwitchId>> {
-        let Some(switch) = switch else {
-            return Ok(None);
-        };
-        let id = self.switch_table.resolve(switch)?;
-        ensure!(
-            self.plated_switches.contains(switch),
-            "switch {switch:?} is operated by no pressure plate in the map"
-        );
-        Ok(Some(id))
+        switch.map(|switch| self.switch_table.resolve(switch)).transpose()
     }
 }
 
@@ -201,7 +189,7 @@ fn carrier_from_motion(
     let from = end1 + Vec3::from(motion.from_nudge) * nudge_scale;
     let to = end2 + Vec3::from(motion.to_nudge) * nudge_scale;
     Carrier {
-        switch_inverted: motion.switch_inverted,
+        initially_on: motion.initially_on,
         motion: motion.motion,
         parent,
         level: level.min(to_level),

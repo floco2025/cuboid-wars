@@ -13,7 +13,7 @@ use common::{
     constants::PRESSURE_PLATE_HEIGHT,
     map::Carriers,
     protocol::{
-        BarrierKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, PowerUpKind,
+        FieldKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, PowerUpKind,
         SGoldCollected, SHealthPotionCollected, SPlayerStatus, ServerMessage,
     },
 };
@@ -203,7 +203,7 @@ fn collect_gold(
 fn collect_key(
     players: &mut PlayerMap,
     player_id: PlayerId,
-    kind: BarrierKindId,
+    kind: FieldKindId,
     status_broadcasts: &mut Vec<SPlayerStatus>,
     feed_events: &mut Vec<FeedEvent>,
 ) {

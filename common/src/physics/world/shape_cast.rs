@@ -3,14 +3,8 @@ use rapier3d::parry::query;
 
 use crate::{
     math::from_rapier,
-    protocol::{BarrierId, BridgeId, CarrierId},
+    protocol::{CarrierId, FieldId},
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FieldKind {
-    Barrier(BarrierId),
-    Bridge(BridgeId),
-}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ShapeCastHit {
@@ -20,7 +14,7 @@ pub struct ShapeCastHit {
     // pose (`witness2` stays in the cast shape's local frame).
     pub contact: Vec3,
     pub t: f32,
-    pub field_kind: Option<FieldKind>,
+    pub field: Option<FieldId>,
     // Whose collider was hit: what a body standing on it rides.
     pub carrier: CarrierId,
 }
@@ -33,7 +27,7 @@ pub(super) fn upward_surface_hit(hit: query::ShapeCastHit, carrier: CarrierId) -
             normal,
             contact: from_rapier(hit.witness1),
             t: hit.time_of_impact,
-            field_kind: None,
+            field: None,
             carrier,
         })
 }

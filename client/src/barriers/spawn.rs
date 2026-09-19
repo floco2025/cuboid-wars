@@ -1,18 +1,15 @@
 use bevy::prelude::*;
 
-use super::BarrierAssets;
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
     config::ClientSettings,
     fields::{
-        FieldMeshes, FieldSurface, FieldSurfaces, VisualField, fade_target, merge_fields, spawn_patterned_surface,
+        FieldAssets, FieldMeshes, FieldSurface, FieldSurfaces, VisualField, fade_target, merge_fields,
+        spawn_patterned_surface,
     },
     materials::{FieldMaterial, field_material},
 };
-use common::{
-    physics::FieldKind,
-    protocol::{MapLayout, MapSettings, SwitchState},
-};
+use common::protocol::{FieldId, MapLayout, MapSettings, SwitchState};
 
 #[derive(Component)]
 pub struct BarrierMarker;
@@ -27,7 +24,7 @@ pub fn barriers_spawn_system(
     settings: Res<MapSettings>,
     client_settings: Res<ClientSettings>,
     field_meshes: Res<FieldMeshes>,
-    barrier_assets: Res<BarrierAssets>,
+    field_assets: Res<FieldAssets>,
     switch_state: Res<SwitchState>,
     carrier_entities: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
@@ -54,8 +51,8 @@ pub fn barriers_spawn_system(
     );
     for field in fields {
         let kind = field.kind.expect("barrier visual missing its kind");
-        let state = FieldKind::Barrier(field.barrier.expect("barrier visual missing its id"));
-        let color = barrier_assets.base_color(kind);
+        let state = FieldId::Barrier(field.barrier.expect("barrier visual missing its id"));
+        let color = field_assets.base_color(kind);
         let material = materials.add(field_material(
             color,
             fade_target(&switch_state, state, config),
@@ -81,7 +78,7 @@ pub fn barriers_spawn_system(
                     &mut meshes,
                     &field_meshes,
                     &material,
-                    barrier_assets.kind(kind),
+                    field_assets.kind(kind),
                     field.panel_rects(&layout),
                     field.frame_rects(&layout),
                     field.rect.center(),

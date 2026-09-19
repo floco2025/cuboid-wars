@@ -1,17 +1,17 @@
 use super::*;
 use crate::test_geometry::{BARRIER_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, geometry};
-use common::protocol::BarrierKindId;
+use common::protocol::FieldKindId;
 
-const RED: BarrierKindId = BarrierKindId(0);
-const BLUE: BarrierKindId = BarrierKindId(1);
-const GREEN: BarrierKindId = BarrierKindId(2);
+const RED: FieldKindId = FieldKindId(0);
+const BLUE: FieldKindId = FieldKindId(1);
+const GREEN: FieldKindId = FieldKindId(2);
 
-fn h(x1: f32, x2: f32, z: f32, kind: BarrierKindId) -> Barrier {
+fn h(x1: f32, x2: f32, z: f32, kind: FieldKindId) -> Barrier {
     Barrier {
         id: Default::default(),
 
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         x1,
         x2,
@@ -27,12 +27,12 @@ fn h(x1: f32, x2: f32, z: f32, kind: BarrierKindId) -> Barrier {
     }
 }
 
-fn v(x: f32, z1: f32, z2: f32, kind: BarrierKindId) -> Barrier {
+fn v(x: f32, z1: f32, z2: f32, kind: FieldKindId) -> Barrier {
     Barrier {
         id: Default::default(),
 
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         x1: x,
         x2: x,
@@ -48,10 +48,10 @@ fn v(x: f32, z1: f32, z2: f32, kind: BarrierKindId) -> Barrier {
     }
 }
 
-fn edge(c0: i32, r0: i32, c1: i32, r1: i32, kind: BarrierKindId) -> BarrierEdge {
+fn edge(c0: i32, r0: i32, c1: i32, r1: i32, kind: FieldKindId) -> BarrierEdge {
     BarrierEdge {
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         edge: [c0, r0, c1, r1],
         kind,

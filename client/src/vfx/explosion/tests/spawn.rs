@@ -186,7 +186,7 @@ fn marks_on_a_carrier_hang_under_it_in_its_frame() {
         floors: vec![floor(CarrierId(1))],
         carriers: vec![Carrier {
             motion: Default::default(),
-            switch_inverted: false,
+            initially_on: true,
 
             parent: CarrierId::WORLD,
             level: 0,

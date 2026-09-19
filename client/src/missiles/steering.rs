@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::f32::consts::TAU;
 
-use common::{physics::CollisionWorld, protocol::BarrierId};
+use common::{physics::CollisionWorld, protocol::FieldId};
 
 // How far inside the fuse boundary a terminal approach stops, so rounding
 // cannot leave the route just outside it.
@@ -27,12 +27,12 @@ const MISSILE_LEAD_MAX_TARGET_SPEED: f32 = 15.0;
 
 pub(super) fn sweep_clear(
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     origin: Vec3,
     translation: Vec3,
     radius: f32,
 ) -> bool {
-    collision_world.projectile_path_clear(origin, translation, radius, open_kinds)
+    collision_world.projectile_path_clear(origin, translation, radius, open_fields)
 }
 
 // A missile skimming a floor or a door frame is already within its radius of
@@ -40,30 +40,30 @@ pub(super) fn sweep_clear(
 // can still reach its target there.
 pub(super) fn travel_clear(
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     origin: Vec3,
     translation: Vec3,
     radius: f32,
 ) -> bool {
-    collision_world.projectile_sweep_clear(origin, translation, radius, open_kinds)
+    collision_world.projectile_sweep_clear(origin, translation, radius, open_fields)
 }
 
 pub(super) fn terminal_approach(
     world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     origin: Vec3,
     target: Vec3,
     radius: f32,
     fuse_distance: f32,
 ) -> Option<Vec3> {
     let displacement = target - origin;
-    if travel_clear(world, open_kinds, origin, displacement, radius) {
+    if travel_clear(world, open_fields, origin, displacement, radius) {
         return Some(target);
     }
     let travel = (displacement.length() - fuse_distance * MISSILE_APPROACH_FUSE_FRACTION).max(0.0);
     let approach = origin + displacement.normalize_or_zero() * travel;
-    (world.attack_path_clear(approach, target, open_kinds)
-        && travel_clear(world, open_kinds, origin, approach - origin, radius))
+    (world.attack_path_clear(approach, target, open_fields)
+        && travel_clear(world, open_fields, origin, approach - origin, radius))
     .then_some(approach)
 }
 
@@ -74,7 +74,7 @@ pub(super) fn terminal_approach(
 // the lookahead).
 pub(super) fn pick_clear_direction(
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     origin: Vec3,
     desired: Vec3,
     lookahead_distance: f32,
@@ -83,7 +83,7 @@ pub(super) fn pick_clear_direction(
     direction_candidates(desired).into_iter().find(|candidate| {
         sweep_clear(
             collision_world,
-            open_kinds,
+            open_fields,
             origin,
             *candidate * lookahead_distance,
             radius,
@@ -121,7 +121,7 @@ fn direction_candidates(desired: Vec3) -> Vec<Vec3> {
 
 pub(super) fn steer_clear(
     world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     origin: Vec3,
     velocity: Vec3,
     objective: Vec3,
@@ -138,7 +138,7 @@ pub(super) fn steer_clear(
     let clear_time = |direction| {
         turn_clear_time(
             world,
-            open_kinds,
+            open_fields,
             origin,
             velocity,
             direction,
@@ -168,7 +168,7 @@ pub(super) fn steer_clear(
 
 fn turn_clear_time(
     world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     mut origin: Vec3,
     mut velocity: Vec3,
     desired: Vec3,
@@ -182,7 +182,7 @@ fn turn_clear_time(
         let step = delta.min(lookahead_secs - elapsed);
         velocity = steer(velocity, desired, turn_radius, step);
         let translation = velocity * step;
-        if !sweep_clear(world, open_kinds, origin, translation, radius) {
+        if !sweep_clear(world, open_fields, origin, translation, radius) {
             break;
         }
         origin += translation;

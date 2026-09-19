@@ -57,7 +57,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             checkpoints: vec![start],
             carriers: vec![Carrier {
                 motion: Default::default(),
-                switch_inverted: false,
+                initially_on: true,
 
                 parent: CarrierId::WORLD,
                 level: 0,

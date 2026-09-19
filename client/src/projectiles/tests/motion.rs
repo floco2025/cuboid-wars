@@ -7,10 +7,10 @@ use common::{
     config::MultiShotConfig,
     constants::{PORTAL_HALF_WIDTH, TICK_SECS},
     map::Carriers,
-    physics::{CollisionWorld, FieldKind, PortalSet},
+    physics::{CollisionWorld, PortalSet},
     protocol::{
-        Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, Carrier, CarrierId, Floor, LightBridge, MapLayout,
-        Portal, PortalEnd, PortalPairId, Position, Ramp, SwitchState, Wall,
+        Barrier, BarrierId, BridgeId, Carrier, CarrierId, FieldId, FieldKindId, Floor, LightBridge, MapLayout, Portal,
+        PortalEnd, PortalPairId, Position, Ramp, SwitchState, Wall,
     },
 };
 
@@ -136,13 +136,13 @@ fn world_bounce_reports_first_contact_normal() {
 
 #[test]
 fn barrier_impact_reports_kind_and_surface_normal() {
-    let kind = BarrierKindId(0);
+    let kind = FieldKindId(0);
     let world = CollisionWorld::from_map_layout(&MapLayout {
         barriers: vec![Barrier {
             id: Default::default(),
 
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
 
             x1: -2.0,
             z1: 1.0,
@@ -164,7 +164,7 @@ fn barrier_impact_reports_kind_and_surface_normal() {
         .terminate_at_field(&pos, 0.1, &world, &[])
         .expect("projectile should hit barrier");
 
-    assert_eq!(impact.kind, FieldKind::Barrier(BarrierId(u32::from(kind.0))));
+    assert_eq!(impact.field, FieldId::Barrier(BarrierId(u32::from(kind.0))));
     assert!(impact.normal.dot(Vec3::NEG_Z) > 0.99);
     assert!(impact.point.z < 1.0);
 }
@@ -500,13 +500,13 @@ fn a_relayed_volley_reproduces_the_shooters_spawn_set_through_a_blocking_muzzle(
 }
 
 #[test]
-fn powered_bridges_absorb_projectiles_from_both_sides_instead_of_bouncing() {
-    let kind = BridgeKindId(0);
+fn solid_bridges_absorb_projectiles_from_both_sides_instead_of_bouncing() {
+    let bridge = FieldId::Bridge(BridgeId(0));
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
             id: Default::default(),
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
 
             x1: -2.0,
             z1: -2.0,
@@ -515,24 +515,23 @@ fn powered_bridges_absorb_projectiles_from_both_sides_instead_of_bouncing() {
             y: 2.0,
             thickness: 0.1,
             level: 1,
-            kind,
+            kind: FieldKindId(0),
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout);
-    for powered in [false, true, false] {
-        let powered_kinds = [BridgeId(u32::from(kind.0))];
-        world.set_powered_bridges(if powered { &powered_kinds } else { &[] });
+    let world = CollisionWorld::from_map_layout(&layout);
+    for solid in [false, true] {
+        let open: &[FieldId] = if solid { &[] } else { &[bridge] };
         for (y, velocity) in [(4.0, Vec3::NEG_Y * 40.0), (0.0, Vec3::Y * 40.0)] {
             let pos = Position { x: 0.0, y, z: 0.0 };
             let mut motion = test_projectile_motion(velocity);
             assert!(motion.bounce_at_world_surface(&pos, 0.1, &world, &[]).is_none());
-            assert_eq!(motion.field_collision_t(&pos, 0.1, &world, &[]).is_some(), powered);
-            let impact = motion.terminate_at_field(&pos, 0.1, &world, &[]);
-            assert_eq!(impact.is_some(), powered);
+            assert_eq!(motion.field_collision_t(&pos, 0.1, &world, open).is_some(), solid);
+            let impact = motion.terminate_at_field(&pos, 0.1, &world, open);
+            assert_eq!(impact.is_some(), solid);
             if let Some(impact) = impact {
-                assert_eq!(impact.kind, FieldKind::Bridge(BridgeId(u32::from(kind.0))));
+                assert_eq!(impact.field, bridge);
                 assert!(impact.normal.dot(velocity) < 0.0);
             }
             assert_eq!(motion.velocity, velocity);
@@ -558,7 +557,7 @@ fn portal(end: PortalEnd, pos: Vec3, normal: Vec3) -> Portal {
 fn moving_projectile_portals(entry_travel: Vec3, exit_travel: Vec3, obstacles: &[Wall]) -> (CollisionWorld, PortalSet) {
     let carrier = Carrier {
         motion: Default::default(),
-        switch_inverted: false,
+        initially_on: true,
 
         parent: CarrierId::WORLD,
         level: 0,
@@ -664,7 +663,7 @@ fn an_approaching_portals_backing_wall_does_not_win_a_premature_bounce() {
         set.projectile_hop(outside, velocity, TICK_SECS, 0.08, TICK_SECS)
             .is_none()
     );
-    let surface = world.cast_moving_ball(outside, velocity * TICK_SECS, 0.08);
+    let surface = world.cast_moving_ball(outside, velocity * TICK_SECS, 0.08, &[]);
     assert_eq!(
         earliest_projectile_event(None, None, surface.map(|hit| hit.t), None),
         ProjectileEvent::Surface

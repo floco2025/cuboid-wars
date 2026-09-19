@@ -11,7 +11,7 @@ use crate::{
     players::{players_group_respawn_system, players_respawn_system},
     schedule::ServerSet,
 };
-use common::{physics::powered_bridges_sync_system, protocol::server_tick_advance_system};
+use common::protocol::server_tick_advance_system;
 
 pub fn map_plugin(app: &mut App) {
     app.init_resource::<Switches>()
@@ -26,7 +26,6 @@ pub fn map_plugin(app: &mut App) {
                     pressure_plates_system,
                     pressure_plates_collision_system,
                     switch_state_sync_system,
-                    powered_bridges_sync_system,
                 )
                     .chain()
                     .after(server_tick_advance_system),
@@ -39,7 +38,6 @@ pub fn map_plugin(app: &mut App) {
                 switch_reset_system,
                 pressure_plates_collision_system,
                 switch_state_sync_system,
-                powered_bridges_sync_system,
             )
                 .chain()
                 .in_set(ServerSet::Lifecycle)

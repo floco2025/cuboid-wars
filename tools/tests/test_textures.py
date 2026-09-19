@@ -38,14 +38,14 @@ class TextureCatalogTests(unittest.TestCase):
     def test_empty_catalog_rejects_authored_faces(self):
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [{"col": 0, "row": 0, "all": "stone"}]
-        self.assertTrue(validate_map(normalize_map(data), [], [], material_aliases=[]))
+        self.assertTrue(validate_map(normalize_map(data), [], material_aliases=[]))
 
     def test_missing_face_material_stays_invalid(self):
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [{"col": 0, "row": 0}]
         data = normalize_map(data)
         self.assertEqual(data["levels"][0]["floors"][0]["top"], "")
-        self.assertTrue(validate_map(data, [], [], material_aliases=["stone"]))
+        self.assertTrue(validate_map(data, [], material_aliases=["stone"]))
 
 
 class TextureHostWindowTests(WindowTestCase):

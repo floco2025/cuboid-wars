@@ -3,9 +3,9 @@ use rand::random;
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, TAU};
 
 use crate::{
-    barriers::BarrierAssets,
     config::ClientSettings,
     constants::*,
+    fields::FieldAssets,
     items::{CoinAssets, YSpinBase, YSpinTimer, item_symbol_mesh, pickup_material, spawn_coin_visual},
     map::MapLevel,
     missiles::{MissileAssets, spawn_missile_pickup_visual},
@@ -27,7 +27,7 @@ pub struct ItemAnimTimer(pub f32);
 // ============================================================================
 
 // Shared mesh and material handles let Bevy batch repeated pickups.
-// Keys live on `BarrierAssets` because their colors come from barrier kinds.
+// Keys live on `FieldAssets` because their colors come from field kinds.
 #[derive(Resource)]
 pub struct ItemAssets {
     coin: CoinAssets,
@@ -101,7 +101,7 @@ pub fn setup_item_assets(
 // Item Spawning
 // ============================================================================
 
-// Keys use their barrier kind’s color instead of a fixed item color.
+// Keys use their field kind’s color instead of a fixed item color.
 #[must_use]
 pub fn item_type_color(item_type: ItemType) -> Color {
     match item_type {
@@ -113,7 +113,7 @@ pub fn item_type_color(item_type: ItemType) -> Color {
         ItemType::SpeedPowerUp => ITEM_SPEED_COLOR,
         ItemType::LowGravityPowerUp => ITEM_LOW_GRAVITY_COLOR,
         ItemType::Gold => ITEM_COIN_COLOR,
-        ItemType::Key(_) => unreachable!("keys look up colors via BarrierAssets / AssetSet, not item_type_color"),
+        ItemType::Key(_) => unreachable!("keys look up colors via FieldAssets / AssetSet, not item_type_color"),
     }
 }
 
@@ -121,7 +121,7 @@ pub fn item_type_color(item_type: ItemType) -> Color {
 pub fn spawn_item(
     commands: &mut Commands,
     item_assets: &ItemAssets,
-    barrier_assets: &BarrierAssets,
+    field_assets: &FieldAssets,
     missile_assets: &MissileAssets,
     carrier: Entity,
     level: MapLevel,
@@ -147,8 +147,8 @@ pub fn spawn_item(
         }
         ItemType::Key(kind) => {
             entity.insert((
-                Mesh3d(barrier_assets.key_mesh().clone()),
-                MeshMaterial3d(barrier_assets.key_material_for(kind).clone()),
+                Mesh3d(field_assets.key_mesh().clone()),
+                MeshMaterial3d(field_assets.key_material_for(kind).clone()),
             ));
             Quat::IDENTITY
         }

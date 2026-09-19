@@ -66,8 +66,7 @@ fn ok_config() -> ServerGameplayConfig {
         movement: ok_movement(),
         portals: PortalMode::Both,
         switches: Vec::new(),
-        barrier_kinds: Vec::new(),
-        bridge_kinds: Vec::new(),
+        field_kinds: Vec::new(),
     };
     config.random_items = None;
     config.player_fall = FallDamageConfig {
@@ -405,7 +404,7 @@ fn validate_maps_accepts_valid_random_items() {
 fn validate_maps_rejects_key_in_random_pool() {
     let config = with_random_items(ok_random_items(&["speed", "key"]));
     let err = validate_config(&config, "hotel").expect_err("key in random pool must be rejected");
-    assert!(err.to_string().contains("barrier kind"));
+    assert!(err.to_string().contains("field kind"));
 }
 
 #[test]

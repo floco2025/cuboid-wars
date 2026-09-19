@@ -82,7 +82,7 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(len(data["items"]), 1)
         self.assertEqual(data["ladders"][0]["levels"], 0)
         self.assertEqual(data["levels"][0]["lights"][0]["side"], "INVALID")
-        errors = validate_map(data, [], [], actor_kinds=["beetle"])
+        errors = validate_map(data, [], actor_kinds=["beetle"])
         self.assertTrue(any("unknown actor kind" in error for error in errors))
         self.assertTrue(any("Count entries must be whole numbers" in error for error in errors))
         self.assertFalse(self.doc.dirty)

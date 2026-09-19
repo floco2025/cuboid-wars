@@ -4,13 +4,13 @@ use rapier3d::prelude::{Collider, ColliderHandle, Group, Ray};
 use super::{
     CollisionWorld,
     colliders::{
-        ColliderKind, WALL_COLLISION_GROUP, barrier_blocks, character_collision_groups, ground_collision_groups,
+        ColliderKind, WALL_COLLISION_GROUP, character_collision_groups, field_blocks, ground_collision_groups,
         query_filter, world_collision_groups,
     },
 };
 use crate::{
     math::{from_rapier, to_rapier},
-    protocol::{BarrierId, CarrierId},
+    protocol::{CarrierId, FieldId},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -28,14 +28,14 @@ impl CollisionWorld {
         origin: Vec3,
         max_distance: f32,
         carrier: CarrierId,
-        passable: &[BarrierId],
+        passable: &[FieldId],
     ) -> Option<WorldSurfaceHit> {
         if !origin.is_finite() || !max_distance.is_finite() || max_distance <= 0.0 {
             return None;
         }
         let ray = Ray::new(to_rapier(origin), to_rapier(Vec3::NEG_Y));
         let allow = |_: ColliderHandle, collider: &Collider| {
-            ColliderKind::carrier_from_user_data(collider.user_data) == carrier && barrier_blocks(collider, passable)
+            ColliderKind::carrier_from_user_data(collider.user_data) == carrier && field_blocks(collider, passable)
         };
         let mut filter = query_filter(character_collision_groups());
         filter.predicate = Some(&allow);
@@ -107,9 +107,9 @@ impl CollisionWorld {
     }
 
     #[must_use]
-    pub fn attack_path_clear(&self, from: Vec3, to: Vec3, open_barriers: &[BarrierId]) -> bool {
+    pub fn attack_path_clear(&self, from: Vec3, to: Vec3, open_fields: &[FieldId]) -> bool {
         let displacement = to - from;
-        self.attack_surface_along_ray(from, displacement, displacement.length(), open_barriers)
+        self.attack_surface_along_ray(from, displacement, displacement.length(), open_fields)
             .is_none()
     }
 
@@ -119,28 +119,28 @@ impl CollisionWorld {
         origin: Vec3,
         direction: Vec3,
         max_distance: f32,
-        open_barriers: &[BarrierId],
+        open_fields: &[FieldId],
     ) -> Option<WorldSurfaceHit> {
         self.surface_along_ray(
             origin,
             direction,
             max_distance,
             character_collision_groups(),
-            open_barriers,
+            open_fields,
         )
     }
 
-    // Keys grant personal passage; only plate state opens a shot path.
+    // Keys grant personal passage; only a field that is off opens a shot path.
     #[must_use]
     pub fn portal_surface_along_ray(
         &self,
         origin: Vec3,
         direction: Vec3,
         max_distance: f32,
-        open_barriers: &[BarrierId],
+        open_fields: &[FieldId],
     ) -> Option<WorldSurfaceHit> {
-        let hit = self.attack_surface_along_ray(origin, direction, max_distance, open_barriers)?;
-        if ColliderKind::field_kind_from_user_data(self.colliders[hit.collider].user_data).is_some()
+        let hit = self.attack_surface_along_ray(origin, direction, max_distance, open_fields)?;
+        if ColliderKind::field_from_user_data(self.colliders[hit.collider].user_data).is_some()
             || self.eraser_blocks_segment(origin, hit.point)
         {
             return None;
@@ -154,14 +154,14 @@ impl CollisionWorld {
         direction: Vec3,
         max_distance: f32,
         groups: Group,
-        passable: &[BarrierId],
+        passable: &[FieldId],
     ) -> Option<WorldSurfaceHit> {
         if !origin.is_finite() || !direction.is_finite() || !max_distance.is_finite() || max_distance <= 0.0 {
             return None;
         }
         let direction = direction.try_normalize()?;
         let ray = Ray::new(to_rapier(origin), to_rapier(direction));
-        let allow = |_: ColliderHandle, collider: &Collider| barrier_blocks(collider, passable);
+        let allow = |_: ColliderHandle, collider: &Collider| field_blocks(collider, passable);
         let mut filter = query_filter(groups);
         filter.predicate = Some(&allow);
         let (handle, hit) = self

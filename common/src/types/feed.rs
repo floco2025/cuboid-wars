@@ -1,6 +1,6 @@
 use bincode::{Decode, Encode};
 
-use super::barrier_kind::BarrierKindId;
+use super::field_kind::FieldKindId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum FeedStyle {
@@ -8,7 +8,7 @@ pub enum FeedStyle {
     Dim,
     Chat,
     Console,
-    Key(BarrierKindId),
+    Key(FieldKindId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]

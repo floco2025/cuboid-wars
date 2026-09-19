@@ -112,7 +112,7 @@ class EditorHost(
     """The editing mixins over a plain map, or over a `MapDocument` when a
     test needs the undo history of its edits."""
 
-    def __init__(self, map_data: dict | None, bridge_kinds: list[str], doc=None) -> None:
+    def __init__(self, map_data: dict | None, field_kinds: list[str], doc=None) -> None:
         self.doc = doc
         self.selection = Selection()
         self.mode = MODE_SELECT
@@ -124,18 +124,16 @@ class EditorHost(
         self.sampled_materials = None
         self._map_data = map_data
         self.current_level = 0
-        self.bridge_kinds = bridge_kinds
-        self.barrier_kinds = ["barrier_1"]
+        self.field_kinds = field_kinds
         self.switches = ["barrier_1", "fireworks"]
         self.recent_pressure_plate_switch = "barrier_1"
         self.recent_actor_spawn_switch = ""
-        self.recent_actor_spawn_inverted = False
+        self.recent_actor_spawn_initially_on = True
         self.recent_actor_spawn_levels = 1
         self.recent_actor_roam_distance = 0.0
         self.recent_actor_beam_in_secs = 0.0
         self.recent_barrier_controls = {}
         self.recent_bridge_controls = {}
-        self.key_kinds = self.barrier_kinds
         self.pickup_types = ITEM_TYPES
         self.canvas = StubCanvas()
         self.current_material = DEFAULT_ALIAS

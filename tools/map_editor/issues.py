@@ -32,8 +32,12 @@ class IssuesDialog(QDialog):
     def set_issues(self, issues: list) -> None:
         self.list.clear()
         self.setWindowTitle(f"Map Issues ({len(issues)})" if issues else "Map Issues")
-        self.summary.setText(f"{len(issues)} issue(s)" if issues else "No issues")
-        for issue in issues:
-            item = QListWidgetItem(issue.message)
+        warnings = sum(issue.warning for issue in issues)
+        counts = [f"{len(issues) - warnings} error(s)"] if len(issues) > warnings else []
+        if warnings:
+            counts.append(f"{warnings} warning(s), which block nothing")
+        self.summary.setText(", ".join(counts) if issues else "No issues")
+        for issue in sorted(issues, key=lambda issue: issue.warning):
+            item = QListWidgetItem(f"Warning: {issue.message}" if issue.warning else issue.message)
             item.setData(Qt.ItemDataRole.UserRole, issue)
             self.list.addItem(item)

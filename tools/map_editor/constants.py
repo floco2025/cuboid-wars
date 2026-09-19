@@ -85,7 +85,7 @@ RAMP_DIRECTIONS = LIGHT_SIDES
 RAMP_SHAPE_LABELS = {"solid": "Solid", "plank": "Plank"}
 
 # Item type ids mirror `ItemType::from_config_id` in common/src/types/items.rs,
-# plus "key" (which additionally carries a barrier kind).
+# plus "key" (which additionally carries a field kind).
 POWER_UP_TYPES = ("single_shot", "multi_shot", "portal_gun", "speed", "low_gravity")
 ITEM_KEY_TYPE = "key"
 ITEM_TYPES = (
@@ -100,7 +100,7 @@ ITEM_TYPES = (
     ITEM_KEY_TYPE,
 )
 # Canvas glyph colors for non-key items, mirroring the in-game `ITEM_*_COLOR`
-# constants in client/src/constants.rs; keys use their barrier kind's color.
+# constants in client/src/constants.rs; keys use their field kind's color.
 ITEM_TYPE_COLORS = {
     "single_shot": "#ffffff",
     "multi_shot": "#ffffff",
@@ -122,10 +122,10 @@ START_CHECKPOINT_TYPE = "individual"
 CHECKPOINT_TYPE_LABELS = {"individual": "Individual", "group_any": "Group — any", "group_all": "Group — all"}
 # What an actor zone does once any player has reached its `until_checkpoint`.
 CHECKPOINT_RESPONSE_LABELS = {"stop": "Stop spawning", "destroy": "Self-destruct actors"}
-# What `switch_inverted` selects: a barrier or bridge names when the field is
-# solid, a zone or a nested map when it responds.
-SOLID_WHEN = "Solid when"
-RESPOND_WHEN = "Respond when"
+# `initially_on`: a switch target's state before any switch input, which an
+# assigned switch flips while it is active.
+INITIAL_STATE = "Initial state"
+INITIAL_STATE_LABELS = {True: "On", False: "Off"}
 ZONE_LISTS = (ACTOR_ZONE_LIST, CHECKPOINT_LIST)
 # Which zone a pick under the cursor prefers when zones overlap a cell: a
 # checkpoint first, then an actor zone.

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::{CollisionWorld, character_hitbox_center},
-    protocol::{ActorId, ActorMarker, BarrierId, Health, PlayerMarker, Position, SwitchState},
+    protocol::{ActorId, ActorMarker, FieldId, Health, PlayerMarker, Position, SwitchState},
 };
 
 use crate::{actors::ActorMap, characters::character_surface_distance, config::ServerGameplayConfig};
@@ -53,7 +53,7 @@ pub(super) fn contact_explosions_system(
         &players,
         &contact_actors,
         &collision,
-        &switch_state.open_barriers,
+        &switch_state.open_fields,
     );
 }
 
@@ -63,14 +63,14 @@ pub(super) fn detonate_actors_touching_players(
     players: &[CharacterBody],
     contact_actors: &[(CharacterBody, f32)],
     collision_world: &CollisionWorld,
-    open_barriers: &[BarrierId],
+    open_fields: &[FieldId],
 ) {
     if peaceful {
         return;
     }
     for player in players {
         for (actor, trigger_gap) in contact_actors {
-            if character_bodies_touch(player, actor, *trigger_gap, collision_world, open_barriers)
+            if character_bodies_touch(player, actor, *trigger_gap, collision_world, open_fields)
                 && let Ok(mut health) = actor_health.get_mut(actor.entity)
             {
                 health.0 = 0.0;
@@ -84,7 +84,7 @@ fn character_bodies_touch(
     b: &CharacterBody,
     trigger_gap: f32,
     collision_world: &CollisionWorld,
-    open_barriers: &[BarrierId],
+    open_fields: &[FieldId],
 ) -> bool {
     // Character movement blocks before colliders overlap, so contact uses a
     // configurable surface tolerance instead of requiring actual intersection.
@@ -94,7 +94,7 @@ fn character_bodies_touch(
     collision_world.attack_path_clear(
         character_hitbox_center(a.pos, a.physics),
         character_hitbox_center(b.pos, b.physics),
-        open_barriers,
+        open_fields,
     )
 }
 

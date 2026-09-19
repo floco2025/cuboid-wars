@@ -35,7 +35,7 @@ class PlacementTests(unittest.TestCase):
             {(col, row, BRIDGE_KIND) for row in range(2) for col in range(3)},
         )
         self.assertEqual(host.statuses, [])
-        errors = validate_map(host.map_data, [], [BRIDGE_KIND])
+        errors = validate_map(host.map_data, [BRIDGE_KIND])
         self.assertTrue(any("[0, 0] sits on a floor" in e for e in errors))
         self.assertTrue(any("[1, 0] sits on a floor" in e for e in errors))
         self.assertTrue(any("[1, 1] sits on a ramp" in e for e in errors))

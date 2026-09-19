@@ -1,5 +1,5 @@
 use super::*;
-use common::protocol::{BarrierId, BridgeId};
+use common::protocol::{BarrierId, BridgeId, FieldId};
 
 const CONFIG: FieldVfxConfig = FieldVfxConfig {
     emissive_brightness: 1.0,
@@ -10,26 +10,25 @@ const CONFIG: FieldVfxConfig = FieldVfxConfig {
 };
 
 #[test]
-fn fade_targets_follow_open_barriers_and_powered_bridges() {
+fn fade_targets_follow_the_open_fields() {
     let switch_state = SwitchState {
-        open_barriers: vec![BarrierId(3)],
-        powered_bridges: vec![BridgeId(1)],
+        open_fields: vec![FieldId::Barrier(BarrierId(3)), FieldId::Bridge(BridgeId(0))],
         ..Default::default()
     };
     assert_eq!(
-        fade_target(&switch_state, FieldKind::Barrier(BarrierId(3)), CONFIG),
+        fade_target(&switch_state, FieldId::Barrier(BarrierId(3)), CONFIG),
         CONFIG.passable_opacity
     );
     assert_eq!(
-        fade_target(&switch_state, FieldKind::Barrier(BarrierId(0)), CONFIG),
+        fade_target(&switch_state, FieldId::Barrier(BarrierId(0)), CONFIG),
         CONFIG.opacity
     );
     assert_eq!(
-        fade_target(&switch_state, FieldKind::Bridge(BridgeId(1)), CONFIG),
+        fade_target(&switch_state, FieldId::Bridge(BridgeId(1)), CONFIG),
         CONFIG.opacity
     );
     assert_eq!(
-        fade_target(&switch_state, FieldKind::Bridge(BridgeId(0)), CONFIG),
+        fade_target(&switch_state, FieldId::Bridge(BridgeId(0)), CONFIG),
         CONFIG.passable_opacity
     );
 }
@@ -66,14 +65,14 @@ fn forgetting_one_domain_keeps_the_other() {
         base_color: Color::WHITE,
     };
     let mut surfaces = FieldSurfaces(vec![
-        surface(FieldKind::Barrier(BarrierId(0))),
-        surface(FieldKind::Bridge(BridgeId(0))),
+        surface(FieldId::Barrier(BarrierId(0))),
+        surface(FieldId::Bridge(BridgeId(0))),
     ]);
     surfaces.forget_barriers();
     assert!(matches!(
         surfaces.0.as_slice(),
         [FieldSurface {
-            state: FieldKind::Bridge(_),
+            state: FieldId::Bridge(_),
             ..
         }]
     ));

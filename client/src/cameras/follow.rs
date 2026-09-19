@@ -9,7 +9,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, character_movement_center},
-    protocol::Position,
+    protocol::{Position, SwitchState},
 };
 
 // Update camera position to follow local player. Physics ticks at 30 Hz;
@@ -28,6 +28,7 @@ pub fn local_player_camera_sync_system(
     gameplay_config: Res<GameplayConfig>,
     local_player_info: Res<LocalPlayerInfo>,
     collision_world: Res<CollisionWorld>,
+    switch_state: Res<SwitchState>,
     mut third: ResMut<FollowCamera>,
     time: Res<Time>,
 ) {
@@ -80,6 +81,7 @@ pub fn local_player_camera_sync_system(
             );
             *camera_transform = third_person_transform(
                 &collision_world,
+                &switch_state.open_fields,
                 pivot,
                 rotation,
                 config,

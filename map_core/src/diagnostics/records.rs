@@ -34,7 +34,7 @@ pub(super) fn zone_course(zone: &Value, label: &str, numbers: Option<&BTreeSet<i
         if !whole(until) || int(until) < 1 {
             errors.add(format!("{label} until_checkpoint must be a positive whole number"));
         } else if numbers.is_some_and(|numbers| !numbers.contains(&int(until))) {
-            errors.add(format!("{label} until_checkpoint {} names no checkpoint", int(until)));
+            errors.warn(format!("{label} until_checkpoint {} names no checkpoint", int(until)));
         }
     }
     if zone["on_checkpoint"].is_null() {
@@ -144,11 +144,11 @@ pub(super) fn items(data: &Value, context: &Value, errors: &mut Errors) {
         }
         let kind = s(item, "type");
         if kind == "key" {
-            if !truth(&item["kind"]) || check_kind(&item["kind"], &context["barrier_kinds"]) {
+            if !truth(&item["kind"]) || check_kind(&item["kind"], &context["field_kinds"]) {
                 errors.add(format!(
                     "{label} has unknown key kind {}; known: [{}]",
                     repr(&item["kind"]),
-                    known(&context["barrier_kinds"])
+                    known(&context["field_kinds"])
                 ));
             }
         } else if !item_type(kind) {

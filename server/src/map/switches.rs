@@ -6,8 +6,7 @@ use common::{
     constants::FIREWORK_SHOW_SECS,
     map::CarrierRun,
     protocol::{
-        BarrierId, BridgeId, Carrier, CarrierId, MapLayout, MapSettings, SwitchId, SwitchState, SwitchTable,
-        sequence_is_newer,
+        Carrier, CarrierId, FieldId, MapLayout, MapSettings, SwitchId, SwitchState, SwitchTable, sequence_is_newer,
     },
 };
 
@@ -25,8 +24,8 @@ struct Switch {
     // Whether its inputs met the hold rule last tick; an `everyone` toggle
     // flips on that rule's rising edge.
     occupied: bool,
-    barriers: Vec<(BarrierId, bool)>,
-    bridges: Vec<(BridgeId, bool)>,
+    // Each barrier and light bridge it drives, with the field's initial state.
+    fields: Vec<(FieldId, bool)>,
     carriers: Vec<(CarrierId, Carrier, CarrierRun)>,
 }
 
@@ -49,7 +48,7 @@ impl Switch {
         }
         self.active = active;
         for (_, carrier, run) in &mut self.carriers {
-            *run = run.set_active(active != carrier.switch_inverted, tick, carrier);
+            *run = run.set_active(active != carrier.initially_on, tick, carrier);
         }
     }
 }
@@ -65,6 +64,8 @@ struct FireworkTarget {
 #[derive(Resource)]
 pub(crate) struct Switches {
     switches: Vec<Switch>,
+    // Fields no switch drives that start off, and so stay off.
+    unswitched_open_fields: Vec<FieldId>,
     fireworks: Option<FireworkTarget>,
 }
 
@@ -102,23 +103,26 @@ impl Switches {
                 active: false,
                 toggle: def.policy.activation.is_toggle(0),
                 occupied: false,
-                barriers: Vec::new(),
-                bridges: Vec::new(),
+                fields: Vec::new(),
                 carriers: Vec::new(),
             })
             .collect();
-        for barrier in &layout.barriers {
-            if let Some(switch) = barrier.switch {
-                switches[usize::from(switch.0)]
-                    .barriers
-                    .push((barrier.id, barrier.switch_inverted));
-            }
-        }
-        for bridge in &layout.light_bridges {
-            if let Some(switch) = bridge.switch {
-                switches[usize::from(switch.0)]
-                    .bridges
-                    .push((bridge.id, bridge.switch_inverted));
+        let fields = layout
+            .barriers
+            .iter()
+            .map(|barrier| (FieldId::Barrier(barrier.id), barrier.switch, barrier.initially_on))
+            .chain(
+                layout
+                    .light_bridges
+                    .iter()
+                    .map(|bridge| (FieldId::Bridge(bridge.id), bridge.switch, bridge.initially_on)),
+            );
+        let mut unswitched_open_fields = Vec::new();
+        for (field, switch, initially_on) in fields {
+            match switch {
+                Some(switch) => switches[usize::from(switch.0)].fields.push((field, initially_on)),
+                None if !initially_on => unswitched_open_fields.push(field),
+                None => {}
             }
         }
         for (index, carrier) in layout.carriers.iter().enumerate() {
@@ -137,7 +141,11 @@ impl Switches {
             interval_ticks: ticks_from_secs(FIREWORK_SHOW_SECS + fireworks.cooldown_secs, server_hz),
             next_show_at: None,
         });
-        Self { switches, fireworks }
+        Self {
+            switches,
+            unswitched_open_fields,
+            fireworks,
+        }
     }
 
     pub fn hold_rules(&self) -> impl Iterator<Item = SwitchHold> + '_ {
@@ -207,25 +215,21 @@ impl Switches {
     }
 
     pub fn state(&self) -> SwitchState {
-        let mut state = SwitchState::default();
+        let mut state = SwitchState {
+            open_fields: self.unswitched_open_fields.clone(),
+            ..Default::default()
+        };
         for (index, switch) in self.switches.iter().enumerate() {
             if switch.active {
                 state.active_switches.push(SwitchId(index as u16));
             }
-            // A response names when a field is solid, so one setting puts a
-            // barrier and a bridge in the same physical state.
-            state.open_barriers.extend(
+            // An active switch flips each field from its initial state, so a
+            // field is off while the two agree.
+            state.open_fields.extend(
                 switch
-                    .barriers
+                    .fields
                     .iter()
-                    .filter(|(_, inverted)| switch.active == *inverted)
-                    .map(|(id, _)| *id),
-            );
-            state.powered_bridges.extend(
-                switch
-                    .bridges
-                    .iter()
-                    .filter(|(_, inverted)| switch.active != *inverted)
+                    .filter(|(_, initially_on)| switch.active == *initially_on)
                     .map(|(id, _)| *id),
             );
             state
@@ -238,6 +242,6 @@ impl Switches {
 }
 
 pub(crate) fn switch_state_sync_system(switches: Res<Switches>, mut state: ResMut<SwitchState>) {
-    // Bridge collider sync reacts to changes, so equal states must not wake it.
+    // Navigation's bridge sync reacts to changes, so equal states must not wake it.
     state.set_if_neq(switches.state());
 }

@@ -364,8 +364,8 @@ class SelectionProperties(QDockWidget):
                         entry.pop(key[0], None)
                     else:
                         entry[key[0]] = value
-                if not entry.get("switch"):
-                    entry.pop("switch_inverted", None)
+                if entry.get("initially_on") is True:
+                    del entry["initially_on"]
                 if ref.name == "actor_spawn_zones":
                     if entry.get("until_checkpoint") is None:
                         entry.pop("until_checkpoint", None)
@@ -429,9 +429,6 @@ class SelectionProperties(QDockWidget):
         if names == {"items"} and ("kind",) in self.widgets:
             kind = self.widgets[("type",)].currentData()
             self.widgets[("kind",)].setEnabled(kind == "key" or kind is _MIXED)
-        if ("switch_inverted",) in self.widgets:
-            switch = self.widgets[("switch",)].currentData()
-            self.widgets[("switch_inverted",)].setEnabled(switch is not None)
         if ("on_checkpoint",) in self.widgets:
             until = self.widgets[("until_checkpoint",)].text().strip()
             self.widgets[("on_checkpoint",)].setEnabled(bool(until) and until.casefold() != "always")

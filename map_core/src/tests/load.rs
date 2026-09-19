@@ -88,10 +88,13 @@ fn the_placed_tree_starts_at_checkpoint_zero_and_zones_end_at_a_placed_number() 
 
     let mut dangling = value.clone();
     dangling["nested_geometry"]["room"]["actor_spawn_zones"][0]["until_checkpoint"] = json!(9);
-    let error = prepare_source(parse(&dangling))
-        .expect_err("a reference to no checkpoint accepted")
-        .to_string();
-    assert!(error.contains("names no checkpoint"), "{error}");
+    let warnings = prepare_source(parse(&dangling))
+        .expect("a reference to no checkpoint yet rejected")
+        .warnings;
+    assert!(
+        warnings.iter().any(|warning| warning.contains("names no checkpoint")),
+        "{warnings:?}"
+    );
 
     let mut orphan = value.clone();
     orphan["nested_geometry"]["room"]["actor_spawn_zones"][0]
@@ -114,10 +117,13 @@ fn the_placed_tree_starts_at_checkpoint_zero_and_zones_end_at_a_placed_number() 
         "level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "actor", "count": [1], "respawn_secs": null,
         "until_checkpoint": 7,
     }]);
-    let error = prepare_source(parse(&spare))
-        .expect_err("a reference into unplaced geometry accepted")
-        .to_string();
-    assert!(error.contains("names no checkpoint"), "{error}");
+    let warnings = prepare_source(parse(&spare))
+        .expect("a reference into unplaced geometry rejected")
+        .warnings;
+    assert!(
+        warnings.iter().any(|warning| warning.contains("names no checkpoint")),
+        "{warnings:?}"
+    );
 }
 
 #[test]
@@ -134,30 +140,27 @@ fn invalid_named_geometry_is_rejected() {
 fn root_catalogs_move_off_the_geometry_and_nested_geometry_may_not_define_them() {
     let mut value = geometry(&["room"]);
     value["switches"] = json!([{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]);
-    value["barrier_kinds"] = json!([{"id": "red", "color": "#ff0000"}]);
-    value["bridge_kinds"] = json!([{"id": "skyway", "color": "#30d8ff"}]);
+    value["field_kinds"] = json!([{"id": "red", "color": "#ff0000"}]);
     value["fireworks"] = json!({"switch": "door", "cooldown_secs": 3.0});
     value["pressure_plates"] = json!([{"level": 0, "col": 0, "row": 0, "switch": "door"}]);
     value["nested_geometry"] = json!({"room": geometry(&[])});
     let loaded = prepare_source(serde_json::from_value::<MapDef>(value.clone()).expect("test source is invalid"))
         .expect("root catalogs rejected");
     assert_eq!(loaded.switches[0].id, "door");
-    assert_eq!(loaded.barrier_kinds[0].id, "red");
-    assert_eq!(loaded.bridge_kinds[0].id, "skyway");
+    assert_eq!(loaded.field_kinds[0].id, "red");
     assert_eq!(
         loaded.fireworks.map(|fireworks| fireworks.switch).as_deref(),
         Some("door")
     );
     let root = &loaded.geometry;
     assert!(root.switches.is_empty() && root.fireworks.is_none());
-    assert!(root.barrier_kinds.is_empty() && root.bridge_kinds.is_empty());
+    assert!(root.field_kinds.is_empty());
     for (key, nested) in [
         (
             "switches",
             json!([{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]),
         ),
-        ("barrier_kinds", json!([{"id": "red", "color": "#ff0000"}])),
-        ("bridge_kinds", json!([{"id": "skyway", "color": "#30d8ff"}])),
+        ("field_kinds", json!([{"id": "red", "color": "#ff0000"}])),
         ("fireworks", json!({"switch": "door", "cooldown_secs": 3.0})),
         ("nested_geometry", json!({"inner": geometry(&[])})),
     ] {
@@ -177,9 +180,9 @@ fn unknown_root_keys_and_a_fireworks_response_are_rejected() {
     let error = serde_json::from_value::<MapDef>(value).expect_err("misspelled root key accepted");
     assert!(error.to_string().contains("firework"), "{error}");
     let mut value = geometry(&[]);
-    value["fireworks"] = json!({"switch": "door", "cooldown_secs": 3.0, "switch_inverted": true});
+    value["fireworks"] = json!({"switch": "door", "cooldown_secs": 3.0, "initially_on": true});
     let error = serde_json::from_value::<MapDef>(value).expect_err("fireworks response accepted");
-    assert!(error.to_string().contains("switch_inverted"), "{error}");
+    assert!(error.to_string().contains("initially_on"), "{error}");
 }
 
 #[test]
@@ -211,12 +214,18 @@ fn unplaced_geometry_may_target_its_own_plates_and_checkpoints() {
     let parse = |value: &Value| serde_json::from_value::<MapDef>(value.clone()).expect("test source is invalid");
     let loaded = prepare_source(parse(&value)).expect("self-contained scratch geometry rejected");
     assert!(loaded.nested_geometry.is_empty());
+    assert!(loaded.warnings.is_empty(), "{:?}", loaded.warnings);
 
     value["nested_geometry"]["scratch"]["pressure_plates"] = json!([]);
-    let error = prepare_source(parse(&value))
-        .expect_err("a switch no plate operates accepted")
-        .to_string();
-    assert!(error.contains("no pressure plate operates"), "{error}");
+    let warnings = prepare_source(parse(&value))
+        .expect("a switch no plate operates yet rejected")
+        .warnings;
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| warning.contains("no pressure plate operates")),
+        "{warnings:?}"
+    );
 }
 
 #[test]

@@ -36,9 +36,10 @@ pub struct MapSource {
     pub geometry: MapDef,
     pub nested_geometry: HashMap<String, MapDef>,
     pub switches: Vec<SwitchDef>,
-    pub barrier_kinds: Vec<KindDef>,
-    pub bridge_kinds: Vec<KindDef>,
+    pub field_kinds: Vec<KindDef>,
     pub fireworks: Option<FireworksConfig>,
+    // What `load` found inert but playable, for the server's log.
+    pub warnings: Vec<String>,
 }
 
 // The switch that plays the firework show: while it is active a show
@@ -75,9 +76,7 @@ pub struct MapDef {
     #[serde(default)]
     pub switches: Vec<SwitchDef>,
     #[serde(default)]
-    pub barrier_kinds: Vec<KindDef>,
-    #[serde(default)]
-    pub bridge_kinds: Vec<KindDef>,
+    pub field_kinds: Vec<KindDef>,
     #[serde(default)]
     pub fireworks: Option<FireworksConfig>,
     #[serde(default)]
@@ -92,10 +91,11 @@ pub struct MapDef {
 // in wall widths (across columns and rows), y in floor thicknesses (up).
 // Two floors meeting at a grid line overlap by one wall width (each
 // extends half past its line), so a nudge of one width and a hair back
-// along the travel keeps a floor clear of the one it meets. `switch` names
-// the map switch that runs the motion; without one it runs from the start.
-// `motion` defaults to Cycle. FollowSwitch requires a switch and targets
-// end 2 while its response matches, end 1 otherwise, ignoring cycle timing.
+// along the travel keeps a floor clear of the one it meets. `switch` and
+// `initially_on` read as on every switch target (see `initially_on` below):
+// a Cycle runs while on, and a FollowSwitch, which requires a switch, heads
+// for end 2 while on and end 1 otherwise, ignoring cycle timing. `motion`
+// defaults to Cycle.
 // Top-level like ramps and ladders because it may cross storeys.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MotionDef {
@@ -120,8 +120,8 @@ pub struct MotionDef {
     pub to_nudge: [f32; 3],
     #[serde(default)]
     pub switch: Option<String>,
-    #[serde(default)]
-    pub switch_inverted: bool,
+    #[serde(default = "initially_on")]
+    pub initially_on: bool,
     #[serde(default)]
     pub motion: CarrierMotion,
 }
@@ -158,6 +158,14 @@ pub struct LadderDef {
 
 const fn default_storeys() -> u32 {
     1
+}
+
+// Every switch target starts on: a barrier or light bridge solid, an actor
+// zone spawning, a nested map running (or, following its switch, at end 2).
+// Its optional `switch` flips that state while active; without one it keeps
+// it for good.
+const fn initially_on() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -303,12 +311,12 @@ pub struct BarrierDef {
     pub r0: i32,
     pub c1: i32,
     pub r1: i32,
-    // String id, looked up in the loaded `BarrierKindTable` at compile time.
+    // String id, looked up in the loaded `FieldKindTable` at compile time.
     pub kind: String,
     #[serde(default)]
     pub switch: Option<String>,
-    #[serde(default)]
-    pub switch_inverted: bool,
+    #[serde(default = "initially_on")]
+    pub initially_on: bool,
 }
 
 // One cell of a light bridge. Same-kind cells merge into rectangles at
@@ -318,12 +326,12 @@ pub struct BarrierDef {
 pub struct LightBridgeDef {
     pub col: i32,
     pub row: i32,
-    // String id, looked up in the loaded `BridgeKindTable` at compile time.
+    // String id, looked up in the loaded `FieldKindTable` at compile time.
     pub kind: String,
     #[serde(default)]
     pub switch: Option<String>,
-    #[serde(default)]
-    pub switch_inverted: bool,
+    #[serde(default = "initially_on")]
+    pub initially_on: bool,
 }
 
 // Editor-authored ramp: a footprint of cells (`cols` and `rows`, the end
@@ -346,9 +354,9 @@ pub struct RampDef {
 
 // `respawn_secs` is the delay before a killed actor's slot refills; `null`
 // never refills. `beam_in_secs` is the ghost window before each actor
-// appears, after that delay for a refill; 0 pops it in at once. `switch`
-// names the map switch that lets the zone spawn; without one the zone fills
-// at startup and refills on its timer. `until_checkpoint` ends the zone once
+// appears, after that delay for a refill; 0 pops it in at once. The zone
+// spawns while it is on (`initially_on`, flipped by its `switch`), filling
+// at startup and refilling on its timer. `until_checkpoint` ends the zone once
 // any player has reached that checkpoint, and `on_checkpoint` says whether
 // its remaining actors go too.
 #[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
@@ -371,8 +379,8 @@ pub struct ActorSpawnZoneDef {
     pub beam_in_secs: f32,
     #[serde(default)]
     pub switch: Option<String>,
-    #[serde(default)]
-    pub switch_inverted: bool,
+    #[serde(default = "initially_on")]
+    pub initially_on: bool,
     #[serde(default)]
     pub until_checkpoint: Option<u32>,
     #[serde(default)]
@@ -392,7 +400,7 @@ const fn default_zone_levels() -> u32 {
 
 // A single map-authored item. `item_type` is an `ItemType` config id
 // (`ItemType::from_config_id`), or "key" with `kind` referencing the
-// `BarrierKindTable`. Placed items hide on pickup and reappear in place
+// `FieldKindTable`. Placed items hide on pickup and reappear in place
 // after the map's per-type `placed_items.respawn_secs` delay, if configured.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Serialize)]
 pub struct ItemDef {

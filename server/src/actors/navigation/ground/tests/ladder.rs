@@ -122,7 +122,7 @@ impl Fixture {
                 collision_world: &world,
                 map_settings: &settings,
                 physics: self.physics,
-                passable_kinds: &[],
+                passable_fields: &[],
                 carriers: &carriers,
             },
             [3.0, 5.0],
@@ -307,7 +307,7 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
                 let links = fixture.links();
                 fixture.layout.carriers.push(Carrier {
                     motion: Default::default(),
-                    switch_inverted: false,
+                    initially_on: true,
 
                     parent: CarrierId::WORLD,
                     level: 0,
@@ -349,7 +349,7 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
                                 delta: TICK_SECS,
                                 can_use_ladders: true,
                                 physics: fixture.physics,
-                                open_kinds: &[],
+                                open_fields: &[],
                                 collision_world: &world,
                                 map_settings: &settings,
                                 carriers: &carriers,
@@ -377,7 +377,7 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
     let mut map = MapConfig::for_grid(fixture.graph.levels.clone(), fixture.graph.geometry);
     for kind in [CONTACT, BEAM] {
         map.actor_spawn_zones.push(ActorSpawnZone {
-            switch_inverted: false,
+            initially_on: true,
 
             carrier: CarrierId::WORLD,
             level: 0,

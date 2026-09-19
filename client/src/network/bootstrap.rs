@@ -9,11 +9,11 @@ use bevy::prelude::*;
 use crossbeam_channel::Sender;
 
 use crate::{
-    barriers::{KeyKinds, build_barrier_assets},
-    bridges::build_bridge_assets,
+    barriers::KeyKinds,
     carriers::{CarrierStoreys, spawn_carrier_entities},
     characters::MaxHealth,
     config::{AssetSet, ClientSettings},
+    fields::build_field_assets,
     missiles::AirGraph,
     players::MyPlayerId,
     projectiles::ProjectileAssets,
@@ -66,32 +66,25 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
     let map_settings = &message.world.map.settings;
     map_settings.movement.validate("map.settings.movement")?;
     map_settings.celestial.validate("map.settings.celestial")?;
-    let (barrier_kind_table, _) = map_settings.kind_tables()?;
+    let field_kind_table = map_settings.field_kind_table()?;
     asset_set.validate_map_bindings(map_settings, &message.world.map.layout)?;
     asset_set.validate_gameplay_bindings(gameplay_config.actors.keys().map(String::as_str))?;
     let vfx = app.world().resource::<ClientSettings>().vfx;
 
-    let (barrier_assets, bridge_assets, projectile_assets) =
-        app.world_mut().resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
-            let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
-            (
-                build_barrier_assets(
-                    &mut meshes,
-                    &mut materials,
-                    &map_settings.barrier_kinds,
-                    &message.world.map.layout,
-                    vfx.fields.rail_emissive_brightness,
-                    vfx.pickups.emissive_brightness,
-                ),
-                build_bridge_assets(
-                    &mut materials,
-                    &map_settings.bridge_kinds,
-                    &message.world.map.layout,
-                    vfx.fields.rail_emissive_brightness,
-                ),
-                ProjectileAssets::new(&mut meshes, &mut materials, gameplay_config.projectiles.radius),
-            )
-        });
+    let (field_assets, projectile_assets) = app.world_mut().resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
+        let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
+        (
+            build_field_assets(
+                &mut meshes,
+                &mut materials,
+                &map_settings.field_kinds,
+                &message.world.map.layout,
+                vfx.fields.rail_emissive_brightness,
+                vfx.pickups.emissive_brightness,
+            ),
+            ProjectileAssets::new(&mut meshes, &mut materials, gameplay_config.projectiles.radius),
+        )
+    });
 
     let max_health = MaxHealth {
         player: message.world.gameplay.player.max_health,
@@ -129,9 +122,8 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
         .insert_resource(MyPlayerId(message.player.id))
         .insert_resource(message.player.portal_access)
         .insert_resource(gameplay_config)
-        .insert_resource(barrier_kind_table)
-        .insert_resource(barrier_assets)
-        .insert_resource(bridge_assets)
+        .insert_resource(field_kind_table)
+        .insert_resource(field_assets)
         .insert_resource(projectile_assets)
         .insert_resource(message.world.map.layout)
         .insert_resource(message.world.map.settings)

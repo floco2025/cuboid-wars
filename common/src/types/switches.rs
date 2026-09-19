@@ -38,31 +38,24 @@ pub struct SwitchDef {
 }
 
 impl MapSettings {
+    // An authored colour, else the first kind in catalog order that one of
+    // the switch's barriers or bridges uses.
     pub fn switch_color(&self, switch: SwitchId, layout: &MapLayout) -> Option<HexColor> {
         let def = self.switches.get(usize::from(switch.0))?;
         def.color.or_else(|| {
-            self.barrier_kinds
+            let kinds = layout
+                .barriers
                 .iter()
-                .enumerate()
-                .find(|(index, _)| {
+                .filter(|barrier| barrier.switch == Some(switch))
+                .map(|barrier| barrier.kind)
+                .chain(
                     layout
-                        .barriers
+                        .light_bridges
                         .iter()
-                        .any(|b| usize::from(b.kind.0) == *index && b.switch == Some(switch))
-                })
-                .map(|(_, kind)| kind.color)
-                .or_else(|| {
-                    self.bridge_kinds
-                        .iter()
-                        .enumerate()
-                        .find(|(index, _)| {
-                            layout
-                                .light_bridges
-                                .iter()
-                                .any(|b| usize::from(b.kind.0) == *index && b.switch == Some(switch))
-                        })
-                        .map(|(_, kind)| kind.color)
-                })
+                        .filter(|bridge| bridge.switch == Some(switch))
+                        .map(|bridge| bridge.kind),
+                );
+            self.field_kinds.get(usize::from(kinds.min()?.0)).map(|kind| kind.color)
         })
     }
 }

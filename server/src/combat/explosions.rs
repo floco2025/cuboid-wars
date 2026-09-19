@@ -6,7 +6,7 @@ use common::{
     constants::KNOCKBACK_CLAMP_RATIO,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, blast_hit, character_hitbox_center},
     protocol::{
-        ActorId, ActorMarker, BarrierId, Health, HitTarget, MapSettings, MissileBlastHit, PlayerId, PlayerMarker,
+        ActorId, ActorMarker, FieldId, Health, HitTarget, MapSettings, MissileBlastHit, PlayerId, PlayerMarker,
         Position, SPlayerKnockback, ServerMessage, SwitchState,
     },
 };
@@ -127,7 +127,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
             &context.map_settings.movement,
             context.invincibility.0,
             &context.collision_world,
-            &context.switch_state.open_barriers,
+            &context.switch_state.open_fields,
             &context.players,
             &context.actors,
             &mut context.player_query,
@@ -244,7 +244,7 @@ fn apply_blast(
     movement: &MapMovementConfig,
     invincible: bool,
     collision_world: &CollisionWorld,
-    open_barriers: &[BarrierId],
+    open_fields: &[FieldId],
     players: &PlayerMap,
     actors: &ActorMap,
     player_query: &mut PlayerBlastQuery,
@@ -267,7 +267,7 @@ fn apply_blast(
             },
             victim_center,
             collision_world,
-            open_barriers,
+            open_fields,
         ) else {
             continue;
         };
@@ -301,13 +301,9 @@ fn apply_blast(
         };
         let actor_physics = gameplay.expect_actor(&info.spawn_kind).physics();
         let victim_center = character_hitbox_center(*pos, actor_physics);
-        let Some((falloff, direction)) = resolved_blast_hit(
-            spec,
-            HitTarget::Actor(*id),
-            victim_center,
-            collision_world,
-            open_barriers,
-        ) else {
+        let Some((falloff, direction)) =
+            resolved_blast_hit(spec, HitTarget::Actor(*id), victim_center, collision_world, open_fields)
+        else {
             continue;
         };
         apply_damage(&mut health, spec.damage.max_damage * falloff);
@@ -398,7 +394,7 @@ fn resolved_blast_hit(
     target: HitTarget,
     center: Vec3,
     world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
 ) -> Option<(f32, Vec3)> {
     if let Some(hits) = &spec.reported_hits {
         let hit = hits.iter().find(|hit| hit.target == target)?;
@@ -406,5 +402,5 @@ fn resolved_blast_hit(
         return (hit.falloff.is_finite() && direction.is_finite())
             .then(|| (hit.falloff.clamp(0.0, 1.0), direction.clamp_length_max(1.0)));
     }
-    blast_hit(spec.center, center, spec.damage.radius, world, open_kinds)
+    blast_hit(spec.center, center, spec.damage.radius, world, open_fields)
 }

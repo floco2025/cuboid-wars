@@ -101,8 +101,7 @@ fn build_server_app_with_loader(
         layout: map_layout,
         config: map_config,
         settings: map_settings,
-        barrier_kinds: barrier_kind_table,
-        bridge_kinds: bridge_kind_table,
+        field_kinds: field_kind_table,
         switch_table,
         fireworks,
         fireworks_switch,
@@ -212,8 +211,7 @@ fn build_server_app_with_loader(
         .insert_resource(map_geometry)
         .insert_resource(nav_graphs)
         .insert_resource(actor_territories)
-        .insert_resource(barrier_kind_table)
-        .insert_resource(bridge_kind_table)
+        .insert_resource(field_kind_table)
         .insert_resource(switch_table)
         .insert_resource(MapFireworks(fireworks))
         .insert_resource(gameplay_config)

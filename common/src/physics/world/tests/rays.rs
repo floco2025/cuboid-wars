@@ -1,10 +1,7 @@
 use super::*;
 use crate::{
     map::Carriers,
-    protocol::{
-        BarrierId, BridgeId, CarrierId, FaceMaterials, PressurePlate, Ramp, RampDirection, RampShape, SwitchId,
-        SwitchState,
-    },
+    protocol::{CarrierId, FaceMaterials, PressurePlate, Ramp, RampDirection, RampShape, SwitchId, SwitchState},
 };
 
 #[test]
@@ -138,14 +135,14 @@ fn world_surfaces_along_ray_lists_each_solid_entered_nearest_first_and_no_field(
     layout.barriers.push(Barrier {
         id: Default::default(),
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
         x1: 0.0,
         z1: 2.0,
         x2: 4.0,
         z2: 2.0,
         level: 1,
         levels: 1,
-        kind: BarrierKindId(0),
+        kind: FieldKindId(0),
         y: LEVEL_HEIGHT,
         height: WALL_HEIGHT,
         width: BARRIER_THICKNESS,
@@ -154,22 +151,21 @@ fn world_surfaces_along_ray_lists_each_solid_entered_nearest_first_and_no_field(
     layout.light_bridges.push(LightBridge {
         id: Default::default(),
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
         x1: 0.0,
         z1: 2.5,
         x2: 4.0,
         z2: 3.5,
         y: LEVEL_HEIGHT + 1.0,
         level: 1,
-        kind: BridgeKindId(0),
+        kind: FieldKindId(0),
         thickness: BRIDGE_THICKNESS,
         carrier: CarrierId::WORLD,
     });
-    let mut world = CollisionWorld::from_map_layout(&layout);
-    world.set_powered_bridges(&[BridgeId(0)]);
+    let world = CollisionWorld::from_map_layout(&layout);
     let origin = Vec3::new(2.0, LEVEL_HEIGHT + 1.0 - BRIDGE_THICKNESS * 0.25, 6.0);
 
-    // The powered bridge is the first thing a shot would meet.
+    // The solid bridge is the first thing a shot would meet.
     let cover = world
         .attack_surface_along_ray(origin, Vec3::NEG_Z, 10.0, &[])
         .expect("expected the bridge to be cover");
@@ -224,7 +220,7 @@ fn wall_surface_along_ray_ignores_barrier() {
         id: Default::default(),
 
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         x1: 0.0,
         z1: 1.0,
@@ -232,7 +228,7 @@ fn wall_surface_along_ray_ignores_barrier() {
         z2: 1.0,
         level: 1,
         levels: 1,
-        kind: BarrierKindId(0),
+        kind: FieldKindId(0),
         y: LEVEL_HEIGHT,
         height: WALL_HEIGHT,
         width: BARRIER_THICKNESS,
@@ -257,7 +253,7 @@ fn portal_shots_only_pass_blocking_barriers_when_the_kind_is_globally_open() {
         id: Default::default(),
 
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         x1: 0.0,
         z1: 2.0,
@@ -268,14 +264,18 @@ fn portal_shots_only_pass_blocking_barriers_when_the_kind_is_globally_open() {
         height: WALL_HEIGHT,
         level: 1,
         levels: 1,
-        kind: BarrierKindId(0),
+        kind: FieldKindId(0),
         carrier: CarrierId::WORLD,
     });
     let world = CollisionWorld::from_map_layout(&layout);
     let origin = Vec3::new(2.0, LEVEL_HEIGHT + 1.5, 4.0);
-    for open in [vec![], vec![BarrierId(1)], vec![BarrierId(0)]] {
+    for open in [
+        vec![],
+        vec![FieldId::Barrier(BarrierId(1))],
+        vec![FieldId::Barrier(BarrierId(0))],
+    ] {
         let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Z, 10.0, &open);
-        assert_eq!(hit.is_some(), open.contains(&BarrierId(0)));
+        assert_eq!(hit.is_some(), open.contains(&FieldId::Barrier(BarrierId(0))));
         if let Some(hit) = hit {
             assert!(hit.point.z < 1.0, "portal landed on the barrier instead of the wall");
         }
@@ -284,13 +284,13 @@ fn portal_shots_only_pass_blocking_barriers_when_the_kind_is_globally_open() {
 
 #[test]
 fn barriers_are_transparent_cover_until_globally_opened() {
-    let kind = BarrierKindId(0);
+    let barrier = FieldId::Barrier(BarrierId(0));
     let layout = MapLayout {
         barriers: vec![Barrier {
             id: Default::default(),
 
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
 
             x1: -3.0,
             z1: 0.0,
@@ -301,7 +301,7 @@ fn barriers_are_transparent_cover_until_globally_opened() {
             width: BARRIER_THICKNESS,
             level: 0,
             levels: 1,
-            kind,
+            kind: FieldKindId(0),
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
@@ -312,8 +312,8 @@ fn barriers_are_transparent_cover_until_globally_opened() {
         (Vec3::new(0.0, 1.0, 2.0), Vec3::new(0.0, 1.0, -2.0)),
     ] {
         assert!(world.line_of_sight_clear(from, to));
-        for open in [&[][..], &[BarrierId(1)], &[BarrierId(u32::from(kind.0))], &[]] {
-            let blocked = !open.contains(&BarrierId(u32::from(kind.0)));
+        for open in [&[][..], &[FieldId::Barrier(BarrierId(1))], &[barrier]] {
+            let blocked = !open.contains(&barrier);
             assert_eq!(!world.attack_path_clear(from, to, open), blocked);
             assert_eq!(
                 world.attack_surface_along_ray(from, to - from, 4.0, open).is_some(),

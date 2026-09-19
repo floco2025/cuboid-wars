@@ -24,7 +24,7 @@ pub(in crate::network) fn sync_items(
         let entity = spawn_item(
             commands,
             &context.assets.item_assets,
-            &context.assets.barrier_assets,
+            &context.assets.field_assets,
             &context.assets.missile_assets,
             context.carrier_entities.get(item.carrier),
             level,

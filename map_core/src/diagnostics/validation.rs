@@ -12,12 +12,16 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
+// A warning names something inert until another record exists (a switch no
+// plate operates yet): Check Map lists it, but it blocks no edit, no save,
+// and no load, so authoring order never matters.
 #[derive(Clone, Debug, Serialize)]
 pub struct Issue {
     pub message: String,
     pub level: Option<i64>,
     pub rect: Option<[i64; 4]>,
     pub map_name: Option<String>,
+    pub warning: bool,
 }
 #[derive(Default)]
 pub(super) struct Errors {
@@ -31,11 +35,18 @@ impl Errors {
         self.rect = Some(transforms::record_rect(name, entry));
     }
     pub(super) fn add(&mut self, message: impl Into<String>) {
+        self.push(message.into(), false);
+    }
+    pub(super) fn warn(&mut self, message: impl Into<String>) {
+        self.push(message.into(), true);
+    }
+    fn push(&mut self, message: String, warning: bool) {
         self.issues.push(Issue {
-            message: message.into(),
+            message,
             level: self.level,
             rect: self.rect,
             map_name: None,
+            warning,
         });
     }
 }
@@ -68,8 +79,8 @@ pub(crate) fn plates(geometries: &[&Value]) -> BTreeSet<String> {
         .collect()
 }
 pub(super) fn switch_target(entry: &Value, label: &str, context: &Value, errors: &mut Errors) {
-    if entry.get("switch_inverted").is_some_and(|v| !v.is_boolean()) {
-        errors.add(format!("{label} switch_inverted must be true or false"));
+    if entry.get("initially_on").is_some_and(|v| !v.is_boolean()) {
+        errors.add(format!("{label} initially_on must be true or false"));
     }
     let switch = &entry["switch"];
     if switch.is_null() {
@@ -84,7 +95,7 @@ pub(super) fn switch_target(entry: &Value, label: &str, context: &Value, errors:
             known(&context["switches"])
         ));
     } else if check_kind(switch, &context["plated_switches"]) {
-        errors.add(format!(
+        errors.warn(format!(
             "{label} names switch {}, which no pressure plate operates",
             repr(switch)
         ));
@@ -99,8 +110,8 @@ pub fn validate_catalog(catalog: &str, entries: &Value) -> Result<()> {
         "{catalog}: expected a list of definitions"
     );
     ensure!(
-        catalog != "barrier_kinds" || values.len() <= 256,
-        "barrier_kinds: at most 256 kinds fit in the key inventory"
+        catalog != "field_kinds" || values.len() <= 256,
+        "field_kinds: at most 256 kinds fit in the key inventory"
     );
     let mut seen = BTreeSet::new();
     for entry in values {
@@ -245,7 +256,7 @@ pub fn validate_map(data: &Value, context: &Value) -> Vec<Issue> {
 pub fn validate_document(root: &Value, context: &Value) -> Vec<Issue> {
     let definitions = &root["nested_geometry"];
     let mut errors = Errors::default();
-    for catalog in ["switches", "barrier_kinds", "bridge_kinds"] {
+    for catalog in ["switches", "field_kinds"] {
         if let Err(error) = validate_catalog(catalog, &get(root, catalog, json!([]))) {
             errors.add(error.to_string());
             break;
@@ -271,8 +282,8 @@ pub fn validate_document(root: &Value, context: &Value) -> Vec<Issue> {
             if !truth(&fireworks["switch"]) {
                 errors.add("fireworks requires a switch");
             }
-            if fireworks.get("switch_inverted").is_some() {
-                errors.add("fireworks has no On/Off response; remove switch_inverted");
+            if fireworks.get("initially_on").is_some() {
+                errors.add("fireworks has no initial state; remove initially_on");
             }
             switch_target(fireworks, "fireworks", &context, &mut errors);
             if !nonnegative(&fireworks["cooldown_secs"]) {
@@ -306,14 +317,13 @@ pub fn validate_document(root: &Value, context: &Value) -> Vec<Issue> {
                     level: None,
                     rect: None,
                     map_name: Some(name.into()),
+                    warning: false,
                 })
             };
-            if !crate::is_valid_map_name(name) {
-                add(format!(
-                    "{prefix}use only ASCII letters, digits, '_' or '-' in the name"
-                ));
+            if !crate::is_valid_geometry_name(name) {
+                add(format!("{prefix}the name must be nonempty with no surrounding spaces"));
             }
-            for key in ["switches", "barrier_kinds", "bridge_kinds", "fireworks"] {
+            for key in ["switches", "field_kinds", "fireworks"] {
                 if truth(&data[key]) {
                     add(format!("{prefix}{key}: control definitions belong in the outer map"));
                 }
@@ -351,6 +361,7 @@ pub fn validate_document(root: &Value, context: &Value) -> Vec<Issue> {
                     level: Some(i(item, "level")),
                     rect: Some(transforms::record_rect("items", item)),
                     map_name: None,
+                    warning: false,
                 });
             }
         }

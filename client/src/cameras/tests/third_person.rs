@@ -31,16 +31,25 @@ fn arm_retracts_before_wall_and_eases_back_into_clear_space() {
     let pivot = Vec3::Y * config.pivot_height;
     let clear = world(false);
     let blocked = world(true);
-    let far = third_person_transform(&clear, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
-    let close = third_person_transform(&blocked, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
+    let far = third_person_transform(&clear, &[], pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
+    let close = third_person_transform(
+        &blocked,
+        &[],
+        pivot,
+        Quat::IDENTITY,
+        config,
+        0.2,
+        1.0 / 60.0,
+        &mut state,
+    );
     assert!(close.translation.z < 1.71);
-    let released = third_person_transform(&clear, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
+    let released = third_person_transform(&clear, &[], pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
     assert!(released.translation.z > close.translation.z && released.translation.z < far.translation.z);
 }
 #[test]
 fn camera_pivot_inside_wall_collapses_arm() {
     assert_eq!(
-        world(true).camera_arm_distance(Vec3::new(0.0, 1.4, 2.0), Vec3::Z * 4.0, 0.2),
+        world(true).camera_arm_distance(Vec3::new(0.0, 1.4, 2.0), Vec3::Z * 4.0, 0.2, &[]),
         0.0
     );
 }
@@ -57,8 +66,17 @@ fn inward_scroll_starts_at_obstructed_camera_and_keeps_the_new_distance() {
         let pivot = Vec3::Y * config.pivot_height;
         let clear = world(false);
         let blocked = world(true);
-        third_person_transform(&clear, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
-        let close = third_person_transform(&blocked, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
+        third_person_transform(&clear, &[], pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
+        let close = third_person_transform(
+            &blocked,
+            &[],
+            pivot,
+            Quat::IDENTITY,
+            config,
+            0.2,
+            1.0 / 60.0,
+            &mut state,
+        );
         let expected_distance = close.translation.z - 0.2;
 
         state.zoom(
@@ -68,9 +86,18 @@ fn inward_scroll_starts_at_obstructed_camera_and_keeps_the_new_distance() {
             config,
         );
         assert!(state.distance > config.first_person_distance);
-        let zoomed = third_person_transform(&blocked, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
+        let zoomed = third_person_transform(
+            &blocked,
+            &[],
+            pivot,
+            Quat::IDENTITY,
+            config,
+            0.2,
+            1.0 / 60.0,
+            &mut state,
+        );
         assert!((zoomed.translation.z - expected_distance).abs() < 1e-5);
-        let released = third_person_transform(&clear, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
+        let released = third_person_transform(&clear, &[], pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
         assert!((released.translation.z - expected_distance).abs() < 1e-5);
         assert!((state.distance - expected_distance).abs() < 1e-5);
     }

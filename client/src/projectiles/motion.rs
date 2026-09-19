@@ -6,8 +6,8 @@ use rapier3d::prelude::ColliderHandle;
 use common::{
     config::ProjectilesConfig,
     math::{PHYSICS_EPSILON, direction_from_yaw_pitch},
-    physics::{CollisionWorld, FieldKind},
-    protocol::{BarrierId, Position},
+    physics::CollisionWorld,
+    protocol::{FieldId, Position},
 };
 
 #[derive(Component)]
@@ -92,19 +92,20 @@ impl ProjectileMotion {
     }
 
     // Fraction of this tick's travel at which the straight path first meets a
-    // closed barrier or powered bridge, if any (`open_kinds` are skipped). Lets the caller order
-    // field absorption against a character hit on the same tick.
+    // barrier or light bridge that is on, if any (`open_fields` are skipped).
+    // Lets the caller order field absorption against a character hit on the
+    // same tick.
     #[must_use]
     pub fn field_collision_t(
         &self,
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
-        open_kinds: &[BarrierId],
+        open_fields: &[FieldId],
     ) -> Option<f32> {
         let translation = self.velocity * delta;
         collision_world
-            .cast_moving_ball_against_fields(Vec3::from(*projectile_pos), translation, self.radius, open_kinds)
+            .cast_moving_ball_against_fields(Vec3::from(*projectile_pos), translation, self.radius, open_fields)
             .map(|hit| hit.t)
     }
 
@@ -161,21 +162,19 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
-        open_kinds: &[BarrierId],
+        open_fields: &[FieldId],
     ) -> Option<FieldImpact> {
         let translation = self.velocity * delta;
         let hit = collision_world.cast_moving_ball_against_fields(
             Vec3::from(*projectile_pos),
             translation,
             self.radius,
-            open_kinds,
+            open_fields,
         )?;
         Some(FieldImpact {
             point: hit.contact,
             normal: hit.normal,
-            kind: hit
-                .field_kind
-                .expect("field-only shape cast returned a non-field collider"),
+            field: hit.field.expect("field-only shape cast returned a non-field collider"),
         })
     }
 }
@@ -192,7 +191,7 @@ pub struct SurfaceBounce {
 pub struct FieldImpact {
     pub point: Vec3,
     pub normal: Vec3,
-    pub kind: FieldKind,
+    pub field: FieldId,
 }
 
 #[cfg(test)]

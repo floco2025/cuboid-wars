@@ -1,7 +1,7 @@
 use super::*;
 use crate::map::definition::{
     compile_map,
-    tests::{cell_def, compile_settings, empty_kind_table, level, map_with_zones, no_bridges, no_nested, switch_table},
+    tests::{cell_def, compile_settings, empty_kind_table, level, map_with_zones, no_nested, switch_table},
 };
 use common::{
     physics::CollisionWorld,
@@ -23,8 +23,7 @@ fn grounds_fit_a_small_base_below_an_obby_style_elevated_course() {
     );
     map.grid_rows = 40;
     let kinds = empty_kind_table();
-    let bridges = no_bridges();
-    let mut settings = compile_settings(&kinds, &bridges);
+    let mut settings = compile_settings(&kinds);
     settings.geometry = MapGeometryConfig {
         grid_cell_size: 4.0,
         level_height: 2.4,
@@ -32,16 +31,8 @@ fn grounds_fit_a_small_base_below_an_obby_style_elevated_course() {
         wall_thickness: 0.4,
     };
     settings.grounds = Some(GroundsSettings { level: 0 });
-    let (layout, config) = compile_map(
-        &map,
-        30,
-        &settings,
-        &no_nested(),
-        &kinds,
-        &bridges,
-        &switch_table(&kinds, &bridges),
-    )
-    .expect("small base compiles");
+    let (layout, config) =
+        compile_map(&map, 30, &settings, &no_nested(), &kinds, &switch_table(&kinds)).expect("small base compiles");
     let grounds = layout.grounds.as_ref().expect("grounds missing");
     for (x, z) in [(-200.2, -34.0), (-187.8, -34.0), (-194.0, -40.2), (-194.0, -27.8)] {
         assert!(
@@ -97,19 +88,10 @@ fn irregular_bases_compile_walkable_outdoor_gaps_without_filling_enclosed_voids(
     let mut map = map_with_zones(20, vec![base], Vec::new(), Vec::new());
     map.grid_rows = 14;
     let kinds = empty_kind_table();
-    let bridges = no_bridges();
-    let mut settings = compile_settings(&kinds, &bridges);
+    let mut settings = compile_settings(&kinds);
     settings.grounds = Some(GroundsSettings { level: 0 });
-    let (layout, config) = compile_map(
-        &map,
-        30,
-        &settings,
-        &no_nested(),
-        &kinds,
-        &bridges,
-        &switch_table(&kinds, &bridges),
-    )
-    .expect("irregular base compiles");
+    let (layout, config) =
+        compile_map(&map, 30, &settings, &no_nested(), &kinds, &switch_table(&kinds)).expect("irregular base compiles");
     let geometry = config.root_grid().geometry;
     let center = |col, row| Position {
         x: geometry.cell_center_x(col),

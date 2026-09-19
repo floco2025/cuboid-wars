@@ -1,17 +1,16 @@
 use bevy_ecs::prelude::Resource;
 use bevy_math::{Quat, Vec3};
 use rapier3d::prelude::{
-    BroadPhaseBvh, ColliderHandle, ColliderSet, Group, IntegrationParameters, NarrowPhase, Pose, QueryFilter,
+    BroadPhaseBvh, Collider, ColliderHandle, ColliderSet, Group, IntegrationParameters, NarrowPhase, Pose, QueryFilter,
     QueryPipeline, RigidBodySet, Shape,
 };
 
 use super::{
     bounds::WorldBounds,
     colliders::{
-        BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, collider_interaction_groups,
-        insert_barrier_collider, insert_bridge_collider, insert_floor_collider, insert_grounds_colliders,
-        insert_pressure_plate_collider, insert_ramp_collider, insert_wall_collider, query_filter,
-        surface_collision_groups,
+        ColliderKind, FLOOR_COLLISION_GROUP, collider_interaction_groups, field_blocks, insert_barrier_collider,
+        insert_bridge_collider, insert_floor_collider, insert_grounds_colliders, insert_pressure_plate_collider,
+        insert_ramp_collider, insert_wall_collider, query_filter, surface_collision_groups,
     },
     erasers::EraserVolume,
     ladders::LadderVolume,
@@ -20,7 +19,8 @@ use super::{
 use crate::{
     map::Carriers,
     math::{rapier_pose, to_rapier},
-    protocol::{Barrier, BarrierId, BarrierKindId, BridgeId, CarrierId, MapLayout, SwitchId},
+    physics::passable_fields,
+    protocol::{Barrier, CarrierId, FieldId, FieldKindId, LightBridge, MapLayout, SwitchId},
 };
 
 #[derive(Resource)]
@@ -30,8 +30,7 @@ pub struct CollisionWorld {
     pub(super) broad_phase: BroadPhaseBvh,
     pub(super) narrow_phase: NarrowPhase,
     pub(crate) barriers: Vec<Barrier>,
-    // Every light bridge collider with its kind, for `set_powered_bridges`.
-    bridge_colliders: Vec<(BridgeId, ColliderHandle)>,
+    light_bridges: Vec<LightBridge>,
     // Quest-locked plates are hidden and must not leave an invisible step.
     pressure_plate_colliders: Vec<(SwitchId, ColliderHandle)>,
     // Each carrier's colliders with their carrier-local poses, in layout
@@ -48,8 +47,8 @@ pub struct CollisionWorld {
 }
 
 impl CollisionWorld {
-    pub fn passable_barriers(&self, held_keys: &[BarrierKindId], open: &[BarrierId]) -> Vec<BarrierId> {
-        crate::physics::passable_barriers(held_keys, open, &self.barriers)
+    pub fn passable_fields(&self, held_keys: &[FieldKindId], open: &[FieldId]) -> Vec<FieldId> {
+        passable_fields(held_keys, open, &self.barriers, &self.light_bridges)
     }
 
     #[must_use]
@@ -101,11 +100,9 @@ impl CollisionWorld {
             pressure_plate_colliders.push((plate.switch, handle));
         }
 
-        let mut bridge_colliders = Vec::with_capacity(map_layout.light_bridges.len());
         for bridge in &map_layout.light_bridges {
             let handle = insert_bridge_collider(&mut colliders, bridge);
             collider_handles.push(carried(&colliders, handle, bridge.carrier));
-            bridge_colliders.push((bridge.id, handle));
         }
         if let Some(grounds) = &map_layout.grounds {
             collider_handles.extend(insert_grounds_colliders(&mut colliders, grounds));
@@ -135,7 +132,7 @@ impl CollisionWorld {
             broad_phase,
             narrow_phase,
             barriers: map_layout.barriers.clone(),
-            bridge_colliders,
+            light_bridges: map_layout.light_bridges.clone(),
             pressure_plate_colliders,
             carrier_colliders,
             bounds,
@@ -215,25 +212,6 @@ impl CollisionWorld {
         ColliderKind::carrier_from_user_data(self.colliders[handle].user_data)
     }
 
-    // Bridge power is world state, not per-query state: the powered bridges'
-    // colliders join `BRIDGE_COLLISION_GROUP` and the rest leave every group,
-    // so each surface query sees the current bridges without carrying the
-    // powered set. Both sides apply `SwitchState` here whenever it changes
-    // (`powered_bridges_sync_system`).
-    pub fn set_powered_bridges(&mut self, powered: &[BridgeId]) {
-        for (kind, handle) in &self.bridge_colliders {
-            let membership = if powered.contains(kind) {
-                BRIDGE_COLLISION_GROUP
-            } else {
-                Group::empty()
-            };
-            if self.colliders[*handle].collision_groups().memberships != membership {
-                self.bounds.changed(self.carrier_of(*handle));
-                self.colliders[*handle].set_collision_groups(collider_interaction_groups(membership));
-            }
-        }
-    }
-
     // Pressing only animates the model; only quest visibility changes collision.
     pub fn set_locked_pressure_plates(&mut self, locked: &[SwitchId]) {
         for (switch, handle) in &self.pressure_plate_colliders {
@@ -265,13 +243,18 @@ impl CollisionWorld {
     }
 
     // Whether the oriented shape touches anything a body could stand on or
-    // walk into right now: the static world plus the powered bridges.
+    // walk into right now: the static world plus the light bridges that are on.
     #[must_use]
-    pub(crate) fn oriented_shape_overlaps_surface(&self, center: Vec3, rotation: Quat, shape: &dyn Shape) -> bool {
-        self.shape_overlaps(
-            rapier_pose(center, rotation),
-            shape,
-            query_filter(surface_collision_groups()),
-        )
+    pub(crate) fn oriented_shape_overlaps_surface(
+        &self,
+        center: Vec3,
+        rotation: Quat,
+        shape: &dyn Shape,
+        open_fields: &[FieldId],
+    ) -> bool {
+        let allow = |_: ColliderHandle, collider: &Collider| field_blocks(collider, open_fields);
+        let mut filter = query_filter(surface_collision_groups());
+        filter.predicate = Some(&allow);
+        self.shape_overlaps(rapier_pose(center, rotation), shape, filter)
     }
 }

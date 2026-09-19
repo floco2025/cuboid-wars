@@ -3,7 +3,7 @@ use bevy::math::Vec3;
 use common::{
     config::CharacterPhysicsConfig,
     physics::CollisionWorld,
-    protocol::{HomingTarget, Position},
+    protocol::{FieldId, HomingTarget, Position},
 };
 
 use crate::characters::ball_character_hit;
@@ -14,11 +14,12 @@ const LOCK_RAY_RADIUS: f32 = 0.05;
 
 // Pick the lock-on target under the aim ray: nearest candidate the ray
 // passes within `assist_radius` of, capped at `max_distance`; world geometry
-// and powered bridges occlude (barriers don't block sight, matching
+// and solid light bridges occlude (barriers don't block sight, matching
 // `line_of_sight_clear` semantics — the missile flies around them).
 #[must_use]
 pub fn acquire_lock(
     collision_world: &CollisionWorld,
+    open_fields: &[FieldId],
     origin: Vec3,
     aim_dir: Vec3,
     max_distance: f32,
@@ -30,7 +31,7 @@ pub fn acquire_lock(
         return None;
     }
     let world_t = collision_world
-        .cast_moving_ball(origin, translation, LOCK_RAY_RADIUS)
+        .cast_moving_ball(origin, translation, LOCK_RAY_RADIUS, open_fields)
         .map_or(1.0, |hit| hit.t);
     let origin_pos = Position::from(origin);
 

@@ -75,7 +75,7 @@ fn flying_body_is_pushed_by_rising_geometry_and_crushed_only_when_pinned() {
                 pause_ticks: 0,
                 phase_ticks: 0,
                 switch: None,
-                switch_inverted: false,
+                initially_on: true,
             }],
             floors: vec![Floor {
                 x1: -4.0,
@@ -128,13 +128,13 @@ fn flying_body_is_pushed_by_rising_geometry_and_crushed_only_when_pinned() {
 #[test]
 fn flight_respects_barrier_and_bridge_power_and_ramp_solids() {
     use crate::protocol::{
-        Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, LightBridge, Ramp, RampDirection, RampShape,
+        Barrier, BarrierId, BridgeId, FieldId, FieldKindId, LightBridge, Ramp, RampDirection, RampShape,
     };
     let physics = wide_body();
     let mut layout = MapLayout {
         barriers: vec![Barrier {
             id: BarrierId(0),
-            kind: BarrierKindId(0),
+            kind: FieldKindId(0),
             x1: 0.0,
             z1: -4.0,
             x2: 0.0,
@@ -146,11 +146,11 @@ fn flight_respects_barrier_and_bridge_power_and_ramp_solids() {
             level: 0,
             carrier: CarrierId::WORLD,
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
         }],
         light_bridges: vec![LightBridge {
             id: BridgeId(0),
-            kind: BridgeKindId(0),
+            kind: FieldKindId(0),
             x1: -8.0,
             z1: -4.0,
             x2: -2.0,
@@ -160,19 +160,18 @@ fn flight_respects_barrier_and_bridge_power_and_ramp_solids() {
             level: 1,
             carrier: CarrierId::WORLD,
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
         }],
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout);
+    let world = CollisionWorld::from_map_layout(&layout);
     let from = Vec3::new(-2.0, 1.0, 0.0).into();
     let to = Vec3::new(2.0, 1.0, 0.0).into();
     assert!(!world.character_flight_path_clear(from, to, physics, &[]));
-    assert!(world.character_flight_path_clear(from, to, physics, &[BarrierId(0)]));
+    assert!(world.character_flight_path_clear(from, to, physics, &[FieldId::Barrier(BarrierId(0))]));
     let below = Vec3::new(-5.0, 0.0, 0.0).into();
     let above = Vec3::new(-5.0, 6.0, 0.0).into();
-    assert!(world.character_flight_path_clear(below, above, physics, &[]));
-    world.set_powered_bridges(&[BridgeId(0)]);
+    assert!(world.character_flight_path_clear(below, above, physics, &[FieldId::Bridge(BridgeId(0))]));
     assert!(!world.character_flight_path_clear(below, above, physics, &[]));
     layout.ramps.push(Ramp {
         x1: -8.0,

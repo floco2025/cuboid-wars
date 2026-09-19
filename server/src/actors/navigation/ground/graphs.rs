@@ -2,7 +2,7 @@ use bevy::prelude::{DetectChanges, Res, ResMut, Resource};
 use common::{
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{BarrierId, BridgeId, CarrierId, MapLayout, MapSettings, SwitchState},
+    protocol::{CarrierId, FieldId, MapLayout, MapSettings, SwitchState},
 };
 
 use crate::{config::ServerGameplayConfig, map::MapConfig};
@@ -52,13 +52,13 @@ impl NavGraphs {
         if !config.actors.values().any(|actor| actor.character.can_use_ladders) {
             return;
         }
-        // Barriers some plate opens: a route may plan through them and
+        // Barriers that are ever off: a route may plan through them and
         // wait for physics to let the actor pass.
-        let passable: Vec<BarrierId> = layout
+        let passable: Vec<FieldId> = layout
             .barriers
             .iter()
-            .filter(|barrier| barrier.switch.is_some())
-            .map(|barrier| barrier.id)
+            .filter(|barrier| barrier.switch.is_some() || !barrier.initially_on)
+            .map(|barrier| FieldId::Barrier(barrier.id))
             .collect();
         for (index, graph) in self.0.iter_mut().enumerate() {
             let carrier = CarrierId(index as u16);
@@ -85,7 +85,7 @@ impl NavGraphs {
                     collision_world: &world,
                     map_settings: settings,
                     physics: actor.character.physics(),
-                    passable_kinds: &passable,
+                    passable_fields: &passable,
                     carriers: &carriers,
                 };
                 let links = local
@@ -107,19 +107,18 @@ impl NavGraphs {
             .expect("carrier named by an actor spawn zone has no navigation graph")
     }
 
-    pub fn set_powered_bridges(&mut self, powered: &[BridgeId]) {
+    pub fn set_open_fields(&mut self, open: &[FieldId]) {
         for graph in &mut self.0 {
-            graph.set_powered_bridges(powered);
+            graph.set_open_fields(open);
         }
     }
 }
 
-// Applies the powered bridges to the navigation graphs, as
-// `powered_bridges_sync_system` does to the collision world, so the
-// behaviour that follows plans over this tick's bridges.
+// Applies the open fields to the navigation graphs, so the behaviour that
+// follows plans over the bridges that are on this tick.
 pub fn nav_bridges_sync_system(switch_state: Res<SwitchState>, mut graphs: ResMut<NavGraphs>) {
     if switch_state.is_changed() {
-        graphs.set_powered_bridges(&switch_state.powered_bridges);
+        graphs.set_open_fields(&switch_state.open_fields);
     }
 }
 

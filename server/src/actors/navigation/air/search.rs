@@ -3,7 +3,7 @@ use bevy::prelude::{IVec3, Vec3};
 use common::{
     config::CharacterPhysicsConfig,
     physics::CollisionWorld,
-    protocol::{BarrierId, Position},
+    protocol::{FieldId, Position},
 };
 use rand::{rng, seq::IteratorRandom};
 use std::collections::{BinaryHeap, HashMap, VecDeque};
@@ -71,7 +71,7 @@ impl AirSearch {
         &mut self,
         world: &CollisionWorld,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
         budget: &mut usize,
         allowed: impl Fn(Vec3, Vec3) -> bool,
     ) -> SearchResult {
@@ -85,7 +85,7 @@ impl AirSearch {
         &mut self,
         world: &CollisionWorld,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
         budget: &mut usize,
         allowed: impl Fn(Vec3, Vec3) -> bool,
         arrived: impl Fn(Vec3) -> bool,
@@ -181,7 +181,7 @@ impl AirSearch {
         &mut self,
         world: &CollisionWorld,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
         budget: &mut usize,
         covered: impl Fn(Vec3) -> bool,
         threats: &[Position],
@@ -239,7 +239,7 @@ impl AirSearch {
         end: Vec3,
         world: &CollisionWorld,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
         allowed: &impl Fn(Vec3, Vec3) -> bool,
     ) -> Option<VecDeque<Position>> {
         let mut path = VecDeque::from([Position::from(end)]);

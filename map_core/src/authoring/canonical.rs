@@ -56,7 +56,7 @@ pub fn enforce_ramp_floor_rules(data: &mut Value) {
 pub fn canonicalize_map(v: &Value) -> Value {
     let mut b = normalize_map(v);
     if let Some(f) = b.get_mut("fireworks").and_then(Value::as_object_mut) {
-        f.remove("switch_inverted");
+        f.remove("initially_on");
     }
     let mut ramps = list(&b, "ramps").to_vec();
     ramps.sort_by(|a, b| cmp(&record_key("ramp", a), &record_key("ramp", b)));
@@ -177,7 +177,7 @@ pub fn canonicalize_map(v: &Value) -> Value {
             && [i(entry, "level"), i(entry, "to_level")]
                 .iter()
                 .all(|n| *n >= 0 && *n < count as i64)
-            && crate::is_valid_map_name(s(entry, "map"))
+            && crate::is_valid_geometry_name(s(entry, "map"))
         {
             nested.insert((i(entry, "level"), point(&entry["from"])), entry.clone());
         }

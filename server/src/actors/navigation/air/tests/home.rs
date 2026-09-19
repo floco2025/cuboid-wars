@@ -30,7 +30,7 @@ fn air_home_expands_vertically_and_moves_with_its_spawn_zone() {
         respawn_secs: None,
         beam_in_secs: 0.0,
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
         until_checkpoint: None,
         on_checkpoint: Default::default(),
     };
@@ -79,7 +79,7 @@ fn walls_do_not_change_the_authored_roaming_boundary() {
         respawn_secs: None,
         beam_in_secs: 0.0,
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
         until_checkpoint: None,
         on_checkpoint: Default::default(),
     };
@@ -134,7 +134,7 @@ fn sample_home(range: f32) -> AirHome {
         respawn_secs: None,
         beam_in_secs: 0.0,
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
         until_checkpoint: None,
         on_checkpoint: Default::default(),
     };
@@ -179,7 +179,7 @@ fn stationary_nested_maps_do_not_restart_completed_home_samples() {
             pause_ticks: 0,
             phase_ticks: 0,
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
         }],
         ..Default::default()
     };
@@ -235,7 +235,7 @@ fn only_obstacle_motion_near_the_home_restarts_sampling() {
                 pause_ticks: 30,
                 phase_ticks: 0,
                 switch: None,
-                switch_inverted: false,
+                initially_on: true,
             }],
             walls: vec![Wall {
                 carrier: CarrierId(1),

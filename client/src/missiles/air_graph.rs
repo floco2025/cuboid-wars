@@ -6,7 +6,7 @@ use common::{
     config::MapGeometryConfig,
     map::{Carriers, MapGeometry},
     physics::CollisionWorld,
-    protocol::{BarrierId, CarrierId, MissileAirGrid},
+    protocol::{CarrierId, FieldId, MissileAirGrid},
 };
 
 use super::{
@@ -63,14 +63,14 @@ impl AirGraph {
         &self,
         carriers: &Carriers,
         world: &CollisionWorld,
-        open_kinds: &[BarrierId],
+        open_fields: &[FieldId],
         from: Vec3,
         to: Vec3,
         radius: f32,
         fuse_distance: f32,
     ) -> Option<VecDeque<Vec3>> {
-        let clear = |a: Vec3, b: Vec3| sweep_clear(world, open_kinds, a, b - a, radius);
-        let approach = |from| terminal_approach(world, open_kinds, from, to, radius, fuse_distance);
+        let clear = |a: Vec3, b: Vec3| sweep_clear(world, open_fields, a, b - a, radius);
+        let approach = |from| terminal_approach(world, open_fields, from, to, radius, fuse_distance);
         if let Some(end) = approach(from) {
             return Some(VecDeque::from([end]));
         }

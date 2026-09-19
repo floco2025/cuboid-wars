@@ -11,7 +11,7 @@ use common::{
     config::MissilesConfig,
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{BarrierId, Position},
+    protocol::{FieldId, Position},
 };
 use std::collections::VecDeque;
 
@@ -36,7 +36,7 @@ pub fn guide_missile(
     air_graph: &AirGraph,
     carriers: &Carriers,
     world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     pos: Position,
     target: Option<Vec3>,
     velocity: Vec3,
@@ -52,11 +52,21 @@ pub fn guide_missile(
     if let Some(target) = target {
         let origin = Vec3::from(pos);
         velocity = guided_velocity(
-            info, config, air_graph, carriers, world, open_kinds, origin, target, velocity, speed, delta,
+            info,
+            config,
+            air_graph,
+            carriers,
+            world,
+            open_fields,
+            origin,
+            target,
+            velocity,
+            speed,
+            delta,
         );
         if let Some(closest) = proximity_detonation(
             world,
-            open_kinds,
+            open_fields,
             origin,
             velocity * delta,
             target,
@@ -78,7 +88,7 @@ pub fn guide_missile(
 
 fn proximity_detonation(
     world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     origin: Vec3,
     travel: Vec3,
     target: Vec3,
@@ -86,8 +96,8 @@ fn proximity_detonation(
 ) -> Option<Vec3> {
     let closest = closest_point_on_segment(origin, travel, target);
     (closest.distance_squared(target) <= fuse_distance * fuse_distance
-        && world.attack_path_clear(closest, target, open_kinds)
-        && travel_clear(world, open_kinds, origin, closest - origin, MISSILE_RADIUS))
+        && world.attack_path_clear(closest, target, open_fields)
+        && travel_clear(world, open_fields, origin, closest - origin, MISSILE_RADIUS))
     .then_some(closest)
 }
 
@@ -97,7 +107,7 @@ fn guided_velocity(
     air_graph: &AirGraph,
     carriers: &Carriers,
     world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     origin: Vec3,
     target: Vec3,
     velocity: Vec3,
@@ -109,7 +119,7 @@ fn guided_velocity(
     let aim = lead_point(origin, target, target_velocity, speed);
     let objective = if terminal_approach(
         world,
-        open_kinds,
+        open_fields,
         origin,
         target,
         MISSILE_RADIUS,
@@ -120,13 +130,13 @@ fn guided_velocity(
         info.path.clear();
         info.path_target = None;
         info.path_retry_timer = 0.0;
-        let aim = if sweep_clear(world, open_kinds, origin, aim - origin, MISSILE_RADIUS) {
+        let aim = if sweep_clear(world, open_fields, origin, aim - origin, MISSILE_RADIUS) {
             aim
         } else {
             target
         };
         let woven = homing_objective(info, config, origin, aim);
-        if sweep_clear(world, open_kinds, origin, woven, MISSILE_RADIUS) {
+        if sweep_clear(world, open_fields, origin, woven, MISSILE_RADIUS) {
             woven
         } else {
             aim - origin
@@ -136,7 +146,7 @@ fn guided_velocity(
         air_graph,
         carriers,
         world,
-        open_kinds,
+        open_fields,
         origin,
         target,
         MISSILE_RADIUS,
@@ -145,14 +155,14 @@ fn guided_velocity(
     ) {
         direction
     } else {
-        dodge_objective(info, world, open_kinds, origin, target, speed, delta)
+        dodge_objective(info, world, open_fields, origin, target, speed, delta)
     };
     let lookahead_secs = ((origin.distance(target) - config.proximity_fuse_distance).max(0.0)
         / speed.max(f32::EPSILON))
     .clamp(delta, MISSILE_TURN_LOOKAHEAD_SECS.max(delta));
     steer_clear(
         world,
-        open_kinds,
+        open_fields,
         origin,
         velocity,
         objective,
@@ -182,7 +192,7 @@ fn route_objective(
     air_graph: &AirGraph,
     carriers: &Carriers,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     origin: Vec3,
     target_center: Vec3,
     radius: f32,
@@ -201,7 +211,7 @@ fn route_objective(
             origin,
             target_center,
             collision_world,
-            open_kinds,
+            open_fields,
             radius,
             fuse_distance,
         )
@@ -210,7 +220,7 @@ fn route_objective(
             .path(
                 carriers,
                 collision_world,
-                open_kinds,
+                open_fields,
                 origin,
                 target_center,
                 radius,
@@ -221,7 +231,7 @@ fn route_objective(
         info.path_retry_timer = MISSILE_PATH_RETRY_SECS;
     }
     let found_route = !info.path.is_empty();
-    advance_waypoints(&mut info.path, origin, collision_world, open_kinds, radius);
+    advance_waypoints(&mut info.path, origin, collision_world, open_fields, radius);
     if found_route && info.path.is_empty() {
         // An empty route reads as clear, so nothing would ask the graph again
         // for the whole retry window; a route that went unreachable asks on the
@@ -240,7 +250,7 @@ fn route_objective(
 fn dodge_objective(
     info: &mut MissileFlight,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     origin: Vec3,
     aim_point: Vec3,
     missile_speed: f32,
@@ -253,7 +263,7 @@ fn dodge_objective(
         info.avoid_timer > 0.0
             && sweep_clear(
                 collision_world,
-                open_kinds,
+                open_fields,
                 origin,
                 *dir * lookahead_distance,
                 MISSILE_RADIUS,
@@ -262,7 +272,7 @@ fn dodge_objective(
     let chosen = committed.or_else(|| {
         let picked = pick_clear_direction(
             collision_world,
-            open_kinds,
+            open_fields,
             origin,
             desired,
             lookahead_distance,
@@ -280,31 +290,31 @@ fn route_clear(
     origin: Vec3,
     target: Vec3,
     world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     radius: f32,
     fuse_distance: f32,
 ) -> bool {
     let mut previous = origin;
     path.iter().all(|point| {
-        let clear = sweep_clear(world, open_kinds, previous, *point - previous, radius);
+        let clear = sweep_clear(world, open_fields, previous, *point - previous, radius);
         previous = *point;
         clear
     }) && path
         .back()
-        .is_none_or(|end| terminal_approach(world, open_kinds, *end, target, radius, fuse_distance).is_some())
+        .is_none_or(|end| terminal_approach(world, open_fields, *end, target, radius, fuse_distance).is_some())
 }
 
 fn advance_waypoints(
     path: &mut VecDeque<Vec3>,
     origin: Vec3,
     world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     radius: f32,
 ) {
     // Near a corner is not past it: skip only waypoints with a clear shortcut.
     if let Some(index) = path
         .iter()
-        .rposition(|point| sweep_clear(world, open_kinds, origin, *point - origin, radius))
+        .rposition(|point| sweep_clear(world, open_fields, origin, *point - origin, radius))
     {
         path.drain(..index);
     } else {

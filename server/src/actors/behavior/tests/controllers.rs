@@ -1,6 +1,6 @@
 use super::*;
 use crate::test_geometry::WALL_THICKNESS;
-use common::protocol::BarrierId;
+use common::protocol::{BarrierId, FieldId};
 
 #[test]
 fn contact_actor_engages_reachable_ground_player() {
@@ -481,14 +481,14 @@ fn beam_actor_sees_a_player_through_a_barrier_but_waits_for_a_clear_attack() {
     let mut fixture = Fixture::new(BEAM);
     let actor_pos = fixture.pos(1, 2);
     let target = fixture.pos(3, 2);
-    let kind = BarrierKindId(0);
+    let kind = FieldKindId(0);
     let x = (actor_pos.x + target.x) / 2.0;
     let layout = MapLayout {
         barriers: vec![Barrier {
             id: Default::default(),
 
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
 
             x1: x,
             x2: x,
@@ -525,8 +525,8 @@ fn beam_actor_sees_a_player_through_a_barrier_but_waits_for_a_clear_attack() {
     let mut context = fixture.context(BEAM, actor_pos);
     assert!(decide_beam_actor(&mut info, &context, &mut rng).is_none());
     assert!(matches!(info.beam, BeamState::Ready));
-    let opened = [BarrierId(u32::from(kind.0))];
-    context.open_barriers = &opened;
+    let opened = [FieldId::Barrier(BarrierId(u32::from(kind.0)))];
+    context.open_fields = &opened;
     assert!(decide_beam_actor(&mut info, &context, &mut rng).is_some());
 }
 
@@ -573,14 +573,14 @@ fn closing_a_barrier_immediately_stops_an_immovable_actor() {
     let mut fixture = Fixture::new(IMMOVABLE);
     let origin = fixture.pos(1, 2);
     let target = fixture.pos(3, 2);
-    let kind = BarrierKindId(0);
+    let kind = FieldKindId(0);
     let x = (origin.x + target.x) / 2.0;
     fixture.collision_world = CollisionWorld::from_map_layout(&MapLayout {
         barriers: vec![Barrier {
             id: Default::default(),
 
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
 
             x1: x,
             x2: x,
@@ -599,14 +599,14 @@ fn closing_a_barrier_immediately_stops_an_immovable_actor() {
     let mut state = info(IMMOVABLE);
     state.awareness.push(aware(7, target, CharacterSupport::Ground, true));
     let mut context = fixture.context(IMMOVABLE, origin);
-    let opened = [BarrierId(u32::from(kind.0))];
-    context.open_barriers = &opened;
+    let opened = [FieldId::Barrier(BarrierId(u32::from(kind.0)))];
+    context.open_fields = &opened;
     decide_stationary_actor(&mut state, &context);
     assert_eq!(state.beam.target(), Some(PlayerId(7)));
-    context.open_barriers = &[];
+    context.open_fields = &[];
     retarget_beam(&mut state, &context);
     assert!(matches!(state.beam, BeamState::Cooldown { .. }));
-    context.open_barriers = &opened;
+    context.open_fields = &opened;
     assert!(decide_stationary_actor(&mut state, &context).is_none());
     let cooldown = context
         .kind_config

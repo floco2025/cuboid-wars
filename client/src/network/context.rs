@@ -9,11 +9,12 @@ use common::{
 
 use crate::{
     actors::{ActorGhostMap, ActorMap},
-    barriers::{BarrierAssets, LockedSwitches},
+    barriers::LockedSwitches,
     cameras::MainCameraMarker,
     carriers::{CarrierEntities, CarrierStoreys},
     characters::MaxHealth,
     config::{AssetSet, ClientSettings},
+    fields::FieldAssets,
     fields::SharedCheckpoint,
     input::PendingWeaponSelection,
     items::{ItemAssets, ItemMap},
@@ -36,7 +37,7 @@ pub(super) struct PresentationAssets<'w> {
     pub(super) asset_server: Res<'w, AssetServer>,
     pub(super) asset_set: Res<'w, AssetSet>,
     pub(super) item_assets: Res<'w, ItemAssets>,
-    pub(super) barrier_assets: Res<'w, BarrierAssets>,
+    pub(super) field_assets: Res<'w, FieldAssets>,
     pub(super) missile_assets: Res<'w, MissileAssets>,
     pub(super) portal_fizzle_assets: Res<'w, PortalFizzleAssets>,
     pub(super) portal_assets: Res<'w, PortalAssets>,

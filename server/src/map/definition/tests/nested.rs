@@ -1,11 +1,14 @@
 use super::*;
-use common::protocol::CarrierMotion;
+use common::{
+    map::Carriers,
+    protocol::{CarrierMotion, SwitchState},
+};
 use map_core::schema::CheckpointDef;
 
 fn motion(level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> MotionDef {
     MotionDef {
         motion: Default::default(),
-        switch_inverted: false,
+        initially_on: true,
 
         level,
         from,
@@ -32,7 +35,7 @@ fn barrier_corridor() -> MapDef {
     for (col, kind) in [(1, "red"), (2, "blue")] {
         map.levels[0].barriers.push(BarrierDef {
             switch: (kind == "red").then(|| "red".into()),
-            switch_inverted: false,
+            initially_on: kind != "red",
 
             c0: col,
             r0: 0,
@@ -79,13 +82,8 @@ fn a_nested_plate_allows_actor_routes_through_parent_barriers() {
     root.nested_maps.push(nested("switch", 0, [0, 1], [1, 1], 0));
     let mut switch = host(Vec::new());
     switch.pressure_plates.push(red_barrier_plate());
-    let (_, config) = compile_with(
-        &root,
-        &tree(vec![("switch", switch)]),
-        &three_kind_table(),
-        &no_bridges(),
-    )
-    .expect("nested plate map failed to compile");
+    let (_, config) = compile_with(&root, &tree(vec![("switch", switch)]), &three_kind_table())
+        .expect("nested plate map failed to compile");
 
     assert_only_plate_barrier_allows_a_route(&config, CarrierId::WORLD);
 }
@@ -98,7 +96,6 @@ fn a_parent_plate_allows_actor_routes_through_nested_barriers() {
         &root,
         &tree(vec![("corridor", barrier_corridor())]),
         &three_kind_table(),
-        &no_bridges(),
     )
     .expect("nested barrier map failed to compile");
 
@@ -122,7 +119,6 @@ fn a_deeply_nested_plate_allows_actor_routes_through_a_siblings_barriers() {
             ("switch", switch),
         ]),
         &three_kind_table(),
-        &no_bridges(),
     )
     .expect("deeply nested plate map failed to compile");
 
@@ -134,7 +130,7 @@ fn firework_plate_does_not_open_any_barrier_kind() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         c0: 1,
         r0: 0,
@@ -149,12 +145,12 @@ fn firework_plate_does_not_open_any_barrier_kind() {
         switch: FIREWORKS.into(),
     });
 
-    let (layout, config) = compile_with(&map_def, &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
+    let (layout, config) = compile_with(&map_def, &no_nested(), &three_kind_table()).expect("compile");
     assert!(
         config.root_grid().levels[0].barrier_edges.vertical[0][1],
         "a firework plate opens no barrier kind for nav"
     );
-    let fireworks = switch_id(&three_kind_table(), &no_bridges(), FIREWORKS);
+    let fireworks = switch_id(&three_kind_table(), FIREWORKS);
     assert_eq!(config.pressure_plates[0].switch, fireworks);
     assert_eq!(layout.pressure_plates[0].switch, fireworks);
 }
@@ -222,14 +218,16 @@ fn tree(maps: Vec<(&str, MapDef)>) -> LoadedMaps {
 }
 
 fn compile_host(host: &MapDef, nested: &LoadedMaps) -> (common::protocol::MapLayout, crate::map::MapConfig) {
-    compile_with(host, nested, &empty_kind_table(), &no_bridges()).expect("host failed to compile")
+    compile_with(host, nested, &empty_kind_table()).expect("host failed to compile")
 }
 
 #[test]
-fn validation_rejects_nested_map_with_path_unsafe_name() {
-    let map_def = host(vec![nested("../secret", 0, [2, 2], [2, 2], 0)]);
-    let error = validate_map(&map_def).expect_err("path-unsafe nested name accepted");
-    assert!(error.to_string().contains("nested_maps[0]"), "{error}");
+fn a_nested_map_name_may_hold_spaces_but_not_surround_itself_with_them() {
+    validate_map(&host(vec![nested("shuttle access", 0, [2, 2], [2, 2], 0)])).expect("a spaced name rejected");
+    for name in ["", " room"] {
+        let error = validate_map(&host(vec![nested(name, 0, [2, 2], [2, 2], 0)])).expect_err("a padded name accepted");
+        assert!(error.to_string().contains("nested_maps[0]"), "{error}");
+    }
 }
 
 #[test]
@@ -374,7 +372,7 @@ fn nested_kinds_resolve_against_the_root_tables_and_an_unknown_kind_names_the_ne
     let mut keyed_room = room();
     keyed_room.levels[0].barriers.push(BarrierDef {
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         c0: 1,
         r0: 0,
@@ -385,12 +383,12 @@ fn nested_kinds_resolve_against_the_root_tables_and_an_unknown_kind_names_the_ne
     let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
     let nested_maps = tree(vec![("room", keyed_room)]);
 
-    let (layout, _) = compile_with(&host_def, &nested_maps, &red_only_kind_table(), &no_bridges())
+    let (layout, _) = compile_with(&host_def, &nested_maps, &red_only_kind_table())
         .expect("a nested barrier of a root kind failed to compile");
     assert_eq!(layout.barriers.len(), 1);
 
-    let error = compile_with(&host_def, &nested_maps, &empty_kind_table(), &no_bridges())
-        .expect_err("an unknown nested kind compiled");
+    let error =
+        compile_with(&host_def, &nested_maps, &empty_kind_table()).expect_err("an unknown nested kind compiled");
     assert!(format!("{error:#}").contains("nested map \"room\""), "{error:#}");
 }
 
@@ -451,20 +449,15 @@ fn a_nested_map_names_the_switch_that_runs_its_carrier() {
     entry.motion.motion = CarrierMotion::FollowSwitch;
     let host_def = host(vec![entry]);
     let (layout, _) = compile_host(&host_def, &tree(vec![("room", room())]));
-    let fireworks = switch_id(&empty_kind_table(), &no_bridges(), FIREWORKS);
+    let fireworks = switch_id(&empty_kind_table(), FIREWORKS);
     assert_eq!(layout.carriers[0].switch, Some(fireworks));
     assert_eq!(layout.carriers[0].motion, CarrierMotion::FollowSwitch);
 
     let mut entry = nested("room", 0, [2, 2], [2, 5], 0);
     entry.motion.switch = Some("void".into());
     let host_def = host(vec![entry]);
-    let error = compile_with(
-        &host_def,
-        &tree(vec![("room", room())]),
-        &empty_kind_table(),
-        &no_bridges(),
-    )
-    .expect_err("an unknown carrier switch compiled");
+    let error = compile_with(&host_def, &tree(vec![("room", room())]), &empty_kind_table())
+        .expect_err("an unknown carrier switch compiled");
     assert!(format!("{error:#}").contains("unknown switch"), "{error:#}");
 
     let mut plateless = room();
@@ -472,16 +465,11 @@ fn a_nested_map_names_the_switch_that_runs_its_carrier() {
     let mut entry = nested("room", 0, [2, 2], [2, 5], 0);
     entry.motion.switch = Some(FIREWORKS.into());
     let host_def = host(vec![entry]);
-    let error = compile_with(
-        &host_def,
-        &tree(vec![("room", plateless)]),
-        &empty_kind_table(),
-        &no_bridges(),
-    )
-    .expect_err("a carrier on an unplated switch compiled");
-    assert!(
-        format!("{error:#}").contains("operated by no pressure plate"),
-        "{error:#}"
+    let (layout, _) = compile_with(&host_def, &tree(vec![("room", plateless)]), &empty_kind_table())
+        .expect("a carrier on a switch with no plate yet rejected");
+    assert_eq!(
+        layout.carriers[0].switch,
+        Some(switch_id(&empty_kind_table(), FIREWORKS))
     );
 }
 
@@ -500,15 +488,22 @@ fn motion_defaults_to_cycle_and_requires_a_known_mode() {
 }
 
 #[test]
-fn follow_switch_motion_requires_a_switch_assignment() {
-    let mut entry = nested("room", 0, [2, 2], [2, 5], 0);
-    entry.motion.motion = CarrierMotion::FollowSwitch;
-    let mut map = host(vec![entry]);
-    let error = validate_map(&map).expect_err("unassigned follow motion accepted");
-    assert!(
-        format!("{error:#}").contains("Follow switch motion requires a switch"),
-        "{error:#}"
-    );
-    map.nested_maps[0].motion.switch = Some(FIREWORKS.into());
-    validate_map(&map).expect("assigned follow motion rejected");
+fn follow_switch_motion_without_a_switch_rests_at_its_initial_end() {
+    for initially_on in [false, true] {
+        let mut entry = nested("room", 0, [2, 2], [2, 5], 0);
+        entry.motion.motion = CarrierMotion::FollowSwitch;
+        entry.motion.initially_on = initially_on;
+        let map = host(vec![entry]);
+        validate_map(&map).expect("follow motion with no switch yet rejected");
+        let (layout, _) =
+            compile_with(&map, &tree(vec![("room", room())]), &empty_kind_table()).expect("host failed to compile");
+        let carrier = layout.carriers[0];
+        let end = Vec3::from(if initially_on { carrier.to } else { carrier.from });
+        let mut carriers = Carriers::from_layout(&layout);
+        for tick in [0, 1, 500] {
+            carriers.advance(tick, &SwitchState::default());
+            let at = carriers.pose(CarrierId(1)).translation;
+            assert!(at.abs_diff_eq(end, 1e-4), "tick {tick}: {at} is not {end}");
+        }
+    }
 }

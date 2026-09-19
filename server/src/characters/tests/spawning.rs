@@ -4,7 +4,7 @@ use crate::{
     map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
-use common::protocol::{Barrier, BarrierKindId, Carrier, CarrierId, Checkpoint, CheckpointKind, MapLayout, Wall};
+use common::protocol::{Barrier, Carrier, CarrierId, Checkpoint, CheckpointKind, FieldKindId, MapLayout, Wall};
 
 fn empty_layout() -> MapLayout {
     MapLayout::default()
@@ -99,7 +99,7 @@ fn floor_level(cols: i32, rows: i32, floored: &[(i32, i32)]) -> LevelGrid {
 fn resting_carrier(rest: Position) -> Carrier {
     Carrier {
         motion: Default::default(),
-        switch_inverted: false,
+        initially_on: true,
 
         parent: CarrierId::WORLD,
         level: 0,
@@ -129,7 +129,7 @@ fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, A
         ..MapLayout::default()
     });
     let zone = ActorSpawnZone {
-        switch_inverted: false,
+        initially_on: true,
 
         carrier: CarrierId(1),
         level: 0,
@@ -230,7 +230,7 @@ fn immovable_spawn_checks_every_cell_before_reporting_a_full_zone() {
         geometry(120, 1),
     );
     let zone = ActorSpawnZone {
-        switch_inverted: false,
+        initially_on: true,
 
         carrier: CarrierId::WORLD,
         level: 0,
@@ -283,7 +283,7 @@ fn immovable_spawn_waits_instead_of_shifting_away_from_an_obstructed_center() {
     let world = collision_world(&layout);
     let map = MapConfig::for_grid(vec![floor_level(2, 2, &[(1, 1)])], geometry);
     let zone = ActorSpawnZone {
-        switch_inverted: false,
+        initially_on: true,
 
         carrier: CarrierId::WORLD,
         level: 0,
@@ -374,7 +374,7 @@ fn checkpoint_spawns_follow_carriers_keep_off_the_flag_and_avoid_bodies_and_barr
             id: Default::default(),
 
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
 
             x1: checkpoint.min_x,
             z1: geometry.cell_center_z(1),
@@ -383,7 +383,7 @@ fn checkpoint_spawns_follow_carriers_keep_off_the_flag_and_avoid_bodies_and_barr
             y: 0.0,
             height: 3.0,
             width: geometry.cell_size(),
-            kind: BarrierKindId(0),
+            kind: FieldKindId(0),
             level: 0,
             levels: 1,
             carrier: zone.carrier,

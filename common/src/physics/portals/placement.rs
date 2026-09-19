@@ -20,7 +20,7 @@ use crate::{
     map::Carriers,
     math::{direction_from_yaw_pitch, rapier_pose},
     physics::CollisionWorld,
-    protocol::{BarrierId, CarrierId, MapLayout, Portal, PortalEnd, PortalPairId, TextureSettings, WallLight},
+    protocol::{CarrierId, FieldId, MapLayout, Portal, PortalEnd, PortalPairId, TextureSettings, WallLight},
 };
 
 // Where a validated portal shot lands: the aperture center (world space),
@@ -70,11 +70,11 @@ pub fn compute_portal_placement(
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
     carriers: &Carriers,
-    open_barriers: &[BarrierId],
+    open_fields: &[FieldId],
     textures: &BTreeMap<String, TextureSettings>,
 ) -> Result<PortalPlacement, PortalPlacementFailure> {
     let hit = collision_world
-        .portal_surface_along_ray(origin, direction, range, open_barriers)
+        .portal_surface_along_ray(origin, direction, range, open_fields)
         .ok_or(PortalPlacementFailure::InvalidPlacement)?;
     let yaw = portal_placement_yaw(hit.normal, yaw);
     let impact = PortalPlacement {
@@ -84,9 +84,9 @@ pub fn compute_portal_placement(
         carrier: hit.carrier,
     };
     let frame = PortalFrame::from_surface(hit.point, hit.normal, yaw);
-    let (pos, carrier) = portal_fits(&frame, collision_world, map_layout, carriers)
+    let (pos, carrier) = portal_fits(&frame, collision_world, map_layout, carriers, open_fields)
         .map(|carrier| (hit.point, carrier))
-        .or_else(|| nudged_center(&frame, collision_world, map_layout, carriers, |_| true))
+        .or_else(|| nudged_center(&frame, collision_world, map_layout, carriers, open_fields, |_| true))
         .ok_or(PortalPlacementFailure::InvalidPlacement)?;
     // Space wins over material feedback, including shots that need a placement nudge.
     if !collision_world.portal_surface_allows(&hit, map_layout, textures) {
@@ -97,8 +97,15 @@ pub fn compute_portal_placement(
     if materials_allow(&PortalFrame { center: pos, ..frame }) {
         return Ok(PortalPlacement { pos, carrier, ..impact });
     }
-    let (pos, carrier) = nudged_center(&frame, collision_world, map_layout, carriers, materials_allow)
-        .ok_or(PortalPlacementFailure::IncompatibleMaterial(impact))?;
+    let (pos, carrier) = nudged_center(
+        &frame,
+        collision_world,
+        map_layout,
+        carriers,
+        open_fields,
+        materials_allow,
+    )
+    .ok_or(PortalPlacementFailure::IncompatibleMaterial(impact))?;
     Ok(PortalPlacement { pos, carrier, ..impact })
 }
 
@@ -127,6 +134,7 @@ fn nudged_center(
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
     carriers: &Carriers,
+    open_fields: &[FieldId],
     accepts: impl Fn(&PortalFrame) -> bool,
 ) -> Option<(Vec3, CarrierId)> {
     let steps = (NUDGE_MAX_DISTANCE / NUDGE_STEP) as usize;
@@ -136,7 +144,7 @@ fn nudged_center(
             let angle = FRAC_PI_2 + direction as f32 / NUDGE_DIRECTIONS as f32 * TAU;
             let center = frame.center + frame.right * (radius * angle.cos()) + frame.up * (radius * angle.sin());
             let candidate = PortalFrame { center, ..*frame };
-            if let Some(carrier) = portal_fits(&candidate, collision_world, map_layout, carriers)
+            if let Some(carrier) = portal_fits(&candidate, collision_world, map_layout, carriers, open_fields)
                 && accepts(&candidate)
             {
                 return Some((center, carrier));
@@ -157,7 +165,7 @@ const FIT_FRONT_RIM_SEGMENTS: usize = 64;
 
 // The portal must actually work as a hole: every sample around its visible
 // rim needs solid surface BEHIND the plane (no hanging past an edge) and
-// clear space IN FRONT of it (no floor slab, powered light bridge, or
+// clear space IN FRONT of it (no floor slab, solid light bridge, or
 // abutting wall cutting through the oval). On top of the geometry, the
 // aperture must not cover surface fixtures: wall lights, and pressure plates
 // for standable portals. Returns the carrier that backs the fitting aperture.
@@ -166,13 +174,19 @@ fn portal_fits(
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
     carriers: &Carriers,
+    open_fields: &[FieldId],
 ) -> Option<CarrierId> {
     // Sweep the oval itself so geometry outside the visible rim cannot make
     // a portal float above a ramp, while geometry crossing the opening still
     // rejects between the backing probes.
     let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
     let front_center = frame.center + frame.normal * (FIT_FRONT_GAP + FIT_FRONT_DEPTH / 2.0);
-    if collision_world.oriented_shape_overlaps_surface(front_center, rotation, front_clearance_shape().as_ref()) {
+    if collision_world.oriented_shape_overlaps_surface(
+        front_center,
+        rotation,
+        front_clearance_shape().as_ref(),
+        open_fields,
+    ) {
         return None;
     }
     // Each sample must meet a surface parallel to the shot face, and every

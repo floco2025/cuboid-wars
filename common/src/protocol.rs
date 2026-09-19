@@ -376,7 +376,7 @@ pub struct SInit {
     pub current_tick: u32,
     pub celestial_clock: CelestialClockAnchor,
     // The switch state and which switches a quest still locks at login,
-    // so an inverted target is right at rest before the first snapshot.
+    // so every target is in its state before the first snapshot.
     pub switch_state: SwitchState,
     pub locked_switches: Vec<SwitchId>,
 }
@@ -429,12 +429,11 @@ pub struct SSnapshot {
     pub items: Vec<(ItemId, Item)>,
     // Seeds joining observers and repeats the latest owner samples.
     pub missiles: Vec<(MissileId, Missile)>,
-    // The current switch state: the active switches, the
-    // open barrier instances (the client hides them; the server unions them with
-    // each player's `held_keys` for the collision filter), the powered
-    // bridge instances (solid and lit on both sides), and each switched
-    // carrier's run (both sides place it from that and the tick). Empty on
-    // maps with no switches.
+    // The current switch state: the active switches, the barrier and light
+    // bridge instances that are off (both sides fade them and let bodies
+    // through, and the owning client unions them with its `held_keys` for
+    // the collision filter), and each switched carrier's run (both sides
+    // place it from that and the tick).
     pub switch_state: SwitchState,
     // Unlocked `shared` / `everyone` quests. Completed quests stay listed
     // for the session so late joiners and clients that missed updates catch up.
@@ -621,7 +620,7 @@ pub struct SPlayerStatus {
     // Held key inventory. Kept sorted ascending on the server so the encoded
     // bytes are deterministic and the client can change-detect via a single
     // equality test.
-    pub held_keys: Vec<BarrierKindId>,
+    pub held_keys: Vec<FieldKindId>,
     pub missiles: u32,
 }
 

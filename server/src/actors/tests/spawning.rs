@@ -48,7 +48,7 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
     map.actor_spawn_zones = counts
         .iter()
         .map(|&count| ActorSpawnZone {
-            switch_inverted: false,
+            initially_on: true,
 
             carrier: CarrierId::WORLD,
             level: 0,
@@ -322,7 +322,7 @@ fn pending_spawn(id: u32, due_tick: u32) -> PendingActorSpawn {
 fn a_pending_spawn_on_a_carrier_materializes_where_the_carrier_is_now() {
     let carrier = Carrier {
         motion: Default::default(),
-        switch_inverted: false,
+        initially_on: true,
 
         parent: CarrierId::WORLD,
         level: 0,
@@ -357,7 +357,7 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
     let map_config = MapConfig {
         actor_spawn_zones: vec![
             ActorSpawnZone {
-                switch_inverted: false,
+                initially_on: true,
 
                 carrier: CarrierId::WORLD,
                 level: 0,
@@ -374,7 +374,7 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 on_checkpoint: Default::default(),
             },
             ActorSpawnZone {
-                switch_inverted: false,
+                initially_on: true,
 
                 carrier: CarrierId::WORLD,
                 level: 0,
@@ -475,7 +475,9 @@ const GUARDS: SwitchId = SwitchId(0);
 // A one-zone app whose zone is operated by `GUARDS`, switched off.
 fn switched_app(respawn_secs: Option<f32>, count: u32) -> App {
     let mut app = spawn_app_for(CONTACT, 3, &[count], respawn_secs);
-    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch = Some(GUARDS);
+    let zone = &mut app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0];
+    zone.switch = Some(GUARDS);
+    zone.initially_on = false;
     app
 }
 
@@ -674,9 +676,9 @@ fn expediting_respawns_makes_a_switched_off_zone_due_for_its_switch() {
 }
 
 #[test]
-fn an_inverted_zone_fills_at_boot_while_its_switch_is_off_and_holds_once_it_turns_on() {
+fn a_zone_that_starts_on_fills_at_boot_and_holds_once_its_switch_turns_on() {
     let mut app = switched_app(Some(0.0), 2);
-    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch_inverted = true;
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].initially_on = true;
     app.update();
     assert_eq!(pending_count(&app), 2);
     materialize_pending(&mut app);
@@ -693,9 +695,9 @@ fn an_inverted_zone_fills_at_boot_while_its_switch_is_off_and_holds_once_it_turn
 }
 
 #[test]
-fn an_inverted_zone_that_boots_switched_on_waits_for_the_switch_to_turn_off() {
+fn a_zone_that_starts_on_but_boots_switched_waits_for_the_switch_to_turn_off() {
     let mut app = switched_app(Some(1000.0), 2);
-    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch_inverted = true;
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].initially_on = true;
     set_switch(&mut app, true);
     app.update();
     assert_eq!(pending_count(&app), 0);
@@ -917,7 +919,9 @@ fn rejoining_does_not_add_actors_while_the_zone_already_has_its_quota() {
 #[test]
 fn switched_off_join_slots_survive_until_enabled_and_shrink_when_players_leave() {
     let mut app = scaled_app(6, &[2, 4, 5], None);
-    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch = Some(GUARDS);
+    let zone = &mut app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0];
+    zone.switch = Some(GUARDS);
+    zone.initially_on = false;
     set_switch(&mut app, true);
     app.update();
     materialize_pending(&mut app);

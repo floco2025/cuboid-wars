@@ -288,7 +288,7 @@ pub(crate) fn slider() -> (Carrier, Floor) {
     (
         Carrier {
             motion: Default::default(),
-            switch_inverted: false,
+            initially_on: true,
 
             parent: CarrierId::WORLD,
             level: 0,
@@ -352,7 +352,7 @@ pub(crate) fn test_environment<'a>(
     CharacterEnvironment {
         collision_world: world,
         gravity: TEST_GRAVITY,
-        passable_kinds: &[],
+        passable_fields: &[],
         physics,
         ladder_climb_ratio: TEST_LADDER_CLIMB_RATIO,
         ladder_mode,

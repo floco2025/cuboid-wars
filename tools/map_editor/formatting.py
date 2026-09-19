@@ -79,9 +79,8 @@ def format_map_file(wrapper: dict, *, root: bool = True) -> str:
     lines = ["{", '  "map": {']
     if "switches" in map_data:
         lines.append(f'    "switches": {json.dumps(map_data["switches"])},')
-    for key in ("barrier_kinds", "bridge_kinds"):
-        if key in map_data:
-            lines.extend(_catalog_lines(key, map_data[key]))
+    if "field_kinds" in map_data:
+        lines.extend(_catalog_lines("field_kinds", map_data["field_kinds"]))
     if root or "fireworks" in map_data:
         lines.append(f'    "fireworks": {json.dumps(map_data.get("fireworks"))},')
     lines += [

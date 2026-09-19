@@ -6,7 +6,7 @@ use crate::{
     test_geometry::geometry,
 };
 use common::protocol::{
-    BarrierKindId, CarrierId, Checkpoint, CheckpointKind, Floor, Lane, MapLayout, PlayerGeneration, PortalMode,
+    CarrierId, Checkpoint, CheckpointKind, FieldKindId, Floor, Lane, MapLayout, PlayerGeneration, PortalMode,
     PowerUpKind,
 };
 use crossbeam_channel::unbounded;
@@ -88,7 +88,7 @@ fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
     info.connection.logged_in = true;
     info.session.score = 5;
     info.life.missiles = 3;
-    info.life.held_keys.push(BarrierKindId(1));
+    info.life.held_keys.push(FieldKindId(1));
     info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Permanent;
     app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
     app.update();
@@ -115,7 +115,7 @@ fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
     assert_eq!(relocation.player.health.0, 37.0);
     assert_eq!(relocation.player.score, 5);
     assert_eq!(relocation.player.missiles, 3);
-    assert_eq!(relocation.player.held_keys, [BarrierKindId(1)]);
+    assert_eq!(relocation.player.held_keys, [FieldKindId(1)]);
     assert!(relocation.player.power_up(PowerUpKind::Speed));
     assert_eq!(
         *app.world().get::<Position>(entity).expect("position missing"),

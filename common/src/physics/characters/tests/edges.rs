@@ -32,8 +32,8 @@ fn stable_capsule_overhang_remains_supported_without_forced_slide() {
         velocity = step.vertical_velocity;
     }
     assert!((pos.x - start_x).abs() < 0.01, "stable contact drifted: {pos:?}");
-    assert!(position_has_floor_support(&world, &pos, player_physics()));
-    assert!(player_jump_velocity(velocity, &world, player_physics(), 12.0, &pos).is_some());
+    assert!(position_has_floor_support(&world, &pos, player_physics(), &[]));
+    assert!(player_jump_velocity(velocity, &world, player_physics(), 12.0, &pos, &[]).is_some());
     assert_eq!(velocity, 0.0);
 }
 
@@ -58,7 +58,7 @@ fn steep_capsule_edge_contact_slides_off_and_falls() {
     );
     assert!(pos.y < floor.y - 1.0);
     assert!(velocity < 0.0);
-    assert!(player_jump_velocity(velocity, &world, player_physics(), 12.0, &pos).is_none());
+    assert!(player_jump_velocity(velocity, &world, player_physics(), 12.0, &pos, &[]).is_none());
 }
 
 #[test]

@@ -12,8 +12,8 @@ use crate::{
 };
 
 use super::{
-    BarrierId, BarrierKindId, BarrierKindTable, BridgeId, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef,
-    Position, SwitchDef, SwitchId, face_materials::FaceMaterials, textures::TextureSettings,
+    BarrierId, BridgeId, CarrierId, FieldKindId, FieldKindTable, ItemType, KindDef, Position, SwitchDef, SwitchId,
+    face_materials::FaceMaterials, textures::TextureSettings,
 };
 
 // Layout records are in their carrier's frame: world space for
@@ -136,12 +136,13 @@ pub struct WallLight {
 
 // `levels` counts the storeys spanned: stacked same-kind barriers with no
 // floor slab beside the edge between them compile into one record
-// (`server/src/map/barriers.rs`).
+// (`server/src/map/barriers.rs`). `initially_on` is its state before any
+// switch input: solid when set, and its switch flips it while active.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Barrier {
     pub id: BarrierId,
     pub switch: Option<SwitchId>,
-    pub switch_inverted: bool,
+    pub initially_on: bool,
 
     pub x1: f32,
     pub z1: f32,
@@ -152,7 +153,7 @@ pub struct Barrier {
     pub height: f32,
     pub level: u8,
     pub levels: u8,
-    pub kind: BarrierKindId,
+    pub kind: FieldKindId,
     pub carrier: CarrierId,
 }
 
@@ -169,15 +170,15 @@ pub struct Eraser {
     pub carrier: CarrierId,
 }
 
-// A switch-powered walkway: one merged rectangle of same-kind cells, a thin
-// slab whose standing surface is `y`. Solid and lit only while its instance is
-// powered (`SwitchState.powered_bridges`, applied to the collider by
-// `CollisionWorld::set_powered_bridges`).
+// A barrier laid flat: one merged rectangle of same-kind cells, a thin slab
+// whose standing surface is `y`. Solid and lit while it is on, a ghost while
+// it is off (`SwitchState.open_fields`); `initially_on` and `switch` read as
+// on a barrier.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct LightBridge {
     pub id: BridgeId,
     pub switch: Option<SwitchId>,
-    pub switch_inverted: bool,
+    pub initially_on: bool,
     pub x1: f32,
     pub z1: f32,
     pub x2: f32,
@@ -185,7 +186,7 @@ pub struct LightBridge {
     pub y: f32,
     pub thickness: f32,
     pub level: u8,
-    pub kind: BridgeKindId,
+    pub kind: FieldKindId,
     pub carrier: CarrierId,
 }
 
@@ -213,13 +214,15 @@ pub enum CarrierMotion {
 // naming this carrier is in its local frame; the carrier's origin sits at
 // `from` in its parent's frame at end 1 and at `to` at end 2.
 // `map::CarrierRun` owns Cycle and FollowSwitch timing, replicated in
-// `SwitchState.carrier_runs`; free cycles use the shared tick.
+// `SwitchState.carrier_runs`; free cycles use the shared tick. `initially_on`
+// is its state before any switch input, which its switch flips while
+// active: a Cycle runs while on, a FollowSwitch heads for end 2.
 // `level` is the parent storey its local level 0 sits on and `levels` the
 // storeys the motion spans, for level focus. Parents precede their children
 // in `MapLayout.carriers`. A moving tile is a nested one-cell map.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Carrier {
-    pub switch_inverted: bool,
+    pub initially_on: bool,
     pub motion: CarrierMotion,
     pub parent: CarrierId,
     pub level: u8,
@@ -412,15 +415,13 @@ pub struct MapSettings {
 
     // The root layout's ordered catalogs, filled by map generation rather
     // than read from settings.json: `switches` assigns this map's stable
-    // `SwitchId` values, each with its activation policy; `barrier_kinds` its
-    // `BarrierKindId` values, shared by barriers and keys; `bridge_kinds`
-    // its `BridgeKindId` values. Each is empty when the map has none.
+    // `SwitchId` values, each with its activation policy; `field_kinds` its
+    // `FieldKindId` values, shared by barriers, light bridges, and keys.
+    // Each is empty when the map has none.
     #[serde(skip)]
     pub switches: Vec<SwitchDef>,
     #[serde(skip)]
-    pub barrier_kinds: Vec<KindDef>,
-    #[serde(skip)]
-    pub bridge_kinds: Vec<KindDef>,
+    pub field_kinds: Vec<KindDef>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
@@ -440,7 +441,7 @@ impl MapItems {
     }
 
     #[must_use]
-    pub fn key_kinds(&self) -> Vec<BarrierKindId> {
+    pub fn key_kinds(&self) -> Vec<FieldKindId> {
         let mut kinds: Vec<_> = self
             .0
             .iter()
@@ -456,10 +457,8 @@ impl MapItems {
 }
 
 impl MapSettings {
-    pub fn kind_tables(&self) -> Result<(BarrierKindTable, BridgeKindTable)> {
-        let barriers = BarrierKindTable::from_defs(&self.barrier_kinds)?;
-        let bridges = BridgeKindTable::from_defs(&self.bridge_kinds)?;
-        Ok((barriers, bridges))
+    pub fn field_kind_table(&self) -> Result<FieldKindTable> {
+        FieldKindTable::from_defs(&self.field_kinds)
     }
 
     #[must_use]

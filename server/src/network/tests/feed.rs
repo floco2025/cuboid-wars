@@ -175,7 +175,7 @@ fn every_death_cause_has_its_wording() {
 
 #[test]
 fn key_found_and_barrier_closed_color_only_the_kind_word() {
-    let kind = BarrierKindId(1);
+    let kind = FieldKindId(1);
     let found = render(FeedEvent::KeyFound {
         name: "Alex".to_owned(),
         kind,

@@ -2,7 +2,7 @@ pub(super) use super::super::{CollisionWorld, colliders::ColliderKind};
 pub(super) use crate::{
     physics::characters::character_movement_shape,
     protocol::{
-        Barrier, BarrierKindId, BridgeKindId, Carrier, CarrierId, Floor, LightBridge, MapLayout, Position, Wall,
+        Barrier, BarrierId, Carrier, CarrierId, FieldId, FieldKindId, Floor, LightBridge, MapLayout, Position, Wall,
     },
     test_geometry::{BARRIER_THICKNESS, BRIDGE_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
@@ -102,7 +102,7 @@ pub(crate) fn slider_layout() -> MapLayout {
     MapLayout {
         carriers: vec![Carrier {
             motion: Default::default(),
-            switch_inverted: false,
+            initially_on: true,
 
             parent: CarrierId::WORLD,
             level: 1,

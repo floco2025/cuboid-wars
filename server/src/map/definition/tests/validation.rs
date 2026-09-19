@@ -83,7 +83,7 @@ fn validation_rejects_actor_zone_with_empty_kind() {
         4,
         vec![level(vec![[0, 0]])],
         vec![ActorSpawnZoneDef {
-            switch_inverted: false,
+            initially_on: true,
 
             level: 0,
 
@@ -115,7 +115,7 @@ fn validation_accepts_unknown_kind_strings() {
         4,
         vec![level(vec![[0, 0]])],
         vec![ActorSpawnZoneDef {
-            switch_inverted: false,
+            initially_on: true,
 
             level: 0,
 
@@ -151,7 +151,7 @@ fn validation_accepts_barrier_on_empty_edge() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         c0: 0,
         r0: 0,
@@ -174,7 +174,7 @@ fn validation_rejects_barrier_overlapping_wall() {
     });
     map_def.levels[0].barriers.push(BarrierDef {
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         c0: 1,
         r0: 0,
@@ -386,7 +386,7 @@ fn validation_rejects_duplicate_barrier() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         c0: 0,
         r0: 0,
@@ -396,7 +396,7 @@ fn validation_rejects_duplicate_barrier() {
     });
     map_def.levels[0].barriers.push(BarrierDef {
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         c0: 1,
         r0: 0,

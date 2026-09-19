@@ -13,8 +13,9 @@ from ..display import color_icon
 
 class ActorSpawnFieldsDialog(QDialog):
     """Modal dialog with a searchable actor catalog, a count field, the
-    respawn delay, the beam-in time, the map switch that activates the zone,
-    if any, and the checkpoint that ends it, if any.
+    respawn delay, the beam-in time, whether the zone starts out spawning,
+    the map switch that flips that, if any, and the checkpoint that ends it,
+    if any.
 
     Used both when painting a new actor zone and when editing an existing
     one.
@@ -31,7 +32,7 @@ class ActorSpawnFieldsDialog(QDialog):
         beam_in_secs: float,
         switches: list[str],
         switch: str | None,
-        inverted: bool = False,
+        initially_on: bool = True,
         *,
         level=0,
         levels=1,
@@ -53,7 +54,7 @@ class ActorSpawnFieldsDialog(QDialog):
         self.count_control = SpawnCountControl(count)
         self._respawn_spin = RespawnSpinBox(respawn_secs)
         self._beam_in_spin = BeamInSpinBox(beam_in_secs)
-        self.control = SwitchControl(switches, switch, inverted)
+        self.control = SwitchControl(switches, switch, initially_on)
         self._switch_combo = self.control.switch
         self.volume = SpawnVolumeControl(level_names or ["Level 0"], level, levels, roam_distance)
         self.course = CourseControl(until_checkpoint, on_checkpoint)
@@ -86,14 +87,14 @@ class ActorSpawnFieldsDialog(QDialog):
         super().accept()
 
     def values(self):
-        switch, inverted = self.control.state()
+        switch, initially_on = self.control.state()
         return (
             self._kind_edit.currentText().strip(),
             self.count_control.value(),
             self._respawn_spin.secs(),
             self._beam_in_spin.secs(),
             switch,
-            inverted,
+            initially_on,
             *self.volume.values(),
             *self.course.state(),
         )
@@ -108,10 +109,10 @@ class ActorSpawnFieldsDialog(QDialog):
         beam_in_secs: float,
         switches: list[str],
         switch: str | None,
-        inverted: bool = False,
+        initially_on: bool = True,
         **volume,
     ):
-        dialog = cls(parent, kind, count, respawn_secs, beam_in_secs, switches, switch, inverted, **volume)
+        dialog = cls(parent, kind, count, respawn_secs, beam_in_secs, switches, switch, initially_on, **volume)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         values = dialog.values()
@@ -123,7 +124,7 @@ class ActorSpawnFieldsDialog(QDialog):
 
 class KindDialog(QDialog):
     """Modal dialog asking which id to use from one of the map's catalogs
-    (barrier kinds, bridge kinds, or switches).
+    (field kinds or switches).
     `noun` names one entry of that catalog in the empty-catalog warning.
     Returns the chosen id string on accept, None on cancel."""
 
@@ -151,7 +152,7 @@ class KindDialog(QDialog):
     def value(self) -> str:
         return self._combo.currentText()
 
-    # `noun` is the catalog entry ("barrier kind", "switch"), pluralized with an s.
+    # `noun` is the catalog entry ("field kind", "switch"), pluralized with an s.
     @classmethod
     def prompt(cls, parent, title: str, kinds: list[str], current: str | None, noun: str, colors=None) -> str | None:
         if not kinds:
@@ -169,7 +170,7 @@ class KindDialog(QDialog):
 
 class ItemTypeDialog(QDialog):
     """Modal dialog asking which item type to place. Key items additionally
-    pick a barrier kind; the kind combo is disabled for every other type.
+    pick a field kind; the kind combo is disabled for every other type.
     Returns (type, kind-or-None) on accept, None on cancel."""
 
     def __init__(
@@ -240,7 +241,7 @@ class ItemTypeDialog(QDialog):
             QMessageBox.warning(
                 parent,
                 title,
-                "This map lists no barrier kinds. Add them in the Map menu first.",
+                "This map lists no field kinds. Add them in the Map menu first.",
             )
             return None
         return item_type, kind

@@ -108,9 +108,7 @@ class ToolSettings(QWidget):
             window.pickup_types,
             tuple(window.actor_kinds),
             tuple(window.wall_light_kinds),
-            tuple(window.barrier_kinds),
-            tuple(window.key_kinds),
-            tuple(window.bridge_kinds),
+            tuple(window.field_kinds),
             tuple(window.switches),
             tuple(window.materials_catalog),
             tuple(window.texture_catalog.items()),
@@ -215,7 +213,7 @@ class ToolSettings(QWidget):
 
         def item_controls():
             item, _ = combo("Item", "recent_item_type", list(window.pickup_types), required=True)
-            key, label = combo("Kind", "recent_item_key_kind", window.key_kinds, colors=window.barrier_kind_colors)
+            key, label = combo("Kind", "recent_item_key_kind", window.field_kinds, colors=window.field_kind_colors)
             self.key_controls = (key, label)
 
             def show_key_kind(item_type):
@@ -241,13 +239,8 @@ class ToolSettings(QWidget):
             form.addWidget(button)
 
         def field_controls(barrier):
-            prefix = "barrier" if barrier else "bridge"
-            combo(
-                "Kind",
-                f"recent_{prefix}_kind",
-                window.barrier_kinds if barrier else window.bridge_kinds,
-                colors=window.barrier_kind_colors if barrier else window.bridge_kind_colors,
-            )
+            attribute = "recent_barrier_kind" if barrier else "recent_bridge_kind"
+            combo("Kind", attribute, window.field_kinds, colors=window.field_kind_colors)
             button = QPushButton("Controls…")
             button.clicked.connect(lambda: window.configure_field_defaults(barrier))
             form.addWidget(button)
@@ -333,7 +326,7 @@ class ToolSettings(QWidget):
             window.recent_actor_beam_in_secs,
             window.switches,
             window.recent_actor_spawn_switch or None,
-            window.recent_actor_spawn_inverted,
+            window.recent_actor_spawn_initially_on,
             level=window.current_level,
             levels=window.recent_actor_spawn_levels,
             roam_distance=window.recent_actor_roam_distance,
@@ -342,15 +335,25 @@ class ToolSettings(QWidget):
             on_checkpoint=window.recent_actor_on_checkpoint,
         )
         if result is not None:
-            kind, count, respawn_secs, beam_in_secs, switch, inverted, level, levels, roam_distance, until, response = (
-                result
-            )
+            (
+                kind,
+                count,
+                respawn_secs,
+                beam_in_secs,
+                switch,
+                initially_on,
+                level,
+                levels,
+                roam_distance,
+                until,
+                response,
+            ) = result
             window.recent_actor_spawn_kind = kind
             window.recent_actor_spawn_count = count
             window.recent_actor_spawn_respawn_secs = respawn_secs
             window.recent_actor_beam_in_secs = beam_in_secs
             window.recent_actor_spawn_switch = switch or ""
-            window.recent_actor_spawn_inverted = inverted
+            window.recent_actor_spawn_initially_on = initially_on
             window.recent_actor_spawn_levels = levels
             window.recent_actor_roam_distance = roam_distance
             window.recent_actor_until_checkpoint = until

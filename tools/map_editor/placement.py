@@ -73,9 +73,19 @@ class PlacementMixin:
         result = self.prompt_for_actor_spawn_fields()
         if result is None:
             return
-        kind, count, respawn_secs, beam_in_secs, switch, inverted, level, levels, roam_distance, until, response = (
-            result
-        )
+        (
+            kind,
+            count,
+            respawn_secs,
+            beam_in_secs,
+            switch,
+            initially_on,
+            level,
+            levels,
+            roam_distance,
+            until,
+            response,
+        ) = result
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         new_zone = {
@@ -91,7 +101,8 @@ class PlacementMixin:
         }
         if switch:
             new_zone["switch"] = switch
-            new_zone["switch_inverted"] = inverted
+        if not initially_on:
+            new_zone["initially_on"] = False
         if until:
             new_zone["until_checkpoint"] = until
             new_zone["on_checkpoint"] = response
@@ -101,7 +112,7 @@ class PlacementMixin:
         self.recent_actor_spawn_respawn_secs = respawn_secs
         self.recent_actor_beam_in_secs = beam_in_secs
         self.recent_actor_spawn_switch = switch or ""
-        self.recent_actor_spawn_inverted = inverted
+        self.recent_actor_spawn_initially_on = initially_on
         self.recent_actor_spawn_levels = levels
         self.recent_actor_roam_distance = roam_distance
         self.recent_actor_until_checkpoint = until
@@ -136,7 +147,7 @@ class PlacementMixin:
         respawn_secs: int | None = None,
         beam_in_secs: float | None = None,
         switch: str | None = None,
-        inverted: bool = False,
+        initially_on: bool = True,
         level=None,
         levels=None,
         roam_distance=None,
@@ -152,7 +163,7 @@ class PlacementMixin:
                 self.recent_actor_spawn_respawn_secs,
                 self.recent_actor_beam_in_secs,
                 recent_switch or None,
-                self.recent_actor_spawn_inverted,
+                self.recent_actor_spawn_initially_on,
                 self.current_level,
                 min(self.recent_actor_spawn_levels, len(self.map_data["levels"]) - self.current_level),
                 self.recent_actor_roam_distance,
@@ -167,7 +178,7 @@ class PlacementMixin:
             self.recent_actor_beam_in_secs if beam_in_secs is None else beam_in_secs,
             self.switches,
             switch if kind is not None else (self.recent_actor_spawn_switch or None),
-            inverted if kind is not None else self.recent_actor_spawn_inverted,
+            initially_on if kind is not None else self.recent_actor_spawn_initially_on,
             level=self.current_level if level is None else level,
             levels=self.recent_actor_spawn_levels if levels is None else levels,
             roam_distance=self.recent_actor_roam_distance if roam_distance is None else roam_distance,
@@ -186,7 +197,7 @@ class PlacementMixin:
 
     def prompt_and_add_barrier_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         kind = self.placement_kind(
-            "Place Barrier", self.barrier_kinds, self.recent_barrier_kind, "barrier kind", self.barrier_kind_colors
+            "Place Barrier", self.field_kinds, self.recent_barrier_kind, "field kind", self.field_kind_colors
         )
         if kind is None:
             return
@@ -195,7 +206,7 @@ class PlacementMixin:
 
     def prompt_and_add_light_bridge_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         kind = self.placement_kind(
-            "Place Light Bridge", self.bridge_kinds, self.recent_bridge_kind, "bridge kind", self.bridge_kind_colors
+            "Place Light Bridge", self.field_kinds, self.recent_bridge_kind, "field kind", self.field_kind_colors
         )
         if kind is None:
             return
@@ -203,8 +214,8 @@ class PlacementMixin:
         self.add_light_bridge_rect(start, end, kind)
 
     def add_light_bridge_rect(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
-        if kind not in self.bridge_kinds:
-            self.notify(f"Unknown bridge kind {kind!r}")
+        if kind not in self.field_kinds:
+            self.notify(f"Unknown field kind {kind!r}")
             return
         self.apply_change(
             f"Place Light Bridge ({kind})",
@@ -220,10 +231,10 @@ class PlacementMixin:
         values = FieldPropertiesDialog.prompt(
             self,
             "Barrier Defaults" if barrier else "Light Bridge Defaults",
-            self.barrier_kinds if barrier else self.bridge_kinds,
+            self.field_kinds,
             self.switches,
             [{"kind": kind, **controls}],
-            kind_colors=self.barrier_kind_colors if barrier else self.bridge_kind_colors,
+            kind_colors=self.field_kind_colors,
             switch_colors=self.switch_colors,
         )
         if values is not None:
@@ -268,8 +279,8 @@ class PlacementMixin:
         self.apply_change(label, after)
 
     def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
-        if kind not in self.barrier_kinds:
-            self.notify(f"Unknown barrier kind {kind!r}")
+        if kind not in self.field_kinds:
+            self.notify(f"Unknown field kind {kind!r}")
             return
         self.apply_change(
             f"Place Barrier ({kind})",

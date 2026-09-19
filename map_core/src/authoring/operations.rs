@@ -60,7 +60,7 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
             enforce_ramp_floor_rules(&mut v);
             v
         }
-        "control_fields" => select(&a[0], &["switch", "switch_inverted"]),
+        "control_fields" => select(&a[0], &["switch", "initially_on"]),
         "normalize_floor"
         | "normalize_terrain"
         | "normalize_wall"

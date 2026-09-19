@@ -10,8 +10,8 @@ use common::{
     math::direction_from_yaw_pitch,
     physics::{CharacterSupport, CollisionWorld, grounding_diagnostics},
     protocol::{
-        BarrierId, Checkpoint, CheckpointKind, FaceYaw, MapLayout, PlayerId, PlayerMarker, Position,
-        SCheckpointReached, ServerMessage, ServerTick,
+        Checkpoint, CheckpointKind, FaceYaw, FieldId, MapLayout, PlayerId, PlayerMarker, Position, SCheckpointReached,
+        ServerMessage, ServerTick, SwitchState,
     },
 };
 
@@ -81,6 +81,7 @@ pub(crate) fn players_checkpoints_system(
     tick: Res<ServerTick>,
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
+    switch_state: Res<SwitchState>,
     gameplay: Res<GameplayConfig>,
     positions: Query<(&Position, &FaceYaw), With<PlayerMarker>>,
 ) {
@@ -96,7 +97,7 @@ pub(crate) fn players_checkpoints_system(
                     &collision_world,
                     pos,
                     gameplay.player.physics(),
-                    &collision_world.passable_barriers(&player.life.held_keys, &[]),
+                    &collision_world.passable_fields(&player.life.held_keys, &switch_state.open_fields),
                 )
             });
         // A fresh body has no movement support yet; keep its seeded contact until it leaves the zone.
@@ -260,7 +261,7 @@ pub(crate) fn checkpoint_at_position(
     collision_world: &CollisionWorld,
     pos: &Position,
     physics: CharacterPhysicsConfig,
-    passable: &[BarrierId],
+    passable: &[FieldId],
 ) -> Option<CheckpointId> {
     let ground = grounding_diagnostics(collision_world, pos, physics, passable, &[]);
     let hit = ground.hit.filter(|_| ground.supported)?;

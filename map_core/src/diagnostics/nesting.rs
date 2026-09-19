@@ -90,9 +90,9 @@ pub(super) fn validate(data: &Value, context: &Value, errors: &mut Errors) {
         errors.locate("nested_maps", entry, None);
         let label = format!("nested_maps[{idx}]");
         let name = s(entry, "map");
-        if !crate::is_valid_map_name(name) {
+        if !crate::is_valid_geometry_name(name) {
             errors.add(format!(
-                "{label} map name {} must contain only letters, digits, `_`, or `-`",
+                "{label} map name {} must be nonempty with no surrounding spaces",
                 repr(&entry["map"])
             ));
         } else if !context["map_name"].is_null() && context["map_name"] == entry["map"] {
@@ -131,7 +131,7 @@ pub(super) fn validate(data: &Value, context: &Value, errors: &mut Errors) {
         if !["cycle", "follow_switch"].contains(&s(entry, "motion")) {
             errors.add(format!("{label} motion must be cycle or follow_switch"));
         } else if entry["motion"] == "follow_switch" && !truth(&entry["switch"]) {
-            errors.add(format!("{label} Follow switch motion requires a switch"));
+            errors.warn(format!("{label} Follow switch motion has no switch, so it never moves"));
         }
         for key in ["from_nudge", "to_nudge"] {
             let nudge = &entry[key];

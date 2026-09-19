@@ -29,7 +29,7 @@ impl Fixture {
         let layout = MapLayout {
             carriers: vec![Carrier {
                 motion: Default::default(),
-                switch_inverted: false,
+                initially_on: true,
 
                 parent: CarrierId::WORLD,
                 level: 0,

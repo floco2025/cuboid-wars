@@ -98,23 +98,25 @@ class MapSettingsTests(ConfigTestCase):
             with self.assertRaisesRegex(ValueError, "hotel/settings.json"):
                 load_map_settings("hotel")
 
-    def test_switch_colors_follow_targets_and_explicit_switch_colors(self):
+    def test_switch_colors_follow_the_first_linked_kind_and_explicit_switch_colors(self):
         data = empty_map(3, 3)
-        data["barrier_kinds"] = [{"id": "green", "color": "#22cc33"}]
-        data["bridge_kinds"] = [{"id": "cyan", "color": "#30d8ff"}]
+        data["field_kinds"] = [{"id": "cyan", "color": "#30d8ff"}, {"id": "green", "color": "#22cc33"}]
         data["switches"] = [
             {"id": "door"},
             {"id": "bridge"},
             {"id": "show", "color": "#9b5de5"},
             {"id": "other"},
         ]
-        data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green", "switch": "door"}]
+        data["levels"][0]["barriers"] = [
+            {"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green", "switch": "door"},
+            {"c0": 1, "r0": 0, "c1": 2, "r1": 0, "kind": "green", "switch": "bridge"},
+        ]
         data["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "kind": "cyan", "switch": "bridge"}]
-        barriers, bridges = kind_colors(data, "barrier_kinds"), kind_colors(data, "bridge_kinds")
-        colors = switch_colors(data, barriers, bridges)
+        kinds = kind_colors(data)
+        colors = switch_colors(data, kinds)
         self.assertEqual(colors, {"door": "#22cc33", "bridge": "#30d8ff", "show": "#9b5de5", "other": "#2c99bc"})
         data["switches"][0]["color"] = "#ffaa00"
-        self.assertEqual(switch_colors(data, barriers, bridges)["door"], "#ffaa00")
+        self.assertEqual(switch_colors(data, kinds)["door"], "#ffaa00")
 
     def test_layout_identity_comes_from_the_folder(self):
         self.assertEqual(map_name_from_path(map_layout_path("hotel")), "hotel")
@@ -157,16 +159,14 @@ class MapSettingsWindowTests(WindowTestCase):
     def test_save_as_carries_the_layouts_catalogs_and_leaves_both_settings_files_alone(self):
         before = {name: map_settings_path(name).read_bytes() for name in ["hotel", "obby"]}
         edited = copy.deepcopy(self.window.doc.root_data)
-        edited["barrier_kinds"] = [{"id": "edited", "color": "#123456"}]
-        edited["bridge_kinds"] = [{"id": "light", "color": "#654321"}]
+        edited["field_kinds"] = [{"id": "edited", "color": "#123456"}, {"id": "light", "color": "#654321"}]
         self.window.doc.apply_root_change("Edit catalogs", edited, None)
         data = copy.deepcopy(self.window.doc.root_data)
         with patch("map_editor.file_actions.QInputDialog.getItem", return_value=("obby", True)):
             self.assertTrue(self.window.save_as())
         self.assertEqual(self.window.path, map_layout_path("obby"))
         self.assertEqual(self.window.catalog_map, "obby")
-        self.assertEqual(self.window.barrier_kinds, ["edited"])
-        self.assertEqual(self.window.bridge_kind_colors, {"light": "#654321"})
+        self.assertEqual(self.window.field_kind_colors, {"edited": "#123456", "light": "#654321"})
         self.assertIn("obby", self.window.windowTitle())
         self.assertEqual(read_map(self.window.path), data)
         self.assertIn(str(map_settings_path("obby").resolve()), self.window.dependencies.watcher.files())

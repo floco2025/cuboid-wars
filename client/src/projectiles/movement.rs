@@ -18,11 +18,10 @@ use super::{
 };
 use crate::{
     actors::ActorMap,
-    barriers::BarrierAssets,
-    bridges::BridgeAssets,
     cameras::MainCameraMarker,
     characters::PreviousTickPosition,
     config::{AssetSet, ClientSettings},
+    fields::FieldAssets,
     network::ClientToServerChannel,
     players::{LocalPlayerMarker, MyPlayerId, PlayerMap},
     vfx::ParticleClouds,
@@ -37,7 +36,6 @@ pub struct ProjectileWorld<'w> {
     gameplay_config: Res<'w, GameplayConfig>,
     switch_state: Res<'w, SwitchState>,
     portal_set: Res<'w, PortalSet>,
-    bridge_assets: Res<'w, BridgeAssets>,
     players: Res<'w, PlayerMap>,
     my_player_id: Res<'w, MyPlayerId>,
     to_server: Res<'w, ClientToServerChannel>,
@@ -67,7 +65,7 @@ pub fn projectiles_movement_system(
     world: ProjectileWorld,
     mut last_bounce_sound: ResMut<LastBounceSound>,
     client_settings: Res<ClientSettings>,
-    barrier_assets: Res<BarrierAssets>,
+    field_assets: Res<FieldAssets>,
     mut particle_clouds: ResMut<ParticleClouds>,
     listener: Query<&GlobalTransform, With<MainCameraMarker>>,
 ) {
@@ -143,7 +141,7 @@ pub fn projectiles_movement_system(
                 &current_pos,
                 remaining_delta,
                 collision_world,
-                &world.switch_state.open_barriers,
+                &world.switch_state.open_fields,
             );
             let portal_hop = world.portal_set.projectile_hop(
                 Vec3::from(current_pos),
@@ -169,14 +167,13 @@ pub fn projectiles_movement_system(
                         &asset_set,
                         &mut particle_clouds.sparks,
                         &client_settings,
-                        &barrier_assets,
-                        &world.bridge_assets,
+                        &field_assets,
                         projectile_entity,
                         &projectile,
                         &current_pos,
                         remaining_delta,
                         collision_world,
-                        &world.switch_state.open_barriers,
+                        &world.switch_state.open_fields,
                     );
                     assert!(hit, "field event missing its collision");
                     terminated = true;

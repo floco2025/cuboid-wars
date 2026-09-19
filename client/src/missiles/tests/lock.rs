@@ -34,6 +34,7 @@ fn acquire_lock_picks_nearest_candidate_on_ray() {
     let far = HomingTarget::Actor(ActorId(2));
     let locked = acquire_lock(
         &empty_world(),
+        &[],
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::Z,
         60.0,
@@ -48,6 +49,7 @@ fn acquire_lock_misses_candidate_off_ray() {
     let target = HomingTarget::Player(PlayerId(1));
     let locked = acquire_lock(
         &empty_world(),
+        &[],
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::Z,
         60.0,
@@ -62,6 +64,7 @@ fn acquire_lock_rejects_candidate_beyond_range() {
     let target = HomingTarget::Player(PlayerId(1));
     let locked = acquire_lock(
         &empty_world(),
+        &[],
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::Z,
         10.0,
@@ -91,6 +94,7 @@ fn acquire_lock_rejects_candidate_behind_wall() {
     let target = HomingTarget::Player(PlayerId(1));
     let locked = acquire_lock(
         &world,
+        &[],
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::Z,
         60.0,
@@ -107,9 +111,9 @@ fn acquire_lock_assist_radius_forgives_near_misses() {
     let off_axis = (target, Position { x: 1.0, y: 0.0, z: 8.0 }, 0.0, physics());
     let aim = Vec3::new(0.0, 1.0, 0.0);
 
-    let strict = acquire_lock(&empty_world(), aim, Vec3::Z, 60.0, 0.05, [off_axis].into_iter());
+    let strict = acquire_lock(&empty_world(), &[], aim, Vec3::Z, 60.0, 0.05, [off_axis].into_iter());
     assert_eq!(strict, None, "thin ray misses the off-axis target");
 
-    let assisted = acquire_lock(&empty_world(), aim, Vec3::Z, 60.0, 1.2, [off_axis].into_iter());
+    let assisted = acquire_lock(&empty_world(), &[], aim, Vec3::Z, 60.0, 1.2, [off_axis].into_iter());
     assert_eq!(assisted, Some(target), "assist radius bridges the gap");
 }

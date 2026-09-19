@@ -6,10 +6,10 @@ from .constants import (
     CHECKPOINT_RESPONSE_LABELS,
     CHECKPOINT_TYPE_LABELS,
     FACES,
+    INITIAL_STATE,
+    INITIAL_STATE_LABELS,
     RAMP_DIRECTIONS,
     RAMP_SHAPE_LABELS,
-    RESPOND_WHEN,
-    SOLID_WHEN,
     TERRAIN_FACES,
 )
 from .nesting import MOTION_LABELS, MOTION_TOOLTIPS
@@ -95,11 +95,9 @@ def fields_for(window, name):
         add("type", "Type", "choice", CHECKPOINT_TYPE_LABELS.items())
     elif name == "items":
         choice("type", "Item", window.pickup_types)
-        choice("kind", "Key kind", [None, *window.key_kinds], window.barrier_kind_colors)
-    elif name == "barriers":
-        choice("kind", "Kind", window.barrier_kinds, window.barrier_kind_colors)
-    elif name == "light_bridges":
-        choice("kind", "Kind", window.bridge_kinds, window.bridge_kind_colors)
+        choice("kind", "Key kind", [None, *window.field_kinds], window.field_kind_colors)
+    elif name in ("barriers", "light_bridges"):
+        choice("kind", "Kind", window.field_kinds, window.field_kind_colors)
     elif name == "lights":
         choice("kind", "Style", window.wall_light_kinds)
         choice("side", "Side", ("N", "S", "E", "W"))
@@ -116,8 +114,7 @@ def fields_for(window, name):
         values = window.switches if name == "pressure_plates" else [None, *window.switches]
         choice("switch", "Switch", values, window.switch_colors)
         if name != "pressure_plates":
-            label = SOLID_WHEN if name in ("barriers", "light_bridges") else RESPOND_WHEN
-            add("switch_inverted", label, "choice", [(False, "On"), (True, "Off")])
+            add("initially_on", INITIAL_STATE, "choice", INITIAL_STATE_LABELS.items())
     if name == "nested_maps":
         add(
             "to_level",
@@ -137,8 +134,8 @@ def property_value(entry, key):
         return value[key[1]]
     if key[0] in FACES:
         return entry.get(key[0], entry.get("all", ""))
-    if key[0] == "switch_inverted":
-        return entry.get(key[0], False)
+    if key[0] == "initially_on":
+        return entry.get(key[0], True)
     if key[0] == "levels":
         return entry.get(key[0], 1)
     if key[0] in ("roam_distance", "beam_in_secs"):

@@ -49,7 +49,7 @@ fn actor_step(
         delta: 0.1,
         can_use_ladders,
         physics,
-        open_kinds: &[],
+        open_fields: &[],
         collision_world: &world,
         map_settings: &map_settings(),
         carriers: &Carriers::default(),

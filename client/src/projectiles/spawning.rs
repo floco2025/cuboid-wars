@@ -3,7 +3,7 @@ use common::{
     config::GameplayConfig,
     math::direction_from_yaw_pitch,
     physics::CollisionWorld,
-    protocol::{BarrierId, Position},
+    protocol::{FieldId, Position},
 };
 
 // ============================================================================
@@ -39,7 +39,7 @@ pub fn calculate_projectile_spawns(
     pattern: u8,
     gameplay: &GameplayConfig,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     muzzle_check: MuzzleCheck,
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
@@ -66,7 +66,7 @@ pub fn calculate_projectile_spawns(
                 &spawn_position,
                 gameplay.projectiles.radius,
                 collision_world,
-                open_kinds,
+                open_fields,
             )
         {
             continue;
@@ -87,7 +87,7 @@ pub(super) fn projectile_spawn_is_blocked(
     end: &Position,
     radius: f32,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
 ) -> bool {
     let start_vec = Vec3::from(*start);
     let end_vec = Vec3::from(*end);
@@ -96,13 +96,13 @@ pub(super) fn projectile_spawn_is_blocked(
     // Surfaces and barriers live in separate filter groups; check both
     // along the muzzle→spawn segment. Without the barrier cast, a shooter
     // pressed against a barrier could spawn the projectile on the far side
-    // of it. Open (plate-held) kinds are excluded from the barrier checks —
-    // they're gone visually, so shots pass cleanly through them.
-    collision_world.projectile_spawn_overlaps_blocker(start_vec, radius, open_kinds)
+    // of it. Fields that are off are excluded — they're gone visually, so
+    // shots pass cleanly through them.
+    collision_world.projectile_spawn_overlaps_blocker(start_vec, radius, open_fields)
         || collision_world
-            .cast_moving_ball(start_vec, translation, radius)
+            .cast_moving_ball(start_vec, translation, radius, open_fields)
             .is_some()
         || collision_world
-            .cast_moving_ball_against_fields(start_vec, translation, radius, open_kinds)
+            .cast_moving_ball_against_fields(start_vec, translation, radius, open_fields)
             .is_some()
 }

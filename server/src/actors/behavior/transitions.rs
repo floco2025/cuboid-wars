@@ -15,7 +15,7 @@ use common::{
     config::CharacterPhysicsConfig,
     map::{CarrierPose, Carriers},
     physics::CollisionWorld,
-    protocol::{BarrierId, CarrierId, PlayerId, Position},
+    protocol::{CarrierId, FieldId, PlayerId, Position},
 };
 
 pub(super) const EVADE_REPLAN_INTERVAL_SECS: f32 = 0.5;
@@ -40,7 +40,7 @@ pub(super) struct BehaviorContext<'a> {
     pub(super) carrier: CarrierId,
     pub(super) territory: &'a ActorTerritory,
     pub(super) collision_world: &'a CollisionWorld,
-    pub(super) open_barriers: &'a [BarrierId],
+    pub(super) open_fields: &'a [FieldId],
     pub(super) kind_config: &'a ActorKindServerConfig,
     // Whether the map lets players hurt actors at all.
     pub(super) players_armed: bool,
@@ -55,7 +55,7 @@ impl BehaviorContext<'_> {
             kind,
             world: self.collision_world,
             physics: self.actor_physics,
-            open: self.open_barriers,
+            open: self.open_fields,
         }
     }
 
@@ -274,7 +274,7 @@ pub(super) fn keep_or_install_engagement_route(
                 context.world_pos,
                 context.to_world(&point.position),
                 context.actor_physics,
-                context.open_barriers,
+                context.open_fields,
             )
         })
         && (super::geometry::attack_position(context.to_world(&route.destination), target_pos, beam)

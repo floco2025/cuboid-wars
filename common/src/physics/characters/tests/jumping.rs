@@ -8,7 +8,7 @@ fn supported_player_can_start_jump() {
     let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
 
     assert_eq!(
-        player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos),
+        player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos, &[]),
         Some(TEST_JUMP_SPEED)
     );
 }
@@ -20,7 +20,7 @@ fn airborne_player_cannot_start_jump() {
     let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
 
     assert_eq!(
-        player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos),
+        player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos, &[]),
         None
     );
 }
@@ -30,7 +30,7 @@ fn upward_jump_velocity_moves_player_above_support() {
     let floor = lower_floor();
     let collision_world = collision_world(&[floor], &[]);
     let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-    let motion = player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos)
+    let motion = player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos, &[])
         .expect("supported player should start a jump");
 
     let step = step_in(
@@ -195,4 +195,45 @@ fn landing_speed_uses_accumulated_velocity_with_only_this_steps_gravity_change()
         assert_eq!(result.impact_speed, 20.0 + gravity * 0.1);
         assert_eq!(result.vertical_velocity, 0.0);
     }
+}
+
+#[test]
+fn a_bridge_its_key_passes_is_no_floor_to_jump_from() {
+    use crate::{
+        protocol::{BridgeId, CarrierId, FieldKindId, LightBridge},
+        test_geometry::BRIDGE_THICKNESS,
+    };
+    let collision_world = CollisionWorld::from_map_layout(&MapLayout {
+        light_bridges: vec![LightBridge {
+            id: BridgeId(0),
+            switch: None,
+            initially_on: true,
+            x1: -2.0,
+            z1: -2.0,
+            x2: 2.0,
+            z2: 2.0,
+            y: 0.0,
+            thickness: BRIDGE_THICKNESS,
+            level: 0,
+            kind: FieldKindId(3),
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    });
+    let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
+    let jump = |held_keys: &[FieldKindId]| {
+        let passable = collision_world.passable_fields(held_keys, &[]);
+        player_jump_velocity(
+            0.0,
+            &collision_world,
+            player_physics(),
+            TEST_JUMP_SPEED,
+            &pos,
+            &passable,
+        )
+    };
+
+    assert_eq!(jump(&[]), Some(TEST_JUMP_SPEED));
+    assert_eq!(jump(&[FieldKindId(1)]), Some(TEST_JUMP_SPEED));
+    assert_eq!(jump(&[FieldKindId(3)]), None);
 }

@@ -4,7 +4,7 @@ import copy
 
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
-from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS, MAP_NAME_RE
+from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS
 from .dialogs import ResizeMapDialog
 from .normalization import empty_map
 
@@ -19,8 +19,8 @@ class NestedDefinitionsMixin:
         if not accepted:
             return None
         name = name.strip()
-        if not MAP_NAME_RE.fullmatch(name):
-            QMessageBox.warning(self, title, "Use only ASCII letters, digits, '_' or '-' in the name.")
+        if not name:
+            QMessageBox.warning(self, title, "The name must not be empty.")
             return None
         if name != current and name in self.doc.nested_geometry:
             QMessageBox.warning(self, title, f"Nested geometry {name!r} already exists.")

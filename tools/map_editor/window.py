@@ -126,17 +126,16 @@ class EditorWindow(
         self.recent_actor_beam_in_secs: float = DEFAULT_ACTOR_BEAM_IN_SECS
         # Empty = the zone has no switch.
         self.recent_actor_spawn_switch: str = ""
-        self.recent_actor_spawn_inverted = False
+        self.recent_actor_spawn_initially_on = True
         # None = the zone stays active whatever checkpoint the players reach.
         self.recent_actor_until_checkpoint: int | None = None
         self.recent_actor_on_checkpoint: str = "stop"
-        first_kind = self.barrier_kinds[0] if self.barrier_kinds else None
+        first_kind = self.field_kinds[0] if self.field_kinds else None
         self.recent_barrier_kind: str | None = first_kind
         self.recent_pressure_plate_switch: str | None = self.switches[0] if self.switches else None
         self.recent_item_type: str = self.pickup_types[0]
         self.recent_item_key_kind: str | None = first_kind
-        first_bridge_kind = self.bridge_kinds[0] if self.bridge_kinds else None
-        self.recent_bridge_kind: str | None = first_bridge_kind
+        self.recent_bridge_kind: str | None = first_kind
         # (row_spacing, row_offset, col_spacing, col_offset) — remembered
         # across opens of the Auto-Place Lights dialog. Spacing is "cells
         # skipped between lights": 0 = every cell, 1 = every other, 2 = every
@@ -214,16 +213,8 @@ class EditorWindow(
         return self.doc.map_data
 
     @property
-    def barrier_kinds(self) -> list[str]:
-        return list(self.barrier_kind_colors)
-
-    @property
-    def bridge_kinds(self) -> list[str]:
-        return list(self.bridge_kind_colors)
-
-    @property
-    def key_kinds(self) -> list[str]:
-        return self.barrier_kinds
+    def field_kinds(self) -> list[str]:
+        return list(self.field_kind_colors)
 
     @property
     def switches(self) -> list[str]:
@@ -246,8 +237,7 @@ class EditorWindow(
     def validate(self, data: dict, plated_from: dict | None = None) -> ValidationErrors:
         return validate_map(
             data,
-            self.barrier_kinds,
-            self.bridge_kinds,
+            self.field_kinds,
             switches=self.switches,
             plated_switches=plated_switches(self._document_geometries(data if plated_from is None else plated_from)),
             map_name=self.doc.active_map,
@@ -277,13 +267,13 @@ class EditorWindow(
     # introduce an error, while the issues already there stay Check Map's.
     def added_issues(self, after: dict) -> list[str]:
         if self._map_issues is None:
-            self._map_issues = {issue.identity() for issue in self.validate(self.map_data).issues}
+            self._map_issues = {issue.identity() for issue in self.validate(self.map_data).errors}
         current = self._map_issues
-        return [issue.message for issue in self.validate(after).issues if issue.identity() not in current]
+        return [issue.message for issue in self.validate(after).errors if issue.identity() not in current]
 
     def added_document_issues(self, root: dict) -> list[str]:
-        current = {issue.identity() for issue in self.document_issues().issues}
-        return [issue.message for issue in self.validate_document(root).issues if issue.identity() not in current]
+        current = {issue.identity() for issue in self.document_issues().errors}
+        return [issue.message for issue in self.validate_document(root).errors if issue.identity() not in current]
 
     # The whole document against the catalogs of `map_name`, or the adopted ones.
     def validate_document(self, data: dict, map_name: str | None = None) -> ValidationErrors:
@@ -297,8 +287,7 @@ class EditorWindow(
 
     def current_catalogs(self) -> MapCatalogs:
         return MapCatalogs(
-            self.barrier_kind_colors,
-            self.bridge_kind_colors,
+            self.field_kind_colors,
             self.wall_width_cells,
             self.texture_catalog,
             self.switches,
@@ -316,8 +305,7 @@ class EditorWindow(
         self._document_issues = None
         catalogs = catalogs.for_layout(self.doc.root_data)
         self.catalog_map = map_name
-        self.barrier_kind_colors = catalogs.barrier_kind_colors
-        self.bridge_kind_colors = catalogs.bridge_kind_colors
+        self.field_kind_colors = catalogs.field_kind_colors
         self.switch_ids = list(catalogs.switches)
         self.switch_colors = dict(catalogs.switch_colors)
         self.wall_width_cells = catalogs.wall_width_cells

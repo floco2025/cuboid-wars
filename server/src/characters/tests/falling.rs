@@ -51,7 +51,7 @@ fn simulated_tall_fall_reaches_lethal_damage_without_low_gravity() {
                     bottom_offset: 0.0,
                 },
             },
-            passable_kinds: &[],
+            passable_fields: &[],
             ladder_climb_ratio: 0.4,
             ladder_mode: LadderMode::Automatic,
             portals: None,

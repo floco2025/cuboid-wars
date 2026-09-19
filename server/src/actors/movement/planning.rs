@@ -88,7 +88,7 @@ pub(crate) fn plan_actor_moves(
             collision_world,
             planned_moves,
             actor_starts,
-            open_barriers: &switch_state.open_barriers,
+            open_fields: &switch_state.open_fields,
             map_settings,
             can_use_ladders: character.0.can_use_ladders,
             knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),

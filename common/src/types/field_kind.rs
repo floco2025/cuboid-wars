@@ -2,15 +2,16 @@ use bincode::{Decode, Encode};
 
 use super::kind_table::{KindId, KindTable};
 
-// Index into the selected map's ordered `barrier_kinds`.
+// Index into the selected map's ordered `field_kinds`, shared by barriers,
+// light bridges, and the keys that pass them.
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
-pub struct BarrierKindId(pub u16);
+pub struct FieldKindId(pub u16);
 
-impl KindId for BarrierKindId {
+impl KindId for FieldKindId {
     // A full key inventory must fit in the PlayerStatus datagram.
     const MAX: Option<usize> = Some(256);
-    const CONFIG_KEY: &'static str = "barrier_kinds";
-    const NOUN: &'static str = "barrier kind";
+    const CONFIG_KEY: &'static str = "field_kinds";
+    const NOUN: &'static str = "field kind";
 
     fn from_index(index: u16) -> Self {
         Self(index)
@@ -21,4 +22,4 @@ impl KindId for BarrierKindId {
     }
 }
 
-pub type BarrierKindTable = KindTable<BarrierKindId>;
+pub type FieldKindTable = KindTable<FieldKindId>;

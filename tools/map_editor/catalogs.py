@@ -52,10 +52,10 @@ def load_actor_kinds() -> list[str]:
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 
 
-# A layout's kind catalog in catalog order: id → "#rrggbb". Malformed
+# The layout's field kinds in catalog order: id → "#rrggbb". Malformed
 # entries are validation's business and are left out here.
-def kind_colors(root: dict, key: str) -> dict[str, str]:
-    entries = root.get(key, [])
+def kind_colors(root: dict) -> dict[str, str]:
+    entries = root.get("field_kinds", [])
     if not isinstance(entries, list):
         return {}
     return {
@@ -79,18 +79,20 @@ def switch_entries(root: dict) -> list[dict]:
     )
 
 
-def switch_colors(root: dict, barriers: dict[str, str], bridges: dict[str, str]) -> dict[str, str]:
+# A plate takes the first kind, in catalog order, that a barrier or bridge on
+# its switch uses; the switch's own colour overrides that.
+def switch_colors(root: dict, kinds: dict[str, str]) -> dict[str, str]:
     from .validation import placed_definitions
 
     with ASSETS_PATH.open(encoding="utf-8") as handle:
         default_color = json.load(handle)["pressure_plate"]["default_color"]
     geometries = [root, *placed_definitions(root, root.get("nested_geometry", {})).values()]
     targets = [
-        (entry.get("switch"), colors.get(entry.get("kind")))
-        for name, colors in (("barriers", barriers), ("light_bridges", bridges))
-        for kind in colors
+        (entry.get("switch"), color)
+        for kind, color in kinds.items()
         for geometry in geometries
         for level in geometry.get("levels", [])
+        for name in ("barriers", "light_bridges")
         for entry in level.get(name, [])
         if entry.get("kind") == kind
     ]
@@ -232,8 +234,8 @@ def require_map_settings(name: str) -> None:
 class MapCatalogs:
     """The host map's appearance, controls, materials, and drawing settings."""
 
-    barrier_kind_colors: dict[str, str]
-    bridge_kind_colors: dict[str, str]
+    # The kinds barriers, light bridges, and keys share, in catalog order.
+    field_kind_colors: dict[str, str]
     wall_width_cells: float
     texture_catalog: dict[str, bool]
     # The switch ids in catalog order.
@@ -246,14 +248,12 @@ class MapCatalogs:
 
     # The layout owns the kinds and switches; the rest stays as loaded.
     def for_layout(self, root: dict) -> "MapCatalogs":
-        barriers = kind_colors(root, "barrier_kinds")
-        bridges = kind_colors(root, "bridge_kinds")
+        kinds = kind_colors(root)
         return replace(
             self,
-            barrier_kind_colors=barriers,
-            bridge_kind_colors=bridges,
+            field_kind_colors=kinds,
             switches=[entry["id"] for entry in switch_entries(root)],
-            switch_colors=switch_colors(root, barriers, bridges),
+            switch_colors=switch_colors(root, kinds),
         )
 
     @classmethod
@@ -262,7 +262,6 @@ class MapCatalogs:
         layout = map_layout_path(map_name)
         root = read_settings_json(layout)["map"] if layout.exists() else {}
         return cls(
-            {},
             {},
             wall_width,
             load_texture_catalog(map_name),

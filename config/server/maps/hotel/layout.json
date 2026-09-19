@@ -1,13 +1,12 @@
 {
   "map": {
     "switches": [{"id": "lobby", "activation": "auto", "reset_on_player_death": "never"}, {"id": "fireworks", "color": "#9b5de5", "activation": "momentary", "reset_on_player_death": "never", "held": "everyone"}],
-    "barrier_kinds": [
+    "field_kinds": [
       {"id": "treasure", "color": "#ff3333"},
       {"id": "basement", "color": "#f0c020"},
       {"id": "gravity", "color": "#5090ff"},
       {"id": "lobby", "color": "#22cc33"}
     ],
-    "bridge_kinds": [],
     "fireworks": {"switch": "fireworks", "cooldown_secs": 30.0},
     "grid_cols": 30,
     "grid_rows": 30,
@@ -2227,9 +2226,9 @@
         ],
         "barriers": [
           {"c0": 7, "r0": 21, "c1": 8, "r1": 21, "kind": "basement"},
-          {"c0": 9, "r0": 13, "c1": 9, "r1": 14, "kind": "lobby", "switch": "lobby", "switch_inverted": true},
+          {"c0": 9, "r0": 13, "c1": 9, "r1": 14, "kind": "lobby", "switch": "lobby"},
           {"c0": 20, "r0": 8, "c1": 21, "r1": 8, "kind": "basement"},
-          {"c0": 22, "r0": 16, "c1": 22, "r1": 17, "kind": "lobby", "switch": "lobby", "switch_inverted": true}
+          {"c0": 22, "r0": 16, "c1": 22, "r1": 17, "kind": "lobby", "switch": "lobby"}
         ],
         "erasers": [],
         "light_bridges": [],

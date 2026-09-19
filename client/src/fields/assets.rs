@@ -4,6 +4,7 @@ use super::surface::surface_edges;
 
 use crate::{
     constants::{FIELD_FRAME_BODY_TINT, FIELD_FRAME_METALLIC, FIELD_FRAME_ROUGHNESS},
+    items::pickup_material,
     vfx::{translucent_kind_material, with_white_vertex_colors},
 };
 
@@ -66,20 +67,20 @@ fn rail_material(color: Color, emissive: f32) -> StandardMaterial {
     }
 }
 
-// One barrier or bridge kind's shared look: its frame material, the
-// configured colour, and the key pickup material of a barrier kind.
+// One field kind's shared look: its frame material, the configured colour,
+// and the material of its key pickup.
 pub(crate) struct KindVisual {
     pub frame: Handle<StandardMaterial>,
     pub base_color: Color,
-    pub key_material: Option<Handle<StandardMaterial>>,
+    pub key_material: Handle<StandardMaterial>,
 }
 
 impl KindVisual {
-    pub fn new(materials: &mut Assets<StandardMaterial>, color: Color, rail_emissive: f32) -> Self {
+    pub fn new(materials: &mut Assets<StandardMaterial>, color: Color, rail_emissive: f32, pickup_glow: f32) -> Self {
         Self {
             frame: materials.add(rail_material(color, rail_emissive)),
             base_color: color,
-            key_material: None,
+            key_material: materials.add(pickup_material(color, pickup_glow)),
         }
     }
 }

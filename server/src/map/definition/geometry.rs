@@ -18,7 +18,7 @@ use common::{
     constants::{LADDER_WIDTH, PRESSURE_PLATE_SIDE_CELLS},
     map::MapGeometry,
     protocol::{
-        Barrier, BarrierKindTable, BridgeKindId, CarrierId, Checkpoint, Eraser, FaceMaterials, Floor, ItemType, Ladder,
+        Barrier, CarrierId, Checkpoint, Eraser, FaceMaterials, FieldKindId, FieldKindTable, Floor, ItemType, Ladder,
         LightBridge, PressurePlate, Ramp, SwitchId, TerrainCell, Wall, WallLight,
     },
 };
@@ -170,11 +170,11 @@ fn compile_level_grids(
                 set_edge(&mut edge_grid, [wall.c0, wall.r0, wall.c1, wall.r1]);
             }
             for barrier in &level.barriers {
-                if !barrier
+                let switched = barrier
                     .switch
                     .as_deref()
-                    .is_some_and(|id| scope.plated_switches.contains(id))
-                {
+                    .is_some_and(|id| scope.plated_switches.contains(id));
+                if barrier.initially_on && !switched {
                     set_edge(&mut barrier_edge_grid, [barrier.c0, barrier.r0, barrier.c1, barrier.r1]);
                 }
             }
@@ -251,7 +251,7 @@ fn compile_barriers(
                 .with_context(|| format!("level {level_idx} barriers[{barrier_idx}]"))?;
             edges.push(BarrierEdge {
                 switch: scope.target_switch(b.switch.as_deref())?,
-                switch_inverted: b.switch_inverted,
+                initially_on: b.initially_on,
                 edge: [b.c0, b.r0, b.c1, b.r1],
                 kind,
             });
@@ -386,7 +386,7 @@ fn actor_spawn_zones(
         .enumerate()
         .map(|(idx, zone)| {
             Ok(ActorSpawnZone {
-                switch_inverted: zone.switch_inverted,
+                initially_on: zone.initially_on,
                 carrier,
                 level: u8::try_from(zone.level).unwrap_or(u8::MAX),
                 levels: zone.levels as u16,
@@ -410,7 +410,7 @@ fn actor_spawn_zones(
 // Items require an accessible regular or terrain floor outside a ramp.
 fn placed_items(
     map_def: &MapDef,
-    kind_table: &BarrierKindTable,
+    kind_table: &FieldKindTable,
     level_grids: &[LevelGrid],
     carrier: CarrierId,
 ) -> anyhow::Result<Vec<PlacedItem>> {
@@ -461,7 +461,7 @@ fn compile_light_bridges(
             .enumerate()
             .map(|(idx, def)| {
                 let kind = scope
-                    .bridge_table
+                    .kind_table
                     .resolve(&def.kind)
                     .with_context(|| format!("level {level_idx} light_bridges[{idx}]"))?;
                 Ok((
@@ -469,22 +469,22 @@ fn compile_light_bridges(
                     def.row,
                     kind,
                     scope.target_switch(def.switch.as_deref())?,
-                    def.switch_inverted,
+                    def.initially_on,
                 ))
             })
             .collect::<anyhow::Result<Vec<_>>>()?;
-        let mut groups = BTreeMap::<(BridgeKindId, Option<SwitchId>, bool), Vec<_>>::new();
-        for (col, row, kind, switch, inverted) in cells {
+        let mut groups = BTreeMap::<(FieldKindId, Option<SwitchId>, bool), Vec<_>>::new();
+        for (col, row, kind, switch, initially_on) in cells {
             groups
-                .entry((kind, switch, inverted))
+                .entry((kind, switch, initially_on))
                 .or_default()
                 .push((col, row, kind));
         }
-        for ((_, switch, switch_inverted), cells) in groups {
+        for ((_, switch, initially_on), cells) in groups {
             out.extend(merge_light_bridges(&cells).into_iter().map(|rect| LightBridge {
                 id: Default::default(),
                 switch,
-                switch_inverted,
+                initially_on,
                 x1: geometry.cell_to_world_x(rect.c0),
                 z1: geometry.cell_to_world_z(rect.r0),
                 x2: geometry.cell_to_world_x(rect.c1),

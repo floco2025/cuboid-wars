@@ -15,7 +15,7 @@ use crate::{
     },
     map::Carriers,
     physics::world::{CollisionWorld, ShapeCastHit},
-    protocol::{BarrierId, CarrierId, Position},
+    protocol::{CarrierId, FieldId, Position},
 };
 
 // The support probe's reach. It matches the carrier ride tolerance so a body
@@ -28,16 +28,17 @@ pub fn position_has_floor_support(
     collision_world: &CollisionWorld,
     pos: &Position,
     physics: CharacterPhysicsConfig,
+    passable_fields: &[FieldId],
 ) -> bool {
     let shape = character_movement_shape(physics);
-    character_ground_hit(collision_world, &shape, pos, &[], &[], physics).is_some()
+    character_ground_hit(collision_world, &shape, pos, passable_fields, &[], physics).is_some()
 }
 
 pub(super) fn character_ground_hit(
     collision_world: &CollisionWorld,
     shape: &Capsule,
     pos: &Position,
-    passable_kinds: &[BarrierId],
+    passable_fields: &[FieldId],
     excluded_colliders: &[ColliderHandle],
     physics: CharacterPhysicsConfig,
 ) -> Option<ShapeCastHit> {
@@ -45,7 +46,7 @@ pub(super) fn character_ground_hit(
         collision_world,
         shape,
         pos,
-        passable_kinds,
+        passable_fields,
         excluded_colliders,
         physics,
         GROUND_PROBE_DISTANCE,
@@ -57,7 +58,7 @@ fn probe_character_ground(
     collision_world: &CollisionWorld,
     shape: &Capsule,
     pos: &Position,
-    passable_kinds: &[BarrierId],
+    passable_fields: &[FieldId],
     excluded_colliders: &[ColliderHandle],
     physics: CharacterPhysicsConfig,
     distance: f32,
@@ -66,7 +67,7 @@ fn probe_character_ground(
     pose.translation.y += CHARACTER_CONTACT_OFFSET * 2.0;
     // Cast to the surface and subtract the skin afterward to avoid near-contact distance noise.
     collision_world
-        .ground_hit(shape, &pose, distance, 0.0, passable_kinds, excluded_colliders)
+        .ground_hit(shape, &pose, distance, 0.0, passable_fields, excluded_colliders)
         .map(|mut hit| {
             hit.t -= CHARACTER_CONTACT_OFFSET * 2.0 + CHARACTER_CONTACT_OFFSET / hit.normal.y;
             hit
@@ -78,14 +79,14 @@ pub fn grounding_diagnostics(
     collision_world: &CollisionWorld,
     pos: &Position,
     physics: CharacterPhysicsConfig,
-    passable_kinds: &[BarrierId],
+    passable_fields: &[FieldId],
     excluded_colliders: &[ColliderHandle],
 ) -> GroundingDiagnostics {
     let hit = probe_character_ground(
         collision_world,
         &character_movement_shape(physics),
         pos,
-        passable_kinds,
+        passable_fields,
         excluded_colliders,
         physics,
         GROUND_PROBE_DISTANCE,
@@ -128,7 +129,7 @@ pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shap
                 env.collision_world,
                 shape,
                 &step.start,
-                env.passable_kinds,
+                env.passable_fields,
                 backing,
                 env.physics,
             )
@@ -146,7 +147,7 @@ pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shap
                         env.collision_world,
                         shape,
                         &step.start,
-                        env.passable_kinds,
+                        env.passable_fields,
                         &[],
                         env.physics,
                     )
@@ -169,7 +170,7 @@ pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shap
                     env.collision_world,
                     shape,
                     &step.start,
-                    env.passable_kinds,
+                    env.passable_fields,
                     env.physics,
                     env.carriers,
                 )
@@ -200,7 +201,7 @@ fn supporting_carrier(
     collision_world: &CollisionWorld,
     shape: &Capsule,
     pos: &Position,
-    passable_kinds: &[BarrierId],
+    passable_fields: &[FieldId],
     physics: CharacterPhysicsConfig,
     carriers: &Carriers,
 ) -> Option<CarrierId> {
@@ -216,7 +217,7 @@ fn supporting_carrier(
                 shape,
                 &pose,
                 bottom + CHARACTER_CARRIER_RIDE_TOLERANCE + CHARACTER_CONTACT_OFFSET * 2.0,
-                passable_kinds,
+                passable_fields,
                 carrier,
             )?;
             hit.t -= CHARACTER_CONTACT_OFFSET * 2.0;
@@ -232,7 +233,7 @@ fn supporting_carrier(
     let pose = character_movement_pose(&lifted, physics);
     let carried_distance = current_distance + rise;
     let world_above = collision_world
-        .ground_hit_on_carrier(shape, &pose, carried_distance, passable_kinds, CarrierId::WORLD)
+        .ground_hit_on_carrier(shape, &pose, carried_distance, passable_fields, CarrierId::WORLD)
         .is_some_and(|hit| hit.t + CHARACTER_CARRIER_TIE_EPSILON < carried_distance);
     (!world_above).then_some(carrier)
 }
@@ -241,14 +242,14 @@ pub(super) fn snap_character_to_ground(
     collision_world: &CollisionWorld,
     pos: &mut Position,
     physics: CharacterPhysicsConfig,
-    passable_kinds: &[BarrierId],
+    passable_fields: &[FieldId],
     excluded_colliders: &[ColliderHandle],
 ) {
     if let Some(hit) = probe_character_ground(
         collision_world,
         &character_movement_shape(physics),
         pos,
-        passable_kinds,
+        passable_fields,
         excluded_colliders,
         physics,
         CHARACTER_GROUND_SNAP_DISTANCE + CHARACTER_CONTACT_OFFSET * 3.0,

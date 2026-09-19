@@ -5,10 +5,10 @@ use rapier3d::{
 
 use super::{
     CollisionWorld,
-    colliders::{ColliderKind, barrier_blocks, character_collision_groups, query_filter},
+    colliders::{ColliderKind, character_collision_groups, field_blocks, query_filter},
     shape_cast::{ShapeCastHit, upward_surface_hit},
 };
-use crate::protocol::{BarrierId, CarrierId};
+use crate::protocol::{CarrierId, FieldId};
 
 impl CollisionWorld {
     #[must_use]
@@ -18,7 +18,7 @@ impl CollisionWorld {
         character_pos: &Pose,
         max_distance: f32,
         target_distance: f32,
-        passable_kinds: &[BarrierId],
+        passable_fields: &[FieldId],
         excluded_colliders: &[ColliderHandle],
     ) -> Option<ShapeCastHit> {
         let allow = |handle: ColliderHandle, _: &Collider| !excluded_colliders.contains(&handle);
@@ -29,7 +29,7 @@ impl CollisionWorld {
             character_pos,
             max_distance,
             target_distance,
-            passable_kinds,
+            passable_fields,
             predicate,
         )
     }
@@ -40,7 +40,7 @@ impl CollisionWorld {
         character_movement_shape: &dyn Shape,
         character_pos: &Pose,
         max_distance: f32,
-        passable_kinds: &[BarrierId],
+        passable_fields: &[FieldId],
         carrier: CarrierId,
     ) -> Option<ShapeCastHit> {
         let on_carrier = |_: ColliderHandle, collider: &Collider| {
@@ -51,7 +51,7 @@ impl CollisionWorld {
             character_pos,
             max_distance,
             0.0,
-            passable_kinds,
+            passable_fields,
             Some(&on_carrier),
         )
     }
@@ -62,11 +62,11 @@ impl CollisionWorld {
         character_pos: &Pose,
         max_distance: f32,
         target_distance: f32,
-        passable_kinds: &[BarrierId],
+        passable_fields: &[FieldId],
         predicate: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
     ) -> Option<ShapeCastHit> {
         let allow = |handle: ColliderHandle, collider: &Collider| {
-            barrier_blocks(collider, passable_kinds) && predicate.is_none_or(|predicate| predicate(handle, collider))
+            field_blocks(collider, passable_fields) && predicate.is_none_or(|predicate| predicate(handle, collider))
         };
         let mut filter = query_filter(character_collision_groups());
         filter.predicate = Some(&allow);

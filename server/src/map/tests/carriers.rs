@@ -80,7 +80,7 @@ fn every_carrier_carries_a_standing_player_through_its_cycle() {
                     ladder_mode: LadderMode::Automatic,
                     collision_world: &world,
                     gravity: map_settings.movement.gravity,
-                    passable_kinds: &[],
+                    passable_fields: &[],
                     physics,
                     ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
                     portals: None,

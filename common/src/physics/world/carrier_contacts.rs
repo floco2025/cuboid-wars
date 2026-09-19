@@ -6,7 +6,7 @@ use rapier3d::{
 
 use super::{
     CollisionWorld,
-    colliders::{ColliderKind, barrier_blocks, character_collision_groups, query_filter},
+    colliders::{ColliderKind, character_collision_groups, field_blocks, query_filter},
 };
 use crate::{
     config::CharacterPhysicsConfig,
@@ -14,7 +14,7 @@ use crate::{
     map::Carriers,
     math::PHYSICS_EPSILON,
     physics::characters::{character_movement_pose, character_movement_shape},
-    protocol::{BarrierId, Position},
+    protocol::{FieldId, Position},
 };
 
 impl CollisionWorld {
@@ -25,13 +25,13 @@ impl CollisionWorld {
         shape: &dyn Shape,
         start: &Pose,
         carriers: &Carriers,
-        passable_kinds: &[BarrierId],
+        passable_fields: &[FieldId],
         excluded_colliders: &[ColliderHandle],
         mut events: impl FnMut(CharacterCollision),
     ) -> Vector {
         let allow = |handle: ColliderHandle, collider: &Collider| {
             !excluded_colliders.contains(&handle)
-                && barrier_blocks(collider, passable_kinds)
+                && field_blocks(collider, passable_fields)
                 && ColliderKind::from_user_data(collider.user_data) != Some(ColliderKind::Ramp)
                 && carriers
                     .displacement(self.carrier_of(handle))
@@ -69,7 +69,7 @@ impl CollisionWorld {
                 shape,
                 &pose,
                 push,
-                passable_kinds,
+                passable_fields,
                 excluded_colliders,
                 &mut events,
             );
@@ -82,7 +82,7 @@ impl CollisionWorld {
         &self,
         pos: &Position,
         physics: CharacterPhysicsConfig,
-        passable_kinds: &[BarrierId],
+        passable_fields: &[FieldId],
         excluded_colliders: &[ColliderHandle],
         lifted: bool,
     ) -> bool {
@@ -93,7 +93,7 @@ impl CollisionWorld {
         };
         let allow = |handle: ColliderHandle, collider: &Collider| {
             !excluded_colliders.contains(&handle)
-                && barrier_blocks(collider, passable_kinds)
+                && field_blocks(collider, passable_fields)
                 && ColliderKind::from_user_data(collider.user_data) != Some(ColliderKind::Ramp)
                 && (lifted || !self.carrier_of(handle).is_world())
         };

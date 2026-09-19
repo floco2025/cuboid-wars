@@ -3,7 +3,7 @@ use std::collections::{HashSet, VecDeque};
 use common::{
     map::{CarrierPose, Grounds, GroundsSettings},
     physics::CollisionWorld,
-    protocol::{BridgeId, CarrierId, MapLayout, Position, Wall},
+    protocol::{BarrierId, BridgeId, CarrierId, FieldId, MapLayout, Position, Wall},
 };
 
 use super::{NavGraph, NavGraphs, NavNode};
@@ -29,7 +29,7 @@ fn level(cells: CellGrid, edges: EdgeGrid) -> LevelGrid {
 
 fn zone(level: u8, col: i32, row: i32) -> ActorSpawnZone {
     ActorSpawnZone {
-        switch_inverted: false,
+        initially_on: true,
 
         carrier: CarrierId::WORLD,
         level,
@@ -85,7 +85,7 @@ fn bridge_strip_nav() -> NavGraph {
 }
 
 #[test]
-fn routes_cross_a_bridge_only_while_it_is_powered() {
+fn routes_cross_a_bridge_only_while_it_is_solid() {
     let mut nav = bridge_strip_nav();
     let start = Position {
         x: 0.0,
@@ -97,13 +97,13 @@ fn routes_cross_a_bridge_only_while_it_is_powered() {
     let path = path_to_spawn_zone(&nav, &start, &far_end).expect("a fresh graph walks every bridge");
     assert_eq!(path.len(), 4, "one leg per bridge cell and one onto the far floor");
 
-    nav.set_powered_bridges(&[]);
+    nav.set_open_fields(&[FieldId::Bridge(BridgeId(7))]);
     assert!(
         path_to_spawn_zone(&nav, &start, &far_end).is_none(),
-        "an unpowered bridge is a gap"
+        "a bridge that is off is a gap"
     );
 
-    nav.set_powered_bridges(&[BridgeId(7)]);
+    nav.set_open_fields(&[FieldId::Barrier(BarrierId(7))]);
     assert_eq!(
         path_to_spawn_zone(&nav, &start, &far_end).map(|path| path.len()),
         Some(4)
@@ -111,7 +111,7 @@ fn routes_cross_a_bridge_only_while_it_is_powered() {
 }
 
 #[test]
-fn a_bridge_cell_counts_as_lost_only_while_unpowered() {
+fn a_bridge_cell_counts_as_lost_only_while_it_is_off() {
     let mut nav = bridge_strip_nav();
     let on_bridge = Position {
         x: 0.0,
@@ -123,11 +123,11 @@ fn a_bridge_cell_counts_as_lost_only_while_unpowered() {
         y: 0.0,
         z: nav.geometry.cell_center_z(0),
     };
-    assert!(!nav.position_over_unpowered_bridge(&on_bridge));
+    assert!(!nav.position_over_open_bridge(&on_bridge));
 
-    nav.set_powered_bridges(&[]);
-    assert!(nav.position_over_unpowered_bridge(&on_bridge));
-    assert!(!nav.position_over_unpowered_bridge(&on_floor));
+    nav.set_open_fields(&[FieldId::Bridge(BridgeId(7))]);
+    assert!(nav.position_over_open_bridge(&on_bridge));
+    assert!(!nav.position_over_open_bridge(&on_floor));
 }
 
 fn full_floor_nav(cols: i32, rows: i32) -> NavGraph {

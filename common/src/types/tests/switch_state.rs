@@ -1,4 +1,5 @@
 use super::*;
+use crate::protocol::{BarrierId, BridgeId};
 
 #[test]
 fn sorted_lookups_find_switches_and_runs() {
@@ -9,13 +10,23 @@ fn sorted_lookups_find_switches_and_runs() {
     };
     let mut state = SwitchState {
         active_switches: vec![SwitchId(3), SwitchId(1)],
-        open_barriers: vec![BarrierId(2), BarrierId(0)],
-        powered_bridges: vec![BridgeId(1)],
+        open_fields: vec![
+            FieldId::Bridge(BridgeId(1)),
+            FieldId::Barrier(BarrierId(2)),
+            FieldId::Barrier(BarrierId(0)),
+        ],
         carrier_runs: vec![(CarrierId(2), running), (CarrierId(1), CarrierRun::STOPPED)],
     };
     state.sort();
     assert_eq!(state.active_switches, [SwitchId(1), SwitchId(3)]);
-    assert_eq!(state.open_barriers, [BarrierId(0), BarrierId(2)]);
+    assert_eq!(
+        state.open_fields,
+        [
+            FieldId::Barrier(BarrierId(0)),
+            FieldId::Barrier(BarrierId(2)),
+            FieldId::Bridge(BridgeId(1)),
+        ]
+    );
     assert!(state.is_active(SwitchId(3)));
     assert!(!state.is_active(SwitchId(2)));
     assert_eq!(state.carrier_run(CarrierId(2)), Some(running));

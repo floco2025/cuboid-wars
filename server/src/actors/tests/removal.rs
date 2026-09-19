@@ -69,7 +69,7 @@ fn set_checkpoint(info: &mut PlayerInfo, checkpoint: u32) {
 
 fn zone_until_two(on_checkpoint: CheckpointResponse) -> ActorSpawnZone {
     ActorSpawnZone {
-        switch_inverted: false,
+        initially_on: true,
         carrier: CarrierId::WORLD,
         level: 0,
         levels: 1,

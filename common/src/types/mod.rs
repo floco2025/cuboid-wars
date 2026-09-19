@@ -1,10 +1,9 @@
-mod barrier_kind;
-mod bridge_kind;
 mod color;
 mod entities;
 mod face_materials;
 mod feed;
 mod field_ids;
+mod field_kind;
 mod ids;
 mod items;
 mod kind_table;
@@ -21,15 +20,14 @@ mod tick;
 
 pub use crate::health::Health;
 
-pub use barrier_kind::{BarrierKindId, BarrierKindTable};
-pub use bridge_kind::{BridgeKindId, BridgeKindTable};
 pub use color::HexColor;
 pub use entities::{
     Actor, ActorAnchor, ActorBeam, ActorMarker, Item, ItemMarker, Missile, Player, PlayerMarker, SpawningActor,
 };
 pub use face_materials::{Face, FaceMaterials};
 pub use feed::{FeedSpan, FeedStyle};
-pub use field_ids::{BarrierId, BridgeId};
+pub use field_ids::{BarrierId, BridgeId, FieldId};
+pub use field_kind::{FieldKindId, FieldKindTable};
 pub use ids::{ActorId, CarrierId, HomingTarget, ItemId, MissileId, PlayerId, PortalPairId, QuestId};
 pub use items::{ItemType, PowerUpKind};
 pub use kind_table::{KindDef, KindId, KindTable};

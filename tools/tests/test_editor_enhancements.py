@@ -195,7 +195,7 @@ class EditorEnhancementTests(WindowTestCase):
             "beam_in_secs": 2.5,
             "roam_distance": 3.5,
             "switch": "barrier_1",
-            "switch_inverted": True,
+            "initially_on": False,
         }.items():
             self.set_property(key, value)
         actor = window.map_data["actor_spawn_zones"][0]
@@ -209,9 +209,9 @@ class EditorEnhancementTests(WindowTestCase):
                 actor["beam_in_secs"],
                 actor["roam_distance"],
                 actor["switch"],
-                actor["switch_inverted"],
+                actor["initially_on"],
             ),
-            (1, 2, "zapper", [0, 2, 4], 12.5, 2.5, 3.5, "barrier_1", True),
+            (1, 2, "zapper", [0, 2, 4], 12.5, 2.5, 3.5, "barrier_1", False),
         )
         self.assertEqual(window.undo_stack.count(), 1)
         window.undo_stack.undo()
@@ -235,7 +235,7 @@ class EditorEnhancementTests(WindowTestCase):
             "pause_secs": 2,
             "phase_secs": 1,
             "switch": "barrier_1",
-            "switch_inverted": True,
+            "initially_on": False,
             "motion": "follow_switch",
         }
         values.update({(end, axis): 0.25 * (axis + 1) for end in ("from_nudge", "to_nudge") for axis in range(3)})
@@ -251,7 +251,7 @@ class EditorEnhancementTests(WindowTestCase):
         )
         self.assertEqual(entry["from_nudge"], [0.25, 0.5, 0.75])
         self.assertEqual(entry["to_nudge"], entry["from_nudge"])
-        self.assertEqual((entry["switch"], entry["switch_inverted"]), ("barrier_1", True))
+        self.assertEqual((entry["switch"], entry["initially_on"]), ("barrier_1", False))
         self.assertEqual(entry["motion"], "follow_switch")
         self.assertFalse(panel.widgets[("pause_secs",)].isEnabled())
         self.assertFalse(panel.widgets[("phase_secs",)].isEnabled())
@@ -260,14 +260,15 @@ class EditorEnhancementTests(WindowTestCase):
         window.undo_stack.redo()
         window.inspect_refs([ElementRef("nested_maps", 0)], show=True)
         self.set_property("switch", None)
-        self.assertTrue(panel.error.isVisible())
-        self.assertEqual(window.map_data["nested_maps"][0]["switch"], "barrier_1")
+        self.assertFalse(panel.error.isVisible())
+        self.assertNotIn("switch", window.map_data["nested_maps"][0])
+        self.assertTrue(any("has no switch" in warning for warning in window.validate(window.map_data).warnings))
         self.set_property("motion", "cycle")
         self.assertTrue(panel.widgets[("pause_secs",)].isEnabled())
         self.assertTrue(panel.widgets[("phase_secs",)].isEnabled())
         entry = window.map_data["nested_maps"][0]
         self.assertNotIn("switch", entry)
-        self.assertEqual((entry["pause_secs"], entry["phase_secs"]), (2, 1))
+        self.assertEqual((entry["pause_secs"], entry["phase_secs"], entry["initially_on"]), (2, 1, False))
 
     def test_connections_are_opt_in_and_follow_the_current_selection(self):
         window = self.window
@@ -365,17 +366,20 @@ class EditorEnhancementTests(WindowTestCase):
         self.assertIn("outside the map", notify.call_args.args[0])
         self.assertEqual(len(window.map_data["ladders"]), 2)
 
-    def test_clearing_a_switch_in_properties_drops_its_response_too(self):
+    def test_an_unswitched_record_keeps_an_editable_initial_state_in_properties(self):
         window = self.window
         data = empty_map(8, 8)
         data["checkpoints"] = []
         data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
         window.switch_ids = ["barrier_1"]
         data["nested_geometry"] = {"room": empty_map(1, 1)}
-        data["nested_maps"] = [{**nested("room", 0, [3, 3], [5, 5]), "switch": "barrier_1", "switch_inverted": True}]
+        data["nested_maps"] = [{**nested("room", 0, [3, 3], [5, 5]), "switch": "barrier_1", "initially_on": False}]
         window.doc.replace_with_new(data)
         window.inspect_refs([ElementRef("nested_maps", 0)], show=True)
         self.set_property("switch", None)
         entry = window.map_data["nested_maps"][0]
         self.assertNotIn("switch", entry)
-        self.assertNotIn("switch_inverted", entry)
+        self.assertIs(entry["initially_on"], False)
+        self.assertTrue(window.properties_panel.widgets[("initially_on",)].isEnabled())
+        self.set_property("initially_on", True)
+        self.assertNotIn("initially_on", window.map_data["nested_maps"][0])

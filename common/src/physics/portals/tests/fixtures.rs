@@ -6,8 +6,8 @@ pub(super) use crate::{
         CharacterEnvironment, CharacterStep, CharacterSupport, CollisionWorld, LadderMode, step_character_movement,
     },
     protocol::{
-        BarrierId, BarrierKindId, Carrier, CarrierId, FaceMaterials, Floor, MapLayout, Portal, PortalEnd, PortalPairId,
-        Position, Ramp, Wall,
+        Carrier, CarrierId, FaceMaterials, FieldId, Floor, MapLayout, Portal, PortalEnd, PortalPairId, Position, Ramp,
+        Wall,
     },
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
@@ -95,7 +95,7 @@ pub(crate) fn moving_projectile_portals(
 ) -> (CollisionWorld, PortalSet) {
     let carrier = Carrier {
         motion: Default::default(),
-        switch_inverted: false,
+        initially_on: true,
 
         parent: CarrierId::WORLD,
         level: 0,
@@ -221,7 +221,7 @@ pub(crate) fn place_on_geometry(
     world: &CollisionWorld,
     layout: &MapLayout,
     carriers: &Carriers,
-    open: &[BarrierId],
+    open: &[FieldId],
 ) -> Option<PortalPlacement> {
     compute_portal_placement(
         origin,
@@ -310,7 +310,7 @@ pub(crate) fn tile_wall_layout(beside_floor: bool) -> MapLayout {
         ],
         carriers: vec![Carrier {
             motion: Default::default(),
-            switch_inverted: false,
+            initially_on: true,
 
             parent: CarrierId::WORLD,
             level: 0,
@@ -391,7 +391,7 @@ pub(crate) fn run_ticks(
             ladder_mode: LadderMode::Automatic,
             collision_world: world,
             gravity: 25.0,
-            passable_kinds: &[],
+            passable_fields: &[],
             physics,
             ladder_climb_ratio: LADDER_CLIMB_RATIO,
             portals: Some(set),

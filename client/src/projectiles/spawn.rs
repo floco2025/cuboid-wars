@@ -109,7 +109,7 @@ pub fn spawn_projectiles(
     gameplay: &GameplayConfig,
     projectile_speed: f32,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
     shooter_id: PlayerId,
     muzzle_check: MuzzleCheck,
 ) -> usize {
@@ -120,7 +120,7 @@ pub fn spawn_projectiles(
         shot.pattern,
         gameplay,
         collision_world,
-        open_kinds,
+        open_fields,
         muzzle_check,
     );
 

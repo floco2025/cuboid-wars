@@ -39,7 +39,7 @@ class WorkflowMixin:
             setattr(
                 self,
                 f"recent_{prefix}_controls",
-                {key: entry[key] for key in ("switch", "switch_inverted") if key in entry},
+                {key: entry[key] for key in ("switch", "initially_on") if key in entry},
             )
         elif name == "actor_spawn_zones":
             for key, attribute, default in (
@@ -48,7 +48,7 @@ class WorkflowMixin:
                 ("respawn_secs", "recent_actor_spawn_respawn_secs", None),
                 ("beam_in_secs", "recent_actor_beam_in_secs", 0.0),
                 ("switch", "recent_actor_spawn_switch", ""),
-                ("switch_inverted", "recent_actor_spawn_inverted", False),
+                ("initially_on", "recent_actor_spawn_initially_on", True),
                 ("levels", "recent_actor_spawn_levels", 1),
                 ("roam_distance", "recent_actor_roam_distance", 0.0),
                 ("until_checkpoint", "recent_actor_until_checkpoint", None),

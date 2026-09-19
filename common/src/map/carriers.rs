@@ -92,8 +92,8 @@ impl CarrierRun {
     #[must_use]
     pub fn initial(carrier: &Carrier) -> Self {
         Self {
-            active: carrier.switch_inverted,
-            run_ticks: if carrier.motion == CarrierMotion::FollowSwitch && carrier.switch_inverted {
+            active: carrier.initially_on,
+            run_ticks: if carrier.motion == CarrierMotion::FollowSwitch && carrier.initially_on {
                 carrier.travel_ticks
             } else {
                 0
@@ -224,16 +224,17 @@ impl Carriers {
     }
 
     // The carrier's world pose at `tick` from its parent's current pose: a
-    // free carrier runs on the shared tick, a switched one on the run the
-    // switch state names, or its initial run before the state names one.
+    // free cycle that is on runs on the shared tick, any other carrier on the
+    // run the switch state names, or its initial run while the state names none.
     fn pose_at(&self, carrier: &Carrier, id: CarrierId, tick: u32, switch_state: &SwitchState) -> CarrierPose {
-        let run_ticks = if carrier.switch.is_some() {
+        let free_cycle = carrier.switch.is_none() && carrier.initially_on && carrier.motion == CarrierMotion::Cycle;
+        let run_ticks = if free_cycle {
+            tick
+        } else {
             switch_state
                 .carrier_run(id)
                 .unwrap_or_else(|| CarrierRun::initial(carrier))
                 .run_ticks_at(tick, carrier)
-        } else {
-            tick
         };
         self.pose(carrier.parent)
             .then(&CarrierPose::from_translation(carrier_offset_at(carrier, run_ticks)))

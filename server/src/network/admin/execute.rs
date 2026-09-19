@@ -19,7 +19,7 @@ use crate::{
 use common::{
     celestial::{CelestialClockAnchor, CelestialCycleSettings, LocalTime},
     protocol::{
-        BarrierKindId, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope, SPlayerStatus,
+        FieldKindId, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope, SPlayerStatus,
         ServerMessage,
     },
 };
@@ -227,7 +227,7 @@ pub(super) fn run_admin_command(
             let mut added = 0usize;
             for index in 0..admin.key_kind_table.len() {
                 if let Ok(kind) = u16::try_from(index)
-                    && info.add_key(BarrierKindId(kind))
+                    && info.add_key(FieldKindId(kind))
                 {
                     added += 1;
                 }

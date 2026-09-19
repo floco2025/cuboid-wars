@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from PySide6.QtCore import QPointF
 
@@ -56,32 +56,42 @@ class NestedMapTests(unittest.TestCase):
         self.assertTrue(host.statuses[-1].startswith("A nested map already starts here"))
         self.assertEqual(host.map_data["nested_maps"], [nested("cabin", 0, [1, 1], [5, 1])])
 
-    def test_a_nested_maps_switch_and_response_are_written_only_while_set(self) -> None:
+    def test_a_nested_maps_switch_and_off_state_are_written_only_while_set(self) -> None:
         host = EditorHost(empty_map(8, 8), [])
-        motion = NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lift", True)
+        motion = NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lift", False)
         host.place_nested_map((1, 1), (4, 1), motion)
         entry = host.map_data["nested_maps"][0]
-        self.assertEqual((entry["switch"], entry["switch_inverted"]), ("lift", True))
-        self.assertEqual(NestedMotion.from_entry({**entry, "to_level": 0, "phase_secs": 0.0}).switch, "lift")
+        self.assertEqual((entry["switch"], entry["initially_on"]), ("lift", False))
+        self.assertEqual(NestedMotion.from_entry({**entry, "to_level": 0, "phase_secs": 0.0}), motion)
         host.place_nested_map((2, 2), (2, 2), NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
         entry = host.map_data["nested_maps"][1]
         self.assertNotIn("switch", entry)
-        self.assertNotIn("switch_inverted", entry)
-        self.assertFalse(NestedMotion.from_entry(entry).switch_inverted)
+        self.assertNotIn("initially_on", entry)
+        self.assertTrue(NestedMotion.from_entry(entry).initially_on)
+
+    def test_an_unswitched_nested_map_keeps_its_off_state(self) -> None:
+        host = EditorHost(empty_map(8, 8), [])
+        paused = NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), None, False)
+        host.place_nested_map((1, 1), (4, 1), paused)
+        entry = host.map_data["nested_maps"][0]
+        self.assertNotIn("switch", entry)
+        self.assertIs(entry["initially_on"], False)
+        self.assertEqual(NestedMotion.from_entry(entry), paused)
+        self.assertFalse(any("nested_maps" in error for error in validate_map(host.map_data, [])))
 
     def test_invalid_motion_is_preserved_for_validation(self):
         data = empty_map(8, 8)
         data["nested_maps"] = [{**nested("cabin", 0, [1, 1], [3, 1]), "motion": "yes"}]
         normalized = normalize_map(data)
         self.assertEqual(normalized["nested_maps"][0]["motion"], "yes")
-        self.assertTrue(
-            any("motion must be cycle or follow_switch" in error for error in validate_map(normalized, [], []))
-        )
+        self.assertTrue(any("motion must be cycle or follow_switch" in error for error in validate_map(normalized, [])))
 
-    def test_follow_motion_requires_a_switch(self):
+    def test_follow_motion_without_a_switch_is_only_a_warning(self):
         data = empty_map(8, 8)
         data["nested_maps"] = [{**nested("cabin", 0, [1, 1], [3, 1]), "motion": "follow_switch"}]
-        self.assertTrue(any("Follow switch motion requires a switch" in error for error in validate_map(data, [], [])))
+        issues = validate_map(data, [])
+        self.assertFalse(any("Follow switch" in error for error in issues))
+        self.assertTrue(any("Follow switch motion has no switch" in warning for warning in issues.warnings))
 
     def test_placing_on_the_same_start_cell_replaces_the_old_nested_map(self) -> None:
         host = EditorHost(empty_map(8, 8), [])
@@ -130,33 +140,38 @@ class NestedMapTests(unittest.TestCase):
         followed = {**entry, "motion": "follow_switch", "switch": "lift"}
         self.assertEqual(NestedMotion.from_entry(followed).motion, "follow_switch")
 
-    def test_an_inverted_follow_switch_map_rests_at_end_2(self) -> None:
-        entry = {**nested("cabin", 0, [1, 1], [3, 1]), "switch": "lift", "switch_inverted": True}
+    def test_a_follow_switch_map_rests_at_end_2_unless_it_starts_off(self) -> None:
+        entry = {**nested("cabin", 0, [1, 1], [3, 1]), "switch": "lift"}
         self.assertFalse(nested_map_starts_at_end_2(entry))
         self.assertTrue(nested_map_starts_at_end_2({**entry, "motion": "follow_switch"}))
-        self.assertFalse(nested_map_starts_at_end_2({**entry, "motion": "follow_switch", "switch_inverted": False}))
+        self.assertFalse(nested_map_starts_at_end_2({**entry, "motion": "follow_switch", "initially_on": False}))
 
-    def test_hover_text_names_the_motion_and_the_switch_response(self) -> None:
+    def test_hover_text_names_the_motion_the_switch_and_the_initial_state(self) -> None:
         data = empty_map(8, 8)
         entry = {
             **nested("cabin", 0, [1, 1], [3, 1]),
             "pause_secs": 5.0,
             "phase_secs": 2.0,
             "switch": "lift",
-            "switch_inverted": True,
+            "initially_on": False,
         }
         data["nested_maps"] = [entry]
         hit = (HIT_NESTED_MAP, nested_map_key(entry))
         self.assertEqual(
             element_hover_text(data, 0, hit),
             "Nested map: cabin\nLevel 0 → Level 0\nCycle · Travel: 2 s · Pause: 5 s\nPhase: 2 s"
-            "\nSwitch: lift · Respond when Off",
+            "\nSwitch: lift · Initial state: Off",
         )
         entry["motion"] = "follow_switch"
         self.assertEqual(
             element_hover_text(data, 0, hit),
-            "Nested map: cabin\nLevel 0 → Level 0\nFollow switch · Travel: 2 s\nSwitch: lift · Respond when Off",
+            "Nested map: cabin\nLevel 0 → Level 0\nFollow switch · Travel: 2 s\nSwitch: lift · Initial state: Off",
         )
+        del entry["switch"]
+        entry["motion"] = "cycle"
+        self.assertTrue(element_hover_text(data, 0, hit).endswith("\nPhase: 2 s\nInitial state: Off"))
+        del entry["initially_on"]
+        self.assertTrue(element_hover_text(data, 0, hit).endswith("\nPhase: 2 s"))
 
 
 class NestedMotionWindowTests(WindowTestCase):
@@ -177,12 +192,8 @@ class NestedMotionWindowTests(WindowTestCase):
         self.assertFalse(dialog._pause.isEnabled())
         self.assertFalse(dialog._phase.isEnabled())
         self.assertEqual((dialog._pause.value(), dialog._phase.value()), (1.5, 2.5))
-        with patch("map_editor.dialogs.motion.QMessageBox.warning") as warning:
-            dialog.accept()
-        warning.assert_called_once()
-        self.assertEqual(dialog.result(), 0)
+        self.assertTrue(dialog.control.initially_on.isEnabled())
         dialog._switch.setCurrentIndex(dialog._switch.findData("barrier_1"))
-        self.assertTrue(dialog.control.response.isEnabled())
         motion = NestedMotion(dialog._map.currentText(), *dialog.motion())
         window.place_nested_map((3, 3), (5, 3), motion)
         entry = window.map_data["nested_maps"][0]
@@ -203,7 +214,10 @@ class NestedMotionWindowTests(WindowTestCase):
         self.assertTrue(restored._phase.isEnabled())
         self.assertEqual((restored._pause.value(), restored._phase.value()), (1.5, 2.5))
         restored._switch.setCurrentIndex(restored._switch.findData(""))
-        self.assertFalse(restored.control.response.isEnabled())
-        self.assertNotIn("switch", NestedMotion("cabin", *restored.motion()).to_entry())
+        self.assertTrue(restored.control.initially_on.isEnabled())
+        restored.control.initially_on.setCurrentIndex(restored.control.initially_on.findData("Off"))
+        paused = NestedMotion("cabin", *restored.motion()).to_entry()
+        self.assertNotIn("switch", paused)
+        self.assertIs(paused["initially_on"], False)
         dialog.close()
         restored.close()

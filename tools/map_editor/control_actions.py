@@ -14,11 +14,7 @@ from .nesting import DEFAULT_MOTION
 
 class ControlActionsMixin:
     def build_control_menu(self, menu):
-        for catalog, title in (
-            ("switches", "Switches"),
-            ("barrier_kinds", "Barrier Kinds"),
-            ("bridge_kinds", "Bridge Kinds"),
-        ):
+        for catalog, title in (("switches", "Switches"), ("field_kinds", "Field Kinds")):
             self.add_menu_action(
                 menu, title + "…", None, lambda checked=False, c=catalog, t=title: self.edit_control_catalog(c, t)
             )
@@ -48,31 +44,33 @@ class ControlActionsMixin:
             return name if name in remaining else None
 
         if catalog == "switches":
+            # An initial state was chosen for the switch that flips it, so a
+            # default losing its switch returns to the placement default, On.
             for attribute in ("recent_barrier_controls", "recent_bridge_controls"):
                 controls = getattr(self, attribute)
-                switch = follow(controls["switch"]) if controls.get("switch") else None
-                setattr(self, attribute, {**controls, "switch": switch} if switch else {})
-            self.recent_actor_spawn_switch = follow(self.recent_actor_spawn_switch) or ""
-            if not self.recent_actor_spawn_switch:
-                self.recent_actor_spawn_inverted = False
+                if controls.get("switch"):
+                    switch = follow(controls["switch"])
+                    setattr(self, attribute, {**controls, "switch": switch} if switch else {})
+            if self.recent_actor_spawn_switch:
+                self.recent_actor_spawn_switch = follow(self.recent_actor_spawn_switch) or ""
+                if not self.recent_actor_spawn_switch:
+                    self.recent_actor_spawn_initially_on = True
             switch = follow(self.recent_pressure_plate_switch) if self.recent_pressure_plate_switch else None
             self.recent_pressure_plate_switch = switch or (self.switches[0] if self.switches else None)
             motion = self.recent_nested_map
             if motion is not None and motion.switch:
                 switch = follow(motion.switch)
-                # Follow switch needs its switch, and the next placement
-                # reuses this default without a dialog to say so.
+                # A Follow switch never moves without its switch, and the next
+                # placement reuses this default without a dialog to say so.
                 self.recent_nested_map = replace(
                     motion,
                     switch=switch,
-                    switch_inverted=bool(switch) and motion.switch_inverted,
+                    initially_on=motion.initially_on or not switch,
                     motion=motion.motion if switch else DEFAULT_MOTION,
                 )
-        elif catalog == "barrier_kinds":
-            self.recent_barrier_kind = follow(self.recent_barrier_kind) if self.recent_barrier_kind else None
-            self.recent_item_key_kind = follow(self.recent_item_key_kind) if self.recent_item_key_kind else None
         else:
-            self.recent_bridge_kind = follow(self.recent_bridge_kind) if self.recent_bridge_kind else None
+            for attribute in ("recent_barrier_kind", "recent_bridge_kind", "recent_item_key_kind"):
+                setattr(self, attribute, follow(getattr(self, attribute)))
         self.tool_settings.refresh()
 
     def edit_checkpoints(self):

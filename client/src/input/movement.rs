@@ -2,7 +2,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
     physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
-    protocol::{FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, PortalAccess, Position},
+    protocol::{FaceYaw, FieldId, MapSettings, PlayerId, PlayerMoveIntent, PortalAccess, Position, SwitchState},
 };
 use std::f32::consts::PI;
 
@@ -65,6 +65,7 @@ pub fn input_movement_system(
     mut local_player_info: ResMut<LocalPlayerInfo>,
     mut local_player_query: LocalPlayerInputQuery,
     collision_world: Res<CollisionWorld>,
+    switch_state: Res<SwitchState>,
     gameplay_config: Res<GameplayConfig>,
     map_settings: Res<MapSettings>,
     client_settings: Res<ClientSettings>,
@@ -99,11 +100,15 @@ pub fn input_movement_system(
     let move_intent = calculate_move_intent(&keyboard, face_yaw, movement_disabled);
     let jump_requested = !movement_disabled && keyboard.just_pressed(KeyCode::Space);
 
+    let held_keys = players
+        .get(&my_player_id.0)
+        .map_or(&[][..], |info| info.held_keys.as_slice());
     update_player_input_face_and_jump(
         move_intent,
         (!orbit || (!local_player_info.is_dead && camera_input.aiming_weapon())).then_some(face_yaw),
         jump_requested,
         &collision_world,
+        &collision_world.passable_fields(held_keys, &switch_state.open_fields),
         &gameplay_config,
         map_settings.movement.player.jump_speed,
         &mut local_player_query,
@@ -177,6 +182,7 @@ fn update_player_input_face_and_jump(
     face_yaw: Option<f32>,
     jump_requested: bool,
     collision_world: &CollisionWorld,
+    passable_fields: &[FieldId],
     gameplay_config: &GameplayConfig,
     jump_speed: f32,
     local_player_query: &mut LocalPlayerInputQuery,
@@ -195,6 +201,7 @@ fn update_player_input_face_and_jump(
                 gameplay_config.player.physics(),
                 jump_speed,
                 pos,
+                passable_fields,
             )
         {
             motion.0 = vertical_velocity;

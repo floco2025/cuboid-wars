@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use common::{
     constants::LEVEL_CLASSIFICATION_TOLERANCE,
     map::{Grounds, MapGeometry},
-    protocol::{BridgeId, Position},
+    protocol::{BridgeId, FieldId, Position},
 };
 
 use super::LadderLink;
@@ -23,10 +23,10 @@ pub(crate) struct NavNode {
 pub struct NavGraph {
     pub(super) levels: Vec<LevelGrid>,
     pub(super) geometry: MapGeometry,
-    // Links every bridge cell, so `powered_bridges` alone decides which of
+    // Links every bridge cell, so `open_bridges` alone decides which of
     // them a route may use.
     adjacency: HashMap<NavNode, Vec<NavNode>>,
-    powered_bridges: Vec<BridgeId>,
+    open_bridges: Vec<BridgeId>,
     pub(super) ladder_routes: HashMap<String, Vec<LadderLink>>,
     // The exterior grounds, on the root graph of a map that has them. The
     // grid continues over them at their level as cells the graph never
@@ -36,26 +36,17 @@ pub struct NavGraph {
 }
 
 impl NavGraph {
-    // Build every potential bridge edge; plate state filters routes at runtime.
+    // Build every potential bridge edge; switch state filters routes at runtime.
     #[must_use]
     pub fn new(grid: &CarrierGrid) -> Self {
         let mut graph = Self {
             levels: grid.levels.clone(),
             geometry: grid.geometry,
             adjacency: HashMap::new(),
-            powered_bridges: Vec::new(),
+            open_bridges: Vec::new(),
             ladder_routes: HashMap::new(),
             grounds: None,
         };
-        let mut every_bridge: Vec<BridgeId> = graph
-            .levels
-            .iter()
-            .flat_map(|level| level.cells.rows.iter().flatten())
-            .filter_map(|cell| cell.bridge)
-            .collect();
-        every_bridge.sort_unstable();
-        every_bridge.dedup();
-        graph.powered_bridges = every_bridge;
         graph.adjacency = graph
             .all_traversable_nodes()
             .map(|node| (node, graph.calculate_neighbors(node)))
@@ -63,9 +54,15 @@ impl NavGraph {
         graph
     }
 
-    pub fn set_powered_bridges(&mut self, powered: &[BridgeId]) {
-        self.powered_bridges = powered.to_vec();
-        self.powered_bridges.sort_unstable();
+    pub fn set_open_fields(&mut self, open: &[FieldId]) {
+        self.open_bridges = open
+            .iter()
+            .filter_map(|field| match field {
+                FieldId::Bridge(bridge) => Some(*bridge),
+                FieldId::Barrier(_) => None,
+            })
+            .collect();
+        self.open_bridges.sort_unstable();
     }
 
     pub fn set_grounds(&mut self, grounds: Grounds) {
@@ -98,16 +95,16 @@ impl NavGraph {
             && grounds.distance_outside_bounds(x, z) <= grounds.extent() - self.geometry.cell_size()
     }
 
-    fn bridge_powered(&self, bridge: BridgeId) -> bool {
-        self.powered_bridges.binary_search(&bridge).is_ok()
+    fn bridge_open(&self, bridge: BridgeId) -> bool {
+        self.open_bridges.binary_search(&bridge).is_ok()
     }
 
-    // Whether `pos` stands over a bridge the plates do not power.
+    // Whether `pos` stands over a bridge that is off.
     #[must_use]
-    pub(crate) fn position_over_unpowered_bridge(&self, pos: &Position) -> bool {
+    pub(crate) fn position_over_open_bridge(&self, pos: &Position) -> bool {
         self.cell(self.node_containing(pos))
             .and_then(|cell| cell.bridge)
-            .is_some_and(|bridge| !self.bridge_powered(bridge))
+            .is_some_and(|bridge| self.bridge_open(bridge))
     }
 
     #[must_use]
@@ -475,8 +472,9 @@ impl NavGraph {
     }
 
     // Blocked by a wall or an impassable barrier on this side. The barrier-edge
-    // grid holds only barriers actors can never pass (no pressure plate);
-    // pressure-plate barriers are omitted upstream so nav routes through them.
+    // grid holds only barriers actors can never pass (on, with no pressure
+    // plate to turn them off); the others are omitted upstream so nav routes
+    // through them.
     fn has_blocking_edge_on_side(&self, node: NavNode, side: CellSide) -> bool {
         if self.outside_grid(node.row, node.col) {
             return false;
@@ -496,7 +494,7 @@ impl NavGraph {
             return false;
         };
         if let Some(bridge) = cell.bridge {
-            return self.bridge_powered(bridge);
+            return !self.bridge_open(bridge);
         }
         // A bare ramp opening (a shaft cell without authored floor) is
         // standable only on its arrival strip — directly above the slope's

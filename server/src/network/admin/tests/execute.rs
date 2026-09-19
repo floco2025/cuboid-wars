@@ -1,5 +1,5 @@
 use crate::config::fixtures;
-use common::protocol::BarrierKindTable;
+use common::protocol::FieldKindTable;
 
 use super::*;
 use crate::players::PlayerInfo;
@@ -10,7 +10,7 @@ fn give_key_and_powerup_mutate_sender_state() {
 
     let (tx, _rx) = unbounded();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    let table = BarrierKindTable::from_ids(vec!["lobby".to_owned(), "basement".to_owned()])
+    let table = FieldKindTable::from_ids(vec!["lobby".to_owned(), "basement".to_owned()])
         .expect("test barrier kind table failed to build");
 
     let kind = table.index_of("lobby").expect("lobby kind missing from test table");

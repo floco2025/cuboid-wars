@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::{physics::FieldKind, protocol::SwitchState};
+use common::protocol::{FieldId, SwitchState};
 
 use crate::{
     config::{ClientSettings, FieldVfxConfig},
@@ -10,23 +10,23 @@ use crate::{
 const FIELD_FADE_SNAP: f32 = 0.002;
 
 // The pane material of every spawned barrier field and bridge surface group,
-// each keyed by one member whose plate state stands for the whole surface.
+// each keyed by one member whose state stands for the whole surface.
 #[derive(Resource, Default)]
 pub struct FieldSurfaces(pub(crate) Vec<FieldSurface>);
 
 pub struct FieldSurface {
-    pub state: FieldKind,
+    pub state: FieldId,
     pub material: Handle<FieldMaterial>,
     pub base_color: Color,
 }
 
 impl FieldSurfaces {
     pub fn forget_barriers(&mut self) {
-        self.0.retain(|surface| !matches!(surface.state, FieldKind::Barrier(_)));
+        self.0.retain(|surface| !matches!(surface.state, FieldId::Barrier(_)));
     }
 
     pub fn forget_bridges(&mut self) {
-        self.0.retain(|surface| !matches!(surface.state, FieldKind::Bridge(_)));
+        self.0.retain(|surface| !matches!(surface.state, FieldId::Bridge(_)));
     }
 }
 
@@ -61,13 +61,13 @@ pub(crate) fn fields_fade_system(
     }
 }
 
-// A closed barrier or powered bridge shows at `opacity`, a passable one at `passable_opacity`.
-pub(crate) fn fade_target(switch_state: &SwitchState, state: FieldKind, config: FieldVfxConfig) -> f32 {
-    let solid = match state {
-        FieldKind::Barrier(id) => !switch_state.open_barriers.contains(&id),
-        FieldKind::Bridge(id) => switch_state.powered_bridges.contains(&id),
-    };
-    if solid { config.opacity } else { config.passable_opacity }
+// A field that is on shows at `opacity`, one that is off at `passable_opacity`.
+pub(crate) fn fade_target(switch_state: &SwitchState, state: FieldId, config: FieldVfxConfig) -> f32 {
+    if switch_state.open_fields.contains(&state) {
+        config.passable_opacity
+    } else {
+        config.opacity
+    }
 }
 
 // Frame-rate independent easing; `None` once settled on the target.

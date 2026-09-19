@@ -6,7 +6,7 @@ use rapier3d::{
 
 use super::{
     CollisionWorld,
-    colliders::{barrier_blocks, character_collision_groups, query_filter},
+    colliders::{character_collision_groups, field_blocks, query_filter},
 };
 use crate::{
     config::CharacterPhysicsConfig,
@@ -17,7 +17,7 @@ use crate::{
         CharacterMovementResult, CharacterSupport, GroundingDiagnostics,
         characters::{character_movement_pose, character_movement_shape},
     },
-    protocol::{BarrierId, CarrierId, Position},
+    protocol::{CarrierId, FieldId, Position},
 };
 
 impl CollisionWorld {
@@ -26,7 +26,7 @@ impl CollisionWorld {
         start: Position,
         end: Position,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
     ) -> bool {
         !self.character_overlaps_solid(&start, physics, open)
             && !self.character_overlaps_solid(&end, physics, open)
@@ -47,14 +47,14 @@ impl CollisionWorld {
         translation: Vec3,
         delta: f32,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
         carriers: &Carriers,
     ) -> CharacterMovementResult {
         let mut pose = character_movement_pose(&start, physics);
         let initial = pose;
         let shape = character_movement_shape(physics);
         let allow = |handle: ColliderHandle, collider: &Collider| {
-            barrier_blocks(collider, open)
+            field_blocks(collider, open)
                 && carriers.displacement(self.carrier_of(handle)).length_squared() > PHYSICS_EPSILON * PHYSICS_EPSILON
         };
         let mut filter = query_filter(character_collision_groups());
@@ -101,9 +101,9 @@ impl CollisionWorld {
         }
     }
 
-    fn resolve_flying_overlap(&self, mut pose: Pose, physics: CharacterPhysicsConfig, open: &[BarrierId]) -> Pose {
+    fn resolve_flying_overlap(&self, mut pose: Pose, physics: CharacterPhysicsConfig, open: &[FieldId]) -> Pose {
         let shape = character_movement_shape(physics);
-        let allow = |_: ColliderHandle, collider: &Collider| barrier_blocks(collider, open);
+        let allow = |_: ColliderHandle, collider: &Collider| field_blocks(collider, open);
         let mut filter = query_filter(character_collision_groups());
         filter.predicate = Some(&allow);
         for _ in 0..4 {
@@ -138,7 +138,7 @@ impl CollisionWorld {
         mut pose: Pose,
         mut remaining: Vec3,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
         excluded: &[ColliderHandle],
     ) -> Vec3 {
         let start = pose.translation;
@@ -164,14 +164,14 @@ impl CollisionWorld {
         pose: &Pose,
         translation: Vec3,
         physics: CharacterPhysicsConfig,
-        open: &[BarrierId],
+        open: &[FieldId],
         excluded: &[ColliderHandle],
     ) -> Option<(f32, Vec3)> {
         if translation.length_squared() <= PHYSICS_EPSILON * PHYSICS_EPSILON {
             return None;
         }
         let allow =
-            |handle: ColliderHandle, collider: &Collider| !excluded.contains(&handle) && barrier_blocks(collider, open);
+            |handle: ColliderHandle, collider: &Collider| !excluded.contains(&handle) && field_blocks(collider, open);
         let mut filter = query_filter(character_collision_groups());
         filter.predicate = Some(&allow);
         self.query_pipeline(filter)

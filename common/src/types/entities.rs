@@ -3,7 +3,7 @@ use bevy_ecs::prelude::*;
 use bincode::{Decode, Encode};
 
 use super::{
-    ActorMovementState, BarrierKindId, CarrierId, Health, ItemType, MissileMovementState, PlayerGeneration, PlayerId,
+    ActorMovementState, CarrierId, FieldKindId, Health, ItemType, MissileMovementState, PlayerGeneration, PlayerId,
     PlayerMoveIntent, PlayerMovementState, PortalAccess, Position, PowerUpKind,
 };
 
@@ -72,7 +72,7 @@ pub struct Player {
     // One bool per `PowerUpKind`, indexed by `PowerUpKind::index()`.
     pub power_ups: [bool; PowerUpKind::COUNT],
     pub stunned: bool,
-    pub held_keys: Vec<BarrierKindId>,
+    pub held_keys: Vec<FieldKindId>,
     pub missiles: u32,
     // Which portal ends this player may place. `SInit` seeds it; the snapshot
     // keeps it current as players come and go.

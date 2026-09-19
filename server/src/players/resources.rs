@@ -5,7 +5,7 @@ use crossbeam_channel::{Sender, unbounded};
 
 use crate::config::{ActorRespawnScope, PlayerRespawnMode, PowerUpMode, PowerUpsConfig, RespawnConfig};
 use common::protocol::{
-    BarrierKindId, FaceYaw, Health, ItemType, MapItems, Player, PlayerGeneration, PlayerId, PlayerMarker,
+    FaceYaw, FieldKindId, Health, ItemType, MapItems, Player, PlayerGeneration, PlayerId, PlayerMarker,
     PlayerMoveIntent, PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
     ServerMessage,
 };
@@ -108,7 +108,7 @@ pub struct PlayerLife {
     // Permanent inventory: a key, once collected, stays held. Kept sorted
     // ascending so the encoded `SPlayerStatus` bytes are deterministic and
     // the client can change-detect via a single equality check.
-    pub held_keys: Vec<BarrierKindId>,
+    pub held_keys: Vec<FieldKindId>,
     pub(crate) outcomes: PendingOutcomes,
     pub checkpoint_contact: Option<CheckpointId>,
 }
@@ -212,14 +212,14 @@ impl PlayerInfo {
     }
 
     #[must_use]
-    pub fn has_key(&self, kind: BarrierKindId) -> bool {
+    pub fn has_key(&self, kind: FieldKindId) -> bool {
         self.life.held_keys.binary_search(&kind).is_ok()
     }
 
     // Insert the kind into `held_keys`, keeping it sorted; returns `true` if
     // the kind was newly added (so the caller can decide whether to broadcast
     // an `SPlayerStatus` change), `false` if it was already held.
-    pub fn add_key(&mut self, kind: BarrierKindId) -> bool {
+    pub fn add_key(&mut self, kind: FieldKindId) -> bool {
         match self.life.held_keys.binary_search(&kind) {
             Ok(_) => false,
             Err(pos) => {

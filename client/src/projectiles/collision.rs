@@ -3,10 +3,8 @@ use crate::{characters::BallCharacterHit, constants::PROJECTILE_IMPACT_MIN_BOUNC
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, FieldKind},
-    protocol::{
-        ActorId, ActorMarker, BarrierId, FaceYaw, HitTarget, PlayerGeneration, PlayerId, PlayerMarker, Position,
-    },
+    physics::CollisionWorld,
+    protocol::{ActorId, ActorMarker, FaceYaw, FieldId, HitTarget, PlayerGeneration, PlayerId, PlayerMarker, Position},
 };
 
 use super::audio::{
@@ -14,9 +12,8 @@ use super::audio::{
 };
 use crate::{
     actors::ActorMap,
-    barriers::BarrierAssets,
-    bridges::BridgeAssets,
     config::{AssetSet, ClientSettings},
+    fields::FieldAssets,
     players::{LocalPlayerMarker, PlayerMap},
     vfx::{ImpactKind, ParticleCloud, spawn_impact_sparks},
 };
@@ -138,16 +135,15 @@ pub(super) fn handle_field_collisions(
     asset_set: &AssetSet,
     sparks: &mut ParticleCloud,
     settings: &ClientSettings,
-    barrier_assets: &BarrierAssets,
-    bridge_assets: &BridgeAssets,
+    field_assets: &FieldAssets,
     proj_entity: Entity,
     proj_motion: &ProjectileMotion,
     proj_pos: &Position,
     delta: f32,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierId],
+    open_fields: &[FieldId],
 ) -> bool {
-    let Some(impact) = proj_motion.terminate_at_field(proj_pos, delta, collision_world, open_kinds) else {
+    let Some(impact) = proj_motion.terminate_at_field(proj_pos, delta, collision_world, open_fields) else {
         return false;
     };
     play_barrier_impact_sound(commands, asset_server, asset_set, &settings.audio, impact.point);
@@ -157,10 +153,7 @@ pub(super) fn handle_field_collisions(
         impact.normal,
         impact.normal,
         proj_motion.velocity.length(),
-        ImpactKind::Barrier(match impact.kind {
-            FieldKind::Barrier(kind) => barrier_assets.field_color(kind),
-            FieldKind::Bridge(kind) => bridge_assets.field_color(kind),
-        }),
+        ImpactKind::Barrier(field_assets.field_color(impact.field)),
     );
     commands.entity(proj_entity).despawn();
     true

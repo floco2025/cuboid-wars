@@ -1,13 +1,26 @@
-use crate::protocol::{Barrier, BarrierId, BarrierKindId};
+use crate::protocol::{Barrier, FieldId, FieldKindId, LightBridge};
 
+// What one body passes through: the fields that are off, plus every barrier
+// and light bridge of a kind it holds the key to.
 #[must_use]
-pub fn passable_barriers(held_keys: &[BarrierKindId], open: &[BarrierId], barriers: &[Barrier]) -> Vec<BarrierId> {
+pub fn passable_fields(
+    held_keys: &[FieldKindId],
+    open: &[FieldId],
+    barriers: &[Barrier],
+    bridges: &[LightBridge],
+) -> Vec<FieldId> {
     let mut passable = open.to_vec();
     passable.extend(
         barriers
             .iter()
             .filter(|barrier| held_keys.contains(&barrier.kind))
-            .map(|barrier| barrier.id),
+            .map(|barrier| FieldId::Barrier(barrier.id)),
+    );
+    passable.extend(
+        bridges
+            .iter()
+            .filter(|bridge| held_keys.contains(&bridge.kind))
+            .map(|bridge| FieldId::Bridge(bridge.id)),
     );
     passable.sort_unstable();
     passable.dedup();
@@ -15,5 +28,5 @@ pub fn passable_barriers(held_keys: &[BarrierKindId], open: &[BarrierId], barrie
 }
 
 #[cfg(test)]
-#[path = "tests/barriers.rs"]
+#[path = "tests/fields.rs"]
 mod tests;

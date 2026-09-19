@@ -74,7 +74,7 @@ class NormalizationTests(unittest.TestCase):
         result = canonicalize_map(data)
 
         self.assertEqual(result["pressure_plates"], [firework, barrier])
-        errors = validate_map(result, [KIND], [], switches=[KIND, "fireworks"])
+        errors = validate_map(result, [KIND], switches=[KIND, "fireworks"])
         self.assertTrue(any("duplicates a plate at level 0 [0, 0]" in error for error in errors))
 
     def test_canonicalization_keeps_actor_zones_that_differ_only_by_switch(self) -> None:
@@ -123,20 +123,20 @@ class NormalizationTests(unittest.TestCase):
         result = canonicalize_map(data)
         self.assertEqual(result["actor_spawn_zones"], [zone, {**zone, "beam_in_secs": 2.5}])
 
-    def test_actor_zone_identity_preserves_switch_inversion(self) -> None:
+    def test_actor_zone_identity_preserves_the_initial_state(self) -> None:
         data = empty_map(2, 2)
         zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "switch": "guards"}
-        data["actor_spawn_zones"] = [dict(zone, switch_inverted=True), zone]
+        data["actor_spawn_zones"] = [zone, dict(zone, initially_on=False)]
         result = canonicalize_map(data)
-        self.assertEqual([zone.get("switch_inverted", False) for zone in result["actor_spawn_zones"]], [False, True])
+        self.assertEqual([zone.get("initially_on", True) for zone in result["actor_spawn_zones"]], [False, True])
 
     def test_invalid_zone_controls_survive_canonicalization_for_validation(self) -> None:
         data = empty_map(2, 2)
         zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "switch": "guards"}
-        data["actor_spawn_zones"] = [dict(zone, switch_inverted=value) for value in [False, "invalid", True]]
+        data["actor_spawn_zones"] = [dict(zone, initially_on=value) for value in [False, "invalid", True]]
         result = canonicalize_map(data)
         self.assertEqual(len(result["actor_spawn_zones"]), 3)
-        self.assertTrue(any(zone["switch_inverted"] == "invalid" for zone in result["actor_spawn_zones"]))
+        self.assertTrue(any(zone["initially_on"] == "invalid" for zone in result["actor_spawn_zones"]))
 
     def test_zone_and_nested_map_switches_preserve_authored_values(self) -> None:
         data = empty_map(2, 2)
@@ -200,7 +200,7 @@ class NormalizationTests(unittest.TestCase):
             nested("cabin", 0, [1, 1], [1, 1]),
             nested("cabin", 0, [6, 1], [1, 1]),
             nested("cabin", 2, [1, 1], [1, 1]),
-            nested("bad/name", 0, [2, 2], [2, 2]),
+            nested(" padded ", 0, [2, 2], [2, 2]),
         ]
         self.assertEqual([e["from"] for e in canonicalize_map(data)["nested_maps"]], [[1, 1], [3, 3]])
 

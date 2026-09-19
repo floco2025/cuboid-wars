@@ -472,10 +472,10 @@ class WindowTests(WindowTestCase):
     def test_item_and_kind_placement_uses_previous_values_without_dialogs(self):
         window = self.window
         window.add_floor_rect((2, 1), (2, 1))
-        window.barrier_kind_colors = {"gate": "#ff0000"}
-        window.bridge_kind_colors = {"bridge": "#00ff00"}
-        window.doc.root_data["barrier_kinds"] = [{"id": "gate", "color": "#ff0000"}]
-        window.doc.root_data["bridge_kinds"] = [{"id": "bridge", "color": "#00ff00"}]
+        window.field_kind_colors = {"gate": "#ff0000", "bridge": "#00ff00"}
+        window.doc.root_data["field_kinds"] = [
+            {"id": kind, "color": color} for kind, color in window.field_kind_colors.items()
+        ]
         window.doc.root_data["switches"] = [
             {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["gate", "bridge"]
         ]
@@ -532,9 +532,9 @@ class WindowTests(WindowTestCase):
         kind = window.actor_kinds[0]
         dialog = ActorSpawnFieldsDialog(window, kind, [3], 90, 2.5, ["guards"], None)
         self.assertGreater(dialog._kind_edit.count(), 0)
-        self.assertEqual(dialog.values(), (kind, [3], 90, 2.5, None, False, 0, 1, 0.0, None, None))
+        self.assertEqual(dialog.values(), (kind, [3], 90, 2.5, None, True, 0, 1, 0.0, None, None))
         dialog._switch_combo.setCurrentText("guards")
-        self.assertEqual(dialog.values(), (kind, [3], 90, 2.5, "guards", False, 0, 1, 0.0, None, None))
+        self.assertEqual(dialog.values(), (kind, [3], 90, 2.5, "guards", True, 0, 1, 0.0, None, None))
         dialog.deleteLater()
         with (
             patch.object(ActorSpawnFieldsDialog, "exec", return_value=QDialog.DialogCode.Accepted),
@@ -559,10 +559,14 @@ class WindowTests(WindowTestCase):
             prompt.assert_not_called()
         zone = window.map_data["actor_spawn_zones"][0]
         self.assertEqual((zone["count"], zone["switch"]), ([7], "guards"))
+        self.assertNotIn("initially_on", zone)
         window.recent_actor_spawn_switch = ""
+        window.recent_actor_spawn_initially_on = False
         with patch.object(ActorSpawnFieldsDialog, "prompt") as prompt:
             window.add_actor_spawn_zone_rect((4, 4), (5, 5))
-        self.assertNotIn("switch", window.map_data["actor_spawn_zones"][1])
+        unswitched = window.map_data["actor_spawn_zones"][1]
+        self.assertNotIn("switch", unswitched)
+        self.assertIs(unswitched["initially_on"], False)
 
     def test_canvas_letter_shortcuts_do_not_steal_actor_search_text(self):
         window = self.window

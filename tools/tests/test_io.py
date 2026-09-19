@@ -13,10 +13,9 @@ BRIDGE_KIND = "skyway"
 
 
 class FileIoTests(unittest.TestCase):
-    def test_map_files_carry_the_catalogs_and_no_schema_version(self) -> None:
+    def test_map_files_carry_the_kind_catalog_and_no_schema_version(self) -> None:
         data = {"fireworks": None, **empty_map(2, 2)}
-        data["barrier_kinds"] = [{"id": KIND, "color": "#ff3333"}]
-        data["bridge_kinds"] = []
+        data["field_kinds"] = [{"id": KIND, "color": "#ff3333"}]
         data["levels"][0]["floors"] = [floor(0, 0)]
 
         with tempfile.TemporaryDirectory() as directory:
@@ -25,8 +24,7 @@ class FileIoTests(unittest.TestCase):
 
             wrapper = json.loads(path.read_text(encoding="utf-8"))
             self.assertNotIn("version", wrapper)
-            self.assertEqual(wrapper["map"]["barrier_kinds"], data["barrier_kinds"])
-            self.assertEqual(wrapper["map"]["bridge_kinds"], [])
+            self.assertEqual(wrapper["map"]["field_kinds"], data["field_kinds"])
             self.assertEqual(read_map(path), canonicalize_map(data))
 
     def test_plates_round_trip_through_the_file_format(self) -> None:
@@ -44,10 +42,10 @@ class FileIoTests(unittest.TestCase):
             self.assertIn('"switch": "fireworks"}', text)
             self.assertEqual(read_map(path)["pressure_plates"], data["pressure_plates"])
 
-    def test_bridges_switched_zones_and_nested_maps_round_trip_through_the_file_format(self) -> None:
+    def test_bridges_zones_and_nested_maps_round_trip_their_switches_and_initial_states(self) -> None:
         data = {"fireworks": None, **empty_map(2, 2)}
         data["levels"][0]["floors"] = [floor(0, 0)]
-        data["levels"][0]["light_bridges"] = [{"col": 1, "row": 0, "kind": BRIDGE_KIND}]
+        data["levels"][0]["light_bridges"] = [{"col": 1, "row": 0, "kind": BRIDGE_KIND, "initially_on": False}]
         data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": BRIDGE_KIND}]
         data["checkpoints"] = [{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 1}]
         data["actor_spawn_zones"] = [
@@ -65,10 +63,10 @@ class FileIoTests(unittest.TestCase):
             {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [2], "respawn_secs": 90},
         ]
         data["nested_maps"] = [
-            {**nested("tile", 0, [0, 0], [1, 0]), "switch": BRIDGE_KIND},
+            {**nested("tile", 0, [0, 0], [1, 0]), "switch": BRIDGE_KIND, "initially_on": False},
             nested("tile", 0, [1, 1], [1, 1]),
         ]
-        self.assertEqual(validate_map(data, [], [BRIDGE_KIND], switches=[BRIDGE_KIND]), [])
+        self.assertEqual(validate_map(data, [BRIDGE_KIND], switches=[BRIDGE_KIND]), [])
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "map.json"

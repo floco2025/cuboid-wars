@@ -4,7 +4,7 @@
 // no floor slab beside the edge splits them, so a floorless storey gap stays
 // closed instead of showing the slot a floor would fill. `merge_barriers`
 // then joins collinear neighbours with the same storey span (mirror of
-// `walls::merge_walls` with `BarrierKindId` as the grouping key in place of
+// `walls::merge_walls` with `FieldKindId` as the grouping key in place of
 // `FaceMaterials`).
 
 use std::collections::HashMap;
@@ -12,17 +12,17 @@ use std::collections::HashMap;
 use super::{mask::Mask, segments::MERGE_EPS};
 use common::{
     map::MapGeometry,
-    protocol::{Barrier, BarrierKindId, CarrierId, SwitchId},
+    protocol::{Barrier, CarrierId, FieldKindId, SwitchId},
 };
 
 // One authored barrier: its grid edge as `[c0, r0, c1, r1]` and its resolved kind.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BarrierEdge {
     pub switch: Option<SwitchId>,
-    pub switch_inverted: bool,
+    pub initially_on: bool,
 
     pub edge: [i32; 4],
-    pub kind: BarrierKindId,
+    pub kind: FieldKindId,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -84,13 +84,13 @@ pub(crate) fn stack_barriers(
     );
     let mut barriers: Vec<Barrier> = Vec::new();
     // Runs that reached the previous level, keyed by edge and kind, as indexes into `barriers`.
-    let mut open_runs: HashMap<(GridEdge, BarrierKindId, Option<SwitchId>, bool), usize> = HashMap::new();
+    let mut open_runs: HashMap<(GridEdge, FieldKindId, Option<SwitchId>, bool), usize> = HashMap::new();
     for (level_idx, (edges, slab_mask)) in levels.iter().zip(slab_masks).enumerate() {
         let level = u8::try_from(level_idx).unwrap_or(u8::MAX);
         let mut runs = HashMap::new();
         for barrier in edges {
             let grid_edge = GridEdge::from_authored(barrier.edge);
-            let key = (grid_edge, barrier.kind, barrier.switch, barrier.switch_inverted);
+            let key = (grid_edge, barrier.kind, barrier.switch, barrier.initially_on);
             let continued = open_runs
                 .get(&key)
                 .copied()
@@ -120,7 +120,7 @@ fn barrier_from_edge(barrier: &BarrierEdge, geometry: &MapGeometry, level: u8, c
     Barrier {
         id: Default::default(),
         switch: barrier.switch,
-        switch_inverted: barrier.switch_inverted,
+        initially_on: barrier.initially_on,
 
         x1: geometry.cell_to_world_x(c0),
         z1: geometry.cell_to_world_z(r0),
@@ -186,7 +186,7 @@ pub(crate) fn merge_barriers(barriers: Vec<Barrier>) -> Vec<Barrier> {
 }
 
 fn group_key(b: &Barrier) -> (u8, u8, u16, Option<SwitchId>, bool) {
-    (b.level, b.levels, b.kind.0, b.switch, b.switch_inverted)
+    (b.level, b.levels, b.kind.0, b.switch, b.initially_on)
 }
 
 fn normalize_endpoints(mut b: Barrier) -> Barrier {

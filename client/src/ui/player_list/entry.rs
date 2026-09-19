@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::protocol::{BarrierKindId, Health, PlayerId, PowerUpKind};
+use common::protocol::{FieldKindId, Health, PlayerId, PowerUpKind};
 
 use super::{
     components::{LOCAL_PLAYER_BG_COLOR, PlayerEntryMarker},
@@ -7,11 +7,11 @@ use super::{
     shapes::HudShapeAssets,
 };
 use crate::{
-    barriers::BarrierAssets,
     constants::{
         HUD_ICON_CATEGORY_GAP_PX, HUD_ICON_GAP_PX, HUD_KEY_ICON_SIZE_PX, HUD_MISSILE_ICON_HEIGHT_PX,
         HUD_POWER_UP_ICON_SIZE_PX, HUD_SLOT_EMPTY_COLOR, ITEM_MISSILE_COLOR,
     },
+    fields::FieldAssets,
     items::item_type_color,
     players::PlayerInfo,
 };
@@ -35,8 +35,8 @@ pub(super) fn spawn_player_entry(
     is_local: bool,
     max_health: f32,
     current_health: f32,
-    key_kinds: &[BarrierKindId],
-    barrier_assets: Option<&BarrierAssets>,
+    key_kinds: &[FieldKindId],
+    field_assets: Option<&FieldAssets>,
     shapes: &HudShapeAssets,
     style: &PlayerEntryStyle,
 ) -> Entity {
@@ -117,9 +117,9 @@ pub(super) fn spawn_player_entry(
                     if !key_kinds.is_empty() {
                         spawn_icon_group(strip, |row| {
                             for &kind in key_kinds {
-                                let color = barrier_assets
+                                let color = field_assets
                                     .filter(|_| player_info.held_keys.contains(&kind))
-                                    .map_or(HUD_SLOT_EMPTY_COLOR, |assets| assets.key_color(kind));
+                                    .map_or(HUD_SLOT_EMPTY_COLOR, |assets| assets.base_color(kind));
                                 spawn_key_icon(row, color, shapes);
                             }
                         });

@@ -31,8 +31,8 @@ impl PickupVfxConfig {
     }
 }
 
-// The one look of barriers and light bridges: a closed barrier or powered
-// bridge shows at `opacity`, a passable one at `passable_opacity`.
+// The one look of barriers and light bridges: a field that is on shows at
+// `opacity`, one that is off at `passable_opacity`.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct FieldVfxConfig {
     pub emissive_brightness: f32,

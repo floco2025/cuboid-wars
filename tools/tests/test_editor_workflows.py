@@ -68,7 +68,7 @@ class EditorWorkflowTests(WindowTestCase):
                 "beam_in_secs": 2.0,
                 "roam_distance": 7.5,
                 "switch": "barrier_1",
-                "switch_inverted": True,
+                "initially_on": False,
             }
         ]
         self.set_data(data)
@@ -83,7 +83,7 @@ class EditorWorkflowTests(WindowTestCase):
             (placed["kind"], placed["count"], placed["respawn_secs"], placed["beam_in_secs"], placed["roam_distance"]),
             ("scuttler", [2, 4, 6], None, 2.0, 7.5),
         )
-        self.assertEqual((placed["switch"], placed["switch_inverted"]), ("barrier_1", True))
+        self.assertEqual((placed["switch"], placed["initially_on"]), ("barrier_1", False))
 
     def test_selection_scope_controls_copy_and_delete_without_prompts_and_clamps_after_level_removal(self):
         data = empty_map(8, 8)

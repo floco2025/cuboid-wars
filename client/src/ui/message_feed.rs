@@ -5,12 +5,12 @@ use common::protocol::{FeedStyle, SFeed};
 
 use super::timed_lines::{TimedLine, TimedLines};
 use crate::{
-    barriers::BarrierAssets,
     config::ClientSettings,
     constants::{
         CONSOLE_TEXT_COLOR, FEED_CHAT_TEXT_COLOR, FEED_DIM_TEXT_COLOR, FEED_TEXT_COLOR, HUD_LINE_FADE_SECS,
         HUD_ROW_GAP_PX,
     },
+    fields::FieldAssets,
 };
 
 #[derive(Resource, Default)]
@@ -48,7 +48,7 @@ pub fn ui_message_feed_system(
     mut commands: Commands,
     mut feed: ResMut<MessageFeed>,
     client_settings: Res<ClientSettings>,
-    barrier_assets: Res<BarrierAssets>,
+    field_assets: Res<FieldAssets>,
     root: Single<Entity, With<MessageFeedMarker>>,
 ) {
     if feed.pending.is_empty() {
@@ -77,20 +77,20 @@ pub fn ui_message_feed_system(
                             font_size: FontSize::Px(font_size),
                             ..default()
                         },
-                        TextColor(style_color(span.style, &barrier_assets)),
+                        TextColor(style_color(span.style, &field_assets)),
                     ));
                 }
             });
     }
 }
 
-fn style_color(style: FeedStyle, barrier_assets: &BarrierAssets) -> Color {
+fn style_color(style: FeedStyle, field_assets: &FieldAssets) -> Color {
     match style {
         FeedStyle::Default => FEED_TEXT_COLOR,
         FeedStyle::Dim => FEED_DIM_TEXT_COLOR,
         FeedStyle::Chat => FEED_CHAT_TEXT_COLOR,
         FeedStyle::Console => CONSOLE_TEXT_COLOR,
-        FeedStyle::Key(kind) => color_with_full_alpha(barrier_assets.key_color(kind)),
+        FeedStyle::Key(kind) => color_with_full_alpha(field_assets.base_color(kind)),
     }
 }
 

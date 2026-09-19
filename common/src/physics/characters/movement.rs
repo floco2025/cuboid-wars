@@ -23,7 +23,7 @@ use crate::{
     map::Carriers,
     math::from_rapier,
     physics::{PortalSet, world::CollisionWorld},
-    protocol::{BarrierId, CarrierId, Position},
+    protocol::{CarrierId, FieldId, Position},
 };
 
 const CHARACTER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
@@ -37,11 +37,14 @@ pub fn player_jump_velocity(
     physics: CharacterPhysicsConfig,
     jump_speed: f32,
     pos: &Position,
+    passable_fields: &[FieldId],
 ) -> Option<f32> {
     // Jumping is how a character detaches mid-climb, so it must work even
     // while the ladder is supplying upward velocity.
     let on_ladder = collision_world.ladder_volume_at(pos).is_some();
-    if !on_ladder && (vertical_velocity > 0.0 || !position_has_floor_support(collision_world, pos, physics)) {
+    if !on_ladder
+        && (vertical_velocity > 0.0 || !position_has_floor_support(collision_world, pos, physics, passable_fields))
+    {
         return None;
     }
 
@@ -67,7 +70,7 @@ pub struct CharacterStep {
 pub struct CharacterEnvironment<'a> {
     pub collision_world: &'a CollisionWorld,
     pub gravity: f32,
-    pub passable_kinds: &'a [BarrierId],
+    pub passable_fields: &'a [FieldId],
     pub physics: CharacterPhysicsConfig,
     pub ladder_climb_ratio: f32,
     pub ladder_mode: LadderMode,
@@ -142,7 +145,7 @@ fn prepare_movement_request(
     let carry_xz = carry.with_y(0.0);
     let start_pos = &step.start;
     let collision_world = env.collision_world;
-    let passable_kinds = env.passable_kinds;
+    let passable_fields = env.passable_fields;
     let physics = env.physics;
 
     let ground_probe = if step.vertical_velocity <= 0.0 {
@@ -150,7 +153,7 @@ fn prepare_movement_request(
             collision_world,
             shape,
             start_pos,
-            passable_kinds,
+            passable_fields,
             excluded_colliders,
             physics,
         )
@@ -281,7 +284,7 @@ fn resolve_character_collision(
                 shape,
                 &pose,
                 request.carried,
-                env.passable_kinds,
+                env.passable_fields,
                 excluded_colliders,
                 &mut observe,
             )
@@ -296,7 +299,7 @@ fn resolve_character_collision(
             shape,
             &motion_start,
             env.carriers,
-            env.passable_kinds,
+            env.passable_fields,
             excluded_colliders,
             &mut observe,
         );
@@ -315,7 +318,7 @@ fn resolve_character_collision(
             shape,
             &motion_start,
             requested,
-            env.passable_kinds,
+            env.passable_fields,
             excluded_colliders,
             observe,
         )
@@ -347,7 +350,7 @@ fn finish_character_movement(
             env.collision_world,
             &mut resolved,
             env.physics,
-            env.passable_kinds,
+            env.passable_fields,
             excluded_colliders,
         );
     }
@@ -355,7 +358,7 @@ fn finish_character_movement(
         env.collision_world,
         &resolved,
         env.physics,
-        env.passable_kinds,
+        env.passable_fields,
         excluded_colliders,
     );
     let mut vertical_velocity = request.next_vertical_velocity;
@@ -411,7 +414,7 @@ fn finish_character_movement(
         && env.collision_world.character_crushed(
             &resolved,
             env.physics,
-            env.passable_kinds,
+            env.passable_fields,
             excluded_colliders,
             request.lifted,
         );

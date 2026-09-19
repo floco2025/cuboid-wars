@@ -8,28 +8,35 @@ use super::{
     CollisionWorld,
     colliders::{
         BARRIER_COLLISION_GROUP, BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP,
-        barrier_blocks, character_collision_groups, query_filter, surface_collision_groups, world_collision_groups,
+        character_collision_groups, field_blocks, query_filter, surface_collision_groups, world_collision_groups,
     },
     shape_cast::ShapeCastHit,
 };
 use crate::{
     math::{from_rapier, to_rapier},
-    protocol::BarrierId,
+    protocol::FieldId,
 };
 
 impl CollisionWorld {
     #[must_use]
-    pub fn camera_arm_distance(&self, pivot: Vec3, offset: Vec3, radius: f32) -> f32 {
-        if self.ball_overlaps_groups(pivot, radius, surface_collision_groups(), &[]) {
+    pub fn camera_arm_distance(&self, pivot: Vec3, offset: Vec3, radius: f32, open_fields: &[FieldId]) -> f32 {
+        if self.ball_overlaps_groups(pivot, radius, surface_collision_groups(), open_fields) {
             return 0.0;
         }
-        self.cast_moving_ball(pivot, offset, radius)
+        self.cast_moving_ball(pivot, offset, radius, open_fields)
             .map_or(offset.length(), |hit| (offset.length() * hit.t - 0.01).max(0.0))
     }
 
     #[must_use]
-    pub fn cast_moving_ball(&self, position: Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastHit> {
-        self.cast_moving_ball_with_filter(position, translation, radius, surface_collision_groups(), &[], &[])
+    pub fn cast_moving_ball(
+        &self,
+        position: Vec3,
+        translation: Vec3,
+        radius: f32,
+        open_fields: &[FieldId],
+    ) -> Option<ShapeCastHit> {
+        let groups = surface_collision_groups();
+        self.cast_moving_ball_with_filter(position, translation, radius, groups, &[], open_fields)
     }
 
     #[must_use]
@@ -56,10 +63,10 @@ impl CollisionWorld {
         position: Vec3,
         translation: Vec3,
         radius: f32,
-        open_kinds: &[BarrierId],
+        open_fields: &[FieldId],
     ) -> bool {
-        !self.projectile_start_blocked(position, radius, open_kinds)
-            && self.projectile_sweep_clear(position, translation, radius, open_kinds)
+        !self.projectile_start_blocked(position, radius, open_fields)
+            && self.projectile_sweep_clear(position, translation, radius, open_fields)
     }
 
     // The travel alone, ignoring where it starts: a body already touching
@@ -70,17 +77,17 @@ impl CollisionWorld {
         position: Vec3,
         translation: Vec3,
         radius: f32,
-        open_kinds: &[BarrierId],
+        open_fields: &[FieldId],
     ) -> bool {
         let groups = character_collision_groups();
-        self.cast_moving_ball_with_filter(position, translation, radius, groups, &[], open_kinds)
+        self.cast_moving_ball_with_filter(position, translation, radius, groups, &[], open_fields)
             .is_none()
     }
 
     #[must_use]
-    pub fn projectile_start_blocked(&self, position: Vec3, radius: f32, open_kinds: &[BarrierId]) -> bool {
+    pub fn projectile_start_blocked(&self, position: Vec3, radius: f32, open_fields: &[FieldId]) -> bool {
         let groups = character_collision_groups();
-        self.ball_overlaps_groups(position, radius, groups, open_kinds)
+        self.ball_overlaps_groups(position, radius, groups, open_fields)
     }
 
     #[must_use]
@@ -89,10 +96,10 @@ impl CollisionWorld {
         position: Vec3,
         translation: Vec3,
         radius: f32,
-        open_kinds: &[BarrierId],
+        open_fields: &[FieldId],
     ) -> Option<ShapeCastHit> {
         let groups = BARRIER_COLLISION_GROUP | BRIDGE_COLLISION_GROUP;
-        self.cast_moving_ball_with_filter(position, translation, radius, groups, &[], open_kinds)
+        self.cast_moving_ball_with_filter(position, translation, radius, groups, &[], open_fields)
     }
 
     fn cast_moving_ball_with_filter(
@@ -102,14 +109,14 @@ impl CollisionWorld {
         radius: f32,
         groups: Group,
         excluded_colliders: &[ColliderHandle],
-        passable: &[BarrierId],
+        passable: &[FieldId],
     ) -> Option<ShapeCastHit> {
         if translation.length_squared() == 0.0 {
             return None;
         }
 
         let allow = |handle: ColliderHandle, collider: &Collider| {
-            !excluded_colliders.contains(&handle) && barrier_blocks(collider, passable)
+            !excluded_colliders.contains(&handle) && field_blocks(collider, passable)
         };
         let mut filter = query_filter(groups);
         filter.predicate = Some(&allow);
@@ -132,7 +139,7 @@ impl CollisionWorld {
                     normal,
                     contact: from_rapier(hit.witness1),
                     t: hit.time_of_impact,
-                    field_kind: ColliderKind::field_kind_from_user_data(self.colliders[handle].user_data),
+                    field: ColliderKind::field_from_user_data(self.colliders[handle].user_data),
                     carrier: self.carrier_of(handle),
                 }
             })
@@ -148,17 +155,16 @@ impl CollisionWorld {
     }
 
     #[must_use]
-    pub fn projectile_spawn_overlaps_blocker(&self, position: Vec3, radius: f32, open_kinds: &[BarrierId]) -> bool {
-        // Walls, floors, and powered bridges are always blockers. A barrier
-        // blocks the muzzle unless it is currently open (pressure-plate
-        // held) — an open barrier is gone visually and shots pass through
-        // it, so the muzzle clipping it is fine.
+    pub fn projectile_spawn_overlaps_blocker(&self, position: Vec3, radius: f32, open_fields: &[FieldId]) -> bool {
+        // Walls and floors are always blockers. A field blocks the muzzle
+        // unless it is off — an open field is gone visually and shots pass
+        // through it, so the muzzle clipping it is fine.
         let groups = WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | BRIDGE_COLLISION_GROUP | BARRIER_COLLISION_GROUP;
-        self.ball_overlaps_groups(position, radius, groups, open_kinds)
+        self.ball_overlaps_groups(position, radius, groups, open_fields)
     }
 
-    fn ball_overlaps_groups(&self, position: Vec3, radius: f32, groups: Group, passable: &[BarrierId]) -> bool {
-        let allow = |_: ColliderHandle, collider: &Collider| barrier_blocks(collider, passable);
+    fn ball_overlaps_groups(&self, position: Vec3, radius: f32, groups: Group, passable: &[FieldId]) -> bool {
+        let allow = |_: ColliderHandle, collider: &Collider| field_blocks(collider, passable);
         let mut filter = query_filter(groups);
         filter.predicate = Some(&allow);
         self.shape_overlaps(Pose::from_translation(to_rapier(position)), &Ball::new(radius), filter)

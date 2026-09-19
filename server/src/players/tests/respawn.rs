@@ -46,7 +46,7 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
     );
     map.actor_spawn_zones = (3..6)
         .map(|col| ActorSpawnZone {
-            switch_inverted: false,
+            initially_on: true,
 
             carrier: CarrierId::WORLD,
             level: 0,

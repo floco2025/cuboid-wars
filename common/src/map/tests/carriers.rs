@@ -7,7 +7,7 @@ use crate::{
 fn slider() -> Carrier {
     Carrier {
         motion: Default::default(),
-        switch_inverted: false,
+        initially_on: true,
 
         parent: CarrierId::WORLD,
         level: 0,
@@ -116,6 +116,7 @@ fn a_sinking_lift_reports_its_drop() {
 fn switched() -> Carrier {
     Carrier {
         switch: Some(SwitchId(0)),
+        initially_on: false,
         ..slider()
     }
 }
@@ -258,9 +259,9 @@ fn following_reverses_immediately_at_every_position_and_ignores_cycle_timing() {
 
 #[test]
 fn following_starts_at_the_endpoint_selected_by_the_initial_off_switch() {
-    for inverted in [false, true] {
+    for initially_on in [false, true] {
         let carrier = Carrier {
-            switch_inverted: inverted,
+            initially_on,
             phase_ticks: 30,
             ..follower()
         };
@@ -268,7 +269,7 @@ fn following_starts_at_the_endpoint_selected_by_the_initial_off_switch() {
             carriers: vec![carrier],
             ..Default::default()
         });
-        let start = if inverted {
+        let start = if initially_on {
             Vec3::from(carrier.to)
         } else {
             Vec3::from(carrier.from)
@@ -276,7 +277,7 @@ fn following_starts_at_the_endpoint_selected_by_the_initial_off_switch() {
         assert_eq!(carriers.pose(SLIDER).translation, start);
         carriers.advance(100, &SwitchState::default());
         assert_eq!(carriers.pose(SLIDER).translation, start);
-        let run = CarrierRun::initial(&carrier).set_active(!inverted, 100, &carrier);
+        let run = CarrierRun::initial(&carrier).set_active(!initially_on, 100, &carrier);
         let next = carrier_offset_at(&carrier, run.run_ticks_at(101, &carrier));
         assert!(((next - start).length() - 4.0 / 60.0).abs() < 1e-5);
     }

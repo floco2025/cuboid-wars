@@ -10,7 +10,7 @@ use common::{
     config::{ActorGameplayConfig, CharacterPhysicsConfig},
     map::{Carriers, MapGeometry},
     physics::{CollisionWorld, character_paths_intersect},
-    protocol::{BarrierId, CarrierId, Checkpoint, Position},
+    protocol::{CarrierId, Checkpoint, FieldId, Position},
 };
 
 const SPAWN_MAX_ATTEMPTS: usize = 100;
@@ -240,7 +240,7 @@ pub(crate) fn generate_flying_spawn_position(
     world: &CollisionWorld,
     occupied: &[(Position, CharacterPhysicsConfig)],
     physics: CharacterPhysicsConfig,
-    open: &[BarrierId],
+    open: &[FieldId],
 ) -> Option<Position> {
     let geometry = grid.geometry;
     let radius = physics.movement_collider.radius();

@@ -6,7 +6,7 @@ use common::{
     config::CharacterPhysicsConfig,
     map::Carriers,
     physics::{CollisionWorld, position_has_floor_support},
-    protocol::{BarrierId, CarrierId, Position},
+    protocol::{CarrierId, FieldId, Position},
 };
 use rand::{Rng, RngExt};
 
@@ -58,7 +58,7 @@ pub(crate) struct GroundNavigation<'a> {
     pub kind: &'a str,
     pub world: &'a CollisionWorld,
     pub physics: CharacterPhysicsConfig,
-    pub open: &'a [BarrierId],
+    pub open: &'a [FieldId],
 }
 
 impl GroundNavigation<'_> {
@@ -223,7 +223,7 @@ impl GroundNavigation<'_> {
                     || !self
                         .world
                         .character_ground_route_clear(anchor, end, self.physics, self.open)
-                    || (point.is_walk() && graph.position_over_unpowered_bridge(&point.position)))
+                    || (point.is_walk() && graph.position_over_open_bridge(&point.position)))
             {
                 return false;
             }
@@ -242,7 +242,7 @@ impl GroundNavigation<'_> {
             .character_ground_route_clear(start, end, self.physics, self.open)
             && (1..=steps).all(|index| {
                 let position = Vec3::from(start).lerp(end.into(), index as f32 / steps as f32).into();
-                position_has_floor_support(self.world, &position, self.physics)
+                position_has_floor_support(self.world, &position, self.physics, self.open)
             })
     }
 
@@ -376,7 +376,7 @@ impl GroundNavigation<'_> {
                     let steps = (maximum / (self.physics.movement_collider.radius() * 0.5).max(0.05)).ceil() as usize;
                     let clear = (0..=steps).all(|step| {
                         let point = Vec3::from(world_pos).lerp(end.into(), step as f32 / steps as f32);
-                        position_has_floor_support(self.world, &point.into(), self.physics)
+                        position_has_floor_support(self.world, &point.into(), self.physics, self.open)
                     });
                     if clear
                         && self

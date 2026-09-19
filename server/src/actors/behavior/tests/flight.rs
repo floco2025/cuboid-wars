@@ -44,7 +44,7 @@ fn home(physics: CharacterPhysicsConfig, world: &CollisionWorld) -> AirHome {
         respawn_secs: None,
         beam_in_secs: 0.0,
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
         until_checkpoint: None,
         on_checkpoint: Default::default(),
     };
@@ -78,7 +78,7 @@ fn flyers_pursue_airborne_targets_outside_home_then_return_when_forgotten() {
         kind_config: &kind,
         player_physics: test_kinds::physics(CONTACT),
         collision_world: &world,
-        open_barriers: &[],
+        open_fields: &[],
     };
     info.awareness.push(aware(Vec3::new(100.0, 25.0, -40.0).into()));
     decide_flight(
@@ -139,7 +139,7 @@ fn flying_beam_actor_holds_position_during_burst_and_evades_in_three_dimensions(
         kind_config: &kind,
         player_physics: test_kinds::physics(CONTACT),
         collision_world: &world,
-        open_barriers: &[],
+        open_fields: &[],
     };
     info.awareness.push(aware(Vec3::new(8.0, 4.0, 0.0).into()));
     flight.route.push_back(Vec3::Y.into());
@@ -201,7 +201,7 @@ fn fleeing_flyer_retreats_when_selected_cover_is_below_a_solid_floor() {
         kind_config: &kind,
         player_physics: test_kinds::physics(CONTACT),
         collision_world: &world,
-        open_barriers: &[],
+        open_fields: &[],
     };
     assert!(covered(Vec3::from(target), &[threat], &context));
     assert!(!world.character_overlaps_solid(&target, physics, &[]));
@@ -285,7 +285,7 @@ fn forgotten_pursuit_is_canceled_before_spending_search_work() {
         kind_config: &kind,
         player_physics: test_kinds::physics(CONTACT),
         collision_world: &world,
-        open_barriers: &[],
+        open_fields: &[],
     };
     let mut budget = 7;
     advance_search(

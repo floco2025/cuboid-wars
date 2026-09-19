@@ -9,7 +9,7 @@ use crate::{
 use common::{
     map::{Carriers, Grounds, GroundsSettings},
     physics::CollisionWorld,
-    protocol::{Barrier, BarrierId, BarrierKindId, Carrier, CarrierId, Floor, MapLayout, Position, Wall},
+    protocol::{Barrier, BarrierId, Carrier, CarrierId, FieldId, FieldKindId, Floor, MapLayout, Position, Wall},
 };
 
 fn level() -> LevelGrid {
@@ -45,10 +45,10 @@ fn closed_barriers_block_routes_and_opening_them_allows_the_same_route() {
     let world = CollisionWorld::from_map_layout(&MapLayout {
         barriers: vec![Barrier {
             id: BarrierId(1),
-            kind: BarrierKindId(0),
+            kind: FieldKindId(0),
             carrier: CarrierId::WORLD,
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
             level: 0,
             levels: 1,
             x1: 0.0,
@@ -66,7 +66,7 @@ fn closed_barriers_block_routes_and_opening_them_allows_the_same_route() {
         y: 0.0,
         z: 0.0,
     };
-    for open in [vec![], vec![BarrierId(1)]] {
+    for open in [vec![], vec![FieldId::Barrier(BarrierId(1))]] {
         let navigation = GroundNavigation {
             graphs: &graphs,
             carriers: &carriers,
@@ -158,7 +158,7 @@ fn routes_cross_connected_carriers_but_cannot_cross_an_air_gap() {
                 pause_ticks: 0,
                 phase_ticks: 0,
                 switch: None,
-                switch_inverted: false,
+                initially_on: true,
             }],
             floors: [CarrierId::WORLD, CarrierId(1)]
                 .into_iter()

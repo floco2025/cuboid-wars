@@ -290,7 +290,7 @@ class CanvasPaintingMixin:
         if not bridges:
             return
         for bridge in self.visible_entries("light_bridges", bridges):
-            color = QColor(self.window.bridge_kind_colors.get(bridge.get("kind", ""), "#30d8ff"))
+            color = QColor(self.window.field_kind_colors.get(bridge.get("kind", ""), "#30d8ff"))
             inset = min(1, cell * 0.1)
             rect = QRectF(
                 bridge["col"] * cell + inset, bridge["row"] * cell + inset, cell - 2 * inset, cell - 2 * inset
@@ -396,7 +396,7 @@ class CanvasPaintingMixin:
             item_type = item["type"]
             if item_type in ITEM_SYMBOLS:
                 color = (
-                    self.window.barrier_kind_colors.get(item.get("kind", ""), "#cccccc")
+                    self.window.field_kind_colors.get(item.get("kind", ""), "#cccccc")
                     if item_type == ITEM_KEY_TYPE
                     else ITEM_TYPE_COLORS[item_type]
                 )
@@ -448,7 +448,7 @@ class CanvasPaintingMixin:
             # know it yet. Use the recently-chosen kind's color, or fall back
             # to a neutral cyan if nothing's been picked yet.
             recent = self.window.recent_barrier_kind
-            hex_color = self.window.barrier_kind_colors.get(recent, "#38bdf8")
+            hex_color = self.window.field_kind_colors.get(recent, "#38bdf8")
             self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(hex_color))
         elif self.drag_start_point and self.drag_current_point and self.window.mode == MODE_EQUIPMENT_ERASER:
             end = snapped_wall_end(self.drag_start_point, self.drag_current_point)
@@ -486,7 +486,7 @@ class CanvasPaintingMixin:
         # which makes the line look shifted toward its start.)
         for barrier in self.visible_entries("barriers", level.get("barriers", [])):
             kind = barrier.get("kind", "")
-            display = self.window.barrier_kind_colors.get(kind, "#ff5050")
+            display = self.window.field_kind_colors.get(kind, "#ff5050")
             painter.setPen(
                 QPen(
                     QColor(display),

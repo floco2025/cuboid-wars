@@ -54,8 +54,7 @@ class ContextEditingTests(WindowTestCase):
                     ]
                 data["levels"].append({**copy.deepcopy(level), "name": "Upper"})
                 root = copy.deepcopy(data)
-                root["barrier_kinds"] = copy.deepcopy(kinds)
-                root["bridge_kinds"] = copy.deepcopy(kinds)
+                root["field_kinds"] = copy.deepcopy(kinds)
                 root["nested_geometry"] = {"room": data}
                 window.doc.replace_with_new(root)
                 window.doc.select_map("room")
@@ -78,7 +77,7 @@ class ContextEditingTests(WindowTestCase):
 
     def test_cancelled_and_unchanged_kind_edits_leave_history_untouched(self):
         window = self.window
-        window.bridge_kind_colors = window.barrier_kind_colors = {"a": "#ff0000"}
+        window.field_kind_colors = {"a": "#ff0000"}
         window.wall_light_kinds = ["a"]
         data = empty_map(8, 8)
         level = data["levels"][0]

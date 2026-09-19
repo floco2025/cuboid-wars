@@ -59,7 +59,7 @@ pub(super) fn flush_light_bridges(bridges: Vec<LightBridge>, floors: &[Floor], p
             .iter()
             .filter(|floor| floor.level == bridge.level && floor.carrier == bridge.carrier)
             .map(|floor| floor.bounds_xz());
-        // Every bridge keeps its core, even when a neighbour's kind is unpowered.
+        // Every bridge keeps its core, even when a neighbour is off.
         let other_cores = bridges
             .iter()
             .enumerate()

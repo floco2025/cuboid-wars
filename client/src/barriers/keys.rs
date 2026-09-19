@@ -1,7 +1,7 @@
 use bevy::prelude::*;
-use common::protocol::BarrierKindId;
+use common::protocol::FieldKindId;
 
-// Barrier kinds the map places a key for, from `SInit`; the HUD shows one
+// Field kinds the map places a key for, from `SInit`; the HUD shows one
 // key slot per entry. Starts empty (initialized at app build).
 #[derive(Resource, Default)]
-pub struct KeyKinds(pub Vec<BarrierKindId>);
+pub struct KeyKinds(pub Vec<FieldKindId>);

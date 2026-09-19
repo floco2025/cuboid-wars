@@ -83,7 +83,7 @@ fn carrier_local_reports_relay_unchanged_while_the_server_places_the_rider_with_
     let layout = MapLayout {
         carriers: vec![Carrier {
             motion: Default::default(),
-            switch_inverted: false,
+            initially_on: true,
 
             parent: CarrierId::WORLD,
             level: 0,

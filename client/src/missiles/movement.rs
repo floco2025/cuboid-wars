@@ -137,7 +137,7 @@ pub fn missiles_movement_system(
             &params.graph,
             &params.carriers,
             &params.world,
-            &params.switch_state.open_barriers,
+            &params.switch_state.open_fields,
             *pos,
             target,
             velocity.0,
@@ -168,18 +168,22 @@ pub fn missiles_movement_system(
         // swept into geometry would fly out the far side unguided.
         if params
             .world
-            .projectile_start_blocked(origin, MISSILE_RADIUS, &params.switch_state.open_barriers)
+            .projectile_start_blocked(origin, MISSILE_RADIUS, &params.switch_state.open_fields)
         {
             consider(0.0);
         }
-        if let Some(hit) = params.world.cast_moving_ball(origin, translation, MISSILE_RADIUS) {
+        if let Some(hit) =
+            params
+                .world
+                .cast_moving_ball(origin, translation, MISSILE_RADIUS, &params.switch_state.open_fields)
+        {
             consider(hit.t);
         }
         if let Some(hit) = params.world.cast_moving_ball_against_fields(
             origin,
             translation,
             MISSILE_RADIUS,
-            &params.switch_state.open_barriers,
+            &params.switch_state.open_fields,
         ) {
             consider(hit.t);
         }
@@ -197,7 +201,7 @@ pub fn missiles_movement_system(
                 impact,
                 params.blast_radii.missile,
                 &params.world,
-                &params.switch_state.open_barriers,
+                &params.switch_state.open_fields,
                 bodies.iter().map(|(target, pos, _, physics)| (*target, *pos, *physics)),
             );
             params

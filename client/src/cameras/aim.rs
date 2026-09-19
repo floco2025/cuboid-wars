@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::CollisionWorld,
-    protocol::{BarrierId, FaceYaw, Position, SwitchState},
+    protocol::{FaceYaw, FieldId, Position, SwitchState},
 };
 
 const AIM_DISTANCE: f32 = 1000.0;
@@ -59,7 +59,7 @@ pub fn camera_aim_system(
             camera.translation,
             crosshair_direction(camera, projection, crosshair_height_offset),
             eye,
-            &switch_state.open_barriers,
+            &switch_state.open_fields,
             candidates,
         )
     };
@@ -92,13 +92,13 @@ fn third_person_aim(
     camera: Vec3,
     forward: Vec3,
     eye: Vec3,
-    open_barriers: &[BarrierId],
+    open_fields: &[FieldId],
     candidates: impl Iterator<Item = (Position, f32, CharacterPhysicsConfig)>,
 ) -> Vec3 {
     // Only converge on targets in front of the shooter's plane, never on cover behind their shoulder.
     let start = camera + forward * (eye - camera).dot(forward).max(0.0);
     let mut distance = world
-        .attack_surface_along_ray(start, forward, AIM_DISTANCE, open_barriers)
+        .attack_surface_along_ray(start, forward, AIM_DISTANCE, open_fields)
         .map_or(AIM_DISTANCE, |hit| hit.point.distance(start));
     for (pos, yaw, physics) in candidates {
         if let Some(hit) = ball_character_hit(&start.into(), forward * distance, 0.001, 1.0, &pos, yaw, physics) {

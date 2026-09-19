@@ -27,13 +27,13 @@ class ValidationTests(unittest.TestCase):
         room["levels"] = [empty_level(index) for index in range(255)]
         data["nested_geometry"] = {"room": room}
         data["nested_maps"] = [nested("room", 254, [0, 0], [0, 0])]
-        catalogs = MapCatalogs({}, {}, 0.1, {DEFAULT_ALIAS: True}, [])
+        catalogs = MapCatalogs({}, 0.1, {DEFAULT_ALIAS: True}, [])
         self.assertEqual(validate_document(data, catalogs), [])
         data["nested_maps"][0]["to_level"] = 255
         self.assertTrue(any("spans levels 254..255" in error for error in validate_document(data, catalogs)))
 
     def test_excessive_level_counts_identify_root_placed_and_unplaced_geometry(self) -> None:
-        catalogs = MapCatalogs({}, {}, 0.1, {DEFAULT_ALIAS: True}, [])
+        catalogs = MapCatalogs({}, 0.1, {DEFAULT_ALIAS: True}, [])
         for level_count in (256, 257):
             for placement in (None, False, True):
                 with self.subTest(level_count=level_count, placement=placement):
@@ -59,7 +59,7 @@ class ValidationTests(unittest.TestCase):
         level["terrain"] = [terrain(0, 0), terrain(3, 0), terrain(2, 2), terrain(2, 2), terrain(1, 1)]
         data["ramps"] = [{"lower_level": 0, "cols": [0, 2], "rows": [1, 2], "direction": "E", **faces()}]
 
-        errors = validate_map(data, [], [])
+        errors = validate_map(data, [])
 
         for expected in (
             "terrain [0, 0] overlaps a floor",
@@ -80,7 +80,7 @@ class ValidationTests(unittest.TestCase):
             {**ramp, "cols": [4, 5], "direction": "N"},
             {**ramp, "cols": [4, 6], "lower_level": 1},
         ]
-        errors = validate_map(data, [], [])
+        errors = validate_map(data, [])
         for expected in (
             "needs level 3 to arrive at",
             "direction must be N, S, E, or W",
@@ -95,7 +95,7 @@ class ValidationTests(unittest.TestCase):
         data["levels"][0]["terrain"] = [terrain(1, 1), terrain(3, 1)]
         ramp = {"lower_level": 0, "rows": [1, 3], "direction": "S", **faces()}
         data["ramps"] = [{**ramp, "cols": [1, 2], "shape": "plank"}, {**ramp, "cols": [3, 4]}]
-        errors = sorted(error for error in validate_map(data, [], []) if "sits on a ramp" in error)
+        errors = sorted(error for error in validate_map(data, []) if "sits on a ramp" in error)
         self.assertEqual(len(errors), 2, errors)
         self.assertTrue(errors[0].startswith("Level 0") and "[3, 1]" in errors[0], "under the wedge")
         self.assertTrue(errors[1].startswith("Level 1") and "[1, 1]" in errors[1], "in the opening above the plank")
@@ -105,20 +105,20 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(
             data["checkpoints"], [{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 0}]
         )
-        self.assertEqual(list(validate_map(data, [], [])), ["checkpoints[0] requires flat accessible floor throughout"])
+        self.assertEqual(list(validate_map(data, [])), ["checkpoints[0] requires flat accessible floor throughout"])
         data["levels"][0]["floors"] = [floor(0, 0)]
-        self.assertEqual(validate_map(data, [], []), [])
+        self.assertEqual(validate_map(data, []), [])
         started = normalize_map(started_map(3, 3, "basement-floor"))
         self.assertEqual(
             sorted((f["col"], f["row"], f["top"]) for f in started["levels"][0]["floors"]),
             [(0, 0, "basement-floor"), (0, 1, "basement-floor"), (1, 0, "basement-floor"), (1, 1, "basement-floor")],
         )
-        self.assertEqual(validate_map(started, [], []), [])
+        self.assertEqual(validate_map(started, []), [])
 
     def test_valid_minimal_map_has_no_errors(self) -> None:
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(col, row) for col in range(2) for row in range(2)]
-        self.assertEqual(validate_map(data, [], []), [])
+        self.assertEqual(validate_map(data, []), [])
 
     def test_invalid_geometry_item_and_ladder_are_reported(self) -> None:
         data = empty_map(2, 2)
@@ -127,7 +127,7 @@ class ValidationTests(unittest.TestCase):
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
         data["ladders"] = [{"lower_level": 0, "col": 0, "row": 0, "side": "N", "levels": 1}]
 
-        errors = validate_map(data, [], [])
+        errors = validate_map(data, [])
 
         self.assertTrue(any("is not one grid edge" in error for error in errors))
         self.assertTrue(any("has no regular floor" in error for error in errors))
@@ -147,7 +147,7 @@ class ValidationTests(unittest.TestCase):
 
         self.assertEqual([ladder["side"] for ladder in loaded["ladders"]], [None, "N"])
         self.assertIsNone(loaded["levels"][0]["lights"][0]["side"])
-        errors = validate_map(loaded, [], [])
+        errors = validate_map(loaded, [])
         self.assertTrue(any("ladders[0] has invalid side None" in error for error in errors), errors)
         self.assertTrue(any("light [0, 0, ] has invalid side" in error for error in errors), errors)
         self.assertFalse(any("ladders[1]" in error for error in errors), errors)
@@ -155,24 +155,30 @@ class ValidationTests(unittest.TestCase):
     def test_material_validation_uses_the_supplied_catalog(self) -> None:
         data = paint_floors(empty_map(), 0, (3, 3, 4, 4), "fresh_alias")
         data["checkpoints"] = []
-        self.assertFalse(validate_map(data, [], [], material_aliases=["fresh_alias"]))
-        self.assertTrue(validate_map(data, [], [], material_aliases=[DEFAULT_ALIAS]))
+        self.assertFalse(validate_map(data, [], material_aliases=["fresh_alias"]))
+        self.assertTrue(validate_map(data, [], material_aliases=[DEFAULT_ALIAS]))
 
 
-class BarrierKindTests(unittest.TestCase):
-    def test_unlisted_kind_is_flagged_naming_the_listed_ones(self) -> None:
+class FieldKindTests(unittest.TestCase):
+    def test_one_catalog_names_the_kinds_of_barriers_bridges_and_keys(self) -> None:
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "nope"}]
+        data["levels"][0]["light_bridges"] = [{"col": 1, "row": 1, "kind": "nope"}]
         data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "key", "kind": "nope"}]
 
-        errors = validate_map(data, [KIND, "lobby"], [])
+        errors = validate_map(data, [KIND, "lobby"])
 
         self.assertTrue(any("barrier[0] has unknown kind 'nope'; known: [treasure, lobby]" in e for e in errors))
+        self.assertTrue(any("light_bridge[0] has unknown kind 'nope'; known: [treasure, lobby]" in e for e in errors))
         self.assertTrue(any("unknown key kind 'nope'; known: [treasure, lobby]" in e for e in errors))
 
-        errors = validate_map(data, [], [])
+        errors = validate_map(data, [])
         self.assertTrue(any("known: [(none listed)]" in e for e in errors))
+
+        for entry in (data["levels"][0]["barriers"][0], data["levels"][0]["light_bridges"][0], data["items"][0]):
+            entry["kind"] = KIND
+        self.assertFalse(any("unknown" in e for e in validate_map(data, [KIND, "lobby"])))
 
 
 class PressurePlateTests(unittest.TestCase):
@@ -186,12 +192,12 @@ class PressurePlateTests(unittest.TestCase):
             {"level": 0, "col": 1, "row": 1, "switch": "fireworks"},
         ]
 
-        errors = validate_map(data, [KIND], [], switches=[KIND, "fireworks"])
+        errors = validate_map(data, [KIND], switches=[KIND, "fireworks"])
 
         self.assertTrue(any("pressure_plates[0] has no switch" in error for error in errors))
         self.assertTrue(any("unknown switch 'nope'; known: [treasure, fireworks]" in error for error in errors))
         self.assertTrue(any("duplicates a plate" in error for error in errors))
-        self.assertFalse(any("unknown switch" in error for error in validate_map(data, [KIND], [])))
+        self.assertFalse(any("unknown switch" in error for error in validate_map(data, [KIND])))
 
     def test_actor_zone_respawn_must_be_explicit_and_non_negative(self) -> None:
         data = empty_map(4, 4)
@@ -206,7 +212,7 @@ class PressurePlateTests(unittest.TestCase):
             {**zone, "respawn_secs": True},
         ]
 
-        errors = validate_map(data, [], [])
+        errors = validate_map(data, [])
 
         self.assertTrue(any("actor_spawn_zones[0] needs `respawn_secs`" in e for e in errors))
         self.assertFalse(any("actor_spawn_zones[1]" in e or "actor_spawn_zones[2]" in e for e in errors))
@@ -228,7 +234,7 @@ class PressurePlateTests(unittest.TestCase):
             {**zone, "beam_in_secs": None},
         ]
 
-        errors = validate_map(data, [], [])
+        errors = validate_map(data, [])
 
         self.assertFalse(
             any("beam_in_secs" in e and f"actor_spawn_zones[{idx}]" in e for e in errors for idx in (0, 1, 2))
@@ -252,15 +258,16 @@ class PressurePlateTests(unittest.TestCase):
             {**zone, "until_checkpoint": 1, "on_checkpoint": "boom"},
         ]
 
-        errors = validate_map(data, [], [])
+        errors = validate_map(data, [])
 
         self.assertFalse(any("actor_spawn_zones[0]" in e or "actor_spawn_zones[1]" in e for e in errors))
-        self.assertTrue(any("actor_spawn_zones[2] until_checkpoint 9 names no checkpoint" in e for e in errors))
+        self.assertEqual(errors.warnings, ["actor_spawn_zones[2] until_checkpoint 9 names no checkpoint"])
+        self.assertFalse(any("actor_spawn_zones[2]" in e for e in errors))
         self.assertTrue(any("actor_spawn_zones[3] until_checkpoint must be a positive whole" in e for e in errors))
         self.assertTrue(any("actor_spawn_zones[4] on_checkpoint needs an until_checkpoint" in e for e in errors))
         self.assertTrue(any("actor_spawn_zones[5] on_checkpoint must be one of" in e for e in errors))
 
-    def test_zone_and_nested_map_switches_must_be_known_and_plated(self) -> None:
+    def test_zone_and_nested_map_switches_must_be_known_and_warn_without_a_plate(self) -> None:
         data = empty_map(4, 4)
         data["levels"][0]["floors"] = [floor(0, 0), floor(2, 2)]
         data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "guards"}]
@@ -308,34 +315,36 @@ class PressurePlateTests(unittest.TestCase):
         ]
         switches = ["guards", "lift"]
 
-        errors = validate_map(data, [], [], switches=switches, plated_switches={"guards"})
+        errors = validate_map(data, [], switches=switches, plated_switches={"guards"})
 
         self.assertTrue(any("actor_spawn_zones[1] names unknown switch 'nope'" in e for e in errors))
-        self.assertTrue(
-            any("actor_spawn_zones[2] names switch 'lift', which no pressure plate operates" in e for e in errors)
-        )
         self.assertTrue(any("actor_spawn_zones[3] has an empty switch" in e for e in errors))
-        self.assertTrue(
-            any("nested_maps[1] names switch 'lift', which no pressure plate operates" in e for e in errors)
+        self.assertEqual(
+            errors.warnings,
+            [
+                "actor_spawn_zones[2] names switch 'lift', which no pressure plate operates",
+                "nested_maps[1] names switch 'lift', which no pressure plate operates",
+            ],
         )
+        self.assertFalse(any("'lift'" in e for e in errors))
         self.assertFalse(any("actor_spawn_zones[0]" in e or "nested_maps[0]" in e for e in errors))
         self.assertEqual(
-            [e for e in validate_map(data, [], []) if "switch" in e],
+            [e for e in validate_map(data, []) if "switch" in e],
             ["actor_spawn_zones[3] has an empty switch"],
             "without a catalog only the empty switch is an error",
         )
 
-    def test_fireworks_take_no_response_and_repair_drops_one(self) -> None:
+    def test_fireworks_take_no_initial_state_and_repair_drops_one(self) -> None:
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(col, row) for col in range(2) for row in range(2)]
         data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "show"}]
-        data["fireworks"] = {"switch": "show", "cooldown_secs": 5, "switch_inverted": True}
-        catalogs = MapCatalogs({}, {}, 0.1, {DEFAULT_ALIAS: True}, ["show"])
+        data["fireworks"] = {"switch": "show", "cooldown_secs": 5, "initially_on": False}
+        catalogs = MapCatalogs({}, 0.1, {DEFAULT_ALIAS: True}, ["show"])
         errors = validate_document(data, catalogs)
-        self.assertEqual(list(errors), ["fireworks has no On/Off response; remove switch_inverted"])
+        self.assertEqual(list(errors), ["fireworks has no initial state; remove initially_on"])
         repaired = canonicalize_map(data)
         self.assertEqual(repaired["fireworks"], {"switch": "show", "cooldown_secs": 5})
-        self.assertEqual(repair_summary(data, repaired), ["fireworks: remove switch_inverted"])
+        self.assertEqual(repair_summary(data, repaired), ["fireworks: remove initially_on"])
         self.assertEqual(validate_document(repaired, catalogs), [])
         self.assertEqual(repair_summary(repaired, canonicalize_map(repaired)), [])
 
@@ -357,17 +366,18 @@ class PressurePlateTests(unittest.TestCase):
         room["levels"][0]["floors"] = [floor(0, 0)]
         room["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "guards"}]
         data["nested_geometry"] = {"room": room, "hall": empty_map(2, 2)}
-        catalogs = MapCatalogs({}, {}, 0.1, {DEFAULT_ALIAS: True}, ["guards"])
+        catalogs = MapCatalogs({}, 0.1, {DEFAULT_ALIAS: True}, ["guards"])
 
         self.assertEqual(placed_definitions(data, data["nested_geometry"]), {})
-        errors = validate_document(data, catalogs, actor_kinds=["zapper"])
-        self.assertTrue(any("names switch 'guards', which no pressure plate operates" in e for e in errors))
+        issues = validate_document(data, catalogs, actor_kinds=["zapper"])
+        self.assertTrue(any("names switch 'guards', which no pressure plate operates" in w for w in issues.warnings))
+        self.assertFalse(any("no pressure plate operates" in e for e in issues))
 
         data["nested_geometry"]["hall"]["nested_maps"] = [nested("room", 0, [0, 0], [0, 0])]
         data["nested_maps"] = [nested("hall", 0, [1, 1], [1, 1])]
         self.assertEqual(set(placed_definitions(data, data["nested_geometry"])), {"hall", "room"})
-        errors = validate_document(data, catalogs, actor_kinds=["zapper"])
-        self.assertFalse(any("no pressure plate operates" in e for e in errors), list(errors))
+        issues = validate_document(data, catalogs, actor_kinds=["zapper"])
+        self.assertFalse(any("no pressure plate operates" in w for w in issues.warnings), issues.warnings)
 
     def test_plates_need_a_slab_outside_ramp_footprints(self) -> None:
         data = empty_map(4, 4)
@@ -384,7 +394,7 @@ class PressurePlateTests(unittest.TestCase):
         ]
 
         self.assertEqual(
-            validate_map(data, [], []),
+            validate_map(data, []),
             ["pressure_plates[2] [1, 0] has no floor", "pressure_plates[3] [1, 1] is inside a ramp footprint"],
         )
         host = EditorHost(data, [])
@@ -412,7 +422,7 @@ class LightBridgeTests(unittest.TestCase):
             {"level": 0, "col": 0, "row": 0, "switch": "nope"},
         ]
 
-        errors = validate_map(data, [], [BRIDGE_KIND], switches=["fireworks", BRIDGE_KIND])
+        errors = validate_map(data, [BRIDGE_KIND], switches=["fireworks", BRIDGE_KIND])
 
         self.assertTrue(any("light_bridge[0] has unknown kind 'nope'; known: [skyway]" in e for e in errors))
         self.assertTrue(any("light_bridge[0] [0, 0] sits on a floor" in e for e in errors))
@@ -435,7 +445,7 @@ class NestedMapTests(unittest.TestCase):
             {**nested("cabin", 0, [4, 4], [7, 4]), "travel_secs": 0.0, "phase_secs": -1.0, "to_nudge": [1.0, 2.0]},
             nested("cabin", 0, [4, 4], [4, 4], 3),
         ]
-        errors = validate_map(data, [], [], map_name="home", nested_lookup=NESTED_SHAPES.get)
+        errors = validate_map(data, [], map_name="home", nested_lookup=NESTED_SHAPES.get)
         self.assertTrue(any("ghost" in error and "missing" in error for error in errors))
         self.assertTrue(any("nested maps loop" in error and "loop_a -> loop_b -> loop_a" in error for error in errors))
         self.assertTrue(any("nests the edited map itself" in error for error in errors))

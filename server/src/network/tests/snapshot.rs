@@ -22,7 +22,7 @@ fn actor_updates_repeat_full_state_at_the_configured_rate_in_the_carrier_frame()
         let layout = MapLayout {
             carriers: vec![Carrier {
                 motion: Default::default(),
-                switch_inverted: false,
+                initially_on: true,
 
                 parent: CarrierId::WORLD,
                 level: 0,

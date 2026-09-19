@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use bevy::app::TaskPoolPlugin;
-use common::protocol::{Barrier, BarrierKindId, CarrierId, Floor, MapLayout, Wall};
+use common::protocol::{Barrier, CarrierId, FieldKindId, Floor, MapLayout, Wall};
 
 use super::*;
 
@@ -42,14 +42,14 @@ fn walled_world() -> CollisionWorld {
         barriers: vec![Barrier {
             id: Default::default(),
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
             x1: -5.0,
             z1: -1.5,
             x2: 5.0,
             z2: -1.5,
             level: 0,
             levels: 1,
-            kind: BarrierKindId(0),
+            kind: FieldKindId(0),
             y: 0.0,
             height: 4.0,
             width: 0.1,

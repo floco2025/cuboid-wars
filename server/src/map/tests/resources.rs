@@ -1,5 +1,5 @@
 use super::*;
-use common::protocol::BarrierKindId;
+use common::protocol::FieldKindId;
 
 fn key(kind: u16) -> PlacedItem {
     PlacedItem {
@@ -7,7 +7,7 @@ fn key(kind: u16) -> PlacedItem {
         level: 0,
         col: 0,
         row: 0,
-        item_type: ItemType::Key(BarrierKindId(kind)),
+        item_type: ItemType::Key(FieldKindId(kind)),
     }
 }
 
@@ -27,7 +27,7 @@ fn key_kinds_are_sorted_and_deduplicated() {
     };
 
     let items = config.available_items([]);
-    assert_eq!(items.key_kinds(), [BarrierKindId(0), BarrierKindId(2)]);
+    assert_eq!(items.key_kinds(), [FieldKindId(0), FieldKindId(2)]);
 }
 
 #[test]

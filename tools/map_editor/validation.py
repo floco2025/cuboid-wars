@@ -11,12 +11,15 @@ from .core import call, shapes
 _INDEX_RE = re.compile(r"\[\d+\]")
 
 
+# A warning names something inert until another record exists (a switch no
+# plate operates yet): Check Map lists it, and it blocks no edit and no save.
 @dataclass(frozen=True)
 class ValidationIssue:
     message: str
     level: int | None = None
     rect: tuple[int, int, int, int] | None = None
     map_name: str | None = None
+    warning: bool = False
 
     # The issue without its list index, which shifts whenever an earlier
     # record comes or goes: what an edit added is judged by this.
@@ -24,12 +27,21 @@ class ValidationIssue:
         return (self.map_name, self.level, self.rect, _INDEX_RE.sub("[]", self.message))
 
 
+# The messages of the errors; `issues` holds the warnings too.
 class ValidationErrors(list):
     def __init__(self, rows=()):
         self.issues = [
             ValidationIssue(**{**row, "rect": tuple(row["rect"]) if row["rect"] is not None else None}) for row in rows
         ]
-        super().__init__(issue.message for issue in self.issues)
+        super().__init__(issue.message for issue in self.issues if not issue.warning)
+
+    @property
+    def errors(self) -> list[ValidationIssue]:
+        return [issue for issue in self.issues if not issue.warning]
+
+    @property
+    def warnings(self) -> list[str]:
+        return [issue.message for issue in self.issues if issue.warning]
 
 
 def placed_definitions(root: dict, definitions: dict) -> dict[str, dict]:
@@ -46,8 +58,7 @@ def plated_switches(geometries: list[dict]) -> set[str]:
 
 def validate_map(
     map_data: dict,
-    barrier_kinds: list[str],
-    bridge_kinds: list[str],
+    field_kinds: list[str],
     *,
     switches: list[str] | None = None,
     plated_switches: set[str] | None = None,
@@ -59,8 +70,7 @@ def validate_map(
     checkpoint_numbers: set[int] | None = None,
 ) -> ValidationErrors:
     context = dict(
-        barrier_kinds=barrier_kinds,
-        bridge_kinds=bridge_kinds,
+        field_kinds=field_kinds,
         switches=switches,
         plated_switches=plated_switches,
         map_name=map_name,
@@ -85,8 +95,7 @@ def validate_document(
             "validate_document",
             root,
             dict(
-                barrier_kinds=list(catalogs.barrier_kind_colors),
-                bridge_kinds=list(catalogs.bridge_kind_colors),
+                field_kinds=list(catalogs.field_kind_colors),
                 switches=list(catalogs.switches),
                 material_aliases=list(catalogs.texture_catalog),
                 pickup_types=list(catalogs.pickup_types),

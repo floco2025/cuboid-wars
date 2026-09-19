@@ -1,13 +1,15 @@
 use super::*;
 use crate::protocol::BridgeId;
 
+const BRIDGE: FieldId = FieldId::Bridge(BridgeId(0));
+
 #[test]
-fn light_bridge_supports_a_character_only_while_powered() {
+fn a_light_bridge_supports_a_character_unless_it_is_passable() {
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
             id: Default::default(),
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
 
             x1: 0.0,
             z1: 0.0,
@@ -15,35 +17,39 @@ fn light_bridge_supports_a_character_only_while_powered() {
             z2: 4.0,
             y: LEVEL_HEIGHT,
             level: 1,
-            kind: BridgeKindId(0),
+            kind: FieldKindId(0),
             thickness: BRIDGE_THICKNESS,
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout);
+    let world = CollisionWorld::from_map_layout(&layout);
     assert_eq!(world.solid_kinds(), vec![ColliderKind::Bridge]);
 
     let shape = character_movement_shape(wide_body());
     let pose = Pose::translation(2.0, LEVEL_HEIGHT + 0.0 + 0.05, 2.0);
-    let probe = |world: &CollisionWorld| world.ground_hit(&shape, &pose, 1.0, 0.0, &[], &[]);
+    let probe = |passable: &[FieldId]| world.ground_hit(&shape, &pose, 1.0, 0.0, passable, &[]);
 
-    assert!(probe(&world).is_none(), "an unpowered bridge is not ground");
-    world.set_powered_bridges(&[BridgeId(1)]);
-    assert!(probe(&world).is_none(), "another powered kind is not this bridge");
-    world.set_powered_bridges(&[BridgeId(0)]);
-    assert!(probe(&world).is_some(), "a powered bridge is ground");
-    world.set_powered_bridges(&[]);
-    assert!(probe(&world).is_none(), "power switches off again");
+    assert!(probe(&[]).is_some(), "a bridge that is on is ground");
+    assert!(probe(&[BRIDGE]).is_none(), "a passable bridge is not ground");
+    assert!(
+        probe(&[FieldId::Bridge(BridgeId(1)), FieldId::Barrier(BarrierId(0))]).is_some(),
+        "another field being passable leaves this bridge solid"
+    );
+    assert!(
+        probe(&world.passable_fields(&[FieldKindId(0)], &[])).is_none(),
+        "the key of its kind drops its holder through"
+    );
+    assert!(probe(&world.passable_fields(&[FieldKindId(1)], &[])).is_some());
 }
 
 #[test]
-fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
+fn a_solid_light_bridge_stays_out_of_sight_and_ground_probes() {
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
             id: Default::default(),
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
 
             x1: -2.0,
             z1: -2.0,
@@ -51,20 +57,23 @@ fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
             z2: 2.0,
             y: LEVEL_HEIGHT,
             level: 1,
-            kind: BridgeKindId(0),
+            kind: FieldKindId(0),
             thickness: BRIDGE_THICKNESS,
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout);
-    world.set_powered_bridges(&[BridgeId(0)]);
+    let world = CollisionWorld::from_map_layout(&layout);
     let above = Vec3::new(0.0, LEVEL_HEIGHT + 1.0, 0.0);
     let below = Vec3::new(0.0, LEVEL_HEIGHT - 1.0, 0.0);
 
     assert!(
-        world.cast_moving_ball(above, below - above, 0.1).is_some(),
+        world.cast_moving_ball(above, below - above, 0.1, &[]).is_some(),
         "a surface query sees it"
+    );
+    assert!(
+        world.cast_moving_ball(above, below - above, 0.1, &[BRIDGE]).is_none(),
+        "unless it is off"
     );
     assert!(world.line_of_sight_clear(above, below), "sight reaches through it");
     assert!(
@@ -78,13 +87,12 @@ fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
 }
 
 #[test]
-fn bridge_power_blocks_attacks_and_beams_without_blocking_awareness() {
-    let kind = BridgeKindId(0);
+fn a_solid_bridge_blocks_attacks_and_beams_without_blocking_awareness() {
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
             id: Default::default(),
             switch: None,
-            switch_inverted: false,
+            initially_on: true,
 
             x1: -3.0,
             z1: -3.0,
@@ -93,37 +101,36 @@ fn bridge_power_blocks_attacks_and_beams_without_blocking_awareness() {
             y: 2.0,
             thickness: BRIDGE_THICKNESS,
             level: 1,
-            kind,
+            kind: FieldKindId(0),
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout);
-    for powered in [false, true, false] {
-        let powered_kinds = [BridgeId(u32::from(kind.0))];
-        world.set_powered_bridges(if powered { &powered_kinds } else { &[] });
+    let world = CollisionWorld::from_map_layout(&layout);
+    for solid in [false, true] {
+        let open: &[FieldId] = if solid { &[] } else { &[BRIDGE] };
         for (from, to) in [(Vec3::Y * 4.0, Vec3::ZERO), (Vec3::ZERO, Vec3::Y * 4.0)] {
             assert!(world.line_of_sight_clear(from, to));
-            assert_eq!(world.attack_path_clear(from, to, &[]), !powered);
-            let hit = world.attack_surface_along_ray(from, to - from, 4.0, &[]);
-            assert_eq!(hit.is_some(), powered);
+            assert_eq!(world.attack_path_clear(from, to, open), !solid);
+            let hit = world.attack_surface_along_ray(from, to - from, 4.0, open);
+            assert_eq!(hit.is_some(), solid);
             if let Some(hit) = hit {
                 assert!(hit.point.y <= 2.0 && hit.point.y >= 2.0 - BRIDGE_THICKNESS - 1e-4);
             }
-            assert_eq!(world.projectile_path_clear(from, to - from, 0.1, &[]), !powered);
+            assert_eq!(world.projectile_path_clear(from, to - from, 0.1, open), !solid);
         }
     }
 }
 
 #[test]
-fn portal_shots_only_stop_at_powered_bridges() {
+fn portal_shots_only_stop_at_solid_bridges() {
     let mut layout = test_map_layout();
     layout.walls.clear();
     layout.ramps.clear();
     layout.light_bridges.push(LightBridge {
         id: Default::default(),
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         x1: 0.0,
         z1: 0.0,
@@ -132,15 +139,15 @@ fn portal_shots_only_stop_at_powered_bridges() {
         y: LEVEL_HEIGHT + 2.0,
         thickness: BRIDGE_THICKNESS,
         level: 2,
-        kind: BridgeKindId(0),
+        kind: FieldKindId(0),
         carrier: CarrierId::WORLD,
     });
-    let mut world = CollisionWorld::from_map_layout(&layout);
+    let world = CollisionWorld::from_map_layout(&layout);
     let origin = Vec3::new(2.0, LEVEL_HEIGHT + 4.0, 2.0);
-    for powered in [false, true, false] {
-        world.set_powered_bridges(if powered { &[BridgeId(0)] } else { &[] });
-        let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Y, 10.0, &[]);
-        assert_eq!(hit.is_some(), !powered);
+    for solid in [false, true] {
+        let open: &[FieldId] = if solid { &[] } else { &[BRIDGE] };
+        let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Y, 10.0, open);
+        assert_eq!(hit.is_some(), !solid);
         if let Some(hit) = hit {
             assert!((hit.point.y - LEVEL_HEIGHT).abs() < 1e-4, "portal landed on a bridge");
         }

@@ -50,6 +50,6 @@ pub(super) fn attack_position(pos: Position, target: Position, context: &BeamCon
         && context.collision_world.attack_path_clear(
             Vec3::from(pos) + Vec3::Y * character.beam_origin_y_offset(),
             character_hitbox_center(target, context.player_physics),
-            context.open_barriers,
+            context.open_fields,
         )
 }

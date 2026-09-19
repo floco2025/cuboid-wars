@@ -1,5 +1,5 @@
 use super::*;
-use common::protocol::{BridgeKindId, CarrierId, Floor, Wall};
+use common::protocol::{CarrierId, FieldKindId, Floor, Wall};
 
 fn bridge_surface_rects(bridge: &LightBridge, walls: &[Wall]) -> Vec<Rect> {
     bridge_visuals(&MapLayout {
@@ -15,7 +15,7 @@ fn bridge() -> LightBridge {
     LightBridge {
         id: Default::default(),
         switch: None,
-        switch_inverted: false,
+        initially_on: true,
 
         x1: -0.25,
         x2: 4.25,
@@ -24,7 +24,7 @@ fn bridge() -> LightBridge {
         y: 4.0,
         thickness: 0.1,
         level: 1,
-        kind: BridgeKindId(0),
+        kind: FieldKindId(0),
         carrier: CarrierId(1),
     }
 }
@@ -215,7 +215,7 @@ fn adjacent_kinds_have_their_own_frames_without_coplanar_overlap() {
     let b = LightBridge {
         x1: 4.0,
         x2: 8.0,
-        kind: BridgeKindId(1),
+        kind: FieldKindId(1),
         ..a
     };
     let layout = MapLayout {

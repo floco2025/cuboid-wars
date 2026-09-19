@@ -3,7 +3,7 @@ use common::{
     config::CharacterPhysicsConfig,
     constants::CHARACTER_MAX_SLOPE,
     physics::{CollisionWorld, grounding_diagnostics},
-    protocol::{ActorMarker, Position},
+    protocol::{ActorMarker, FieldId, Position, SwitchState},
 };
 
 use crate::config::WheelModelDef;
@@ -18,6 +18,7 @@ pub(crate) struct WheelGrounding {
 
 pub(super) fn ground_pose(
     world: &CollisionWorld,
+    open_fields: &[FieldId],
     grounding: &WheelGrounding,
     position: Position,
     origin: Vec3,
@@ -27,7 +28,7 @@ pub(super) fn ground_pose(
         physics, wheels, rest, ..
     } = grounding;
     let scale = rest.scale.x;
-    let support = grounding_diagnostics(world, &position, *physics, &[], &[]);
+    let support = grounding_diagnostics(world, &position, *physics, open_fields, &[]);
     if !support.supported {
         return None;
     }
@@ -76,6 +77,7 @@ fn slope_pose(normal: Vec3, height: f32, yaw: Quat) -> (Quat, f32) {
 
 pub(crate) fn wheel_grounding_system(
     world: Res<CollisionWorld>,
+    switch_state: Res<SwitchState>,
     owners: Query<(&Position, &Transform), (With<ActorMarker>, Without<WheelGrounding>)>,
     mut models: Query<(&WheelGrounding, &mut Transform)>,
 ) {
@@ -84,8 +86,14 @@ pub(crate) fn wheel_grounding_system(
             continue;
         };
         *transform = grounding.rest;
-        if let Some((rotation, height)) = ground_pose(&world, grounding, *position, parent.translation, parent.rotation)
-        {
+        if let Some((rotation, height)) = ground_pose(
+            &world,
+            &switch_state.open_fields,
+            grounding,
+            *position,
+            parent.translation,
+            parent.rotation,
+        ) {
             transform.rotation = parent.rotation.inverse() * rotation * grounding.rest.rotation;
             transform.translation.y += height;
         }

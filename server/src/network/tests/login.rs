@@ -2,7 +2,7 @@ use super::{MAX_NAME_CHARS, sanitize_player_name};
 use crate::config::fixtures;
 use common::celestial::{CelestialClockAnchor, CelestialCycleSettings};
 use common::protocol::{
-    BarrierKindId, HexColor, ItemType, KindDef, MapBootstrap, MapItems, MapLayout, MapSettings, PlayerBootstrap,
+    FieldKindId, HexColor, ItemType, KindDef, MapBootstrap, MapItems, MapLayout, MapSettings, PlayerBootstrap,
     PlayerId, PortalAccess, SInit, ServerMessage, SwitchState, WorldBootstrap,
 };
 
@@ -80,7 +80,7 @@ fn init_message_round_trips_complete_bootstrap() {
                 missile_air_grids: Vec::new(),
                 layout: MapLayout::default(),
                 settings: MapSettings {
-                    barrier_kinds: vec![
+                    field_kinds: vec![
                         KindDef {
                             id: "lobby".to_owned(),
                             color: HexColor([0x22, 0xcc, 0x33]),
@@ -92,7 +92,7 @@ fn init_message_round_trips_complete_bootstrap() {
                     ],
                     ..map_settings
                 },
-                items: MapItems(vec![ItemType::Key(BarrierKindId(1))]),
+                items: MapItems(vec![ItemType::Key(FieldKindId(1))]),
             },
         },
     });
@@ -111,12 +111,12 @@ fn init_message_round_trips_complete_bootstrap() {
     assert!(decoded.celestial_clock.running);
     assert_eq!(decoded.world.celestial.day_duration_secs, 600.0);
     assert_eq!(decoded.world.celestial.lunar_cycle_days, 8.0);
-    let kinds = &decoded.world.map.settings.barrier_kinds;
+    let kinds = &decoded.world.map.settings.field_kinds;
     assert_eq!(
         kinds.iter().map(|kind| kind.id.as_str()).collect::<Vec<_>>(),
         ["lobby", "basement"]
     );
     assert_eq!(kinds[1].color, HexColor([0xf0, 0xc0, 0x20]));
-    assert_eq!(decoded.world.map.items.key_kinds(), [BarrierKindId(1)]);
+    assert_eq!(decoded.world.map.items.key_kinds(), [FieldKindId(1)]);
     assert_eq!(decoded.world.gameplay.actors.len(), config.actors.len());
 }

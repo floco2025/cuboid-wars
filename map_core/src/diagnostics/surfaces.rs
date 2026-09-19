@@ -69,11 +69,11 @@ pub(super) fn validate(data: &Value, context: &Value, errors: &mut Errors) {
                     errors.add(format!("{label} {coordinates} is not one grid edge"));
                 }
                 if key == "barriers" {
-                    if !truth(&entry["kind"]) || check_kind(&entry["kind"], &context["barrier_kinds"]) {
+                    if !truth(&entry["kind"]) || check_kind(&entry["kind"], &context["field_kinds"]) {
                         errors.add(format!(
                             "{label} has unknown kind {}; known: [{}]",
                             repr(&entry["kind"]),
-                            known(&context["barrier_kinds"])
+                            known(&context["field_kinds"])
                         ));
                     }
                     if walls.contains(&[a, b, c, d]) {
@@ -102,11 +102,11 @@ pub(super) fn validate(data: &Value, context: &Value, errors: &mut Errors) {
             if !inside(c, r) {
                 errors.add(format!("{label} [{c}, {r}] is outside the grid"));
             }
-            if !truth(&bridge["kind"]) || check_kind(&bridge["kind"], &context["bridge_kinds"]) {
+            if !truth(&bridge["kind"]) || check_kind(&bridge["kind"], &context["field_kinds"]) {
                 errors.add(format!(
                     "{label} has unknown kind {}; known: [{}]",
                     repr(&bridge["kind"]),
-                    known(&context["bridge_kinds"])
+                    known(&context["field_kinds"])
                 ));
             }
             if slab.contains(&p) {

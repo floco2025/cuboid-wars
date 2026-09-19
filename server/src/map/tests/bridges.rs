@@ -1,13 +1,13 @@
 use super::*;
 
-const SKY: BridgeKindId = BridgeKindId(0);
-const VOID: BridgeKindId = BridgeKindId(1);
+const SKY: FieldKindId = FieldKindId(0);
+const VOID: FieldKindId = FieldKindId(1);
 
-fn rect(c0: i32, r0: i32, c1: i32, r1: i32, kind: BridgeKindId) -> BridgeRect {
+fn rect(c0: i32, r0: i32, c1: i32, r1: i32, kind: FieldKindId) -> BridgeRect {
     BridgeRect { c0, r0, c1, r1, kind }
 }
 
-fn cells(kind: BridgeKindId, cells: &[(i32, i32)]) -> Vec<(i32, i32, BridgeKindId)> {
+fn cells(kind: FieldKindId, cells: &[(i32, i32)]) -> Vec<(i32, i32, FieldKindId)> {
     cells.iter().map(|&(col, row)| (col, row, kind)).collect()
 }
 

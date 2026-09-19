@@ -107,7 +107,7 @@ class CheckpointTests(unittest.TestCase):
 
     def test_floor_and_overlap_validation(self):
         data = checkpoint_map()
-        self.assertFalse(validate_map(data, [], []))
+        self.assertFalse(validate_map(data, []))
         for mutate in (
             lambda d: d["levels"][0]["floors"].pop(),
             lambda d: d["checkpoints"].append({**copy.deepcopy(d["checkpoints"][0]), "number": 2}),
@@ -117,7 +117,7 @@ class CheckpointTests(unittest.TestCase):
         ):
             bad = copy.deepcopy(data)
             mutate(bad)
-            self.assertTrue(any("checkpoints" in error for error in validate_map(bad, [], [])))
+            self.assertTrue(any("checkpoints" in error for error in validate_map(bad, [])))
 
     def test_numbers_are_kept_formatted_validated_and_may_repeat(self):
         data = checkpoint_map(7)
@@ -127,19 +127,19 @@ class CheckpointTests(unittest.TestCase):
             write_map(path, data)
             self.assertIn('"number": 7', path.read_text())
             self.assertEqual(read_map(path)["checkpoints"][0]["number"], 7)
-        self.assertFalse(validate_map(data, [], []))
+        self.assertFalse(validate_map(data, []))
         for number in (-1, 1.5, "3", True, None):
             bad = copy.deepcopy(data)
             if number is None:
                 del bad["checkpoints"][0]["number"]
             else:
                 bad["checkpoints"][0]["number"] = number
-            self.assertTrue(any("whole `number`" in error for error in validate_map(bad, [], [])), number)
+            self.assertTrue(any("whole `number`" in error for error in validate_map(bad, [])), number)
         data["checkpoints"][0]["number"] = 0
-        self.assertFalse(validate_map(data, [], []), "0 is the start")
+        self.assertFalse(validate_map(data, []), "0 is the start")
         data["checkpoints"][0].update(number=7, cols=[1, 2])
         data["checkpoints"].append({"level": 0, "cols": [2, 4], "rows": [1, 4], "type": "individual", "number": 7})
-        self.assertFalse(validate_map(data, [], []), "checkpoints may share a number")
+        self.assertFalse(validate_map(data, []), "checkpoints may share a number")
 
     def test_saved_checkpoints_sort_by_number_with_the_start_first(self):
         data = checkpoint_map(5)
@@ -284,10 +284,10 @@ class CheckpointTests(unittest.TestCase):
                 del data["checkpoints"][0]["type"]
             else:
                 data["checkpoints"][0]["type"] = kind
-            self.assertTrue(any("checkpoint type" in error for error in validate_map(normalize_map(data), [], [])))
+            self.assertTrue(any("checkpoint type" in error for error in validate_map(normalize_map(data), [])))
         data = checkpoint_map()
         data["checkpoints"].append({**data["checkpoints"][0], "type": "group_all", "number": 2})
-        self.assertTrue(any("overlaps" in error for error in validate_map(canonicalize_map(data), [], [])))
+        self.assertTrue(any("overlaps" in error for error in validate_map(canonicalize_map(data), [])))
 
 
 class CheckpointWindowTests(WindowTestCase):
@@ -495,7 +495,8 @@ class CheckpointWindowTests(WindowTestCase):
         window.set_selected_spawn_zone(ZoneRef("actor_spawn_zones", 0))
         window.edit_selected_spawn_zone_fields()
         self.set_property("until_checkpoint", 9)
-        self.assertIn("names no checkpoint", panel.error.text())
+        self.assertEqual(window.map_data["actor_spawn_zones"][0]["until_checkpoint"], 9)
+        self.assertTrue(any("names no checkpoint" in warning for warning in window.validate(window.map_data).warnings))
         self.set_property("until_checkpoint", 0)
         self.assertIn("start at 1", panel.error.text())
         self.set_property("until_checkpoint", "Always")

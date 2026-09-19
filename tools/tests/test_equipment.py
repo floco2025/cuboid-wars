@@ -25,7 +25,7 @@ class EquipmentTests(unittest.TestCase):
         data = canonicalize_map(data)
         encoded = format_map_file({"map": data})
         self.assertEqual(normalize_map(json.loads(encoded)["map"]), data)
-        self.assertFalse(validate_map(data, [], []))
+        self.assertFalse(validate_map(data, []))
 
     def test_fields_and_gun_round_trip_and_resize(self):
         data = {"fireworks": None, **empty_map(4, 4)}
@@ -35,7 +35,7 @@ class EquipmentTests(unittest.TestCase):
         data = canonicalize_map(paint_erasers(data, 0, (1, 0), (1, 3)))
         encoded = format_map_file({"map": data})
         self.assertEqual(normalize_map(json.loads(encoded)["map"]), data)
-        self.assertFalse(validate_map(data, [], []))
+        self.assertFalse(validate_map(data, []))
         moved = resize_map_offset(data, 6, 6, 2, 2)
         self.assertEqual(moved["items"][0]["col"], 3)
         self.assertEqual(moved["levels"][0]["erasers"][0], {"c0": 3, "r0": 2, "c1": 3, "r1": 3})
@@ -58,7 +58,7 @@ class EquipmentTests(unittest.TestCase):
         ]
         normalized = normalize_map(data)
         self.assertEqual(len(normalized["levels"][0]["erasers"]), 3)
-        errors = "\n".join(validate_map(normalized, [], []))
+        errors = "\n".join(validate_map(normalized, []))
         self.assertIn("duplicates another eraser", errors)
         self.assertIn("not one grid edge", errors)
         self.assertIn("outside the grid-line bounds", errors)
