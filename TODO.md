@@ -2,6 +2,8 @@
 
 ## Fixes
 
+- **Stuck forward movement:** the player sometimes keeps walking after W is released, during ordinary play with no focus change. `input_movement_system` rebuilds the intent from `ButtonInput<KeyCode>` every frame and nothing else moves a grounded body, so a key release is lost before it reaches `ButtonInput`. Capture a session with `WAYLAND_DEBUG=client` and check whether `wl_keyboard.key` delivered the release (key 17, state 0): if not, the loss is below the game (key remapper, keyboard, or compositor); if so, trace winit and Bevy next.
+
 ## Enhancements
 
 - **Dependency upgrades:** Recheck the `encase` family held at 0.12.1 in `Cargo.lock` once [Bevy's syn compatibility issue](https://github.com/bevyengine/bevy/issues/25844) is resolved; 0.12.2 fails to compile with Bevy 0.19.1. Renet's `crypto-common` dependency also pins `generic-array` to 0.14.7.
