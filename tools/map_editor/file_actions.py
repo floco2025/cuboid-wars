@@ -108,6 +108,7 @@ class FileActionsMixin:
         return self._save_to(self.path)
 
     def _save_to(self, path: Path) -> bool:
+        self.properties_panel.commit()
         try:
             map_name = map_name_from_path(path)
             require_map_settings(map_name)
@@ -159,6 +160,7 @@ class FileActionsMixin:
         return self._save_to(path)
 
     def confirm_discard_changes(self) -> bool:
+        self.properties_panel.commit()
         if not self.dirty:
             return True
         result = QMessageBox.question(

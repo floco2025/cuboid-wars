@@ -2,9 +2,10 @@ import copy
 import json
 from unittest.mock import patch
 
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QSpinBox
+from PySide6.QtWidgets import QApplication, QSpinBox
 
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, floor, furnished_map, nested
 from map_editor import constants as c
@@ -27,10 +28,12 @@ class EditorWorkflowTests(WindowTestCase):
         QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=b)
         self.app.processEvents()
 
-    def edit_text(self, widget, text):
+    def edit_text(self, widget, text, *, finish=False):
         widget.setFocus()
         widget.selectAll()
         QTest.keyClicks(widget, text)
+        if finish:
+            QTest.keyClick(widget, Qt.Key.Key_Return)
 
     def test_sampling_preserves_each_material_face_and_a_new_material_clears_the_sample(self):
         data = empty_map(8, 8)
@@ -171,7 +174,6 @@ class EditorWorkflowTests(WindowTestCase):
         top = inspector.widgets[("top",)]
         self.assertEqual(top.currentText(), "Mixed / unchanged")
         top.setCurrentIndex(top.findData("slab"))
-        inspector.apply_button.click()
         self.assertTrue(
             all(e["top"] == "slab" and e["bottom"] == DEFAULT_ALIAS for e in window.map_data["levels"][0]["floors"])
         )
@@ -190,16 +192,94 @@ class EditorWorkflowTests(WindowTestCase):
         before = copy.deepcopy(window.map_data)
         window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
         field = window.properties_panel.widgets[("count",)]
-        self.edit_text(field, "4, 2")
-        window.properties_panel.apply_button.click()
+        self.edit_text(field, "4, 2", finish=True)
         self.assertEqual(window.map_data, before)
         self.assertFalse(window.properties_panel.error.isHidden())
-        self.edit_text(field, "4, 6")
-        window.properties_panel.apply_button.click()
+        self.edit_text(field, "4, 6", finish=True)
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [4, 6])
         self.assertTrue(window.properties_panel.error.isHidden())
 
-    def test_autosave_save_and_ui_refresh_preserve_unapplied_properties(self):
+    def two_actor_zones(self):
+        data = empty_map(8, 8)
+        data["checkpoints"] = []
+        data["actor_spawn_zones"] = [
+            {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": [2, 4], "respawn_secs": None},
+            {"level": 0, "cols": [4, 5], "rows": [4, 5], "kind": "scuttler", "count": [1], "respawn_secs": None},
+        ]
+        self.set_data(data)
+
+    def test_leaving_a_field_commits_it_and_keeps_the_form(self):
+        self.two_actor_zones()
+        window = self.window
+        panel = window.properties_panel
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        field = panel.widgets[("count",)]
+        self.edit_text(field, "4,6")
+        self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [2, 4])
+        window.canvas.setFocus()
+        self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [4, 6])
+        self.assertIs(panel.widgets[("count",)], field)
+        self.assertEqual(field.text(), "4, 6")
+        self.assertEqual(window.selection_refs(), [ElementRef("actor_spawn_zones", 0)])
+
+    def test_a_selection_change_commits_a_focused_draft_and_reports_an_invalid_one(self):
+        self.two_actor_zones()
+        window = self.window
+        panel = window.properties_panel
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.edit_text(panel.widgets[("count",)], "4, 6")
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 1)))
+        self.assertEqual([zone["count"] for zone in window.map_data["actor_spawn_zones"]], [[4, 6], [1]])
+        self.assertEqual(panel.widgets[("count",)].text(), "1")
+        self.edit_text(panel.widgets[("count",)], "3, ")
+        with patch.object(window, "notify") as notify:
+            window.clear_selection()
+        self.assertIn("discarded", notify.call_args.args[0])
+        self.assertEqual(window.map_data["actor_spawn_zones"][1]["count"], [1])
+
+    def test_property_commits_share_an_undo_step_until_the_selection_changes(self):
+        self.two_actor_zones()
+        window = self.window
+        panel = window.properties_panel
+        before = copy.deepcopy(window.map_data)
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.edit_text(panel.widgets[("count",)], "4, 6", finish=True)
+        self.edit_text(panel.widgets[("roam_distance",)], "3", finish=True)
+        self.assertEqual(window.undo_stack.count(), 1)
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 1)))
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.edit_text(panel.widgets[("roam_distance",)], "5", finish=True)
+        self.assertEqual(window.undo_stack.count(), 2)
+        # Edits that cancel out within a visit leave no step behind.
+        self.edit_text(panel.widgets[("roam_distance",)], "3", finish=True)
+        self.assertEqual(window.undo_stack.count(), 1)
+        window.undo_stack.undo()
+        self.assertEqual(window.map_data, before)
+
+    def test_the_wheel_over_a_property_dropdown_leaves_its_value(self):
+        self.two_actor_zones()
+        window = self.window
+        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        box = window.properties_panel.widgets[("kind",)]
+        self.assertGreater(box.count(), 1)
+        box.setCurrentIndex(0)
+        before = box.currentIndex()
+        center = QPointF(box.rect().center())
+        event = QWheelEvent(
+            center,
+            QPointF(box.mapToGlobal(center.toPoint())),
+            QPoint(),
+            QPoint(0, -120),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+            Qt.ScrollPhase.NoScrollPhase,
+            False,
+        )
+        QApplication.sendEvent(box, event)
+        self.assertEqual(box.currentIndex(), before)
+        self.assertEqual(window.undo_stack.count(), 0)
+
+    def test_autosave_save_and_ui_refresh_preserve_a_property_draft(self):
         window = self.window
         data = copy.deepcopy(window.map_data)
         data["actor_spawn_zones"] = [
@@ -219,10 +299,9 @@ class EditorWorkflowTests(WindowTestCase):
                 self.assertEqual(field.text(), "4, ")
                 self.assertEqual(field.selectedText(), "4")
                 self.assertTrue(field.hasFocus())
-                self.assertTrue(panel.apply_button.isEnabled())
+                self.assertEqual(panel.changed_keys, {("count",)})
                 self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [2, 4])
-        self.edit_text(field, "4, 6")
-        panel.apply_button.click()
+        self.edit_text(field, "4, 6", finish=True)
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [4, 6])
         window.undo_stack.undo()
         window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
@@ -231,7 +310,7 @@ class EditorWorkflowTests(WindowTestCase):
         window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
         self.assertEqual(panel.widgets[("count",)].text(), "4, 6")
 
-    def test_catalog_reload_preserves_invalid_drafts_until_revert(self):
+    def test_catalog_reload_preserves_invalid_drafts_until_escape_discards_them(self):
         window = self.window
         data = copy.deepcopy(window.map_data)
         data["actor_spawn_zones"] = [
@@ -253,14 +332,14 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertIs(panel.widgets[("kind",)], actor)
         self.assertEqual(count.text(), "4, ")
         self.assertEqual(actor.currentText(), "unfinished")
-        panel.apply_button.click()
+        panel.commit()
         self.assertFalse(panel.error.isHidden())
         self.assertEqual(count.text(), "4, ")
-        panel.rebuild()
+        QTest.keyClick(count, Qt.Key.Key_Escape)
         self.assertEqual(panel.widgets[("count",)].text(), "2, 4")
         self.assertEqual(panel.widgets[("kind",)].currentText(), "scuttler")
         self.assertGreaterEqual(panel.widgets[("kind",)].findData("crawler"), 0)
-        self.assertFalse(panel.apply_button.isEnabled())
+        self.assertFalse(panel.changed_keys)
 
     def test_plate_links_include_other_levels_and_nested_geometry(self):
         data = empty_map(8, 8)
@@ -335,8 +414,7 @@ class EditorWorkflowTests(WindowTestCase):
         inspector = self.window.properties_panel
         field = inspector.widgets[("count",)]
         self.assertEqual(field.text(), "invalid")
-        self.edit_text(field, "2, 3")
-        inspector.apply_button.click()
+        self.edit_text(field, "2, 3", finish=True)
         self.assertEqual(self.window.map_data["actor_spawn_zones"][0]["count"], [2, 3])
 
     def test_reversed_wall_endpoints_are_picked_like_any_wall(self):
@@ -384,12 +462,10 @@ class EditorWorkflowTests(WindowTestCase):
         window = self.window
         window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
         inspector = window.properties_panel
-        self.edit_text(inspector.widgets[("levels",)], "1")
-        inspector.apply_button.click()
+        self.edit_text(inspector.widgets[("levels",)], "1", finish=True)
         self.assertNotIn("levels", window.map_data["actor_spawn_zones"][0])
         self.assertEqual(window.selection_refs(), [ElementRef("actor_spawn_zones", 0)])
-        self.edit_text(inspector.widgets[("levels",)], "1")
-        inspector.apply_button.click()
+        self.edit_text(inspector.widgets[("levels",)], "1", finish=True)
         self.assertEqual(window.selection_refs(), [ElementRef("actor_spawn_zones", 0)])
         self.assertEqual(window.undo_stack.count(), 1)
 

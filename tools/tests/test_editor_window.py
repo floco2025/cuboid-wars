@@ -388,7 +388,6 @@ class WindowTests(WindowTestCase):
         panel = window.properties_panel
         self.assertEqual(panel.widgets[("top",)].currentText(), "Mixed / unchanged")
         self.set_property("north", first)
-        panel.apply_button.click()
         self.assertEqual([f["top"] for f in window.map_data["levels"][0]["floors"]], [first, second, DEFAULT_ALIAS])
         self.assertTrue(all(f["north"] == first for f in window.map_data["levels"][0]["floors"]))
 
@@ -403,12 +402,11 @@ class WindowTests(WindowTestCase):
         window.edit_materials_at((HIT_TERRAIN, (1, 1)))
         self.assertEqual(set(window.properties_panel.widgets), {(face,) for face in TERRAIN_FACES})
         self.set_property("bottom", replacement)
-        window.properties_panel.apply_button.click()
         terrain = window.map_data["levels"][0]["terrain"][0]
         self.assertEqual(terrain["bottom"], replacement)
         self.assertNotIn("top", terrain)
 
-    def test_material_helpers_fill_faces_without_changing_the_map_until_apply(self):
+    def test_material_helpers_fill_every_face_and_share_one_undo_step(self):
         window = self.window
         pattern = dict(zip(FACES, window.materials_catalog[:6]))
         data = copy.deepcopy(window.map_data)
@@ -422,13 +420,15 @@ class WindowTests(WindowTestCase):
         panel = window.properties_panel
         panel.source_button.click()
         self.assertEqual({face: panel.widgets[(face,)].currentData() for face in FACES}, pattern)
-        self.assertEqual(window.map_data, before)
+        floors = window.map_data["levels"][0]["floors"]
+        self.assertTrue(all(floor.get(face, floor.get("all")) == pattern[face] for floor in floors for face in FACES))
         panel.apply_all_button.click()
         self.assertTrue(all(panel.widgets[(face,)].currentData() == pattern["top"] for face in FACES))
+        floors = window.map_data["levels"][0]["floors"]
+        self.assertTrue(all(floor.get(face, floor.get("all")) == pattern["top"] for floor in floors for face in FACES))
+        self.assertEqual(window.undo_stack.count(), 1)
+        window.undo_stack.undo()
         self.assertEqual(window.map_data, before)
-        panel.rebuild()
-        self.assertFalse(panel.changed_keys)
-        self.assertEqual(window.undo_stack.count(), 0)
 
     def test_top_left_material_pattern_applies_to_selected_floors_and_walls_and_undoes(self):
         window = self.window
@@ -452,7 +452,6 @@ class WindowTests(WindowTestCase):
                 else:
                     window.assign_floor_materials_rect((0, 0), (5, 5))
                 window.properties_panel.source_button.click()
-                window.properties_panel.apply_button.click()
                 level = window.map_data["levels"][0]
                 entries = level["walls"] if walls else level["floors"] + level["inaccessible_floors"]
                 self.assertTrue(all({face: entry[face] for face in FACES} == pattern for entry in entries))

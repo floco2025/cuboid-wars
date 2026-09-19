@@ -99,6 +99,7 @@ class SelectionMixin:
     def refresh_inspection(self, *, show=False):
         if not hasattr(self, "properties_panel"):
             return
+        self.properties_panel.flush(self.selection_refs())
         refs = self.selection_refs()
         self.properties_panel.set_selection(refs)
         self.connection_overlay.set_selection(refs)

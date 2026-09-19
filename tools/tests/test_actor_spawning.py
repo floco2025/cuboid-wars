@@ -174,7 +174,6 @@ class SpawnWindowTests(WindowTestCase):
         window.set_mode(MODE_SELECT)
         self.click(2, 2)
         self.set_property("count", "1, 2, 4, 6")
-        window.properties_panel.apply_button.click()
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [1, 2, 4, 6])
         window.undo_stack.undo()
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [0, 2, 3])

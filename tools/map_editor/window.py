@@ -511,8 +511,8 @@ class EditorWindow(
         if switched:
             self.canvas.fit_map()
 
-    def apply_change(self, label: str, after: dict) -> bool:
-        return self.doc.apply_change(label, after)
+    def apply_change(self, label: str, after: dict, merge_key: object | None = None) -> bool:
+        return self.doc.apply_change(label, after, merge_key)
 
     def refresh_ui(self) -> None:
         self.adopt_catalogs(self.catalog_map, self.current_catalogs())

@@ -219,7 +219,8 @@ class WindowTestCase(unittest.TestCase):
         self.app.clipboard().clear()
         self.recents.stop()
 
-    def set_property(self, key, value):
+    # `finish=False` leaves typed text as a draft, like a field still focused.
+    def set_property(self, key, value, *, finish=True):
         from PySide6.QtWidgets import QComboBox
 
         panel = self.window.properties_panel
@@ -228,9 +229,13 @@ class WindowTestCase(unittest.TestCase):
             index = widget.findData(value)
             self.assertGreaterEqual(index, 0, (key, value))
             widget.setCurrentIndex(index)
+            if widget.isEditable():
+                widget.activated.emit(index)
         else:
             widget.setText(str(value))
             widget.textEdited.emit(str(value))
+            if finish:
+                widget.editingFinished.emit()
 
     def click(self, col, row):
         size = self.window.canvas.cell_size()

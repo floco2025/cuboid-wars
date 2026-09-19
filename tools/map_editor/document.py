@@ -113,13 +113,15 @@ class MapDocument(QObject):
             self.dirty = self.root_data != self._saved_data
         self.changed.emit(before)
 
-    def apply_root_change(self, label: str, after: dict, active_map: str | None) -> bool:
+    def apply_root_change(
+        self, label: str, after: dict, active_map: str | None, merge_key: object | None = None
+    ) -> bool:
         if after == self.root_data:
             return False
-        self.undo_stack.push(SetMapCommand(self, label, self.root_data, after, active_map))
+        self.undo_stack.push(SetMapCommand(self, label, self.root_data, after, active_map, merge_key))
         return True
 
-    def apply_change(self, label: str, after: dict) -> bool:
+    def apply_change(self, label: str, after: dict, merge_key: object | None = None) -> bool:
         after = self.maintain(after)
         current = normalize_map(self.map_data) if self.repairs_pending() else self.canonical_map_data()
         if after == current:
@@ -128,7 +130,7 @@ class MapDocument(QObject):
         if self.active_map is not None:
             root = copy.deepcopy(self.root_data)
             root["nested_geometry"][self.active_map] = after
-        return self.apply_root_change(label, root, self.active_map)
+        return self.apply_root_change(label, root, self.active_map, merge_key)
 
     def proposed_repairs(self) -> tuple[dict, list[str]]:
         """The whole document repaired, the outer map and every nested

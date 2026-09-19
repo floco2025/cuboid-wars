@@ -44,6 +44,7 @@
       {"level": 4, "col": 7, "row": 4, "type": "speed"},
       {"level": 4, "col": 11, "row": 4, "type": "low_gravity"},
       {"level": 4, "col": 15, "row": 4, "type": "speed"},
+      {"level": 4, "col": 31, "row": 7, "type": "portal_gun"},
       {"level": 5, "col": 31, "row": 1, "type": "low_gravity"},
       {"level": 5, "col": 31, "row": 2, "type": "low_gravity"},
       {"level": 5, "col": 31, "row": 3, "type": "low_gravity"},
@@ -228,10 +229,17 @@
           {"col": 29, "row": 10, "all": "pedestal"},
           {"col": 30, "row": 10, "all": "pedestal"},
           {"col": 31, "row": 10, "all": "pedestal"},
+          {"col": 30, "row": 11, "all": "walkway"},
+          {"col": 30, "row": 12, "all": "walkway"},
+          {"col": 30, "row": 13, "all": "walkway"},
+          {"col": 30, "row": 14, "all": "walkway"},
           {"col": 20, "row": 15, "all": "pedestal"},
           {"col": 23, "row": 15, "all": "pedestal"},
+          {"col": 30, "row": 15, "all": "walkway"},
           {"col": 20, "row": 16, "all": "pedestal"},
-          {"col": 23, "row": 16, "all": "pedestal"}
+          {"col": 23, "row": 16, "all": "pedestal"},
+          {"col": 30, "row": 16, "all": "walkway"},
+          {"col": 30, "row": 17, "all": "walkway"}
         ],
         "walls": [
           {"c0": 2, "r0": 2, "c1": 2, "r1": 3, "all": "pedestal"},
@@ -534,7 +542,19 @@
       },
       {
         "name": "Level 2",
-        "floors": [],
+        "floors": [
+          {"col": 30, "row": 10, "all": "walkway"},
+          {"col": 30, "row": 11, "all": "walkway"},
+          {"col": 30, "row": 12, "all": "walkway"},
+          {"col": 30, "row": 13, "all": "walkway"},
+          {"col": 30, "row": 14, "all": "walkway"},
+          {"col": 30, "row": 15, "all": "walkway"},
+          {"col": 30, "row": 16, "all": "walkway"},
+          {"col": 30, "row": 17, "all": "walkway"},
+          {"col": 30, "row": 18, "all": "walkway"},
+          {"col": 30, "row": 19, "all": "walkway"},
+          {"col": 30, "row": 20, "all": "walkway"}
+        ],
         "inaccessible_floors": [],
         "terrain": [],
         "walls": [
@@ -1676,7 +1696,8 @@
       }
     ],
     "ladders": [
-      {"lower_level": 0, "col": 2, "row": 4, "side": "S", "levels": 4}
+      {"lower_level": 0, "col": 2, "row": 4, "side": "S", "levels": 4},
+      {"lower_level": 2, "col": 30, "row": 10, "side": "S", "levels": 2}
     ],
     "ramps": [],
     "nested_maps": [

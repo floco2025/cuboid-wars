@@ -69,7 +69,6 @@ class ContextEditingTests(WindowTestCase):
                         self.context(point)
                         self.assertEqual(window.properties_panel.widgets[("kind",)].currentData(), "a")
                         self.set_property("kind", "b")
-                        window.properties_panel.apply_button.click()
                         self.assertEqual(window.doc.root_data, expected)
                         window.undo_stack.undo()
                         self.assertEqual(window.doc.root_data, before)
@@ -99,9 +98,9 @@ class ContextEditingTests(WindowTestCase):
                 with self.subTest(choice=choice, title=title):
                     self.context(point)
                     if choice is None:
-                        window.properties_panel.rebuild()
+                        window.properties_panel.discard()
                     else:
-                        window.properties_panel.apply()
+                        self.set_property("kind", choice)
                     self.assertEqual(window.map_data, before)
                     self.assertEqual(window.undo_stack.count(), 0)
 
@@ -133,7 +132,6 @@ class ContextEditingTests(WindowTestCase):
                 self.assertEqual(window.undo_stack.count(), history)
                 self.assertEqual(window.properties_panel.widgets[("top",)].currentData(), DEFAULT_ALIAS)
                 self.set_property("top", material)
-                window.properties_panel.apply_button.click()
                 expected = copy.deepcopy(before)
                 target = expected if name == "ramps" else expected["levels"][1]
                 target[name][0]["top"] = material
@@ -153,16 +151,14 @@ class ContextEditingTests(WindowTestCase):
         window.set_level_index(3)
         before = copy.deepcopy(window.map_data)
         self.context((2.5, 3.0))
-        self.set_property("levels", 1)
-        window.properties_panel.rebuild()
+        self.set_property("levels", 1, finish=False)
+        window.properties_panel.discard()
         self.assertEqual(window.map_data, before)
         self.assertEqual(window.undo_stack.count(), 0)
         self.set_property("levels", 2)
-        window.properties_panel.apply_button.click()
         self.assertEqual(window.map_data, before)
         self.assertEqual(window.undo_stack.count(), 0)
         self.set_property("levels", 3)
-        window.properties_panel.apply_button.click()
         expected = copy.deepcopy(before)
         expected["ladders"][0]["levels"] = 3
         self.assertEqual(window.map_data, expected)
@@ -183,7 +179,6 @@ class ContextEditingTests(WindowTestCase):
         before = copy.deepcopy(window.map_data)
         self.context((2.5, 3.0))
         self.set_property("levels", 3)
-        window.properties_panel.apply_button.click()
         self.assertTrue(window.properties_panel.error.isVisible())
         self.assertIn("overlap", window.properties_panel.error.text())
         self.assertEqual(window.map_data, before)

@@ -1,14 +1,13 @@
-"""A shared inspector for existing elements, with explicit undoable Apply."""
+"""A shared inspector for existing elements; a finished field commits at once."""
 
 import copy
 import math
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDockWidget,
     QFormLayout,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -47,6 +46,8 @@ class SelectionProperties(QDockWidget):
         self.fields = {}
         self.changed_keys = set()
         self.applying = False
+        self.loading = False
+        self.visit = None
         body = QWidget()
         layout = QVBoxLayout(body)
         layout.setContentsMargins(5, 4, 5, 4)
@@ -65,14 +66,6 @@ class SelectionProperties(QDockWidget):
         self.error = QLabel()
         self.error.setWordWrap(True)
         layout.addWidget(self.error)
-        row = QHBoxLayout()
-        self.apply_button = QPushButton("Apply")
-        self.apply_button.clicked.connect(self.apply)
-        row.addWidget(self.apply_button)
-        revert = QPushButton("Revert")
-        revert.clicked.connect(self.rebuild)
-        row.addWidget(revert)
-        layout.addLayout(row)
         self.setWidget(body)
         self.setMinimumWidth(170)
         self.set_selection([])
@@ -83,7 +76,8 @@ class SelectionProperties(QDockWidget):
         refs = list(refs)
         if self.shows(refs):
             # A refresh must not replace a draft, its cursor, or its undo
-            # history. Updated catalog choices appear after Apply or Revert.
+            # history. Updated catalog choices appear once the draft is
+            # committed or discarded.
             if self.changed_keys or self.field_signature == self.current_field_signature():
                 return
         self.signature = (self.window.path, self.window.doc.active_map, tuple(refs))
@@ -100,6 +94,7 @@ class SelectionProperties(QDockWidget):
         self.group.setCurrentIndex(max(0, self.group.findData(previous)))
         self.group.blockSignals(False)
         self.group.setVisible(self.group.count() > 2)
+        self.visit = object()
         self.rebuild()
 
     # Whether the panel already shows these records. A committed record is
@@ -129,7 +124,6 @@ class SelectionProperties(QDockWidget):
         self.widgets.clear()
         self.labels = {}
         self.fields.clear()
-        self.apply_button.setEnabled(False)
         form_body = QWidget()
         form = QFormLayout(form_body)
         form.setContentsMargins(0, 0, 0, 0)
@@ -143,12 +137,8 @@ class SelectionProperties(QDockWidget):
             compatible = {field.key: field for field in fields_for(self.window, name)}
             fields = [field for field in fields if compatible.get(field.key) == field]
         for field in fields:
-            values = [property_value(ref.get(self.window.map_data), field.key) for ref in refs]
-            value = values[0] if all(value == values[0] for value in values) else _MIXED
             if field.kind == "choice":
                 widget = CompactComboBox()
-                if value is _MIXED:
-                    widget.addItem("Mixed / unchanged", _MIXED)
                 colors = dict(field.colors)
                 for choice, label in field.choices:
                     caption = "None" if choice is None else label
@@ -159,52 +149,30 @@ class SelectionProperties(QDockWidget):
                     widget.setItemData(
                         widget.count() - 1, "None" if choice is None else label, Qt.ItemDataRole.UserRole + 1
                     )
-                index = widget.findData(value)
-                if index < 0:
-                    widget.addItem(str(value), value)
-                    index = widget.count() - 1
-                widget.setCurrentIndex(index)
-                widget.refresh_tooltip()
-                widget.currentIndexChanged.connect(lambda _index, key=field.key: self.mark_changed(key))
+                widget.installEventFilter(self)
+                if field.key == ("kind",) and names == ["actor_spawn_zones"]:
+                    widget.setEditable(True)
+                    widget.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+                    widget.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+                    widget.completer().setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+                    widget.editTextChanged.connect(lambda _text, key=field.key: self.mark_changed(key))
+                    widget.lineEdit().editingFinished.connect(lambda: self.commit())
+                    widget.activated.connect(lambda _index: self.commit())
+                else:
+                    widget.currentIndexChanged.connect(lambda _index, key=field.key: self.choice_changed(key))
             else:
                 widget = QLineEdit()
-                if value is _MIXED:
-                    widget.setPlaceholderText("Mixed / unchanged")
-                else:
-                    if field.kind == "counts" and isinstance(value, list):
-                        text = ", ".join(map(str, value))
-                    elif value is None:
-                        text = {"respawn": "Never", "checkpoint": "Always"}.get(field.kind, "")
-                    else:
-                        text = str(value)
-                    widget.setText(text)
                 widget.textEdited.connect(lambda _text, key=field.key: self.mark_changed(key))
+                widget.editingFinished.connect(lambda: self.commit())
             if field.tooltip:
                 widget.setToolTip(field.tooltip)
-            if field.key == ("kind",) and names == ["actor_spawn_zones"]:
-                widget.setEditable(True)
-                widget.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-                widget.completer().setFilterMode(Qt.MatchFlag.MatchContains)
-                widget.completer().setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-                widget.editTextChanged.connect(lambda _text, key=field.key: self.mark_changed(key))
             widget.setAccessibleName(field.label)
             self.widgets[field.key] = widget
             self.fields[field.key] = field
             form.addRow(field.label, widget)
             self.labels[field.key] = form.labelForField(widget)
         face_keys = [field.key for field in fields if field.key[0] in FACES]
-        self.material_source = {}
         if face_keys:
-            if refs:
-                source = min(
-                    refs,
-                    key=lambda ref: (
-                        record_rect(ref.name, ref.get(self.window.map_data))[1],
-                        record_rect(ref.name, ref.get(self.window.map_data))[0],
-                        ref.level or 0,
-                    ),
-                )
-                self.material_source = {key: property_value(source.get(self.window.map_data), key) for key in face_keys}
             self.source_button = QPushButton("Use top-left materials")
             self.source_button.clicked.connect(self.use_material_source)
             form.addRow(self.source_button)
@@ -217,13 +185,82 @@ class SelectionProperties(QDockWidget):
         if previous:
             previous.deleteLater()
         self.scroll.setWidget(form_body)
+        self.load_values()
+
+    # Every field without a draft takes the selected records' value, in place
+    # so the focused field and an open dropdown survive a commit.
+    def load_values(self):
+        refs = self.targets()
+        self.loading = True
+        for key, field in self.fields.items():
+            if key in self.changed_keys:
+                continue
+            widget = self.widgets[key]
+            values = [property_value(ref.get(self.window.map_data), key) for ref in refs]
+            value = values[0] if all(value == values[0] for value in values) else _MIXED
+            if isinstance(widget, QComboBox):
+                offers_mixed = widget.count() > 0 and widget.itemData(0) is _MIXED
+                if value is _MIXED and not offers_mixed:
+                    widget.insertItem(0, "Mixed / unchanged", _MIXED)
+                elif value is not _MIXED and offers_mixed:
+                    widget.removeItem(0)
+                index = widget.findData(value)
+                if index < 0:
+                    widget.addItem(str(value), value)
+                    index = widget.count() - 1
+                widget.setCurrentIndex(index)
+                widget.refresh_tooltip()
+                continue
+            if value is _MIXED:
+                text = ""
+            elif field.kind == "counts" and isinstance(value, list):
+                text = ", ".join(map(str, value))
+            elif value is None:
+                text = {"respawn": "Never", "checkpoint": "Always"}.get(field.kind, "")
+            else:
+                text = str(value)
+            widget.setPlaceholderText("Mixed / unchanged" if value is _MIXED else "")
+            # Setting equal text would still drop the cursor and selection.
+            if widget.text() != text:
+                widget.setText(text)
+        self.loading = False
         self.sync_dependencies()
 
+    def refresh(self):
+        if self.field_signature != self.current_field_signature():
+            self.rebuild()
+        else:
+            self.load_values()
+
+    # The wheel scrolls the panel; over a dropdown it would commit a value
+    # nobody chose.
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.Wheel and isinstance(watched, QComboBox):
+            event.ignore()
+            return True
+        return super().eventFilter(watched, event)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self.changed_keys:
+            self.discard()
+        else:
+            super().keyPressEvent(event)
+
     def mark_changed(self, key):
+        if self.loading:
+            return
         self.changed_keys.add(key)
-        self.apply_button.setEnabled(True)
         self.error.hide()
         self.sync_dependencies()
+
+    def choice_changed(self, key):
+        self.mark_changed(key)
+        self.commit()
+
+    def discard(self):
+        self.changed_keys.clear()
+        self.error.hide()
+        self.refresh()
 
     def value(self, key):
         widget, field = self.widgets[key], self.fields[key]
@@ -272,7 +309,12 @@ class SelectionProperties(QDockWidget):
             return value
         return text
 
-    def apply(self):
+    # One undoable edit of every drafted field; whether the document changed.
+    # A draft that fails stays in its field, and the next finished field
+    # retries them together, so values only valid as a pair land as one edit.
+    def commit(self, *, reselect=True):
+        if self.loading or self.applying or not self.changed_keys:
+            return False
         try:
             values = {key: self.value(key) for key in self.changed_keys}
             after = copy.deepcopy(self.window.map_data)
@@ -302,25 +344,50 @@ class SelectionProperties(QDockWidget):
             errors = self.window.added_issues(after)
             if errors:
                 raise ValueError(errors[0])
-            selection = self.window.selection
             self.applying = True
-            applied = self.window.apply_change("Edit Selection Properties", after)
+            applied = self.window.apply_change("Edit Selection Properties", after, merge_key=self.visit)
         except ValueError as error:
             self.error.setText(str(error))
             self.error.show()
-            return
+            return False
         finally:
             self.applying = False
-        self.signature = None
-        if applied and selection.area is None:
+        self.changed_keys.clear()
+        if not reselect:
+            return applied
+        if applied and self.window.selection.area is None:
             normalized = normalize_map(after)
             selected = [(ref.name, ref.level, ref.get(normalized)) for ref in self.refs]
             refs = [
                 ref for ref, entry in element_refs(self.window.map_data) if (ref.name, ref.level, entry) in selected
             ]
+            self.adopt(refs)
             self.window.inspect_refs(refs)
-        else:
+        elif applied:
+            self.adopt(self.window.selection_refs())
             self.window.refresh_inspection()
+        self.refresh()
+        return applied
+
+    # The committed records become the ones shown, so publishing them again
+    # keeps the form; a selection that came back smaller is rebuilt instead.
+    def adopt(self, refs):
+        if len(refs) != len(self.refs):
+            self.signature = None
+            return
+        self.refs = list(refs)
+        self.signature = (self.window.path, self.window.doc.active_map, tuple(refs))
+        self.data = self.window.map_data
+
+    # A draft is committed when the selection moves on, so a shortcut that
+    # changes it while a field keeps the focus loses nothing. A draft whose
+    # records changed underneath it is stale and is left to the rebuild.
+    def flush(self, refs):
+        if not self.changed_keys or self.applying or list(refs) == self.refs or not self.shows(self.refs):
+            return
+        self.commit(reselect=False)
+        if self.changed_keys:
+            self.window.notify(f"Property edit discarded: {self.error.text()}")
 
     def sync_dependencies(self):
         names = {ref.name for ref in self.targets()}
@@ -345,23 +412,39 @@ class SelectionProperties(QDockWidget):
                 self.widgets[(key,)].setEnabled(cycle)
                 self.labels[(key,)].setEnabled(cycle)
 
-    def set_material_choice(self, key, value):
-        box = self.widgets[key]
-        index = box.findData(value)
-        if index < 0:
-            box.addItem(str(value), value)
-            index = box.count() - 1
-        box.setCurrentIndex(index)
-        self.mark_changed(key)
+    def set_material_choices(self, choices):
+        self.loading = True
+        for key, value in choices.items():
+            box = self.widgets[key]
+            index = box.findData(value)
+            if index < 0:
+                box.addItem(str(value), value)
+                index = box.count() - 1
+            box.setCurrentIndex(index)
+        self.loading = False
+        self.changed_keys.update(choices)
+        self.error.hide()
+        self.commit()
 
     def use_material_source(self):
-        for key, value in self.material_source.items():
-            self.set_material_choice(key, value)
+        data = self.window.map_data
+        refs = self.targets()
+        if not refs:
+            return
+        source = min(
+            refs,
+            key=lambda ref: (
+                record_rect(ref.name, ref.get(data))[1],
+                record_rect(ref.name, ref.get(data))[0],
+                ref.level or 0,
+            ),
+        )
+        keys = [key for key in self.widgets if key[0] in FACES]
+        self.set_material_choices({key: property_value(source.get(data), key) for key in keys})
 
     def apply_material_to_all(self):
         keys = [key for key in self.widgets if key[0] in FACES]
         value = self.widgets[keys[0]].currentData()
         if value is _MIXED:
             return
-        for key in keys:
-            self.set_material_choice(key, value)
+        self.set_material_choices(dict.fromkeys(keys, value))

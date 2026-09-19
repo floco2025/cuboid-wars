@@ -78,7 +78,6 @@ class EditorEnhancementTests(WindowTestCase):
         self.assertTrue(window.properties_panel.isVisible())
         self.assertTrue(window.delete_action.isEnabled())
         self.set_property("type", "health_potion")
-        window.properties_panel.apply_button.click()
         self.assertEqual(window.selection_refs(), [ElementRef("items", 0)])
         window.undo_stack.undo()
         self.assertEqual(window.map_data, before)
@@ -183,7 +182,6 @@ class EditorEnhancementTests(WindowTestCase):
             "switch_inverted": True,
         }.items():
             self.set_property(key, value)
-        window.properties_panel.apply_button.click()
         actor = window.map_data["actor_spawn_zones"][0]
         self.assertEqual(
             (
@@ -216,8 +214,8 @@ class EditorEnhancementTests(WindowTestCase):
         window.inspect_refs([ElementRef("nested_maps", 0)], show=True)
         self.assertTrue(window.properties_panel.widgets[("pause_secs",)].isEnabled())
         values = {
-            "to_level": 1,
             "travel_secs": 0,
+            "to_level": 1,
             "pause_secs": 2,
             "phase_secs": 1,
             "switch": "barrier_1",
@@ -228,11 +226,9 @@ class EditorEnhancementTests(WindowTestCase):
         for key, value in values.items():
             self.set_property(key, value)
         panel = window.properties_panel
-        panel.apply_button.click()
         self.assertEqual(window.map_data, before)
         self.assertTrue(panel.error.isVisible())
         self.set_property("travel_secs", 3)
-        panel.apply_button.click()
         entry = window.map_data["nested_maps"][0]
         self.assertEqual(
             (entry["to_level"], entry["travel_secs"], entry["pause_secs"], entry["phase_secs"]), (1, 3, 2, 1)
@@ -248,13 +244,11 @@ class EditorEnhancementTests(WindowTestCase):
         window.undo_stack.redo()
         window.inspect_refs([ElementRef("nested_maps", 0)], show=True)
         self.set_property("switch", None)
-        panel.apply_button.click()
         self.assertTrue(panel.error.isVisible())
         self.assertEqual(window.map_data["nested_maps"][0]["switch"], "barrier_1")
         self.set_property("motion", "cycle")
         self.assertTrue(panel.widgets[("pause_secs",)].isEnabled())
         self.assertTrue(panel.widgets[("phase_secs",)].isEnabled())
-        panel.apply_button.click()
         entry = window.map_data["nested_maps"][0]
         self.assertNotIn("switch", entry)
         self.assertEqual((entry["pause_secs"], entry["phase_secs"]), (2, 1))
@@ -366,7 +360,6 @@ class EditorEnhancementTests(WindowTestCase):
         window.doc.replace_with_new(data)
         window.inspect_refs([ElementRef("nested_maps", 0)], show=True)
         self.set_property("switch", None)
-        window.properties_panel.apply_button.click()
         entry = window.map_data["nested_maps"][0]
         self.assertNotIn("switch", entry)
         self.assertNotIn("switch_inverted", entry)
