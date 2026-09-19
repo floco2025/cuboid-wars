@@ -35,6 +35,10 @@ renet_netcode = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+[profile.release.package.map_core_py]
+# Rust's debuginfo stripping misaligns Mach-O libraries on macOS 27 (rust-lang/rust#157750).
+strip = "none"
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 
