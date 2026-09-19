@@ -33,14 +33,10 @@ class WorkflowMixin:
             faces = c.TERRAIN_FACES if name == "terrain" else c.FACES
             self.sampled_materials = {face: entry.get(face, entry.get("all", "")) for face in faces}
             self.current_material = entry.get("top", entry.get("bottom", entry.get("all", "")))
-        if name in ("barriers", "light_bridges"):
-            prefix = "barrier" if name == "barriers" else "bridge"
-            setattr(self, f"recent_{prefix}_kind", entry["kind"])
-            setattr(
-                self,
-                f"recent_{prefix}_controls",
-                {key: entry[key] for key in ("switch", "initially_on") if key in entry},
-            )
+        if name == "barriers":
+            self.recent_barrier_field = entry["field"]
+        elif name == "light_bridges":
+            self.recent_bridge_field = entry["field"]
         elif name == "actor_spawn_zones":
             for key, attribute, default in (
                 ("kind", "recent_actor_spawn_kind", ""),
@@ -59,7 +55,7 @@ class WorkflowMixin:
             self.recent_checkpoint_type = entry["type"]
         elif name == "items":
             self.recent_item_type = entry["type"]
-            self.recent_item_key_kind = entry.get("kind")
+            self.recent_item_key_field = entry.get("field")
         elif name == "pressure_plates" and entry.get("switch"):
             self.recent_pressure_plate_switch = entry["switch"]
         elif name == "lights":

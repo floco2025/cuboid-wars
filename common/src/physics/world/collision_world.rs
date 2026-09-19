@@ -19,8 +19,7 @@ use super::{
 use crate::{
     map::Carriers,
     math::{rapier_pose, to_rapier},
-    physics::passable_fields,
-    protocol::{Barrier, CarrierId, FieldId, FieldKindId, LightBridge, MapLayout, SwitchId},
+    protocol::{CarrierId, FieldId, MapLayout, SwitchId},
 };
 
 #[derive(Resource)]
@@ -29,8 +28,6 @@ pub struct CollisionWorld {
     pub(super) colliders: ColliderSet,
     pub(super) broad_phase: BroadPhaseBvh,
     pub(super) narrow_phase: NarrowPhase,
-    pub(crate) barriers: Vec<Barrier>,
-    light_bridges: Vec<LightBridge>,
     // Quest-locked plates are hidden and must not leave an invisible step.
     pressure_plate_colliders: Vec<(SwitchId, ColliderHandle)>,
     // Each carrier's colliders with their carrier-local poses, in layout
@@ -47,10 +44,6 @@ pub struct CollisionWorld {
 }
 
 impl CollisionWorld {
-    pub fn passable_fields(&self, held_keys: &[FieldKindId], open: &[FieldId]) -> Vec<FieldId> {
-        passable_fields(held_keys, open, &self.barriers, &self.light_bridges)
-    }
-
     #[must_use]
     pub fn from_map_layout(map_layout: &MapLayout) -> Self {
         let bodies = RigidBodySet::new();
@@ -131,8 +124,6 @@ impl CollisionWorld {
             colliders,
             broad_phase,
             narrow_phase,
-            barriers: map_layout.barriers.clone(),
-            light_bridges: map_layout.light_bridges.clone(),
             pressure_plate_colliders,
             carrier_colliders,
             bounds,

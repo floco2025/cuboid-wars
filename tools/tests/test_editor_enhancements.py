@@ -275,9 +275,8 @@ class EditorEnhancementTests(WindowTestCase):
         data = furnished_map()
         data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
         window.switch_ids = ["barrier_1"]
-        data["levels"][0]["barriers"] = [
-            {"c0": 3, "r0": 3, "c1": 4, "r1": 3, "kind": "barrier_1", "switch": "barrier_1"}
-        ]
+        data["fields"] = [{"id": "gate", "color": "#f0c020", "switch": "barrier_1"}]
+        data["levels"][0]["barriers"] = [{"c0": 3, "r0": 3, "c1": 4, "r1": 3, "field": "gate"}]
         data["fireworks"] = {"switch": "barrier_1", "cooldown_secs": 10}
         window.doc.replace_with_new(data)
         overlay = window.connection_overlay

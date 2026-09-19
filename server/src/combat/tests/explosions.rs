@@ -20,8 +20,8 @@ use common::{
         AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, blast_falloff_at_distance,
     },
     protocol::{
-        ActorAnchor, ActorId, ActorMarker, Barrier, BarrierId, BridgeId, CarrierId, FieldId, FieldKindId, Health,
-        LightBridge, MapLayout, PlayerId, PlayerMarker, Position, SPlayerDeath, ServerMessage, SwitchState,
+        ActorAnchor, ActorId, ActorMarker, Barrier, CarrierId, FieldId, Health, LightBridge, MapLayout, PlayerId,
+        PlayerMarker, Position, SPlayerDeath, ServerMessage, SwitchState,
     },
 };
 
@@ -463,14 +463,11 @@ fn missile_blast_kills_actor_with_shooter_credit() {
     assert_eq!(death.killer, Some(shooter_id));
     assert_eq!(death.killer_score, Some(reward));
 }
+
 fn field_world(bridge: bool) -> CollisionWorld {
     let layout = if bridge {
         MapLayout {
             light_bridges: vec![LightBridge {
-                id: Default::default(),
-                switch: None,
-                initially_on: true,
-
                 x1: -4.0,
                 z1: -4.0,
                 x2: 4.0,
@@ -478,7 +475,7 @@ fn field_world(bridge: bool) -> CollisionWorld {
                 y: 3.0,
                 thickness: 0.1,
                 level: 1,
-                kind: FieldKindId(0),
+                field: FieldId(0),
                 carrier: CarrierId::WORLD,
             }],
             ..default()
@@ -486,11 +483,6 @@ fn field_world(bridge: bool) -> CollisionWorld {
     } else {
         MapLayout {
             barriers: vec![Barrier {
-                id: Default::default(),
-
-                switch: None,
-                initially_on: true,
-
                 x1: 1.0,
                 z1: -4.0,
                 x2: 1.0,
@@ -500,7 +492,7 @@ fn field_world(bridge: bool) -> CollisionWorld {
                 width: 0.1,
                 level: 0,
                 levels: 1,
-                kind: FieldKindId(0),
+                field: FieldId(0),
                 carrier: CarrierId::WORLD,
             }],
             ..default()
@@ -509,13 +501,8 @@ fn field_world(bridge: bool) -> CollisionWorld {
     CollisionWorld::from_map_layout(&layout)
 }
 
-fn power_field(app: &mut App, bridge: bool, active: bool) {
-    let field = if bridge {
-        FieldId::Bridge(BridgeId(0))
-    } else {
-        FieldId::Barrier(BarrierId(0))
-    };
-    app.world_mut().resource_mut::<SwitchState>().open_fields = if active { vec![] } else { vec![field] };
+fn power_field(app: &mut App, active: bool) {
+    app.world_mut().resource_mut::<SwitchState>().open_fields = if active { vec![] } else { vec![FieldId(0)] };
 }
 
 #[test]
@@ -530,9 +517,9 @@ fn fields_shield_players_and_actors_from_missile_damage_and_knockback() {
                 .resource_mut::<PlayerMap>()
                 .get_mut(&PlayerId(1))
                 .expect("player missing")
-                .add_key(FieldKindId(0));
+                .add_key(FieldId(0));
             let actor = spawn_actor(&mut app, ActorId(1), 2.0, 10000.0);
-            power_field(&mut app, bridge, active);
+            power_field(&mut app, active);
             queue_missile_blast(
                 &mut app,
                 PlayerId(2),
@@ -602,7 +589,7 @@ fn activating_cover_stops_an_existing_beam_burst_and_reopening_restores_damage()
         app.update();
         let mut previous = app.world().get::<Health>(player).expect("player health missing").0;
         for active in [false, true, true, false] {
-            power_field(&mut app, bridge, active);
+            power_field(&mut app, active);
             app.update();
             let current = app.world().get::<Health>(player).expect("player health missing").0;
             assert_eq!(current < previous, !active, "bridge={bridge}, active={active}");

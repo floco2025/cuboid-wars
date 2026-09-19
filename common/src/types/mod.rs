@@ -2,8 +2,7 @@ mod color;
 mod entities;
 mod face_materials;
 mod feed;
-mod field_ids;
-mod field_kind;
+mod field;
 mod ids;
 mod items;
 mod kind_table;
@@ -26,11 +25,10 @@ pub use entities::{
 };
 pub use face_materials::{Face, FaceMaterials};
 pub use feed::{FeedSpan, FeedStyle};
-pub use field_ids::{BarrierId, BridgeId, FieldId};
-pub use field_kind::{FieldKindId, FieldKindTable};
+pub use field::{FieldDef, FieldId, FieldTable};
 pub use ids::{ActorId, CarrierId, HomingTarget, ItemId, MissileId, PlayerId, PortalPairId, QuestId};
 pub use items::{ItemType, PowerUpKind};
-pub use kind_table::{KindDef, KindId, KindTable};
+pub use kind_table::{KindId, KindTable};
 pub use map_layout::{
     Barrier, Carrier, CarrierMotion, Checkpoint, CheckpointKind, Eraser, Floor, Ladder, LightBridge, MapItems,
     MapLayout, MapSettings, PortalMode, PressurePlate, Ramp, RampDirection, RampShape, TERRAIN_MATERIAL, TerrainCell,

@@ -8,7 +8,7 @@ use common::{
     constants::CHARACTER_CONTACT_OFFSET,
     map::Carriers,
     math::direction_from_yaw_pitch,
-    physics::{CharacterSupport, CollisionWorld, grounding_diagnostics},
+    physics::{CharacterSupport, CollisionWorld, grounding_diagnostics, passable_fields},
     protocol::{
         Checkpoint, CheckpointKind, FaceYaw, FieldId, MapLayout, PlayerId, PlayerMarker, Position, SCheckpointReached,
         ServerMessage, ServerTick, SwitchState,
@@ -97,7 +97,7 @@ pub(crate) fn players_checkpoints_system(
                     &collision_world,
                     pos,
                     gameplay.player.physics(),
-                    &collision_world.passable_fields(&player.life.held_keys, &switch_state.open_fields),
+                    &passable_fields(&player.life.held_keys, &switch_state.open_fields),
                 )
             });
         // A fresh body has no movement support yet; keep its seeded contact until it leaves the zone.

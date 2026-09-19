@@ -59,9 +59,6 @@ pub(super) fn validate(data: &Value, context: &Value, errors: &mut Errors) {
                 };
                 let [a, b, c, d] = geometry::edge(entry);
                 let coordinates = format!("[{a}, {b}, {c}, {d}]");
-                if key == "barriers" {
-                    switch_target(entry, &label, context, errors);
-                }
                 if !point_inside(i64::from(a), i64::from(b)) || !point_inside(i64::from(c), i64::from(d)) {
                     errors.add(format!("{label} {coordinates} is outside the grid-line bounds"));
                 }
@@ -69,11 +66,11 @@ pub(super) fn validate(data: &Value, context: &Value, errors: &mut Errors) {
                     errors.add(format!("{label} {coordinates} is not one grid edge"));
                 }
                 if key == "barriers" {
-                    if !truth(&entry["kind"]) || check_kind(&entry["kind"], &context["field_kinds"]) {
+                    if !truth(&entry["field"]) || check_kind(&entry["field"], &context["fields"]) {
                         errors.add(format!(
-                            "{label} has unknown kind {}; known: [{}]",
-                            repr(&entry["kind"]),
-                            known(&context["field_kinds"])
+                            "{label} has unknown field {}; known: [{}]",
+                            repr(&entry["field"]),
+                            known(&context["fields"])
                         ));
                     }
                     if walls.contains(&[a, b, c, d]) {
@@ -98,15 +95,14 @@ pub(super) fn validate(data: &Value, context: &Value, errors: &mut Errors) {
             let c = i(bridge, "col");
             let r = i(bridge, "row");
             let p = [c as i32, r as i32];
-            switch_target(bridge, &label, context, errors);
             if !inside(c, r) {
                 errors.add(format!("{label} [{c}, {r}] is outside the grid"));
             }
-            if !truth(&bridge["kind"]) || check_kind(&bridge["kind"], &context["field_kinds"]) {
+            if !truth(&bridge["field"]) || check_kind(&bridge["field"], &context["fields"]) {
                 errors.add(format!(
-                    "{label} has unknown kind {}; known: [{}]",
-                    repr(&bridge["kind"]),
-                    known(&context["field_kinds"])
+                    "{label} has unknown field {}; known: [{}]",
+                    repr(&bridge["field"]),
+                    known(&context["fields"])
                 ));
             }
             if slab.contains(&p) {

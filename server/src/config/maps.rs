@@ -19,7 +19,7 @@ pub enum WeatherMode {
 #[serde(deny_unknown_fields)]
 pub struct RandomItemsConfig {
     // `ItemType` config ids. Keys are rejected — they're parameterized by
-    // field kind and must be placed in the map's `items` list.
+    // field and must be placed in the map's `items` list.
     pub weights: BTreeMap<String, f64>,
     pub max_number: usize,
     // How long an uncollected random item sits in the world before being
@@ -60,7 +60,7 @@ impl RandomItemsConfig {
         for (ty, &weight) in &self.weights {
             if ty == ItemType::KEY_CONFIG_ID {
                 bail!(
-                    "{path}.weights: keys are parameterized by field kind and cannot spawn randomly; place them in the map's `items` list"
+                    "{path}.weights: keys are parameterized by field and cannot spawn randomly; place them in the map's `items` list"
                 );
             }
             if ItemType::from_config_id(ty).is_none() {

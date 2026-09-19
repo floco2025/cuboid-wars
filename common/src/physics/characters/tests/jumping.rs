@@ -200,14 +200,12 @@ fn landing_speed_uses_accumulated_velocity_with_only_this_steps_gravity_change()
 #[test]
 fn a_bridge_its_key_passes_is_no_floor_to_jump_from() {
     use crate::{
-        protocol::{BridgeId, CarrierId, FieldKindId, LightBridge},
+        physics::passable_fields,
+        protocol::{CarrierId, FieldId, LightBridge},
         test_geometry::BRIDGE_THICKNESS,
     };
     let collision_world = CollisionWorld::from_map_layout(&MapLayout {
         light_bridges: vec![LightBridge {
-            id: BridgeId(0),
-            switch: None,
-            initially_on: true,
             x1: -2.0,
             z1: -2.0,
             x2: 2.0,
@@ -215,14 +213,14 @@ fn a_bridge_its_key_passes_is_no_floor_to_jump_from() {
             y: 0.0,
             thickness: BRIDGE_THICKNESS,
             level: 0,
-            kind: FieldKindId(3),
+            field: FieldId(3),
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     });
     let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-    let jump = |held_keys: &[FieldKindId]| {
-        let passable = collision_world.passable_fields(held_keys, &[]);
+    let jump = |held_keys: &[FieldId]| {
+        let passable = passable_fields(held_keys, &[]);
         player_jump_velocity(
             0.0,
             &collision_world,
@@ -234,6 +232,6 @@ fn a_bridge_its_key_passes_is_no_floor_to_jump_from() {
     };
 
     assert_eq!(jump(&[]), Some(TEST_JUMP_SPEED));
-    assert_eq!(jump(&[FieldKindId(1)]), Some(TEST_JUMP_SPEED));
-    assert_eq!(jump(&[FieldKindId(3)]), None);
+    assert_eq!(jump(&[FieldId(1)]), Some(TEST_JUMP_SPEED));
+    assert_eq!(jump(&[FieldId(3)]), None);
 }

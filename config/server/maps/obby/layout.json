@@ -1,11 +1,12 @@
 {
   "map": {
     "switches": [{"id": "bridge", "activation": "toggle", "reset_on_player_death": "never", "held": "any"}, {"id": "shuttle", "activation": "toggle", "reset_on_player_death": "never", "held": "any"}, {"id": "turrets", "activation": "toggle", "reset_on_player_death": "never", "held": "any"}, {"id": "shuttle access", "activation": "toggle", "reset_on_player_death": "never", "held": "any"}],
-    "field_kinds": [
+    "fields": [
       {"id": "behind bridge", "color": "#00aa7f"},
-      {"id": "behind turrets", "color": "#005500"},
+      {"id": "behind turrets", "color": "#005500", "switch": "turrets"},
+      {"id": "behind turrets bridge", "color": "#005500", "switch": "turrets", "initially_on": false},
       {"id": "on shuttle", "color": "#ff5500"},
-      {"id": "trap", "color": "#30d8ff"}
+      {"id": "trap", "color": "#30d8ff", "switch": "bridge", "initially_on": false}
     ],
     "fireworks": null,
     "grid_cols": 43,
@@ -1056,10 +1057,10 @@
           {"c0": 43, "r0": 9, "c1": 43, "r1": 10, "all": "pedestal"}
         ],
         "barriers": [
-          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "kind": "behind turrets", "switch": "turrets"},
-          {"c0": 29, "r0": 11, "c1": 30, "r1": 11, "kind": "behind turrets", "switch": "turrets"},
-          {"c0": 30, "r0": 11, "c1": 31, "r1": 11, "kind": "behind turrets", "switch": "turrets"},
-          {"c0": 31, "r0": 11, "c1": 32, "r1": 11, "kind": "behind turrets", "switch": "turrets"}
+          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "field": "behind turrets"},
+          {"c0": 29, "r0": 11, "c1": 30, "r1": 11, "field": "behind turrets"},
+          {"c0": 30, "r0": 11, "c1": 31, "r1": 11, "field": "behind turrets"},
+          {"c0": 31, "r0": 11, "c1": 32, "r1": 11, "field": "behind turrets"}
         ],
         "erasers": [
           {"c0": 11, "r0": 1, "c1": 11, "r1": 2},
@@ -1072,14 +1073,14 @@
           {"c0": 28, "r0": 10, "c1": 28, "r1": 11}
         ],
         "light_bridges": [
-          {"col": 24, "row": 8, "kind": "behind turrets", "switch": "turrets", "initially_on": false},
-          {"col": 25, "row": 8, "kind": "behind turrets", "switch": "turrets", "initially_on": false},
-          {"col": 26, "row": 8, "kind": "behind turrets", "switch": "turrets", "initially_on": false},
-          {"col": 27, "row": 8, "kind": "behind turrets", "switch": "turrets", "initially_on": false},
-          {"col": 24, "row": 9, "kind": "behind turrets", "switch": "turrets", "initially_on": false},
-          {"col": 25, "row": 9, "kind": "behind turrets", "switch": "turrets", "initially_on": false},
-          {"col": 26, "row": 9, "kind": "behind turrets", "switch": "turrets", "initially_on": false},
-          {"col": 27, "row": 9, "kind": "behind turrets", "switch": "turrets", "initially_on": false}
+          {"col": 24, "row": 8, "field": "behind turrets bridge"},
+          {"col": 25, "row": 8, "field": "behind turrets bridge"},
+          {"col": 26, "row": 8, "field": "behind turrets bridge"},
+          {"col": 27, "row": 8, "field": "behind turrets bridge"},
+          {"col": 24, "row": 9, "field": "behind turrets bridge"},
+          {"col": 25, "row": 9, "field": "behind turrets bridge"},
+          {"col": 26, "row": 9, "field": "behind turrets bridge"},
+          {"col": 27, "row": 9, "field": "behind turrets bridge"}
         ],
         "lights": []
       },
@@ -1178,10 +1179,10 @@
           {"c0": 43, "r0": 9, "c1": 43, "r1": 10, "all": "pedestal"}
         ],
         "barriers": [
-          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "kind": "behind turrets", "switch": "turrets"},
-          {"c0": 29, "r0": 11, "c1": 30, "r1": 11, "kind": "behind turrets", "switch": "turrets"},
-          {"c0": 30, "r0": 11, "c1": 31, "r1": 11, "kind": "behind turrets", "switch": "turrets"},
-          {"c0": 31, "r0": 11, "c1": 32, "r1": 11, "kind": "behind turrets", "switch": "turrets"}
+          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "field": "behind turrets"},
+          {"c0": 29, "r0": 11, "c1": 30, "r1": 11, "field": "behind turrets"},
+          {"c0": 30, "r0": 11, "c1": 31, "r1": 11, "field": "behind turrets"},
+          {"c0": 31, "r0": 11, "c1": 32, "r1": 11, "field": "behind turrets"}
         ],
         "erasers": [
           {"c0": 11, "r0": 1, "c1": 11, "r1": 2},
@@ -1268,10 +1269,10 @@
           {"c0": 43, "r0": 9, "c1": 43, "r1": 10, "all": "pedestal"}
         ],
         "barriers": [
-          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "kind": "behind turrets", "switch": "turrets"},
-          {"c0": 29, "r0": 11, "c1": 30, "r1": 11, "kind": "behind turrets", "switch": "turrets"},
-          {"c0": 30, "r0": 11, "c1": 31, "r1": 11, "kind": "behind turrets", "switch": "turrets"},
-          {"c0": 31, "r0": 11, "c1": 32, "r1": 11, "kind": "behind turrets", "switch": "turrets"}
+          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "field": "behind turrets"},
+          {"c0": 29, "r0": 11, "c1": 30, "r1": 11, "field": "behind turrets"},
+          {"c0": 30, "r0": 11, "c1": 31, "r1": 11, "field": "behind turrets"},
+          {"c0": 31, "r0": 11, "c1": 32, "r1": 11, "field": "behind turrets"}
         ],
         "erasers": [
           {"c0": 11, "r0": 1, "c1": 11, "r1": 2},
@@ -1573,8 +1574,8 @@
           {"c0": 14, "r0": 9, "c1": 14, "r1": 10, "all": "pedestal"}
         ],
         "barriers": [
-          {"c0": 39, "r0": 15, "c1": 40, "r1": 15, "kind": "behind bridge"},
-          {"c0": 40, "r0": 15, "c1": 41, "r1": 15, "kind": "behind bridge"}
+          {"c0": 39, "r0": 15, "c1": 40, "r1": 15, "field": "behind bridge"},
+          {"c0": 40, "r0": 15, "c1": 41, "r1": 15, "field": "behind bridge"}
         ],
         "erasers": [
           {"c0": 2, "r0": 19, "c1": 3, "r1": 19},
@@ -1587,20 +1588,20 @@
           {"c0": 37, "r0": 5, "c1": 37, "r1": 6}
         ],
         "light_bridges": [
-          {"col": 39, "row": 6, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 40, "row": 6, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 39, "row": 7, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 40, "row": 7, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 39, "row": 8, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 40, "row": 8, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 39, "row": 9, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 40, "row": 9, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 39, "row": 10, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 40, "row": 10, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 39, "row": 11, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 40, "row": 11, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 39, "row": 12, "kind": "trap", "switch": "bridge", "initially_on": false},
-          {"col": 40, "row": 12, "kind": "trap", "switch": "bridge", "initially_on": false}
+          {"col": 39, "row": 6, "field": "trap"},
+          {"col": 40, "row": 6, "field": "trap"},
+          {"col": 39, "row": 7, "field": "trap"},
+          {"col": 40, "row": 7, "field": "trap"},
+          {"col": 39, "row": 8, "field": "trap"},
+          {"col": 40, "row": 8, "field": "trap"},
+          {"col": 39, "row": 9, "field": "trap"},
+          {"col": 40, "row": 9, "field": "trap"},
+          {"col": 39, "row": 10, "field": "trap"},
+          {"col": 40, "row": 10, "field": "trap"},
+          {"col": 39, "row": 11, "field": "trap"},
+          {"col": 40, "row": 11, "field": "trap"},
+          {"col": 39, "row": 12, "field": "trap"},
+          {"col": 40, "row": 12, "field": "trap"}
         ],
         "lights": []
       },
@@ -1738,7 +1739,7 @@
           {"level": 2, "col": 3, "row": 3, "switch": "shuttle"}
         ],
         "items": [
-          {"level": 0, "col": 2, "row": 2, "type": "key", "kind": "on shuttle"},
+          {"level": 0, "col": 2, "row": 2, "type": "key", "field": "on shuttle"},
           {"level": 2, "col": 3, "row": 1, "type": "multi_shot"},
           {"level": 2, "col": 3, "row": 2, "type": "multi_shot"}
         ],
@@ -1806,10 +1807,10 @@
             "barriers": [],
             "erasers": [],
             "light_bridges": [
-              {"col": 1, "row": 1, "kind": "on shuttle"},
-              {"col": 2, "row": 1, "kind": "on shuttle"},
-              {"col": 1, "row": 2, "kind": "on shuttle"},
-              {"col": 2, "row": 2, "kind": "on shuttle"}
+              {"col": 1, "row": 1, "field": "on shuttle"},
+              {"col": 2, "row": 1, "field": "on shuttle"},
+              {"col": 1, "row": 2, "field": "on shuttle"},
+              {"col": 2, "row": 2, "field": "on shuttle"}
             ],
             "lights": []
           }

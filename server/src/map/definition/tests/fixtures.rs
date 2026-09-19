@@ -3,7 +3,7 @@ pub(super) use common::{
     map::Carriers,
     physics::{CollisionWorld, compute_portal_placement},
     protocol::{
-        CarrierId, FaceMaterials, FieldKindTable, HexColor, KindDef, MapLayout, MapSettings, Position, RampDirection,
+        CarrierId, FaceMaterials, FieldDef, FieldTable, HexColor, MapLayout, MapSettings, Position, RampDirection,
         RampShape, SwitchDef, SwitchId, SwitchTable, TERRAIN_MATERIAL, TextureSettings,
     },
 };
@@ -22,15 +22,18 @@ pub(super) use map_core::{
     },
 };
 
-// The switch every plate in these tests may name: one per field kind, named
-// after it, plus `fireworks`.
+// The switch every plate in these tests may name: one per field, named after
+// it, plus `fireworks`. Every field starts on, and `red` alone is a door on
+// its switch.
 pub(crate) const FIREWORKS: &str = "fireworks";
 
-pub(crate) fn compile_settings(kinds: &FieldKindTable) -> MapSettings {
+pub(crate) fn compile_settings(kinds: &FieldTable) -> MapSettings {
     let switch_ids = kinds.ids().iter().cloned().chain([FIREWORKS.to_owned()]);
-    let kind_def = |id: &String| KindDef {
+    let field_def = |id: &String| FieldDef {
         id: id.clone(),
         color: HexColor([0; 3]),
+        switch: (id == "red").then(|| id.clone()),
+        initially_on: true,
     };
     MapSettings {
         switches: switch_ids
@@ -40,16 +43,16 @@ pub(crate) fn compile_settings(kinds: &FieldKindTable) -> MapSettings {
                 policy: Default::default(),
             })
             .collect(),
-        field_kinds: kinds.ids().iter().map(kind_def).collect(),
+        fields: kinds.ids().iter().map(field_def).collect(),
         ..map_settings()
     }
 }
 
-pub(crate) fn switch_table(kinds: &FieldKindTable) -> SwitchTable {
+pub(crate) fn switch_table(kinds: &FieldTable) -> SwitchTable {
     SwitchTable::from_switch_defs(&compile_settings(kinds).switches).expect("test switch table rejected")
 }
 
-pub(crate) fn switch_id(kinds: &FieldKindTable, switch: &str) -> SwitchId {
+pub(crate) fn switch_id(kinds: &FieldTable, switch: &str) -> SwitchId {
     switch_table(kinds)
         .index_of(switch)
         .expect("test switch missing from its table")
@@ -59,9 +62,19 @@ pub(crate) fn switch_id(kinds: &FieldKindTable, switch: &str) -> SwitchId {
 pub(crate) fn compile_with(
     map: &MapDef,
     nested: &LoadedMaps,
-    kinds: &FieldKindTable,
+    kinds: &FieldTable,
 ) -> anyhow::Result<(MapLayout, MapConfig)> {
-    compile_map(map, 30, &compile_settings(kinds), nested, kinds, &switch_table(kinds))
+    compile_with_settings(map, nested, &compile_settings(kinds))
+}
+
+pub(crate) fn compile_with_settings(
+    map: &MapDef,
+    nested: &LoadedMaps,
+    settings: &MapSettings,
+) -> anyhow::Result<(MapLayout, MapConfig)> {
+    let fields = settings.field_table().expect("test field table rejected");
+    let switches = SwitchTable::from_switch_defs(&settings.switches).expect("test switch table rejected");
+    compile_map(map, 30, settings, nested, &fields, &switches)
 }
 
 pub(crate) fn plate_def(level: u32, col: i32, row: i32, switch: &str) -> PressurePlateDef {
@@ -73,20 +86,20 @@ pub(crate) fn plate_def(level: u32, col: i32, row: i32, switch: &str) -> Pressur
     }
 }
 
-pub(crate) fn empty_kind_table() -> FieldKindTable {
-    FieldKindTable::default()
+pub(crate) fn empty_kind_table() -> FieldTable {
+    FieldTable::default()
 }
 
-pub(crate) fn skyway_kind_table() -> FieldKindTable {
-    FieldKindTable::from_ids(vec!["skyway".into()]).expect("one-kind table rejected")
+pub(crate) fn skyway_kind_table() -> FieldTable {
+    FieldTable::from_ids(vec!["skyway".into()]).expect("one-kind table rejected")
 }
 
-pub(crate) fn red_only_kind_table() -> FieldKindTable {
-    FieldKindTable::from_ids(vec!["red".into()]).expect("known-good")
+pub(crate) fn red_only_kind_table() -> FieldTable {
+    FieldTable::from_ids(vec!["red".into()]).expect("known-good")
 }
 
-pub(crate) fn three_kind_table() -> FieldKindTable {
-    FieldKindTable::from_ids(vec!["red".into(), "blue".into(), "green".into()]).expect("known-good")
+pub(crate) fn three_kind_table() -> FieldTable {
+    FieldTable::from_ids(vec!["red".into(), "blue".into(), "green".into()]).expect("known-good")
 }
 
 pub(crate) fn floor_def(col: i32, row: i32) -> FloorDef {
@@ -114,12 +127,9 @@ pub(crate) fn cell_def(col: i32, row: i32) -> TerrainDef {
 
 pub(crate) fn bridge_def(col: i32, row: i32) -> LightBridgeDef {
     LightBridgeDef {
-        switch: None,
-        initially_on: true,
-
         col,
         row,
-        kind: "skyway".into(),
+        field: "skyway".into(),
     }
 }
 
@@ -199,7 +209,7 @@ pub(crate) fn map_with_zones(
         ladders: Vec::new(),
         nested_maps: Vec::new(),
         switches: Vec::new(),
-        field_kinds: Vec::new(),
+        fields: Vec::new(),
         fireworks: None,
         nested_geometry: Default::default(),
     }
@@ -219,12 +229,12 @@ pub(crate) fn ladder(lower_level: u32, col: i32, row: i32, side: WallSide, level
     }
 }
 
-pub(crate) fn item_def(level: u32, col: i32, row: i32, item_type: &str, kind: Option<&str>) -> ItemDef {
+pub(crate) fn item_def(level: u32, col: i32, row: i32, item_type: &str, field: Option<&str>) -> ItemDef {
     ItemDef {
         level,
         col,
         row,
         item_type: item_type.to_owned(),
-        kind: kind.map(str::to_owned),
+        field: field.map(str::to_owned),
     }
 }

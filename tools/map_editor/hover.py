@@ -35,9 +35,24 @@ from .normalization import edge_key, ladder_key, nested_map_key
 SIDE_LABELS = {"N": "North", "S": "South", "E": "East", "W": "West"}
 
 
-def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
+# A target that starts on with no switch has no controls to show.
+def with_controls(label: str, target: dict) -> str:
+    controls = [f"Switch: {target['switch']}"] if target.get("switch") else []
+    if controls or target.get("initially_on") is False:
+        controls.append(f"{INITIAL_STATE}: {INITIAL_STATE_LABELS[target.get('initially_on') is not False]}")
+    return label + "\n" + " · ".join(controls) if controls else label
+
+
+# `fields` holds the root layout's field entries by name.
+def element_hover_text(data: dict, level_idx: int, hit, fields: dict[str, dict] | None = None) -> str | None:
     if hit is None:
         return None
+
+    def field_text(label, entry):
+        name = entry.get("field", "(missing field)")
+        field = (fields or {}).get(name, {}) if isinstance(name, str) else {}
+        return with_controls(f"{label}: {name}", field)
+
     kind, value = hit
     level = data["levels"][level_idx]
 
@@ -49,7 +64,7 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
         }[kind]
         entry = next(e for e in level[list_name] if (e["col"], e["row"]) == value)
         if kind == HIT_LIGHT_BRIDGE:
-            return f"Light bridge: {entry['kind']}"
+            return field_text("Light bridge", entry)
         return f"{kind}\n{materials_summary(entry)}"
 
     if kind == HIT_TERRAIN:
@@ -60,7 +75,7 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
         list_name = "walls" if kind == HIT_WALL else "barriers"
         entry = next(e for e in level[list_name] if edge_key(e) == value)
         if kind == HIT_BARRIER:
-            return f"Barrier: {entry['kind']}"
+            return field_text("Barrier", entry)
         return f"Wall\n{materials_summary(entry)}"
 
     if kind == HIT_LIGHT:
@@ -83,7 +98,7 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
     if kind == HIT_ITEM:
         item = next(e for e in data[ITEMS_LIST] if e["level"] == level_idx and (e["col"], e["row"]) == value)
         label = item["type"].replace("_", " ").capitalize()
-        return f"{label}: {item['kind']}" if "kind" in item else label
+        return f"{label}: {item['field']}" if "field" in item else label
 
     if kind in (HIT_SPAWN_ZONE, HIT_CHECKPOINT):
         list_name, index = value
@@ -117,10 +132,6 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
                 label += f" · Pause: {entry['pause_secs']:g} s"
                 if entry["phase_secs"]:
                     label += f"\nPhase: {entry['phase_secs']:g} s"
-        # A map that starts on with no switch has no controls to show.
-        controls = [f"Switch: {entry['switch']}"] if entry.get("switch") else []
-        if controls or entry.get("initially_on") is False:
-            controls.append(f"{INITIAL_STATE}: {INITIAL_STATE_LABELS[entry.get('initially_on') is not False]}")
-        return label + "\n" + " · ".join(controls) if controls else label
+        return with_controls(label, entry)
 
     return kind

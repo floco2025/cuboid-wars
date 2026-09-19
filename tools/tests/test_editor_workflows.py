@@ -5,7 +5,7 @@ from unittest.mock import patch
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QSpinBox
+from PySide6.QtWidgets import QApplication, QComboBox, QPushButton, QSpinBox
 
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, floor, furnished_map, nested
 from map_editor import constants as c
@@ -348,9 +348,14 @@ class EditorWorkflowTests(WindowTestCase):
         data["switches"] = [{"id": "door", "activation": "momentary", "reset": "never", "hold": "any"}]
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": "door"}]
-        data["levels"][1]["barriers"] = [{"c0": 2, "r0": 2, "c1": 3, "r1": 2, "kind": "treasure", "switch": "door"}]
+        data["fields"] = [{"id": "treasure", "color": "#ff3333", "switch": "door"}, {"id": "vault", "color": "#f0c020"}]
+        data["levels"][1]["barriers"] = [
+            {"c0": 2, "r0": 2, "c1": 3, "r1": 2, "field": "treasure"},
+            {"c0": 4, "r0": 2, "c1": 5, "r1": 2, "field": "vault"},
+        ]
         child = empty_map(2, 2)
         child["checkpoints"] = []
+        child["levels"][0]["light_bridges"] = [{"col": 1, "row": 1, "field": "treasure"}]
         child["actor_spawn_zones"] = [
             {
                 "level": 0,
@@ -369,9 +374,15 @@ class EditorWorkflowTests(WindowTestCase):
         window.inspect_hit((c.HIT_PRESSURE_PLATE, (1, 1)))
         links = window.connection_overlay
         self.assertEqual(
-            {(link.map_name, link.ref.name) for link in links.connections},
-            {(None, "pressure_plates"), (None, "barriers"), ("room", "actor_spawn_zones")},
+            sorted((link.map_name or "", link.ref.name) for link in links.connections),
+            [("", "barriers"), ("", "pressure_plates"), ("room", "actor_spawn_zones"), ("room", "light_bridges")],
         )
+        self.assertTrue(all(link.switch == "door" for link in links.connections))
+        window.set_level_index(1)
+        window.inspect_hit((c.HIT_BARRIER, (2, 2, 3, 2)))
+        self.assertEqual(len(links.connections), 4)
+        window.inspect_hit((c.HIT_BARRIER, (4, 2, 5, 2)))
+        self.assertEqual(links.connections, [])
 
     def test_rotating_nested_geometry_creates_a_copy_and_undo_restores_the_whole_document(self):
         data = empty_map(8, 8)
@@ -431,6 +442,29 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual(window.mode, c.MODE_WALL)
         window.erase_hit(hit)
         self.assertEqual(window.map_data["levels"][0]["walls"], [])
+
+    def test_a_barrier_or_bridge_edits_and_samples_only_its_field(self):
+        data = empty_map(8, 8)
+        data["checkpoints"] = []
+        data["switches"] = [{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["fields"] = [{"id": "gate", "color": "#ff0000", "switch": "door"}, {"id": "walk", "color": "#00ff00"}]
+        data["levels"][0]["barriers"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, "field": "gate"}]
+        data["levels"][0]["light_bridges"] = [{"col": 4, "row": 4, "field": "walk"}]
+        self.set_data(data)
+        window = self.window
+        for point, mode, attribute, field in (
+            (QPointF(1.5, 1.0), c.MODE_BARRIER, "recent_barrier_field", "gate"),
+            (QPointF(4.5, 4.5), c.MODE_LIGHT_BRIDGE, "recent_bridge_field", "walk"),
+        ):
+            with self.subTest(mode=mode):
+                setattr(window, attribute, None)
+                window.sample_at(point)
+                self.assertEqual((window.mode, getattr(window, attribute)), (mode, field))
+                combos = window.tool_settings.body.findChildren(QComboBox)
+                self.assertEqual([combo.accessibleName() for combo in combos], ["Field"])
+                self.assertEqual(window.tool_settings.body.findChildren(QPushButton), [])
+                window.inspect_hit(window.hit_at(point))
+                self.assertEqual(list(window.properties_panel.widgets), [("field",)])
 
     def test_sampling_a_plate_without_a_switch_keeps_the_current_switch(self):
         data = furnished_map()

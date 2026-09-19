@@ -50,13 +50,13 @@ def map_settings(name="hotel"):
     }
 
 
-# The kind catalog a test layout carries for the named map.
-def map_kinds(name="hotel"):
+# The field catalog a test layout carries for the named map.
+def map_fields(name="hotel"):
     if name == "hotel":
-        kinds = [("treasure", "#ff3333"), ("basement", "#f0c020"), ("gravity", "#5090ff"), ("lobby", "#22cc33")]
+        fields = [("treasure", "#ff3333"), ("basement", "#f0c020"), ("gravity", "#5090ff"), ("lobby", "#22cc33")]
     else:
-        kinds = [("barrier_1", "#f0c020"), ("bridge_1", "#30d8ff")]
-    return {"field_kinds": [{"id": kind, "color": color} for kind, color in kinds]}
+        fields = [("barrier_1", "#f0c020"), ("bridge_1", "#30d8ff")]
+    return {"fields": [{"id": field, "color": color} for field, color in fields]}
 
 
 def install_catalogs(test, root):

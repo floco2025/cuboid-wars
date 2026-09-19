@@ -1,9 +1,7 @@
 pub(super) use super::super::{CollisionWorld, colliders::ColliderKind};
 pub(super) use crate::{
     physics::characters::character_movement_shape,
-    protocol::{
-        Barrier, BarrierId, Carrier, CarrierId, FieldId, FieldKindId, Floor, LightBridge, MapLayout, Position, Wall,
-    },
+    protocol::{Barrier, Carrier, CarrierId, FieldId, Floor, LightBridge, MapLayout, Position, Wall},
     test_geometry::{BARRIER_THICKNESS, BRIDGE_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
 pub(super) use bevy_math::Vec3;

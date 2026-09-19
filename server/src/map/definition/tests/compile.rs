@@ -6,7 +6,6 @@ use crate::actors::{
 use common::{
     constants::{CHARACTER_CONTACT_OFFSET, TICK_SECS},
     physics::{CharacterEnvironment, CharacterStep, LadderMode, step_character_movement},
-    protocol::FieldId,
 };
 
 fn compile_terrain_map(map: &MapDef) -> anyhow::Result<(MapLayout, MapConfig)> {
@@ -204,21 +203,18 @@ fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
 }
 
 #[test]
-fn compile_resolves_known_barrier_kind() {
+fn compile_resolves_a_barriers_field() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 0,
         r0: 0,
         c1: 1,
         r1: 0,
-        kind: "red".into(),
+        field: "red".into(),
     });
     let (layout, _) = compile_with(&map_def, &no_nested(), &red_only_kind_table()).expect("compile");
     assert_eq!(layout.barriers.len(), 1);
-    assert_eq!(layout.barriers[0].kind, common::protocol::FieldKindId(0));
+    assert_eq!(layout.barriers[0].field, common::protocol::FieldId(0));
 }
 
 #[test]
@@ -231,14 +227,11 @@ fn stacked_barriers_compile_into_one_record_when_no_floor_splits_them() {
     );
     for level in &mut map_def.levels {
         level.barriers.push(BarrierDef {
-            switch: None,
-            initially_on: true,
-
             c0: 0,
             r0: 0,
             c1: 1,
             r1: 0,
-            kind: "red".into(),
+            field: "red".into(),
         });
     }
     let (layout, _) = compile_with(&map_def, &no_nested(), &red_only_kind_table()).expect("compile");
@@ -258,14 +251,11 @@ fn a_floor_beside_the_upper_barrier_keeps_the_storeys_apart() {
     );
     for level in &mut map_def.levels {
         level.barriers.push(BarrierDef {
-            switch: None,
-            initially_on: true,
-
             c0: 0,
             r0: 0,
             c1: 1,
             r1: 0,
-            kind: "red".into(),
+            field: "red".into(),
         });
     }
     let (layout, _) = compile_with(&map_def, &no_nested(), &red_only_kind_table()).expect("compile");
@@ -278,25 +268,19 @@ fn pressure_plate_barrier_is_open_for_pathfinding() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     // Vertical edge between cols 0 and 1 → `vertical[0][1]`; kind "red" has a plate.
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: Some("red".into()),
-        initially_on: false,
-
         c0: 1,
         r0: 0,
         c1: 1,
         r1: 1,
-        kind: "red".into(),
+        field: "red".into(),
     });
     // Vertical edge between cols 1 and 2 → `vertical[0][2]`; kind "blue" has none.
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 2,
         r0: 0,
         c1: 2,
         r1: 1,
-        kind: "blue".into(),
+        field: "blue".into(),
     });
     map_def.pressure_plates.push(PressurePlateDef {
         level: 0,
@@ -461,7 +445,7 @@ fn compile_merges_light_bridge_cells_into_one_rectangle() {
 
     assert_eq!(layout.light_bridges.len(), 1, "a 2x2 block is one collider");
     let bridge = layout.light_bridges[0];
-    assert_eq!(bridge.kind, common::protocol::FieldKindId(0));
+    assert_eq!(bridge.field, common::protocol::FieldId(0));
     assert_eq!(bridge.level, 0);
     assert!((bridge.y - 0.0).abs() < 1e-4, "level 0 stands at y = 0");
     let (min_x, max_x, min_z, max_z) = bridge.bounds_xz();
@@ -474,7 +458,7 @@ fn compile_merges_light_bridge_cells_into_one_rectangle() {
     for (row, cells) in cells.iter().enumerate() {
         for (col, cell) in cells.iter().enumerate() {
             let covered = (1..3).contains(&col) && (0..2).contains(&row);
-            assert_eq!(cell.bridge, covered.then_some(bridge.id), "cell ({col}, {row})");
+            assert_eq!(cell.bridge, covered.then_some(bridge.field), "cell ({col}, {row})");
         }
     }
 }
@@ -509,11 +493,7 @@ fn portal_shots_cannot_leak_through_compiled_bridge_landing_seams_or_outer_edges
             }
         }
     }
-    let open: Vec<_> = layout
-        .light_bridges
-        .iter()
-        .map(|bridge| FieldId::Bridge(bridge.id))
-        .collect();
+    let open: Vec<_> = layout.light_bridges.iter().map(|bridge| bridge.field).collect();
     let hit = world
         .portal_surface_along_ray(
             Vec3::new(bridge_edge - 1e-3, LEVEL_HEIGHT + 2.0, zs[0]),
@@ -526,13 +506,13 @@ fn portal_shots_cannot_leak_through_compiled_bridge_landing_seams_or_outer_edges
 }
 
 #[test]
-fn compile_rejects_unknown_bridge_kind() {
+fn compile_rejects_a_bridge_of_an_unknown_field() {
     let mut map_def = map_with_bridges(&[[1, 0]]);
-    map_def.levels[0].light_bridges[0].kind = "magenta".into();
+    map_def.levels[0].light_bridges[0].field = "magenta".into();
 
-    let err = compile_with(&map_def, &no_nested(), &skyway_kind_table()).expect_err("unknown bridge kind must fail");
+    let err = compile_with(&map_def, &no_nested(), &skyway_kind_table()).expect_err("unknown bridge field must fail");
     let chain: String = err.chain().map(|e| e.to_string()).collect::<Vec<_>>().join(" | ");
-    assert!(chain.contains("unknown field kind"), "got: {chain}");
+    assert!(chain.contains("unknown field"), "got: {chain}");
     assert!(chain.contains("light_bridges[0]"), "got: {chain}");
 }
 
@@ -540,20 +520,17 @@ fn compile_rejects_unknown_bridge_kind() {
 fn compile_rejects_unknown_barrier_kind() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 0,
         r0: 0,
         c1: 1,
         r1: 0,
-        kind: "magenta".into(),
+        field: "magenta".into(),
     });
     let err = compile_with(&map_def, &no_nested(), &red_only_kind_table()).expect_err("unknown kind must fail");
     let chain: String = err.chain().map(|e| e.to_string()).collect::<Vec<_>>().join(" | ");
     assert!(
-        chain.to_lowercase().contains("magenta") || chain.to_lowercase().contains("unknown field kind"),
-        "expected 'magenta' or 'unknown field kind' somewhere in chain; got: {chain}"
+        chain.to_lowercase().contains("magenta") || chain.to_lowercase().contains("unknown field"),
+        "expected 'magenta' or 'unknown field' somewhere in chain; got: {chain}"
     );
 }
 
@@ -561,40 +538,31 @@ fn compile_rejects_unknown_barrier_kind() {
 fn compile_resolves_three_distinct_kinds() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 0,
         r0: 0,
         c1: 1,
         r1: 0,
-        kind: "red".into(),
+        field: "red".into(),
     });
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 1,
         r0: 0,
         c1: 2,
         r1: 0,
-        kind: "blue".into(),
+        field: "blue".into(),
     });
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 2,
         r0: 0,
         c1: 3,
         r1: 0,
-        kind: "green".into(),
+        field: "green".into(),
     });
     let (layout, _) = compile_with(&map_def, &no_nested(), &three_kind_table()).expect("compile");
     assert_eq!(layout.barriers.len(), 3);
-    let kinds: Vec<u16> = layout.barriers.iter().map(|b| b.kind.0).collect();
-    // The merger sorts by (level, kind, axis-coords), so kind ascending.
-    assert_eq!(kinds, vec![0, 1, 2]);
+    let fields: Vec<u16> = layout.barriers.iter().map(|b| b.field.0).collect();
+    // The merger sorts by (level, field, axis-coords), so field ascending.
+    assert_eq!(fields, vec![0, 1, 2]);
 }
 
 #[test]
@@ -683,7 +651,7 @@ fn compile_resolves_key_item_barrier_kind() {
     assert_eq!(config.placed_items.len(), 1);
     assert_eq!(
         config.placed_items[0].item_type,
-        common::protocol::ItemType::Key(common::protocol::FieldKindId(0))
+        common::protocol::ItemType::Key(common::protocol::FieldId(0))
     );
 }
 
@@ -734,62 +702,6 @@ fn eraser_edges_compile_to_full_storey_volumes_without_solid_geometry() {
     assert_eq!(field.z2, geometry.cell_to_world_z(1));
     assert!(layout.barriers.is_empty());
     assert!(layout.walls.is_empty());
-}
-
-#[test]
-fn same_appearance_targets_keep_independent_controls_and_instance_ids() {
-    let mut map = map_with_zones(4, vec![level(vec![[0, 0], [3, 0]])], Vec::new(), Vec::new());
-    for (col, switch) in [(0, "red"), (3, "blue")] {
-        map.pressure_plates.push(PressurePlateDef {
-            level: 0,
-            col,
-            row: 0,
-            switch: switch.into(),
-        });
-    }
-    for (col, switch) in [(0, Some("red")), (1, Some("blue")), (2, None)] {
-        map.levels[0].barriers.push(BarrierDef {
-            c0: col,
-            r0: 1,
-            c1: col + 1,
-            r1: 1,
-            kind: "red".into(),
-            switch: switch.map(str::to_owned),
-            initially_on: switch != Some("red"),
-        });
-    }
-    for (col, switch) in [(1, "red"), (2, "blue")] {
-        map.levels[0].light_bridges.push(LightBridgeDef {
-            col,
-            row: 2,
-            kind: "green".into(),
-            switch: Some(switch.into()),
-            initially_on: switch == "blue",
-        });
-    }
-    let (layout, _) = compile_with(&map, &no_nested(), &three_kind_table()).expect("independent targets rejected");
-    assert_eq!(layout.barriers.len(), 3);
-    assert!(layout.barriers.windows(2).all(|pair| pair[0].id != pair[1].id));
-    assert!(
-        layout
-            .barriers
-            .iter()
-            .all(|barrier| barrier.kind == layout.barriers[0].kind)
-    );
-    assert!(layout.barriers.iter().any(|barrier| barrier.switch.is_none()));
-    assert_eq!(
-        layout.barriers.iter().filter(|barrier| !barrier.initially_on).count(),
-        1
-    );
-    let bridges = &layout.light_bridges;
-    assert!(bridges.iter().any(|bridge| !bridge.initially_on));
-    assert!(bridges.iter().any(|bridge| bridge.initially_on));
-    for (index, bridge) in bridges.iter().enumerate() {
-        assert_eq!(bridge.kind, bridges[0].kind);
-        let name = if bridge.initially_on { "blue" } else { "red" };
-        assert_eq!(bridge.switch, Some(switch_id(&three_kind_table(), name)));
-        assert!(bridges[index + 1..].iter().all(|other| bridge.id != other.id));
-    }
 }
 
 #[test]

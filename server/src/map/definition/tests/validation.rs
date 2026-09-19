@@ -150,14 +150,11 @@ fn validation_accepts_empty_actor_spawn_zones() {
 fn validation_accepts_barrier_on_empty_edge() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 0,
         r0: 0,
         c1: 1,
         r1: 0,
-        kind: "red".into(),
+        field: "red".into(),
     });
     validate_map(&map_def).expect("barrier on an empty grid edge should load");
 }
@@ -173,14 +170,11 @@ fn validation_rejects_barrier_overlapping_wall() {
         materials: FaceMaterials::uniform("test"),
     });
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 1,
         r0: 0,
         c1: 0,
         r1: 0,
-        kind: "blue".into(),
+        field: "blue".into(),
     });
     let err = validate_map(&map_def).expect_err("barrier on a wall edge must be rejected");
     let msg = err.to_string();
@@ -349,18 +343,18 @@ fn validation_rejects_item_outside_grid() {
 }
 
 #[test]
-fn validation_rejects_key_item_without_kind() {
+fn validation_rejects_key_item_without_a_field() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 0, 0, "key", None));
-    let err = validate_map(&map_def).expect_err("key without kind must be rejected");
-    assert!(err.to_string().contains("kind"));
+    let err = validate_map(&map_def).expect_err("key without a field must be rejected");
+    assert!(err.to_string().contains("unknown key field"), "{err}");
 }
 
 #[test]
-fn validation_rejects_kind_on_non_key_item() {
+fn validation_rejects_a_field_on_a_non_key_item() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 0, 0, "gold", Some("red")));
-    let err = validate_map(&map_def).expect_err("kind on non-key item must be rejected");
+    let err = validate_map(&map_def).expect_err("a field on a non-key item must be rejected");
     assert!(err.to_string().contains("only key items"));
 }
 
@@ -385,24 +379,18 @@ fn validation_rejects_duplicate_item_cell() {
 fn validation_rejects_duplicate_barrier() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 0,
         r0: 0,
         c1: 1,
         r1: 0,
-        kind: "red".into(),
+        field: "red".into(),
     });
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 1,
         r0: 0,
         c1: 0,
         r1: 0,
-        kind: "green".into(),
+        field: "green".into(),
     });
     let err = validate_map(&map_def).expect_err("duplicate barrier edge must be rejected");
     assert!(err.to_string().contains("duplicates another barrier"));

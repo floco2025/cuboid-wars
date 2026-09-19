@@ -2,7 +2,7 @@ use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    HexColor, MapLayout, MapSettings,
+    HexColor, MapSettings,
     kind_table::{KindId, KindTable},
 };
 use crate::config::SwitchConfig;
@@ -38,24 +38,14 @@ pub struct SwitchDef {
 }
 
 impl MapSettings {
-    // An authored colour, else the first kind in catalog order that one of
-    // the switch's barriers or bridges uses.
-    pub fn switch_color(&self, switch: SwitchId, layout: &MapLayout) -> Option<HexColor> {
+    // An authored colour, else that of the first field in catalog order the switch drives.
+    pub fn switch_color(&self, switch: SwitchId) -> Option<HexColor> {
         let def = self.switches.get(usize::from(switch.0))?;
         def.color.or_else(|| {
-            let kinds = layout
-                .barriers
+            self.fields
                 .iter()
-                .filter(|barrier| barrier.switch == Some(switch))
-                .map(|barrier| barrier.kind)
-                .chain(
-                    layout
-                        .light_bridges
-                        .iter()
-                        .filter(|bridge| bridge.switch == Some(switch))
-                        .map(|bridge| bridge.kind),
-                );
-            self.field_kinds.get(usize::from(kinds.min()?.0)).map(|kind| kind.color)
+                .find(|field| field.switch.as_deref() == Some(def.id.as_str()))
+                .map(|field| field.color)
         })
     }
 }

@@ -2,6 +2,7 @@
 
 import copy
 
+from .catalogs import field_entries
 from .core import call
 
 
@@ -11,33 +12,36 @@ def geometries(root: dict):
 
 
 # Every record that may name an entry of `catalog`, with the list it sits in
-# and the field that holds the name.
+# and the key that holds the name. Fields are the root's alone.
 def named_references(root: dict, catalog: str):
-    field = "switch" if catalog == "switches" else "kind"
+    if catalog == "switches":
+        for entry in field_entries(root):
+            yield "fields", entry, "switch"
+        if root.get("fireworks"):
+            yield "fireworks", root["fireworks"], "switch"
     for geometry in geometries(root):
         if catalog == "switches":
             for name in ("pressure_plates", "actor_spawn_zones", "nested_maps"):
                 for entry in geometry.get(name, []):
-                    yield name, entry, field
+                    yield name, entry, "switch"
         else:
             for item in geometry.get("items", []):
                 if item.get("type") == "key":
-                    yield "items", item, field
-        for level in geometry["levels"]:
-            for name in ("barriers", "light_bridges"):
-                for entry in level.get(name, []):
-                    yield name, entry, field
-    if catalog == "switches" and root.get("fireworks"):
-        yield "fireworks", root["fireworks"], field
+                    yield "items", item, "field"
+            for level in geometry["levels"]:
+                for name in ("barriers", "light_bridges"):
+                    for entry in level.get(name, []):
+                        yield name, entry, "field"
 
 
 def references(root: dict, catalog: str):
-    for _name, entry, field in named_references(root, catalog):
-        yield entry, field
+    for _name, entry, key in named_references(root, catalog):
+        yield entry, key
 
 
 USAGE_NOUNS = {
     "pressure_plates": ("plate", "plates"),
+    "fields": ("field", "fields"),
     "barriers": ("barrier", "barriers"),
     "light_bridges": ("bridge cell", "bridge cells"),
     "actor_spawn_zones": ("actor zone", "actor zones"),
@@ -51,8 +55,8 @@ USAGE_NOUNS = {
 # definition, as text like "2 plates, 3 barriers"; an unused entry is absent.
 def catalog_usage(root: dict, catalog: str) -> dict[str, str]:
     counts: dict[str, dict[str, int]] = {}
-    for name, entry, field in named_references(root, catalog):
-        value = entry.get(field)
+    for name, entry, key in named_references(root, catalog):
+        value = entry.get(key)
         if value is not None:
             uses = counts.setdefault(value, {})
             uses[name] = uses.get(name, 0) + 1
@@ -72,11 +76,11 @@ def edit_catalog(root: dict, catalog: str, entries: list[dict], renames: dict[st
     previous = {entry["id"] for entry in after.get(catalog, [])}
     kept = {entry["id"] for entry in entries} & previous - set(renames.values())
     removed = previous - set(renames) - kept
-    for entry, field in references(after, catalog):
-        value = entry.get(field)
+    for entry, key in references(after, catalog):
+        value = entry.get(key)
         if value in removed:
             raise ValueError(f"{value!r} is still assigned to map objects; reassign them before deleting it")
         if value in renames:
-            entry[field] = renames[value]
+            entry[key] = renames[value]
     after[catalog] = copy.deepcopy(entries)
     return after

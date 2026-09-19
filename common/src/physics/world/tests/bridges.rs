@@ -1,23 +1,19 @@
 use super::*;
-use crate::protocol::BridgeId;
+use crate::physics::passable_fields;
 
-const BRIDGE: FieldId = FieldId::Bridge(BridgeId(0));
+const BRIDGE: FieldId = FieldId(0);
 
 #[test]
 fn a_light_bridge_supports_a_character_unless_it_is_passable() {
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
-            id: Default::default(),
-            switch: None,
-            initially_on: true,
-
             x1: 0.0,
             z1: 0.0,
             x2: 4.0,
             z2: 4.0,
             y: LEVEL_HEIGHT,
             level: 1,
-            kind: FieldKindId(0),
+            field: FieldId(0),
             thickness: BRIDGE_THICKNESS,
             carrier: CarrierId::WORLD,
         }],
@@ -33,31 +29,27 @@ fn a_light_bridge_supports_a_character_unless_it_is_passable() {
     assert!(probe(&[]).is_some(), "a bridge that is on is ground");
     assert!(probe(&[BRIDGE]).is_none(), "a passable bridge is not ground");
     assert!(
-        probe(&[FieldId::Bridge(BridgeId(1)), FieldId::Barrier(BarrierId(0))]).is_some(),
+        probe(&[FieldId(1), FieldId(2)]).is_some(),
         "another field being passable leaves this bridge solid"
     );
     assert!(
-        probe(&world.passable_fields(&[FieldKindId(0)], &[])).is_none(),
-        "the key of its kind drops its holder through"
+        probe(&passable_fields(&[FieldId(0)], &[])).is_none(),
+        "the key of its field drops its holder through"
     );
-    assert!(probe(&world.passable_fields(&[FieldKindId(1)], &[])).is_some());
+    assert!(probe(&passable_fields(&[FieldId(1)], &[])).is_some());
 }
 
 #[test]
 fn a_solid_light_bridge_stays_out_of_sight_and_ground_probes() {
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
-            id: Default::default(),
-            switch: None,
-            initially_on: true,
-
             x1: -2.0,
             z1: -2.0,
             x2: 2.0,
             z2: 2.0,
             y: LEVEL_HEIGHT,
             level: 1,
-            kind: FieldKindId(0),
+            field: FieldId(0),
             thickness: BRIDGE_THICKNESS,
             carrier: CarrierId::WORLD,
         }],
@@ -90,10 +82,6 @@ fn a_solid_light_bridge_stays_out_of_sight_and_ground_probes() {
 fn a_solid_bridge_blocks_attacks_and_beams_without_blocking_awareness() {
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
-            id: Default::default(),
-            switch: None,
-            initially_on: true,
-
             x1: -3.0,
             z1: -3.0,
             x2: 3.0,
@@ -101,7 +89,7 @@ fn a_solid_bridge_blocks_attacks_and_beams_without_blocking_awareness() {
             y: 2.0,
             thickness: BRIDGE_THICKNESS,
             level: 1,
-            kind: FieldKindId(0),
+            field: FieldId(0),
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
@@ -128,10 +116,6 @@ fn portal_shots_only_stop_at_solid_bridges() {
     layout.walls.clear();
     layout.ramps.clear();
     layout.light_bridges.push(LightBridge {
-        id: Default::default(),
-        switch: None,
-        initially_on: true,
-
         x1: 0.0,
         z1: 0.0,
         x2: 4.0,
@@ -139,7 +123,7 @@ fn portal_shots_only_stop_at_solid_bridges() {
         y: LEVEL_HEIGHT + 2.0,
         thickness: BRIDGE_THICKNESS,
         level: 2,
-        kind: FieldKindId(0),
+        field: FieldId(0),
         carrier: CarrierId::WORLD,
     });
     let world = CollisionWorld::from_map_layout(&layout);

@@ -10,7 +10,7 @@ fn snapshot_player() -> Player {
         score: 7,
         power_ups: [false, true, false, true, false],
         stunned: true,
-        held_keys: vec![FieldKindId(1), FieldKindId(3)],
+        held_keys: vec![FieldId(1), FieldId(3)],
         missiles: 2,
         portal_access: PortalAccess::None,
         checkpoint: 3,
@@ -67,7 +67,7 @@ fn apply_status_updates_status_fields_only() {
         collected: None,
         power_ups: [false, false, false, false, true],
         stunned: false,
-        held_keys: vec![FieldKindId(2)],
+        held_keys: vec![FieldId(2)],
         missiles: 0,
     };
 

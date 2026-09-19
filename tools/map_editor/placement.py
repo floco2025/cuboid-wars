@@ -12,10 +12,8 @@ from .constants import (
 )
 from .checkpoint_numbers import next_checkpoint_number
 from .dialogs import ActorSpawnFieldsDialog, KindDialog
-from .dialogs.controls import FieldPropertiesDialog
 from .editing import (
     placement_materials,
-    merge_record,
     paint_bridges,
     paint_edges,
     paint_erasers,
@@ -196,52 +194,29 @@ class PlacementMixin:
         self.apply_change("Place Equipment Eraser", paint_erasers(self.map_data, self.current_level, start, end))
 
     def prompt_and_add_barrier_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        kind = self.placement_kind(
-            "Place Barrier", self.field_kinds, self.recent_barrier_kind, "field kind", self.field_kind_colors
-        )
-        if kind is None:
+        field = self.placement_kind("Place Barrier", self.fields, self.recent_barrier_field, "field", self.field_colors)
+        if field is None:
             return
-        self.recent_barrier_kind = kind
-        self.add_barrier_line(start, end, kind)
+        self.recent_barrier_field = field
+        self.add_barrier_line(start, end, field)
 
     def prompt_and_add_light_bridge_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        kind = self.placement_kind(
-            "Place Light Bridge", self.field_kinds, self.recent_bridge_kind, "field kind", self.field_kind_colors
+        field = self.placement_kind(
+            "Place Light Bridge", self.fields, self.recent_bridge_field, "field", self.field_colors
         )
-        if kind is None:
+        if field is None:
             return
-        self.recent_bridge_kind = kind
-        self.add_light_bridge_rect(start, end, kind)
+        self.recent_bridge_field = field
+        self.add_light_bridge_rect(start, end, field)
 
-    def add_light_bridge_rect(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
-        if kind not in self.field_kinds:
-            self.notify(f"Unknown field kind {kind!r}")
+    def add_light_bridge_rect(self, start: tuple[int, int], end: tuple[int, int], field: str) -> None:
+        if field not in self.fields:
+            self.notify(f"Unknown field {field!r}")
             return
         self.apply_change(
-            f"Place Light Bridge ({kind})",
-            paint_bridges(
-                self.map_data, self.current_level, rect_from_cells(start, end), kind, self.recent_bridge_controls
-            ),
+            f"Place Light Bridge ({field})",
+            paint_bridges(self.map_data, self.current_level, rect_from_cells(start, end), field),
         )
-
-    def configure_field_defaults(self, barrier: bool) -> None:
-        prefix = "barrier" if barrier else "bridge"
-        controls = getattr(self, f"recent_{prefix}_controls")
-        kind = getattr(self, f"recent_{prefix}_kind")
-        values = FieldPropertiesDialog.prompt(
-            self,
-            "Barrier Defaults" if barrier else "Light Bridge Defaults",
-            self.field_kinds,
-            self.switches,
-            [{"kind": kind, **controls}],
-            kind_colors=self.field_kind_colors,
-            switch_colors=self.switch_colors,
-        )
-        if values is not None:
-            defaults = merge_record({"kind": kind, **controls}, values)
-            setattr(self, f"recent_{prefix}_kind", defaults.pop("kind", kind))
-            setattr(self, f"recent_{prefix}_controls", defaults)
-            self.tool_settings.refresh()
 
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
         switch = self.placement_kind(
@@ -278,15 +253,13 @@ class PlacementMixin:
             return
         self.apply_change(label, after)
 
-    def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
-        if kind not in self.field_kinds:
-            self.notify(f"Unknown field kind {kind!r}")
+    def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], field: str) -> None:
+        if field not in self.fields:
+            self.notify(f"Unknown field {field!r}")
             return
         self.apply_change(
-            f"Place Barrier ({kind})",
-            paint_edges(
-                self.map_data, self.current_level, start, end, kind=kind, controls=self.recent_barrier_controls
-            ),
+            f"Place Barrier ({field})",
+            paint_edges(self.map_data, self.current_level, start, end, field=field),
         )
 
     # A ramp rises from the current level over the dragged cells, toward `direction`.

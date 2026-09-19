@@ -153,7 +153,7 @@ pub(super) fn handle_field_collisions(
         impact.normal,
         impact.normal,
         proj_motion.velocity.length(),
-        ImpactKind::Barrier(field_assets.field_color(impact.field)),
+        ImpactKind::Barrier(field_assets.base_color(impact.field)),
     );
     commands.entity(proj_entity).despawn();
     true

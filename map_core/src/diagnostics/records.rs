@@ -144,18 +144,18 @@ pub(super) fn items(data: &Value, context: &Value, errors: &mut Errors) {
         }
         let kind = s(item, "type");
         if kind == "key" {
-            if !truth(&item["kind"]) || check_kind(&item["kind"], &context["field_kinds"]) {
+            if !truth(&item["field"]) || check_kind(&item["field"], &context["fields"]) {
                 errors.add(format!(
-                    "{label} has unknown key kind {}; known: [{}]",
-                    repr(&item["kind"]),
-                    known(&context["field_kinds"])
+                    "{label} has unknown key field {}; known: [{}]",
+                    repr(&item["field"]),
+                    known(&context["fields"])
                 ));
             }
         } else if !item_type(kind) {
             errors.add(format!("{label} has unknown type {}; known: [single_shot, multi_shot, missile_pack, portal_gun, health_potion, speed, low_gravity, gold, key]",repr(&item["type"])));
-        } else if !item["kind"].is_null() {
+        } else if !item["field"].is_null() {
             errors.add(format!(
-                "{label} ({kind}) must not have `kind` — only key items take one"
+                "{label} ({kind}) must not have `field` — only key items take one"
             ));
         }
         if let Some(error) = cell_error(data, level, col, row, false) {

@@ -108,7 +108,7 @@ class ToolSettings(QWidget):
             window.pickup_types,
             tuple(window.actor_kinds),
             tuple(window.wall_light_kinds),
-            tuple(window.field_kinds),
+            tuple(window.fields),
             tuple(window.switches),
             tuple(window.materials_catalog),
             tuple(window.texture_catalog.items()),
@@ -213,15 +213,15 @@ class ToolSettings(QWidget):
 
         def item_controls():
             item, _ = combo("Item", "recent_item_type", list(window.pickup_types), required=True)
-            key, label = combo("Kind", "recent_item_key_kind", window.field_kinds, colors=window.field_kind_colors)
+            key, label = combo("Field", "recent_item_key_field", window.fields, colors=window.field_colors)
             self.key_controls = (key, label)
 
-            def show_key_kind(item_type):
+            def show_key_field(item_type):
                 key.setVisible(item_type == ITEM_KEY_TYPE)
                 label.setVisible(item_type == ITEM_KEY_TYPE)
 
-            item.currentTextChanged.connect(show_key_kind)
-            show_key_kind(window.recent_item_type)
+            item.currentTextChanged.connect(show_key_field)
+            show_key_field(window.recent_item_type)
 
         def material_controls():
             box, _ = combo("Material", "current_material", window.materials_catalog, required=True)
@@ -238,12 +238,8 @@ class ToolSettings(QWidget):
             button.clicked.connect(self.configure_motion)
             form.addWidget(button)
 
-        def field_controls(barrier):
-            attribute = "recent_barrier_kind" if barrier else "recent_bridge_kind"
-            combo("Kind", attribute, window.field_kinds, colors=window.field_kind_colors)
-            button = QPushButton("Controls…")
-            button.clicked.connect(lambda: window.configure_field_defaults(barrier))
-            form.addWidget(button)
+        def field_controls(attribute):
+            combo("Field", attribute, window.fields, colors=window.field_colors)
 
         def actor_controls():
             combo("Actor", "recent_actor_spawn_kind", window.actor_kinds, editable=True)
@@ -291,11 +287,11 @@ class ToolSettings(QWidget):
             MODE_RAMP: ramp_controls,
             MODE_CHECKPOINT: checkpoint_controls,
             MODE_ACTOR_SPAWN_ZONE: actor_controls,
-            MODE_BARRIER: lambda: field_controls(True),
+            MODE_BARRIER: lambda: field_controls("recent_barrier_field"),
             MODE_PRESSURE_PLATE: lambda: combo(
                 "Switch", "recent_pressure_plate_switch", window.switches, colors=window.switch_colors
             ),
-            MODE_LIGHT_BRIDGE: lambda: field_controls(False),
+            MODE_LIGHT_BRIDGE: lambda: field_controls("recent_bridge_field"),
             MODE_LIGHT: lambda: combo("Style", "recent_light_kind", window.wall_light_kinds, required=True),
             MODE_ITEM: item_controls,
             MODE_LADDER: lambda: number(

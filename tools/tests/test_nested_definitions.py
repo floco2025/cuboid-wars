@@ -118,13 +118,13 @@ class NestedWindowTests(WindowTestCase):
 
     def test_selector_uses_parent_catalogs_and_clears_selection(self):
         window = self.window
-        catalogs = (window.field_kind_colors.copy(), window.texture_catalog.copy(), window.wall_width_cells)
+        catalogs = (window.field_colors.copy(), window.texture_catalog.copy(), window.wall_width_cells)
         window.set_tile_selection((4, 4, 5, 5))
         self.select("room")
         self.assertEqual(window.map_data["grid_cols"], 3)
         self.assertTrue(window.selection.empty)
         self.assertFalse(window.dirty)
-        self.assertEqual((window.field_kind_colors, window.texture_catalog, window.wall_width_cells), catalogs)
+        self.assertEqual((window.field_colors, window.texture_catalog, window.wall_width_cells), catalogs)
         window.apply_change("Paint", paint_floors(window.map_data, 0, (0, 0, 1, 1), DEFAULT_ALIAS))
         self.assertTrue(window.save())
         self.assertEqual(window.doc.active_map, "room")

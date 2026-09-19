@@ -1,10 +1,10 @@
 // Barrier compilation: authored one-edge barriers become carrier-local
 // `Barrier` records in two passes. `stack_barriers` converts each edge and
-// continues a barrier straight up into the same-kind barrier above it when
+// continues a barrier straight up into the barrier of its field above it when
 // no floor slab beside the edge splits them, so a floorless storey gap stays
 // closed instead of showing the slot a floor would fill. `merge_barriers`
 // then joins collinear neighbours with the same storey span (mirror of
-// `walls::merge_walls` with `FieldKindId` as the grouping key in place of
+// `walls::merge_walls` with `FieldId` as the grouping key in place of
 // `FaceMaterials`).
 
 use std::collections::HashMap;
@@ -12,17 +12,14 @@ use std::collections::HashMap;
 use super::{mask::Mask, segments::MERGE_EPS};
 use common::{
     map::MapGeometry,
-    protocol::{Barrier, CarrierId, FieldKindId, SwitchId},
+    protocol::{Barrier, CarrierId, FieldId},
 };
 
-// One authored barrier: its grid edge as `[c0, r0, c1, r1]` and its resolved kind.
+// One authored barrier: its grid edge as `[c0, r0, c1, r1]` and its resolved field.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BarrierEdge {
-    pub switch: Option<SwitchId>,
-    pub initially_on: bool,
-
     pub edge: [i32; 4],
-    pub kind: FieldKindId,
+    pub field: FieldId,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -67,7 +64,7 @@ fn has_floor_beside(slab_mask: &Mask, edge: GridEdge) -> bool {
 }
 
 // Convert every level's authored edges into carrier-local records, one per
-// run of stacked same-kind barriers. `slab_masks[level]` marks the floor
+// run of stacked barriers of one field. `slab_masks[level]` marks the floor
 // slabs at that level's y, the ones that would split the storey below from
 // it.
 #[must_use]
@@ -83,14 +80,14 @@ pub(crate) fn stack_barriers(
         "barrier levels and slab masks differ in count"
     );
     let mut barriers: Vec<Barrier> = Vec::new();
-    // Runs that reached the previous level, keyed by edge and kind, as indexes into `barriers`.
-    let mut open_runs: HashMap<(GridEdge, FieldKindId, Option<SwitchId>, bool), usize> = HashMap::new();
+    // Runs that reached the previous level, keyed by edge and field, as indexes into `barriers`.
+    let mut open_runs: HashMap<(GridEdge, FieldId), usize> = HashMap::new();
     for (level_idx, (edges, slab_mask)) in levels.iter().zip(slab_masks).enumerate() {
         let level = u8::try_from(level_idx).unwrap_or(u8::MAX);
         let mut runs = HashMap::new();
         for barrier in edges {
             let grid_edge = GridEdge::from_authored(barrier.edge);
-            let key = (grid_edge, barrier.kind, barrier.switch, barrier.initially_on);
+            let key = (grid_edge, barrier.field);
             let continued = open_runs
                 .get(&key)
                 .copied()
@@ -118,10 +115,6 @@ pub(crate) fn stack_barriers(
 fn barrier_from_edge(barrier: &BarrierEdge, geometry: &MapGeometry, level: u8, carrier: CarrierId) -> Barrier {
     let [c0, r0, c1, r1] = barrier.edge;
     Barrier {
-        id: Default::default(),
-        switch: barrier.switch,
-        initially_on: barrier.initially_on,
-
         x1: geometry.cell_to_world_x(c0),
         z1: geometry.cell_to_world_z(r0),
         x2: geometry.cell_to_world_x(c1),
@@ -131,7 +124,7 @@ fn barrier_from_edge(barrier: &BarrierEdge, geometry: &MapGeometry, level: u8, c
         height: span_height(geometry, 1),
         level,
         levels: 1,
-        kind: barrier.kind,
+        field: barrier.field,
         carrier,
     }
 }
@@ -142,7 +135,7 @@ fn span_height(geometry: &MapGeometry, levels: u8) -> f32 {
 }
 
 // Merge collinear adjacent barriers. Two barriers merge when they share:
-//   - level, storey span, axis (horizontal/vertical), kind, and perpendicular coordinate;
+//   - level, storey span, axis (horizontal/vertical), field, and perpendicular coordinate;
 //   - and the second's near end touches (within epsilon) the first's far end.
 //
 // Output preserves original entries that don't fit either axis (degenerate /
@@ -185,8 +178,8 @@ pub(crate) fn merge_barriers(barriers: Vec<Barrier>) -> Vec<Barrier> {
     merged
 }
 
-fn group_key(b: &Barrier) -> (u8, u8, u16, Option<SwitchId>, bool) {
-    (b.level, b.levels, b.kind.0, b.switch, b.initially_on)
+fn group_key(b: &Barrier) -> (u8, u8, FieldId) {
+    (b.level, b.levels, b.field)
 }
 
 fn normalize_endpoints(mut b: Barrier) -> Barrier {

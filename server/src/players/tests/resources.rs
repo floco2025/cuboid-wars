@@ -9,7 +9,7 @@ use crate::config::{
 use common::{
     config::DeathTrigger,
     protocol::{
-        FieldKindId, Health, ItemType, MapItems, PlayerId, PlayerMoveIntent, PlayerMovementState, PortalAccess,
+        FieldId, Health, ItemType, MapItems, PlayerId, PlayerMoveIntent, PlayerMovementState, PortalAccess,
         PortalPairId, Position, PowerUpKind, QuestId, SPlayerStatus,
     },
 };
@@ -264,30 +264,27 @@ fn unlogged_and_unknown_disconnects_do_not_trigger_world_resets() {
 #[test]
 fn add_key_is_idempotent_and_keeps_sorted() {
     let mut info = dummy_info();
-    assert!(info.add_key(FieldKindId(2)));
-    assert!(info.add_key(FieldKindId(0)));
-    assert!(info.add_key(FieldKindId(1)));
+    assert!(info.add_key(FieldId(2)));
+    assert!(info.add_key(FieldId(0)));
+    assert!(info.add_key(FieldId(1)));
     // Re-adding any already-held kind returns false (no state change).
-    assert!(!info.add_key(FieldKindId(0)));
-    assert!(!info.add_key(FieldKindId(1)));
-    assert!(!info.add_key(FieldKindId(2)));
-    assert_eq!(
-        info.life.held_keys,
-        vec![FieldKindId(0), FieldKindId(1), FieldKindId(2)]
-    );
-    assert!(info.has_key(FieldKindId(1)));
-    assert!(!info.has_key(FieldKindId(3)));
+    assert!(!info.add_key(FieldId(0)));
+    assert!(!info.add_key(FieldId(1)));
+    assert!(!info.add_key(FieldId(2)));
+    assert_eq!(info.life.held_keys, vec![FieldId(0), FieldId(1), FieldId(2)]);
+    assert!(info.has_key(FieldId(1)));
+    assert!(!info.has_key(FieldId(3)));
 }
 
 #[test]
 fn held_keys_round_trip_via_sp_player_status() {
     let mut info = dummy_info();
-    info.add_key(FieldKindId(1));
-    info.add_key(FieldKindId(3));
+    info.add_key(FieldId(1));
+    info.add_key(FieldId(3));
     let status = info.status(PlayerId(7));
     let encoded = bincode::encode_to_vec(&status, standard()).expect("encode");
     let (decoded, _): (SPlayerStatus, _) = bincode::decode_from_slice(&encoded, standard()).expect("decode");
-    assert_eq!(decoded.held_keys, vec![FieldKindId(1), FieldKindId(3)]);
+    assert_eq!(decoded.held_keys, vec![FieldId(1), FieldId(3)]);
     assert_eq!(decoded.id, PlayerId(7));
 }
 
@@ -354,7 +351,7 @@ fn erasure_clears_power_ups_and_ammo_but_preserves_keys_and_progress() {
         .quest_states
         .insert(QuestId("quest".into()), PlayerQuestState::Individual { progress: 3 });
     info.life.stun_timer = 2.0;
-    info.add_key(FieldKindId(1));
+    info.add_key(FieldId(1));
     info.add_missiles(2, 3);
     for kind in PowerUpKind::ALL {
         info.grant_power_up(kind.to_item_type(), &test_power_ups_config());
@@ -362,7 +359,7 @@ fn erasure_clears_power_ups_and_ammo_but_preserves_keys_and_progress() {
     assert!(info.erase_equipment());
     assert!(!info.erase_equipment());
     assert!(PowerUpKind::ALL.into_iter().all(|kind| !info.has(kind)));
-    assert_eq!(info.life.held_keys, [FieldKindId(1)]);
+    assert_eq!(info.life.held_keys, [FieldId(1)]);
     assert_eq!(info.life.missiles, 0);
     assert_eq!(info.life.stun_timer, 2.0);
     assert_eq!(info.session.score, 42);
@@ -430,8 +427,8 @@ fn snapshot_player_uses_same_status_fields_as_status_message() {
     info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(1.0);
     info.life.power_ups[PowerUpKind::LowGravity.index()] = PowerUpState::Timed(2.0);
     info.life.stun_timer = 0.5;
-    info.add_key(FieldKindId(1));
-    info.add_key(FieldKindId(3));
+    info.add_key(FieldId(1));
+    info.add_key(FieldId(3));
     info.add_missiles(2, 3);
     let id = PlayerId(7);
     let pos = Position { x: 1.0, y: 2.0, z: 3.0 };

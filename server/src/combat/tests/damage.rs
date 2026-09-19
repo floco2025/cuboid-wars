@@ -86,7 +86,7 @@ fn server_gameplay_config() -> ServerGameplayConfig {
             movement,
             portals: PortalMode::Both,
             switches: Vec::new(),
-            field_kinds: Vec::new(),
+            fields: Vec::new(),
         },
         random_items: None,
         player_fall: FallDamageConfig {
@@ -457,7 +457,7 @@ fn kill_player_clears_state_and_arms_timer() {
     let entity = info.entity().expect("new player has no entity");
     let mut info = info;
     info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(1.5);
-    info.add_key(common::protocol::FieldKindId(0));
+    info.add_key(common::protocol::FieldId(0));
     players.insert(PlayerId(7), info);
 
     let world = app.world_mut();
@@ -495,7 +495,7 @@ fn void_fall_queues_no_explosion() {
     let entity = info.entity().expect("new player has no entity");
     let mut info = info;
     info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(1.5);
-    info.add_key(common::protocol::FieldKindId(0));
+    info.add_key(common::protocol::FieldId(0));
     players.insert(PlayerId(7), info);
 
     let world = app.world_mut();
@@ -528,7 +528,7 @@ fn begin_respawn_zeros_powerups_keys_and_cooldown() {
     info.life.power_ups = [PowerUpState::Timed(1.0); PowerUpKind::COUNT];
     info.life.stun_timer = 1.0;
     info.life.last_portal_shot_time = 99.0;
-    info.add_key(common::protocol::FieldKindId(0));
+    info.add_key(common::protocol::FieldId(0));
 
     info.begin_respawn(2.0);
 

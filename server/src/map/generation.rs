@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use bevy::log::warn;
 use common::{
     config::validate_non_negative_finite,
-    protocol::{FieldKindTable, MapLayout, MapSettings, SwitchId, SwitchTable, validate_texture_materials},
+    protocol::{FieldTable, MapLayout, MapSettings, SwitchId, SwitchTable, validate_texture_materials},
 };
 
 use super::{FireworksConfig, MapConfig, definition};
@@ -17,7 +17,7 @@ pub struct GeneratedMap {
     pub config: MapConfig,
     // The map's settings with the layout's catalogs filled in.
     pub settings: MapSettings,
-    pub field_kinds: FieldKindTable,
+    pub fields: FieldTable,
     pub switch_table: SwitchTable,
     pub fireworks: Option<FireworksConfig>,
     pub fireworks_switch: Option<SwitchId>,
@@ -37,13 +37,13 @@ pub(crate) fn generate_map_at(
     for warning in &source.warnings {
         warn!("map {map_name:?}: {warning}");
     }
-    let field_kinds = FieldKindTable::from_defs(&source.field_kinds)
-        .with_context(|| format!("invalid field_kinds in {}", path.display()))?;
+    let fields =
+        FieldTable::from_field_defs(&source.fields).with_context(|| format!("invalid fields in {}", path.display()))?;
     let switch_table = SwitchTable::from_switch_defs(&source.switches)
         .with_context(|| format!("invalid switches in {}", path.display()))?;
     let mut settings = settings.clone();
     settings.switches = source.switches;
-    settings.field_kinds = source.field_kinds;
+    settings.fields = source.fields;
     let map_def = source.geometry;
     let nested = source.nested_geometry;
     for (name, map) in once((map_name, &map_def)).chain(nested.iter().map(|(name, map)| (name.as_str(), map))) {
@@ -80,16 +80,15 @@ pub(crate) fn generate_map_at(
             )?;
         }
     }
-    let (layout, config) =
-        definition::compile_map(&map_def, server_hz, &settings, &nested, &field_kinds, &switch_table)
-            .with_context(|| format!("failed to compile map at {}", path.display()))?;
+    let (layout, config) = definition::compile_map(&map_def, server_hz, &settings, &nested, &fields, &switch_table)
+        .with_context(|| format!("failed to compile map at {}", path.display()))?;
     let fireworks_switch = validate_fireworks(source.fireworks.as_ref(), &switch_table)
         .with_context(|| format!("invalid fireworks in {}", path.display()))?;
     Ok(GeneratedMap {
         layout,
         config,
         settings,
-        field_kinds,
+        fields,
         switch_table,
         fireworks: source.fireworks,
         fireworks_switch,

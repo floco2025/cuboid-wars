@@ -97,7 +97,7 @@ pub(crate) fn map_settings() -> MapSettings {
         },
         portals: PortalMode::Both,
         switches: Vec::new(),
-        field_kinds: Vec::new(),
+        fields: Vec::new(),
     }
 }
 

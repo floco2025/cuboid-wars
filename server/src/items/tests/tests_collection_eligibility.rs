@@ -20,7 +20,7 @@ use common::{
     config::GameplayConfig,
     constants::{CHARACTER_CONTACT_OFFSET, PRESSURE_PLATE_HEIGHT},
     protocol::{
-        FieldKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, PowerUpKind, ServerMessage,
+        FieldId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, PowerUpKind, ServerMessage,
     },
 };
 
@@ -132,7 +132,7 @@ fn simultaneous_pickups_leave_redundant_items_available() {
     for item_type in [
         ItemType::HealthPotion,
         ItemType::MissilePack,
-        ItemType::Key(FieldKindId(0)),
+        ItemType::Key(FieldId(0)),
         ItemType::PortalGunPowerUp,
     ] {
         for placed in [false, true] {
@@ -157,7 +157,7 @@ fn simultaneous_pickups_can_help_two_overlapping_players() {
     for item_type in [
         ItemType::HealthPotion,
         ItemType::MissilePack,
-        ItemType::Key(FieldKindId(0)),
+        ItemType::Key(FieldId(0)),
         ItemType::PortalGunPowerUp,
     ] {
         let mut app = simultaneous_pickup_app(2, item_type, false);
@@ -469,13 +469,7 @@ fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
         random(0.0),
     );
     let missile_pack = spawn_item(&mut app, 4, ItemType::MissilePack, Position::default(), random(0.0));
-    spawn_item(
-        &mut app,
-        5,
-        ItemType::Key(FieldKindId(0)),
-        Position::default(),
-        random(0.0),
-    );
+    spawn_item(&mut app, 5, ItemType::Key(FieldId(0)), Position::default(), random(0.0));
     spawn_item(
         &mut app,
         2,
@@ -496,7 +490,7 @@ fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
     assert!(!info.has(PowerUpKind::SingleShot));
     assert!(!info.has(PowerUpKind::MultiShot));
     assert_eq!(info.life.missiles, 0);
-    assert_eq!(info.life.held_keys, [FieldKindId(0)]);
+    assert_eq!(info.life.held_keys, [FieldId(0)]);
     assert!(app.world().resource::<ItemMap>().get(&missile_pack).is_none());
     assert_eq!(app.world().get::<Health>(entity), Some(&Health(50.0)));
     let mut last = None;
@@ -514,7 +508,7 @@ fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
     assert!(!status.power_up(PowerUpKind::SingleShot));
     assert!(!status.power_up(PowerUpKind::MultiShot));
     assert_eq!(status.missiles, 0);
-    assert_eq!(status.held_keys, [FieldKindId(0)]);
+    assert_eq!(status.held_keys, [FieldId(0)]);
     app.update();
     assert!(rx.try_recv().is_err());
 }
@@ -523,7 +517,7 @@ fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
 fn already_held_key_is_left_in_the_world() {
     let mut app = test_app();
     let id = PlayerId(1);
-    let kind = FieldKindId(0);
+    let kind = FieldId(0);
     let (_, _rx) = spawn_player(&mut app, id, Position::default());
     assert!(
         app.world_mut()

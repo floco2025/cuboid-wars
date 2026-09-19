@@ -1,11 +1,11 @@
 {
   "map": {
     "switches": [{"id": "lobby", "activation": "auto", "reset_on_player_death": "never"}, {"id": "fireworks", "color": "#9b5de5", "activation": "momentary", "reset_on_player_death": "never", "held": "everyone"}],
-    "field_kinds": [
+    "fields": [
       {"id": "treasure", "color": "#ff3333"},
       {"id": "basement", "color": "#f0c020"},
       {"id": "gravity", "color": "#5090ff"},
-      {"id": "lobby", "color": "#22cc33"}
+      {"id": "lobby", "color": "#22cc33", "switch": "lobby"}
     ],
     "fireworks": {"switch": "fireworks", "cooldown_secs": 30.0},
     "grid_cols": 30,
@@ -73,18 +73,18 @@
       {"level": 0, "col": 15, "row": 17, "type": "gold"},
       {"level": 0, "col": 16, "row": 17, "type": "gold"},
       {"level": 0, "col": 17, "row": 17, "type": "gold"},
-      {"level": 1, "col": 6, "row": 14, "type": "key", "kind": "gravity"},
-      {"level": 1, "col": 23, "row": 14, "type": "key", "kind": "gravity"},
-      {"level": 2, "col": 13, "row": 7, "type": "key", "kind": "basement"},
-      {"level": 2, "col": 16, "row": 7, "type": "key", "kind": "basement"},
-      {"level": 2, "col": 22, "row": 11, "type": "key", "kind": "basement"},
-      {"level": 2, "col": 22, "row": 14, "type": "key", "kind": "basement"},
-      {"level": 2, "col": 7, "row": 15, "type": "key", "kind": "basement"},
-      {"level": 2, "col": 7, "row": 18, "type": "key", "kind": "basement"},
-      {"level": 2, "col": 13, "row": 22, "type": "key", "kind": "basement"},
-      {"level": 2, "col": 16, "row": 22, "type": "key", "kind": "basement"},
-      {"level": 3, "col": 22, "row": 7, "type": "key", "kind": "treasure"},
-      {"level": 3, "col": 7, "row": 22, "type": "key", "kind": "treasure"}
+      {"level": 1, "col": 6, "row": 14, "type": "key", "field": "gravity"},
+      {"level": 1, "col": 23, "row": 14, "type": "key", "field": "gravity"},
+      {"level": 2, "col": 13, "row": 7, "type": "key", "field": "basement"},
+      {"level": 2, "col": 16, "row": 7, "type": "key", "field": "basement"},
+      {"level": 2, "col": 22, "row": 11, "type": "key", "field": "basement"},
+      {"level": 2, "col": 22, "row": 14, "type": "key", "field": "basement"},
+      {"level": 2, "col": 7, "row": 15, "type": "key", "field": "basement"},
+      {"level": 2, "col": 7, "row": 18, "type": "key", "field": "basement"},
+      {"level": 2, "col": 13, "row": 22, "type": "key", "field": "basement"},
+      {"level": 2, "col": 16, "row": 22, "type": "key", "field": "basement"},
+      {"level": 3, "col": 22, "row": 7, "type": "key", "field": "treasure"},
+      {"level": 3, "col": 7, "row": 22, "type": "key", "field": "treasure"}
     ],
     "levels": [
       {
@@ -761,32 +761,32 @@
           {"c0": 30, "r0": 16, "c1": 30, "r1": 17, "all": "basement-perimeter-wall"}
         ],
         "barriers": [
-          {"c0": 3, "r0": 15, "c1": 3, "r1": 16, "kind": "basement"},
-          {"c0": 11, "r0": 11, "c1": 11, "r1": 12, "kind": "treasure"},
-          {"c0": 11, "r0": 11, "c1": 12, "r1": 11, "kind": "treasure"},
-          {"c0": 11, "r0": 12, "c1": 11, "r1": 13, "kind": "treasure"},
-          {"c0": 11, "r0": 14, "c1": 11, "r1": 15, "kind": "treasure"},
-          {"c0": 11, "r0": 15, "c1": 11, "r1": 16, "kind": "treasure"},
-          {"c0": 11, "r0": 17, "c1": 11, "r1": 18, "kind": "treasure"},
-          {"c0": 11, "r0": 18, "c1": 11, "r1": 19, "kind": "treasure"},
-          {"c0": 11, "r0": 19, "c1": 12, "r1": 19, "kind": "treasure"},
-          {"c0": 12, "r0": 11, "c1": 13, "r1": 11, "kind": "treasure"},
-          {"c0": 12, "r0": 19, "c1": 13, "r1": 19, "kind": "treasure"},
-          {"c0": 14, "r0": 11, "c1": 15, "r1": 11, "kind": "treasure"},
-          {"c0": 14, "r0": 19, "c1": 15, "r1": 19, "kind": "treasure"},
-          {"c0": 15, "r0": 11, "c1": 16, "r1": 11, "kind": "treasure"},
-          {"c0": 15, "r0": 19, "c1": 16, "r1": 19, "kind": "treasure"},
-          {"c0": 17, "r0": 11, "c1": 18, "r1": 11, "kind": "treasure"},
-          {"c0": 17, "r0": 19, "c1": 18, "r1": 19, "kind": "treasure"},
-          {"c0": 18, "r0": 11, "c1": 19, "r1": 11, "kind": "treasure"},
-          {"c0": 18, "r0": 19, "c1": 19, "r1": 19, "kind": "treasure"},
-          {"c0": 19, "r0": 11, "c1": 19, "r1": 12, "kind": "treasure"},
-          {"c0": 19, "r0": 12, "c1": 19, "r1": 13, "kind": "treasure"},
-          {"c0": 19, "r0": 14, "c1": 19, "r1": 15, "kind": "treasure"},
-          {"c0": 19, "r0": 15, "c1": 19, "r1": 16, "kind": "treasure"},
-          {"c0": 19, "r0": 17, "c1": 19, "r1": 18, "kind": "treasure"},
-          {"c0": 19, "r0": 18, "c1": 19, "r1": 19, "kind": "treasure"},
-          {"c0": 27, "r0": 14, "c1": 27, "r1": 15, "kind": "basement"}
+          {"c0": 3, "r0": 15, "c1": 3, "r1": 16, "field": "basement"},
+          {"c0": 11, "r0": 11, "c1": 11, "r1": 12, "field": "treasure"},
+          {"c0": 11, "r0": 11, "c1": 12, "r1": 11, "field": "treasure"},
+          {"c0": 11, "r0": 12, "c1": 11, "r1": 13, "field": "treasure"},
+          {"c0": 11, "r0": 14, "c1": 11, "r1": 15, "field": "treasure"},
+          {"c0": 11, "r0": 15, "c1": 11, "r1": 16, "field": "treasure"},
+          {"c0": 11, "r0": 17, "c1": 11, "r1": 18, "field": "treasure"},
+          {"c0": 11, "r0": 18, "c1": 11, "r1": 19, "field": "treasure"},
+          {"c0": 11, "r0": 19, "c1": 12, "r1": 19, "field": "treasure"},
+          {"c0": 12, "r0": 11, "c1": 13, "r1": 11, "field": "treasure"},
+          {"c0": 12, "r0": 19, "c1": 13, "r1": 19, "field": "treasure"},
+          {"c0": 14, "r0": 11, "c1": 15, "r1": 11, "field": "treasure"},
+          {"c0": 14, "r0": 19, "c1": 15, "r1": 19, "field": "treasure"},
+          {"c0": 15, "r0": 11, "c1": 16, "r1": 11, "field": "treasure"},
+          {"c0": 15, "r0": 19, "c1": 16, "r1": 19, "field": "treasure"},
+          {"c0": 17, "r0": 11, "c1": 18, "r1": 11, "field": "treasure"},
+          {"c0": 17, "r0": 19, "c1": 18, "r1": 19, "field": "treasure"},
+          {"c0": 18, "r0": 11, "c1": 19, "r1": 11, "field": "treasure"},
+          {"c0": 18, "r0": 19, "c1": 19, "r1": 19, "field": "treasure"},
+          {"c0": 19, "r0": 11, "c1": 19, "r1": 12, "field": "treasure"},
+          {"c0": 19, "r0": 12, "c1": 19, "r1": 13, "field": "treasure"},
+          {"c0": 19, "r0": 14, "c1": 19, "r1": 15, "field": "treasure"},
+          {"c0": 19, "r0": 15, "c1": 19, "r1": 16, "field": "treasure"},
+          {"c0": 19, "r0": 17, "c1": 19, "r1": 18, "field": "treasure"},
+          {"c0": 19, "r0": 18, "c1": 19, "r1": 19, "field": "treasure"},
+          {"c0": 27, "r0": 14, "c1": 27, "r1": 15, "field": "basement"}
         ],
         "erasers": [],
         "light_bridges": [],
@@ -2225,10 +2225,10 @@
           {"c0": 30, "r0": 29, "c1": 30, "r1": 30, "all": "perimeter-wall"}
         ],
         "barriers": [
-          {"c0": 7, "r0": 21, "c1": 8, "r1": 21, "kind": "basement"},
-          {"c0": 9, "r0": 13, "c1": 9, "r1": 14, "kind": "lobby", "switch": "lobby"},
-          {"c0": 20, "r0": 8, "c1": 21, "r1": 8, "kind": "basement"},
-          {"c0": 22, "r0": 16, "c1": 22, "r1": 17, "kind": "lobby", "switch": "lobby"}
+          {"c0": 7, "r0": 21, "c1": 8, "r1": 21, "field": "basement"},
+          {"c0": 9, "r0": 13, "c1": 9, "r1": 14, "field": "lobby"},
+          {"c0": 20, "r0": 8, "c1": 21, "r1": 8, "field": "basement"},
+          {"c0": 22, "r0": 16, "c1": 22, "r1": 17, "field": "lobby"}
         ],
         "erasers": [],
         "light_bridges": [],
@@ -3589,10 +3589,10 @@
           {"c0": 25, "r0": 7, "c1": 25, "r1": 8, "all": "exterior-walls"}
         ],
         "barriers": [
-          {"c0": 7, "r0": 22, "c1": 7, "r1": 23, "kind": "gravity"},
-          {"c0": 7, "r0": 23, "c1": 8, "r1": 23, "kind": "gravity"},
-          {"c0": 22, "r0": 7, "c1": 23, "r1": 7, "kind": "gravity"},
-          {"c0": 23, "r0": 7, "c1": 23, "r1": 8, "kind": "gravity"}
+          {"c0": 7, "r0": 22, "c1": 7, "r1": 23, "field": "gravity"},
+          {"c0": 7, "r0": 23, "c1": 8, "r1": 23, "field": "gravity"},
+          {"c0": 22, "r0": 7, "c1": 23, "r1": 7, "field": "gravity"},
+          {"c0": 23, "r0": 7, "c1": 23, "r1": 8, "field": "gravity"}
         ],
         "erasers": [],
         "light_bridges": [],

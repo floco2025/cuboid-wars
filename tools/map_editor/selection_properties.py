@@ -360,7 +360,7 @@ class SelectionProperties(QDockWidget):
                         continue
                     if len(key) == 2:
                         entry[key[0]][key[1]] = value
-                    elif value is None and key[0] in ("switch", "kind", "until_checkpoint"):
+                    elif value is None and key[0] in ("switch", "field", "until_checkpoint"):
                         entry.pop(key[0], None)
                     else:
                         entry[key[0]] = value
@@ -373,7 +373,7 @@ class SelectionProperties(QDockWidget):
                     else:
                         entry.setdefault("on_checkpoint", "stop")
                 if ref.name == "items" and entry["type"] != "key":
-                    entry.pop("kind", None)
+                    entry.pop("field", None)
                 if ref.name == "checkpoints" and is_start(entry):
                     entry["type"] = START_CHECKPOINT_TYPE
             errors = self.window.added_issues(after)
@@ -426,9 +426,9 @@ class SelectionProperties(QDockWidget):
 
     def sync_dependencies(self):
         names = {ref.name for ref in self.targets()}
-        if names == {"items"} and ("kind",) in self.widgets:
-            kind = self.widgets[("type",)].currentData()
-            self.widgets[("kind",)].setEnabled(kind == "key" or kind is _MIXED)
+        if names == {"items"} and ("field",) in self.widgets:
+            item_type = self.widgets[("type",)].currentData()
+            self.widgets[("field",)].setEnabled(item_type == "key" or item_type is _MIXED)
         if ("on_checkpoint",) in self.widgets:
             until = self.widgets[("until_checkpoint",)].text().strip()
             self.widgets[("on_checkpoint",)].setEnabled(bool(until) and until.casefold() != "always")

@@ -10,7 +10,7 @@ from PySide6.QtCore import QEvent, QPoint, QSettings, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from config_fixtures import install_catalogs, map_kinds
+from config_fixtures import install_catalogs, map_fields
 from map_editor.constants import FACES, ITEM_TYPES, MODE_SELECT
 from map_editor.erase_tools import EraseMixin
 from map_editor.io import write_map
@@ -112,7 +112,7 @@ class EditorHost(
     """The editing mixins over a plain map, or over a `MapDocument` when a
     test needs the undo history of its edits."""
 
-    def __init__(self, map_data: dict | None, field_kinds: list[str], doc=None) -> None:
+    def __init__(self, map_data: dict | None, fields: list[str], doc=None) -> None:
         self.doc = doc
         self.selection = Selection()
         self.mode = MODE_SELECT
@@ -124,7 +124,7 @@ class EditorHost(
         self.sampled_materials = None
         self._map_data = map_data
         self.current_level = 0
-        self.field_kinds = field_kinds
+        self.fields = fields
         self.switches = ["barrier_1", "fireworks"]
         self.recent_pressure_plate_switch = "barrier_1"
         self.recent_actor_spawn_switch = ""
@@ -132,8 +132,6 @@ class EditorHost(
         self.recent_actor_spawn_levels = 1
         self.recent_actor_roam_distance = 0.0
         self.recent_actor_beam_in_secs = 0.0
-        self.recent_barrier_controls = {}
-        self.recent_bridge_controls = {}
         self.pickup_types = ITEM_TYPES
         self.canvas = StubCanvas()
         self.current_material = DEFAULT_ALIAS
@@ -189,7 +187,7 @@ class WindowTestCase(unittest.TestCase):
         install_catalogs(self, Path(self.temp.name))
         self.path = Path(self.temp.name) / "hotel" / "layout.json"
         data = empty_map(8, 8)
-        data.update(map_kinds("hotel"))
+        data.update(map_fields("hotel"))
         data["checkpoints"] = [start_checkpoint(7, 7)]
         data["levels"][0]["floors"] = [
             {"col": 1, "row": 1, "all": DEFAULT_ALIAS},

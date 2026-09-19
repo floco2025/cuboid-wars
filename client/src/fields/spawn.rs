@@ -1,7 +1,7 @@
 use bevy::{light::NotShadowCaster, prelude::*};
 use common::protocol::MapLayout;
 
-use super::{FieldMeshes, KindVisual, PaneVisual, VisualField, field_pane_mesh};
+use super::{FieldMeshes, FieldVisual, PaneVisual, VisualField, field_pane_mesh};
 use crate::{constants::FIELD_EDGE_FADE_WIDTH, materials::FieldMaterial};
 
 // An eraser: scaled unit panes and rails in one look.
@@ -27,7 +27,7 @@ pub(crate) fn spawn_field_visual(
 }
 
 // A barrier or bridge surface: one patterned pane mesh on the shared
-// field material, and the kind's rails. `root` is the surface entity's
+// field material, and the field's rails. `root` is the surface entity's
 // transform under its carrier, which the pane pattern coordinates follow.
 #[expect(
     clippy::too_many_arguments,
@@ -38,7 +38,7 @@ pub(crate) fn spawn_patterned_surface(
     meshes: &mut Assets<Mesh>,
     field_meshes: &FieldMeshes,
     surface: &Handle<FieldMaterial>,
-    visual: &KindVisual,
+    visual: &FieldVisual,
     panels: Vec<Rect>,
     frames: Vec<Rect>,
     center: Vec2,

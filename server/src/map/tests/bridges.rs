@@ -1,14 +1,14 @@
 use super::*;
 
-const SKY: FieldKindId = FieldKindId(0);
-const VOID: FieldKindId = FieldKindId(1);
+const SKY: FieldId = FieldId(0);
+const VOID: FieldId = FieldId(1);
 
-fn rect(c0: i32, r0: i32, c1: i32, r1: i32, kind: FieldKindId) -> BridgeRect {
-    BridgeRect { c0, r0, c1, r1, kind }
+fn rect(c0: i32, r0: i32, c1: i32, r1: i32, field: FieldId) -> BridgeRect {
+    BridgeRect { c0, r0, c1, r1, field }
 }
 
-fn cells(kind: FieldKindId, cells: &[(i32, i32)]) -> Vec<(i32, i32, FieldKindId)> {
-    cells.iter().map(|&(col, row)| (col, row, kind)).collect()
+fn cells(field: FieldId, cells: &[(i32, i32)]) -> Vec<(i32, i32, FieldId)> {
+    cells.iter().map(|&(col, row)| (col, row, field)).collect()
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn an_l_shape_becomes_two_rectangles() {
 }
 
 #[test]
-fn kinds_never_merge_into_one_rectangle() {
+fn fields_never_merge_into_one_rectangle() {
     let cells = [(0, 0, SKY), (1, 0, VOID)];
     assert_eq!(
         merge_light_bridges(&cells),

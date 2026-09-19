@@ -1,7 +1,7 @@
 use crate::config::fixtures;
 use std::fs;
 
-use common::protocol::FieldKindId;
+use common::protocol::FieldId;
 use rand::random;
 use serde_json::{Value, json};
 
@@ -26,7 +26,10 @@ impl TestMap {
                 {"id": "lobby", "activation": "toggle", "reset_on_player_death": "never"},
                 {"id": "fireworks", "activation": "momentary", "reset_on_player_death": "never"}
             ],
-            "field_kinds": [{"id": "lobby", "color": "#22cc33"}, {"id": "skyway", "color": "#30d8ff"}],
+            "fields": [
+                {"id": "lobby", "color": "#22cc33", "switch": "lobby"},
+                {"id": "skyway", "color": "#30d8ff", "initially_on": false}
+            ],
             "pressure_plates": [{"level": 0, "col": 1, "row": 0, "switch": "fireworks"}],
             "fireworks": {"switch": "fireworks", "cooldown_secs": 2.0}
         }});
@@ -144,9 +147,14 @@ fn the_layouts_catalogs_and_fireworks_fill_the_generated_map() {
     let ids: Vec<&str> = map.settings.switches.iter().map(|def| def.id.as_str()).collect();
     assert_eq!(ids, ["lobby", "fireworks"]);
     assert_eq!(map.switch_table.index_of("fireworks"), map.fireworks_switch);
-    let kinds: Vec<&str> = map.settings.field_kinds.iter().map(|def| def.id.as_str()).collect();
-    assert_eq!(kinds, ["lobby", "skyway"]);
-    assert_eq!(map.field_kinds.index_of("skyway"), Some(FieldKindId(1)));
+    let fields: Vec<_> = map
+        .settings
+        .fields
+        .iter()
+        .map(|def| (def.id.as_str(), def.switch.as_deref(), def.initially_on))
+        .collect();
+    assert_eq!(fields, [("lobby", Some("lobby"), true), ("skyway", None, false)]);
+    assert_eq!(map.fields.index_of("skyway"), Some(FieldId(1)));
     assert_eq!(
         map.fireworks.as_ref().map(|fireworks| fireworks.switch.as_str()),
         Some("fireworks")
@@ -154,16 +162,13 @@ fn the_layouts_catalogs_and_fireworks_fill_the_generated_map() {
 }
 
 #[test]
-fn duplicate_field_kinds_are_rejected_naming_the_layout() {
+fn duplicate_fields_are_rejected_naming_the_layout() {
     let hotel = TestMap::new(|map| {
-        let lobby = map["field_kinds"][0].clone();
-        map["field_kinds"]
-            .as_array_mut()
-            .expect("field_kinds is an array")
-            .push(lobby);
+        let lobby = map["fields"][0].clone();
+        map["fields"].as_array_mut().expect("fields is an array").push(lobby);
     });
     let error = hotel.error();
-    assert!(error.contains("field_kinds") && error.contains("duplicate"), "{error}");
+    assert!(error.contains("fields") && error.contains("duplicate"), "{error}");
     assert!(error.contains("layout.json"), "{error}");
 }
 

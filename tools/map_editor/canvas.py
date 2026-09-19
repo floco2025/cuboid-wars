@@ -16,6 +16,7 @@ from .constants import (
     MODE_PORTAL_JUMP,
     MODE_WALL_MATERIAL,
 )
+from .catalogs import field_entries
 from .display import materials_summary
 from .hover import element_hover_text
 from .geometry import (
@@ -273,7 +274,8 @@ class Canvas(CanvasPaintingMixin, QWidget):
 
     def _element_hover_text(self, pos) -> str | None:
         hit = self.window.hit_at(self.grid_position(pos))
-        return element_hover_text(self.window.map_data, self.window.current_level, hit)
+        fields = {entry["id"]: entry for entry in field_entries(self.window.doc.root_data)}
+        return element_hover_text(self.window.map_data, self.window.current_level, hit, fields)
 
     def _update_material_hover(self, pos) -> None:
         level_idx = self.window.current_level

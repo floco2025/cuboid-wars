@@ -1,6 +1,6 @@
 use bincode::{Decode, Encode};
 
-use super::FieldKindId;
+use super::FieldId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 pub enum ItemType {
@@ -17,15 +17,15 @@ pub enum ItemType {
     SpeedPowerUp,
     LowGravityPowerUp,
     Gold,
-    // Key, parameterized by the field kind it eventually unlocks. Placed
+    // Key, parameterized by the field it eventually unlocks. Placed
     // in the map's `items` list; once collected, the kind enters the
     // player's permanent inventory.
-    Key(FieldKindId),
+    Key(FieldId),
 }
 
 impl ItemType {
     // Config id of the key variant. `from_config_id` deliberately rejects
-    // it — a key needs a field kind, which a bare config string can't
+    // it — a key needs a field, which a bare config string can't
     // carry — so key-accepting parsers must check this id themselves.
     pub const KEY_CONFIG_ID: &'static str = "key";
 

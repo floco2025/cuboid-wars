@@ -1,14 +1,10 @@
 use super::*;
-use common::protocol::{CarrierId, FieldKindId};
+use common::protocol::{CarrierId, FieldId};
 
 const PAD: f32 = 0.25;
 
 fn bridge(x1: f32, z1: f32, kind: u16) -> LightBridge {
     LightBridge {
-        id: Default::default(),
-        switch: None,
-        initially_on: true,
-
         x1,
         x2: x1 + 4.0,
         z1,
@@ -16,7 +12,7 @@ fn bridge(x1: f32, z1: f32, kind: u16) -> LightBridge {
         y: 4.0,
         thickness: 0.1,
         level: 1,
-        kind: FieldKindId(kind),
+        field: FieldId(kind),
         carrier: CarrierId::WORLD,
     }
 }
@@ -125,7 +121,7 @@ fn every_two_by_two_arrangement_has_no_gaps_overlaps_or_stolen_cores() {
                 if !floor_here {
                     for core in &cores {
                         if contains(core.bounds_xz(), x, z) {
-                            assert_eq!(covering[0].kind, core.kind, "a neighbour took another kind's core");
+                            assert_eq!(covering[0].field, core.field, "a neighbour took another field's core");
                         }
                     }
                 }

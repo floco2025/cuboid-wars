@@ -19,7 +19,7 @@ use crate::{
 use common::{
     celestial::{CelestialClockAnchor, CelestialCycleSettings, LocalTime},
     protocol::{
-        FieldKindId, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope, SPlayerStatus,
+        FieldId, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope, SPlayerStatus,
         ServerMessage,
     },
 };
@@ -225,9 +225,9 @@ pub(super) fn run_admin_command(
                 return Private("sender not found".to_owned());
             };
             let mut added = 0usize;
-            for index in 0..admin.key_kind_table.len() {
+            for index in 0..admin.field_table.len() {
                 if let Ok(kind) = u16::try_from(index)
-                    && info.add_key(FieldKindId(kind))
+                    && info.add_key(FieldId(kind))
                 {
                     added += 1;
                 }
@@ -236,7 +236,7 @@ pub(super) fn run_admin_command(
             broadcast_to_all(players, ServerMessage::PlayerStatus(status));
             Private(format!("gave {added} key(s)"))
         }
-        AdminCommand::GiveKey(color) => match admin.key_kind_table.index_of(&color) {
+        AdminCommand::GiveKey(color) => match admin.field_table.index_of(&color) {
             Some(kind) => {
                 let Some(info) = players.get_mut(&sender) else {
                     return Private("sender not found".to_owned());
@@ -253,7 +253,7 @@ pub(super) fn run_admin_command(
             }
             None => Private(format!(
                 "unknown key color {color:?} (colors: {})",
-                admin.key_kind_table.ids().join(", ")
+                admin.field_table.ids().join(", ")
             )),
         },
         AdminCommand::GivePowerups => {

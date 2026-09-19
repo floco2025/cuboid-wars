@@ -27,7 +27,7 @@ pub struct ItemAnimTimer(pub f32);
 // ============================================================================
 
 // Shared mesh and material handles let Bevy batch repeated pickups.
-// Keys live on `FieldAssets` because their colors come from field kinds.
+// Keys live on `FieldAssets` because their colors come from their fields.
 #[derive(Resource)]
 pub struct ItemAssets {
     coin: CoinAssets,
@@ -101,7 +101,7 @@ pub fn setup_item_assets(
 // Item Spawning
 // ============================================================================
 
-// Keys use their field kind’s color instead of a fixed item color.
+// Keys use their field’s color instead of a fixed item color.
 #[must_use]
 pub fn item_type_color(item_type: ItemType) -> Color {
     match item_type {

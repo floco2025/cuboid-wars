@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::protocol::{FieldKindId, ItemType};
+use common::protocol::{FieldId, ItemType};
 
 use crate::items::{item_symbol_image, item_symbol_image_cropped};
 
@@ -25,7 +25,7 @@ impl FromWorld for HudShapeAssets {
             low_gravity: images.add(item_symbol_image(ItemType::LowGravityPowerUp)),
             // Upright silhouettes in height-sized slots.
             missile: images.add(item_symbol_image_cropped(ItemType::MissilePack)),
-            key: images.add(item_symbol_image_cropped(ItemType::Key(FieldKindId(0)))),
+            key: images.add(item_symbol_image_cropped(ItemType::Key(FieldId(0)))),
         }
     }
 }

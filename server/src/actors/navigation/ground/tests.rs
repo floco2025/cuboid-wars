@@ -3,7 +3,7 @@ use std::collections::{HashSet, VecDeque};
 use common::{
     map::{CarrierPose, Grounds, GroundsSettings},
     physics::CollisionWorld,
-    protocol::{BarrierId, BridgeId, CarrierId, FieldId, MapLayout, Position, Wall},
+    protocol::{CarrierId, FieldId, MapLayout, Position, Wall},
 };
 
 use super::{NavGraph, NavGraphs, NavNode};
@@ -76,7 +76,7 @@ fn bridge_strip_nav() -> NavGraph {
     cells.rows[0][0].has_floor = true;
     cells.rows[4][0].has_floor = true;
     for row in 1..4 {
-        cells.rows[row][0].bridge = Some(BridgeId(7));
+        cells.rows[row][0].bridge = Some(FieldId(7));
     }
     nav_for(MapConfig::for_grid(
         vec![level(cells, EdgeGrid::new(1, 5))],
@@ -97,13 +97,13 @@ fn routes_cross_a_bridge_only_while_it_is_solid() {
     let path = path_to_spawn_zone(&nav, &start, &far_end).expect("a fresh graph walks every bridge");
     assert_eq!(path.len(), 4, "one leg per bridge cell and one onto the far floor");
 
-    nav.set_open_fields(&[FieldId::Bridge(BridgeId(7))]);
+    nav.set_open_fields(&[FieldId(7)]);
     assert!(
         path_to_spawn_zone(&nav, &start, &far_end).is_none(),
         "a bridge that is off is a gap"
     );
 
-    nav.set_open_fields(&[FieldId::Barrier(BarrierId(7))]);
+    nav.set_open_fields(&[FieldId(8)]);
     assert_eq!(
         path_to_spawn_zone(&nav, &start, &far_end).map(|path| path.len()),
         Some(4)
@@ -125,7 +125,7 @@ fn a_bridge_cell_counts_as_lost_only_while_it_is_off() {
     };
     assert!(!nav.position_over_open_bridge(&on_bridge));
 
-    nav.set_open_fields(&[FieldId::Bridge(BridgeId(7))]);
+    nav.set_open_fields(&[FieldId(7)]);
     assert!(nav.position_over_open_bridge(&on_bridge));
     assert!(!nav.position_over_open_bridge(&on_floor));
 }

@@ -1,7 +1,7 @@
 use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::*;
-use common::protocol::{Barrier, BarrierId, CarrierId, Eraser, FieldKindId, Floor, MapLayout, SwitchId};
+use common::protocol::{Barrier, CarrierId, Eraser, FieldId, Floor, MapLayout};
 
 use super::surface::{clip_surface_rects, floor_bounds, surface_frame_rects};
 
@@ -9,11 +9,8 @@ const MERGE_EPSILON: f32 = 1e-4;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct VisualField {
-    // One of the barriers a merged pane covers; they all share its kind and controls.
-    pub barrier: Option<BarrierId>,
-    pub kind: Option<FieldKindId>,
-    pub switch: Option<SwitchId>,
-    pub initially_on: bool,
+    // The field a barrier pane belongs to; an eraser pane has none.
+    pub field: Option<FieldId>,
     pub carrier: CarrierId,
     pub level: u8,
     pub levels: u8,
@@ -30,10 +27,7 @@ impl VisualField {
             Vec3::new(barrier.x2, barrier.y + barrier.height, barrier.z2),
         );
         Self {
-            barrier: Some(barrier.id),
-            kind: Some(barrier.kind),
-            switch: barrier.switch,
-            initially_on: barrier.initially_on,
+            field: Some(barrier.field),
             carrier: barrier.carrier,
             level: barrier.level,
             levels: barrier.levels,
@@ -51,10 +45,7 @@ impl VisualField {
             Vec3::new(eraser.x2, eraser.y + eraser.height - floor_thickness, eraser.z2),
         );
         Self {
-            barrier: None,
-            kind: None,
-            switch: None,
-            initially_on: true,
+            field: None,
             carrier: eraser.carrier,
             level: eraser.level,
             levels: 1,
@@ -94,9 +85,7 @@ impl VisualField {
     }
 
     fn can_merge(&self, other: &Self, floors: &[Floor], floor_thickness: f32, stack: bool) -> bool {
-        if self.kind != other.kind
-            || self.switch != other.switch
-            || self.initially_on != other.initially_on
+        if self.field != other.field
             || self.carrier != other.carrier
             || self.axis != other.axis
             || !near(self.plane, other.plane)

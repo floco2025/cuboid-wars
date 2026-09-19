@@ -9,24 +9,28 @@ use crate::{
 
 const FIELD_FADE_SNAP: f32 = 0.002;
 
-// The pane material of every spawned barrier field and bridge surface group,
-// each keyed by one member whose state stands for the whole surface.
+// The pane material of every spawned barrier and bridge surface, each fading
+// with its field.
 #[derive(Resource, Default)]
 pub struct FieldSurfaces(pub(crate) Vec<FieldSurface>);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldPiece {
+    Barrier,
+    Bridge,
+}
+
 pub struct FieldSurface {
-    pub state: FieldId,
+    pub field: FieldId,
+    pub piece: FieldPiece,
     pub material: Handle<FieldMaterial>,
     pub base_color: Color,
 }
 
 impl FieldSurfaces {
-    pub fn forget_barriers(&mut self) {
-        self.0.retain(|surface| !matches!(surface.state, FieldId::Barrier(_)));
-    }
-
-    pub fn forget_bridges(&mut self) {
-        self.0.retain(|surface| !matches!(surface.state, FieldId::Bridge(_)));
+    // A respawn of one kind of piece replaces its surfaces and keeps the other's.
+    pub fn forget(&mut self, piece: FieldPiece) {
+        self.0.retain(|surface| surface.piece != piece);
     }
 }
 
@@ -47,7 +51,7 @@ pub(crate) fn fields_fade_system(
         };
         let Some(next) = fade_step(
             alpha,
-            fade_target(&switch_state, surface.state, config),
+            fade_target(&switch_state, surface.field, config),
             time.delta_secs(),
             config.fade_secs,
         ) else {
@@ -62,8 +66,8 @@ pub(crate) fn fields_fade_system(
 }
 
 // A field that is on shows at `opacity`, one that is off at `passable_opacity`.
-pub(crate) fn fade_target(switch_state: &SwitchState, state: FieldId, config: FieldVfxConfig) -> f32 {
-    if switch_state.open_fields.contains(&state) {
+pub(crate) fn fade_target(switch_state: &SwitchState, field: FieldId, config: FieldVfxConfig) -> f32 {
+    if switch_state.open_fields.contains(&field) {
         config.passable_opacity
     } else {
         config.opacity

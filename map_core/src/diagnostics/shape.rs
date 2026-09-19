@@ -45,7 +45,7 @@ pub(super) fn validate(data: &Value) -> Vec<Issue> {
         let mut source = data.clone();
         // Nested geometries are checked independently with their own locations.
         if let Some(object) = source.as_object_mut() {
-            for field in ["nested_geometry", "switches", "field_kinds", "fireworks"] {
+            for field in ["nested_geometry", "switches", "fields", "fireworks"] {
                 object.remove(field);
             }
         }

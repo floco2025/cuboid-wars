@@ -12,8 +12,8 @@ use crate::{
 };
 
 use super::{
-    BarrierId, BridgeId, CarrierId, FieldKindId, FieldKindTable, ItemType, KindDef, Position, SwitchDef, SwitchId,
-    face_materials::FaceMaterials, textures::TextureSettings,
+    CarrierId, FieldDef, FieldId, FieldTable, ItemType, Position, SwitchDef, SwitchId, face_materials::FaceMaterials,
+    textures::TextureSettings,
 };
 
 // Layout records are in their carrier's frame: world space for
@@ -134,16 +134,12 @@ pub struct WallLight {
     pub carrier: CarrierId,
 }
 
-// `levels` counts the storeys spanned: stacked same-kind barriers with no
+// One piece of its `field`, on a grid edge: solid while the field is on.
+// `levels` counts the storeys spanned: stacked barriers of one field with no
 // floor slab beside the edge between them compile into one record
-// (`server/src/map/barriers.rs`). `initially_on` is its state before any
-// switch input: solid when set, and its switch flips it while active.
+// (`server/src/map/barriers.rs`).
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Barrier {
-    pub id: BarrierId,
-    pub switch: Option<SwitchId>,
-    pub initially_on: bool,
-
     pub x1: f32,
     pub z1: f32,
     pub x2: f32,
@@ -153,7 +149,7 @@ pub struct Barrier {
     pub height: f32,
     pub level: u8,
     pub levels: u8,
-    pub kind: FieldKindId,
+    pub field: FieldId,
     pub carrier: CarrierId,
 }
 
@@ -170,15 +166,11 @@ pub struct Eraser {
     pub carrier: CarrierId,
 }
 
-// A barrier laid flat: one merged rectangle of same-kind cells, a thin slab
-// whose standing surface is `y`. Solid and lit while it is on, a ghost while
-// it is off (`SwitchState.open_fields`); `initially_on` and `switch` read as
-// on a barrier.
+// A barrier laid flat: one merged rectangle of cells of one `field`, a thin
+// slab whose standing surface is `y`, solid and lit while the field is on
+// and a ghost while it is off.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct LightBridge {
-    pub id: BridgeId,
-    pub switch: Option<SwitchId>,
-    pub initially_on: bool,
     pub x1: f32,
     pub z1: f32,
     pub x2: f32,
@@ -186,7 +178,7 @@ pub struct LightBridge {
     pub y: f32,
     pub thickness: f32,
     pub level: u8,
-    pub kind: FieldKindId,
+    pub field: FieldId,
     pub carrier: CarrierId,
 }
 
@@ -415,13 +407,13 @@ pub struct MapSettings {
 
     // The root layout's ordered catalogs, filled by map generation rather
     // than read from settings.json: `switches` assigns this map's stable
-    // `SwitchId` values, each with its activation policy; `field_kinds` its
-    // `FieldKindId` values, shared by barriers, light bridges, and keys.
+    // `SwitchId` values, each with its activation policy; `fields` its
+    // `FieldId` values, each with its colour, switch, and initial state.
     // Each is empty when the map has none.
     #[serde(skip)]
     pub switches: Vec<SwitchDef>,
     #[serde(skip)]
-    pub field_kinds: Vec<KindDef>,
+    pub fields: Vec<FieldDef>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
@@ -441,7 +433,7 @@ impl MapItems {
     }
 
     #[must_use]
-    pub fn key_kinds(&self) -> Vec<FieldKindId> {
+    pub fn key_fields(&self) -> Vec<FieldId> {
         let mut kinds: Vec<_> = self
             .0
             .iter()
@@ -457,8 +449,8 @@ impl MapItems {
 }
 
 impl MapSettings {
-    pub fn field_kind_table(&self) -> Result<FieldKindTable> {
-        FieldKindTable::from_defs(&self.field_kinds)
+    pub fn field_table(&self) -> Result<FieldTable> {
+        FieldTable::from_field_defs(&self.fields)
     }
 
     #[must_use]

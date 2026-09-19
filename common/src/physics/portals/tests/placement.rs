@@ -3,10 +3,7 @@ use std::f32::consts::FRAC_PI_2;
 use super::*;
 use crate::{
     constants::PORTAL_LIGHT_CLEARANCE,
-    protocol::{
-        Barrier, BarrierId, BridgeId, FieldKindId, LightBridge, PressurePlate, RampDirection, RampShape, SwitchId,
-        WallLight,
-    },
+    protocol::{Barrier, FieldId, LightBridge, PressurePlate, RampDirection, RampShape, SwitchId, WallLight},
     test_geometry::{BARRIER_THICKNESS, BRIDGE_THICKNESS},
 };
 
@@ -22,11 +19,6 @@ fn placement_accepts_a_clear_wall_center() {
 fn opening_a_barrier_exposes_a_fitting_portal_surface_behind_it() {
     let mut layout = placement_layout();
     layout.barriers.push(Barrier {
-        id: Default::default(),
-
-        switch: None,
-        initially_on: true,
-
         x1: -6.0,
         z1: 2.0,
         x2: 6.0,
@@ -36,15 +28,11 @@ fn opening_a_barrier_exposes_a_fitting_portal_surface_behind_it() {
         height: WALL_HEIGHT,
         level: 0,
         levels: 1,
-        kind: FieldKindId(0),
+        field: FieldId(0),
         carrier: CarrierId::WORLD,
     });
     let world = CollisionWorld::from_map_layout(&layout);
-    for open in [
-        vec![],
-        vec![FieldId::Barrier(BarrierId(1))],
-        vec![FieldId::Barrier(BarrierId(0))],
-    ] {
+    for open in [vec![], vec![FieldId(1)], vec![FieldId(0)]] {
         let placement = place_on_geometry(
             Vec3::new(0.0, 1.6, 4.0),
             Vec3::NEG_Z,
@@ -55,7 +43,7 @@ fn opening_a_barrier_exposes_a_fitting_portal_surface_behind_it() {
             &Carriers::default(),
             &open,
         );
-        assert_eq!(placement.is_some(), open.contains(&FieldId::Barrier(BarrierId(0))));
+        assert_eq!(placement.is_some(), open.contains(&FieldId(0)));
         if let Some(placement) = placement {
             assert!((placement.pos.z - WALL_THICKNESS / 2.0).abs() < 1e-4);
             assert!(placement.normal.abs_diff_eq(Vec3::Z, 1e-4));
@@ -86,10 +74,6 @@ fn bridge_power_controls_portal_placement_on_the_floor_and_ceiling_beyond_it() {
             },
         ],
         light_bridges: vec![LightBridge {
-            id: Default::default(),
-            switch: None,
-            initially_on: true,
-
             x1: -3.0,
             z1: -3.0,
             x2: 3.0,
@@ -97,14 +81,14 @@ fn bridge_power_controls_portal_placement_on_the_floor_and_ceiling_beyond_it() {
             y: LEVEL_HEIGHT,
             thickness: BRIDGE_THICKNESS,
             level: 1,
-            kind: FieldKindId(0),
+            field: FieldId(0),
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
     let world = CollisionWorld::from_map_layout(&layout);
     for solid in [false, true] {
-        let open: &[FieldId] = if solid { &[] } else { &[FieldId::Bridge(BridgeId(0))] };
+        let open: &[FieldId] = if solid { &[] } else { &[FieldId(0)] };
         for (origin_y, direction, surface_y) in [
             (LEVEL_HEIGHT + 1.5, Vec3::NEG_Y, 0.0),
             (LEVEL_HEIGHT - 1.5, Vec3::Y, ceiling_y - FLOOR_THICKNESS),
@@ -506,17 +490,13 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
         carrier: CarrierId::WORLD,
     });
     layout.light_bridges.push(LightBridge {
-        id: Default::default(),
-        switch: None,
-        initially_on: true,
-
         x1: -6.0,
         z1: 0.0,
         x2: 6.0,
         z2: 4.0,
         y: LEVEL_HEIGHT,
         level: 1,
-        kind: FieldKindId(0),
+        field: FieldId(0),
         thickness: BRIDGE_THICKNESS,
         carrier: CarrierId::WORLD,
     });
@@ -536,7 +516,7 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
         )
     };
 
-    let ghost = shoot(&[FieldId::Bridge(BridgeId(0))]).expect("a bridge that is off blocked the shot");
+    let ghost = shoot(&[FieldId(0)]).expect("a bridge that is off blocked the shot");
     assert!(
         (ghost.pos.y - aim.y).abs() < 1e-3,
         "ghost bridge moved the portal to {ghost:?}"

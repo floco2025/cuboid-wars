@@ -23,7 +23,7 @@ pub fn prepare_source(mut root: MapDef) -> Result<MapSource> {
     let context = json!({
         "typed_source": true,
         "switches": root.switches.iter().map(|entry| &entry.id).collect::<Vec<_>>(),
-        "field_kinds": root.field_kinds.iter().map(|entry| &entry.id).collect::<Vec<_>>(),
+        "fields": root.fields.iter().map(|entry| &entry.id).collect::<Vec<_>>(),
     });
     let (warnings, errors): (Vec<_>, Vec<_>) = diagnostics::validate_document(&source, &context)
         .into_iter()
@@ -39,7 +39,7 @@ pub fn prepare_source(mut root: MapDef) -> Result<MapSource> {
     }
     let used = diagnostics::placed_definitions(&source, &source["nested_geometry"]);
     let switches = mem::take(&mut root.switches);
-    let field_kinds = mem::take(&mut root.field_kinds);
+    let fields = mem::take(&mut root.fields);
     let fireworks = root.fireworks.take();
     let mut nested_geometry = mem::take(&mut root.nested_geometry);
     canonicalize(&mut root);
@@ -52,7 +52,7 @@ pub fn prepare_source(mut root: MapDef) -> Result<MapSource> {
         geometry: root,
         nested_geometry,
         switches,
-        field_kinds,
+        fields,
         fireworks,
         warnings: warnings.into_iter().map(|issue| issue.message).collect(),
     })

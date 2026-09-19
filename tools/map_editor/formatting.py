@@ -66,7 +66,7 @@ def _pressure_plate_body(plate: dict) -> str:
     return _inline_object_body(body)
 
 
-# A kind catalog, one entry per line; a catalog holding something other
+# A catalog with one entry per line; a catalog holding something other
 # than objects is kept verbatim for repair.
 def _catalog_lines(key: str, entries) -> list[str]:
     if isinstance(entries, list) and all(isinstance(entry, dict) for entry in entries):
@@ -79,8 +79,8 @@ def format_map_file(wrapper: dict, *, root: bool = True) -> str:
     lines = ["{", '  "map": {']
     if "switches" in map_data:
         lines.append(f'    "switches": {json.dumps(map_data["switches"])},')
-    if "field_kinds" in map_data:
-        lines.extend(_catalog_lines("field_kinds", map_data["field_kinds"]))
+    if "fields" in map_data:
+        lines.extend(_catalog_lines("fields", map_data["fields"]))
     if root or "fireworks" in map_data:
         lines.append(f'    "fireworks": {json.dumps(map_data.get("fireworks"))},')
     lines += [
@@ -183,8 +183,8 @@ def _light_body(light: dict) -> str:
 
 def _item_body(item: dict) -> str:
     body = {"level": item["level"], "col": item["col"], "row": item["row"], "type": item["type"]}
-    if "kind" in item:
-        body["kind"] = item["kind"]
+    if "field" in item:
+        body["field"] = item["field"]
     return _inline_object_body(body)
 
 
@@ -218,21 +218,11 @@ def _nested_map_body(entry: dict) -> str:
 
 
 def _barrier_body(barrier: dict) -> str:
-    body = {
-        "c0": barrier["c0"],
-        "r0": barrier["r0"],
-        "c1": barrier["c1"],
-        "r1": barrier["r1"],
-        "kind": barrier["kind"],
-        **control_fields(barrier),
-    }
-    return _inline_object_body(body)
+    return _inline_object_body({key: barrier[key] for key in ("c0", "r0", "c1", "r1", "field")})
 
 
 def _light_bridge_body(bridge: dict) -> str:
-    return _inline_object_body(
-        {"col": bridge["col"], "row": bridge["row"], "kind": bridge["kind"], **control_fields(bridge)}
-    )
+    return _inline_object_body({key: bridge[key] for key in ("col", "row", "field")})
 
 
 def _inline_object_body(body: dict) -> str:

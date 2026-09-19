@@ -22,8 +22,8 @@ from map_editor.constants import (
 from map_editor.erasing import erase_hit
 from map_editor.normalization import empty_level, empty_map
 
-KIND = "treasure"
-BRIDGE_KIND = "skyway"
+FIELD = "treasure"
+BRIDGE_FIELD = "skyway"
 
 
 def wall(c0: int, r0: int, c1: int, r1: int) -> dict:
@@ -44,7 +44,7 @@ class LayerEraserTests(unittest.TestCase):
         level["floors"] = [floor(0, 0), floor(1, 0), floor(3, 3)]
         level["inaccessible_floors"] = [floor(0, 1)]
         level["walls"] = [wall(0, 0, 1, 0), wall(3, 3, 4, 3)]
-        level["barriers"] = [{**wall(1, 0, 1, 1), "kind": KIND}]
+        level["barriers"] = [{"c0": 1, "r0": 0, "c1": 1, "r1": 1, "field": FIELD}]
         data["ramps"] = [
             {"cols": [0, 1], "rows": [2, 4], "direction": "S", "lower_level": 0, **faces()},
             {"cols": [2, 3], "rows": [0, 1], "direction": "S", "lower_level": 1, **faces()},
@@ -53,7 +53,7 @@ class LayerEraserTests(unittest.TestCase):
         data["checkpoints"] = [start_checkpoint(3, 3)]
         data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "gold"}]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 0, "type": "firework"}]
-        return EditorHost(data, [BRIDGE_KIND])
+        return EditorHost(data, [BRIDGE_FIELD])
 
     def test_erase_floors_removes_only_floors_in_the_rectangle(self) -> None:
         host = self.host()
@@ -167,21 +167,21 @@ class LayerEraserTests(unittest.TestCase):
         data = empty_map(3, 3)
         level = data["levels"][0]
         level["floors"] = [floor(0, 0)]
-        level["light_bridges"] = [{"col": 1, "row": 0, "kind": BRIDGE_KIND}]
+        level["light_bridges"] = [{"col": 1, "row": 0, "field": BRIDGE_FIELD}]
         level["walls"] = [{"c0": 1, "r0": 0, "c1": 2, "r1": 0, **faces()}]
-        host = EditorHost(data, [BRIDGE_KIND])
+        host = EditorHost(data, [BRIDGE_FIELD])
 
         host.erase_cell_rect((0, 0), (2, 2), preserve_floors=True)
 
         level = host.map_data["levels"][0]
         self.assertEqual(level["walls"], [])
         self.assertEqual(level["floors"], [floor(0, 0)])
-        self.assertEqual(level["light_bridges"], [{"col": 1, "row": 0, "kind": BRIDGE_KIND}])
+        self.assertEqual(level["light_bridges"], [{"col": 1, "row": 0, "field": BRIDGE_FIELD}])
 
         bridge_center = QPointF(1.5, 0.5)
         self.assertEqual(host.hit_at(bridge_center), (HIT_LIGHT_BRIDGE, (1, 0)))
         host.erase_at(bridge_center, preserve_floors=True)
-        self.assertEqual(host.map_data["levels"][0]["light_bridges"], [{"col": 1, "row": 0, "kind": BRIDGE_KIND}])
+        self.assertEqual(host.map_data["levels"][0]["light_bridges"], [{"col": 1, "row": 0, "field": BRIDGE_FIELD}])
 
         host.erase_at(bridge_center, preserve_floors=False)
         self.assertEqual(host.map_data["levels"][0]["light_bridges"], [])

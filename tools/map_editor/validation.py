@@ -58,7 +58,7 @@ def plated_switches(geometries: list[dict]) -> set[str]:
 
 def validate_map(
     map_data: dict,
-    field_kinds: list[str],
+    fields: list[str],
     *,
     switches: list[str] | None = None,
     plated_switches: set[str] | None = None,
@@ -70,7 +70,7 @@ def validate_map(
     checkpoint_numbers: set[int] | None = None,
 ) -> ValidationErrors:
     context = dict(
-        field_kinds=field_kinds,
+        fields=fields,
         switches=switches,
         plated_switches=plated_switches,
         map_name=map_name,
@@ -95,7 +95,7 @@ def validate_document(
             "validate_document",
             root,
             dict(
-                field_kinds=list(catalogs.field_kind_colors),
+                fields=list(catalogs.field_colors),
                 switches=list(catalogs.switches),
                 material_aliases=list(catalogs.texture_catalog),
                 pickup_types=list(catalogs.pickup_types),

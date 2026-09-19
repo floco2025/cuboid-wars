@@ -3,7 +3,7 @@ use bevy::prelude::Resource;
 
 use common::{
     map::MapGeometry,
-    protocol::{BridgeId, CarrierId, ItemType, MapItems, SwitchId, SwitchState},
+    protocol::{CarrierId, FieldId, ItemType, MapItems, SwitchId, SwitchState},
 };
 
 // The selected map's fireworks switch and cooldown, `None` when no switch
@@ -28,7 +28,7 @@ pub struct Cell {
     pub has_floor_above: bool,
     pub ramp_base: Option<CellSide>,
     pub ramp_top: Option<CellSide>,
-    pub bridge: Option<BridgeId>,
+    pub bridge: Option<FieldId>,
 }
 
 impl Cell {
@@ -194,7 +194,7 @@ pub(crate) fn zone_cells(cols: [i32; 2], rows: [i32; 2]) -> impl Iterator<Item =
 }
 
 // Map-authored item placement, compiled from the map's `items` list with
-// key kinds already resolved against the `FieldKindTable`. The cell is in
+// key kinds already resolved against the `FieldTable`. The cell is in
 // its carrier's grid.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlacedItem {

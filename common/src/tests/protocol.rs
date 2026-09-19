@@ -14,7 +14,7 @@ fn position() -> Position {
 }
 
 fn barrier_kind_cap() -> u16 {
-    u16::try_from(FieldKindId::MAX.expect("barrier kind datagram cap missing")).expect("barrier kind cap exceeds u16")
+    u16::try_from(FieldId::MAX.expect("barrier kind datagram cap missing")).expect("barrier kind cap exceeds u16")
 }
 
 #[test]
@@ -39,7 +39,7 @@ fn unreliable_lane_messages_fit_one_packet() {
             collected: Some(ItemType::SpeedPowerUp),
             power_ups: [true; PowerUpKind::COUNT],
             stunned: true,
-            held_keys: (0..barrier_kind_cap()).map(FieldKindId).collect(),
+            held_keys: (0..barrier_kind_cap()).map(FieldId).collect(),
             missiles: 0,
         }),
         ServerMessage::PortalOpened(SPortalOpened {

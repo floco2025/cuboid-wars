@@ -1,13 +1,4 @@
-from PySide6.QtWidgets import (
-    QComboBox,
-    QDialog,
-    QDialogButtonBox,
-    QDoubleSpinBox,
-    QFormLayout,
-    QSpinBox,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QFormLayout, QSpinBox, QWidget
 
 from ..constants import CHECKPOINT_RESPONSE_LABELS, INITIAL_STATE, INITIAL_STATE_LABELS
 from ..display import color_icon
@@ -65,15 +56,13 @@ class BeamInSpinBox(QDoubleSpinBox):
         return self.value()
 
 
-def choice(values, current, *, optional=False, mixed=False, colors=None):
+def choice(values, current, *, optional=False, colors=None):
     box = QComboBox()
-    if mixed:
-        box.addItem("Mixed / leave unchanged", None)
     if optional:
         box.addItem("(none)", "")
     for value in values:
         box.addItem(color_icon((colors or {}).get(value)), value, value)
-    wanted = "" if current is None and not mixed else current
+    wanted = current or ""
     index = box.findData(wanted)
     if index < 0 and wanted:
         box.addItem(f"{wanted} (missing)", wanted)
@@ -121,16 +110,10 @@ class SwitchControl(QWidget):
     """A switch target's controls: its state before any switch input, and
     the switch that flips that state while active, if any."""
 
-    def __init__(self, switches, current=None, initially_on=True, *, mixed=False, state_mixed=False, colors=None):
+    def __init__(self, switches, current=None, initially_on=True):
         super().__init__()
-        self.mixed = mixed
-        self.initial = (None if mixed else current or None, None if state_mixed else initially_on)
-        self.switch = choice(switches, current, optional=True, mixed=mixed, colors=colors)
-        self.initially_on = choice(
-            INITIAL_STATE_LABELS.values(),
-            None if state_mixed else INITIAL_STATE_LABELS[initially_on is not False],
-            mixed=state_mixed,
-        )
+        self.switch = choice(switches, current, optional=True)
+        self.initially_on = choice(INITIAL_STATE_LABELS.values(), INITIAL_STATE_LABELS[initially_on is not False])
         form = QFormLayout(self)
         form.setContentsMargins(0, 0, 0, 0)
         form.addRow("Switch:", self.switch)
@@ -139,56 +122,3 @@ class SwitchControl(QWidget):
     def state(self):
         """The selected switch, `None` for none, and whether the target starts on."""
         return self.switch.currentData() or None, self.initially_on.currentData() != INITIAL_STATE_LABELS[False]
-
-    def values(self):
-        """What changed from the initial selection: `switch` None clears the
-        assignment, an absent key leaves the records' value alone."""
-        switch, initially_on = self.state()
-        initial_switch, initial_state = self.initial
-        result = {}
-        if self.switch.currentData() == "":
-            if self.mixed or initial_switch is not None:
-                result["switch"] = None
-        elif switch is not None and switch != initial_switch:
-            result["switch"] = switch
-        if self.initially_on.currentData() is not None and initially_on != initial_state:
-            result["initially_on"] = initially_on
-        return result
-
-
-class FieldPropertiesDialog(QDialog):
-    def __init__(self, parent, title, kinds, switches, entries, *, kind_colors=None, switch_colors=None):
-        super().__init__(parent)
-        self.setWindowTitle(title)
-
-        def initial(field, default=None):
-            values = {entry.get(field, default) for entry in entries}
-            return (next(iter(values)), False) if len(values) == 1 else (None, True)
-
-        appearance, mixed = initial("kind")
-        self.appearance = choice(kinds, appearance, mixed=mixed, colors=kind_colors)
-        switch, mixed = initial("switch")
-        initially_on, state_mixed = initial("initially_on", True)
-        self.control = SwitchControl(
-            switches, switch, initially_on, mixed=mixed, state_mixed=state_mixed, colors=switch_colors
-        )
-        form = QFormLayout()
-        form.addRow("Appearance kind:", self.appearance)
-        form.addRow(self.control)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout = QVBoxLayout(self)
-        layout.addLayout(form)
-        layout.addWidget(buttons)
-
-    def values(self):
-        result = self.control.values()
-        if self.appearance.currentData() is not None:
-            result["kind"] = self.appearance.currentData()
-        return result
-
-    @classmethod
-    def prompt(cls, *args, **kwargs):
-        dialog = cls(*args, **kwargs)
-        return dialog.values() if dialog.exec() == QDialog.DialogCode.Accepted else None

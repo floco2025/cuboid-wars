@@ -1,4 +1,4 @@
-// Merge same-kind light bridge cells into rectangles, largest first: each
+// Merge the light bridge cells of each field into rectangles, largest first: each
 // pass takes the biggest all-free rectangle, so a walkway with spurs keeps
 // one collider along its length whichever way it runs. Works in grid space
 // (no float epsilon, unlike `merge_floors`/`merge_barriers`) because bridges
@@ -8,16 +8,16 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use common::protocol::FieldKindId;
+use common::protocol::FieldId;
 
-// Half-open cell rectangle `[c0, c1) x [r0, r1)` of a single kind.
+// Half-open cell rectangle `[c0, c1) x [r0, r1)` of a single field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BridgeRect {
     pub(crate) c0: i32,
     pub(crate) r0: i32,
     pub(crate) c1: i32,
     pub(crate) r1: i32,
-    pub(crate) kind: FieldKindId,
+    pub(crate) field: FieldId,
 }
 
 impl BridgeRect {
@@ -27,15 +27,15 @@ impl BridgeRect {
 }
 
 #[must_use]
-pub(crate) fn merge_light_bridges(cells: &[(i32, i32, FieldKindId)]) -> Vec<BridgeRect> {
-    let mut by_kind: BTreeMap<u16, BTreeSet<(i32, i32)>> = BTreeMap::new();
-    for (col, row, kind) in cells {
-        by_kind.entry(kind.0).or_default().insert((*row, *col));
+pub(crate) fn merge_light_bridges(cells: &[(i32, i32, FieldId)]) -> Vec<BridgeRect> {
+    let mut by_field: BTreeMap<FieldId, BTreeSet<(i32, i32)>> = BTreeMap::new();
+    for (col, row, field) in cells {
+        by_field.entry(*field).or_default().insert((*row, *col));
     }
 
     let mut merged = Vec::new();
-    for (kind, mut free) in by_kind {
-        while let Some(rect) = largest_free_rect(&free, FieldKindId(kind)) {
+    for (field, mut free) in by_field {
+        while let Some(rect) = largest_free_rect(&free, field) {
             for row in rect.r0..rect.r1 {
                 for col in rect.c0..rect.c1 {
                     free.remove(&(row, col));
@@ -49,10 +49,10 @@ pub(crate) fn merge_light_bridges(cells: &[(i32, i32, FieldKindId)]) -> Vec<Brid
 
 // The biggest rectangle of free cells; ties go to the earliest row-major
 // anchor, so the result is deterministic.
-fn largest_free_rect(free: &BTreeSet<(i32, i32)>, kind: FieldKindId) -> Option<BridgeRect> {
+fn largest_free_rect(free: &BTreeSet<(i32, i32)>, field: FieldId) -> Option<BridgeRect> {
     let mut best: Option<BridgeRect> = None;
     for &(row, col) in free {
-        let candidate = largest_rect_anchored(free, col, row, kind);
+        let candidate = largest_rect_anchored(free, col, row, field);
         if best.is_none_or(|best| candidate.area() > best.area()) {
             best = Some(candidate);
         }
@@ -62,13 +62,13 @@ fn largest_free_rect(free: &BTreeSet<(i32, i32)>, kind: FieldKindId) -> Option<B
 
 // The biggest free rectangle whose top-left cell is `(col, row)`: every width
 // the anchor row allows, paired with the rows that stay free at that width.
-fn largest_rect_anchored(free: &BTreeSet<(i32, i32)>, col: i32, row: i32, kind: FieldKindId) -> BridgeRect {
+fn largest_rect_anchored(free: &BTreeSet<(i32, i32)>, col: i32, row: i32, field: FieldId) -> BridgeRect {
     let mut best = BridgeRect {
         c0: col,
         r0: row,
         c1: col + 1,
         r1: row + 1,
-        kind,
+        field,
     };
     let mut r1 = i32::MAX;
     for c1 in (col + 1).. {
@@ -85,7 +85,7 @@ fn largest_rect_anchored(free: &BTreeSet<(i32, i32)>, col: i32, row: i32, kind: 
             r0: row,
             c1,
             r1,
-            kind,
+            field,
         };
         if candidate.area() > best.area() {
             best = candidate;

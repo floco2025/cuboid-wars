@@ -1,6 +1,6 @@
 use super::*;
 use crate::players::{PlayerInfo, PowerUpState, handle_move_outcome};
-use common::protocol::{CMoveOutcome, FieldKindId, MoveOutcome, PlayerGeneration, PlayerId, PowerUpKind};
+use common::protocol::{CMoveOutcome, FieldId, MoveOutcome, PlayerGeneration, PlayerId, PowerUpKind};
 use crossbeam_channel::{Receiver, unbounded};
 
 fn test_app() -> (App, Receiver<ServerMessage>) {
@@ -38,7 +38,7 @@ fn empty_inventory_and_repeated_commands_stay_silent() {
         .resource_mut::<PlayerMap>()
         .get_mut(&PlayerId(1))
         .expect("player missing")
-        .add_key(FieldKindId(0));
+        .add_key(FieldId(0));
     for _ in 0..3 {
         erase(&mut app);
         app.update();
@@ -116,7 +116,7 @@ fn fresh_commands_erase_new_equipment_and_play_feedback_while_preserving_keys() 
         {
             let mut players = app.world_mut().resource_mut::<PlayerMap>();
             let info = players.get_mut(&PlayerId(1)).expect("player missing");
-            info.add_key(FieldKindId(0));
+            info.add_key(FieldId(0));
             info.life.missiles = 2;
             info.life.power_ups.fill(PowerUpState::Permanent);
         }
@@ -125,7 +125,7 @@ fn fresh_commands_erase_new_equipment_and_play_feedback_while_preserving_keys() 
         let players = app.world().resource::<PlayerMap>();
         let info = players.get(&PlayerId(1)).expect("player missing");
         assert!(PowerUpKind::ALL.into_iter().all(|kind| !info.has(kind)));
-        assert_eq!(info.life.held_keys, [FieldKindId(0)]);
+        assert_eq!(info.life.held_keys, [FieldId(0)]);
         assert_eq!(info.life.missiles, 0);
         assert_eq!(erasure_cues(&mut rx), 1);
     }

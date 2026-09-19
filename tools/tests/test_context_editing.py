@@ -32,16 +32,16 @@ class ContextEditingTests(WindowTestCase):
         menu.deleteLater()
         return actions
 
-    def test_kind_edits_target_one_record_in_the_viewed_map_and_level(self):
+    def test_field_and_style_edits_target_one_record_in_the_viewed_map_and_level(self):
         window = self.window
         window.wall_light_kinds = ["a", "b"]
-        kinds = [{"id": "a", "color": "#ff0000"}, {"id": "b", "color": "#0000ff"}]
+        fields = [{"id": "a", "color": "#ff0000"}, {"id": "b", "color": "#0000ff"}]
         cases = (
-            ("light_bridges", {"col": 2, "row": 3, "kind": "a"}, (2.5, 3.5), "Edit…"),
-            ("barriers", {"c0": 2, "r0": 3, "c1": 3, "r1": 3, "kind": "a"}, (2.5, 3.0), "Edit…"),
-            ("lights", {"col": 2, "row": 3, "side": "N", "kind": "a"}, (2.5, 3.05), "Edit…"),
+            ("light_bridges", "field", {"col": 2, "row": 3, "field": "a"}, (2.5, 3.5)),
+            ("barriers", "field", {"c0": 2, "r0": 3, "c1": 3, "r1": 3, "field": "a"}, (2.5, 3.0)),
+            ("lights", "kind", {"col": 2, "row": 3, "side": "N", "kind": "a"}, (2.5, 3.05)),
         )
-        for name, record, point, title in cases:
+        for name, key, record, point in cases:
             with self.subTest(name=name):
                 data = empty_map(8, 8)
                 level = data["levels"][0]
@@ -54,20 +54,20 @@ class ContextEditingTests(WindowTestCase):
                     ]
                 data["levels"].append({**copy.deepcopy(level), "name": "Upper"})
                 root = copy.deepcopy(data)
-                root["field_kinds"] = copy.deepcopy(kinds)
+                root["fields"] = copy.deepcopy(fields)
                 root["nested_geometry"] = {"room": data}
                 window.doc.replace_with_new(root)
                 window.doc.select_map("room")
                 window.set_level_index(1)
                 before = copy.deepcopy(window.doc.root_data)
                 expected = copy.deepcopy(before)
-                expected["nested_geometry"]["room"]["levels"][1][name][0]["kind"] = "b"
+                expected["nested_geometry"]["room"]["levels"][1][name][0][key] = "b"
                 for mode in (MODE_SELECT, MODE_LIGHT_BRIDGE, MODE_ERASE_KEEP_FLOORS):
                     with self.subTest(mode=mode):
                         window.set_mode(mode)
                         self.context(point)
-                        self.assertEqual(window.properties_panel.widgets[("kind",)].currentData(), "a")
-                        self.set_property("kind", "b")
+                        self.assertEqual(window.properties_panel.widgets[(key,)].currentData(), "a")
+                        self.set_property(key, "b")
                         self.assertEqual(window.doc.root_data, expected)
                         window.undo_stack.undo()
                         self.assertEqual(window.doc.root_data, before)
@@ -75,31 +75,27 @@ class ContextEditingTests(WindowTestCase):
                         self.assertEqual(window.doc.root_data, expected)
                         window.undo_stack.undo()
 
-    def test_cancelled_and_unchanged_kind_edits_leave_history_untouched(self):
+    def test_cancelled_and_unchanged_field_and_style_edits_leave_history_untouched(self):
         window = self.window
-        window.field_kind_colors = {"a": "#ff0000"}
         window.wall_light_kinds = ["a"]
         data = empty_map(8, 8)
+        data["fields"] = [{"id": "a", "color": "#ff0000"}]
         level = data["levels"][0]
-        level["light_bridges"] = [{"col": 2, "row": 3, "kind": "a"}]
-        level["barriers"] = [{"c0": 2, "r0": 4, "c1": 3, "r1": 4, "kind": "a"}]
+        level["light_bridges"] = [{"col": 2, "row": 3, "field": "a"}]
+        level["barriers"] = [{"c0": 2, "r0": 4, "c1": 3, "r1": 4, "field": "a"}]
         level["floors"] = [{"col": 4, "row": 3, "all": DEFAULT_ALIAS}]
         level["walls"] = [{"c0": 4, "r0": 3, "c1": 5, "r1": 3, "all": DEFAULT_ALIAS}]
         level["lights"] = [{"col": 4, "row": 3, "side": "N", "kind": "a"}]
         window.doc.replace_with_new(data)
         before = copy.deepcopy(window.map_data)
         for choice in (None, "a"):
-            for point, title in (
-                ((2.5, 3.5), "Edit…"),
-                ((2.5, 4.0), "Edit…"),
-                ((4.5, 3.05), "Edit…"),
-            ):
-                with self.subTest(choice=choice, title=title):
+            for point, key in (((2.5, 3.5), "field"), ((2.5, 4.0), "field"), ((4.5, 3.05), "kind")):
+                with self.subTest(choice=choice, point=point):
                     self.context(point)
                     if choice is None:
                         window.properties_panel.discard()
                     else:
-                        self.set_property("kind", choice)
+                        self.set_property(key, choice)
                     self.assertEqual(window.map_data, before)
                     self.assertEqual(window.undo_stack.count(), 0)
 

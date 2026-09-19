@@ -140,27 +140,29 @@ fn invalid_named_geometry_is_rejected() {
 fn root_catalogs_move_off_the_geometry_and_nested_geometry_may_not_define_them() {
     let mut value = geometry(&["room"]);
     value["switches"] = json!([{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]);
-    value["field_kinds"] = json!([{"id": "red", "color": "#ff0000"}]);
+    value["fields"] = json!([{"id": "red", "color": "#ff0000", "switch": "door", "initially_on": false}]);
     value["fireworks"] = json!({"switch": "door", "cooldown_secs": 3.0});
     value["pressure_plates"] = json!([{"level": 0, "col": 0, "row": 0, "switch": "door"}]);
     value["nested_geometry"] = json!({"room": geometry(&[])});
     let loaded = prepare_source(serde_json::from_value::<MapDef>(value.clone()).expect("test source is invalid"))
         .expect("root catalogs rejected");
     assert_eq!(loaded.switches[0].id, "door");
-    assert_eq!(loaded.field_kinds[0].id, "red");
+    assert_eq!(loaded.fields[0].id, "red");
+    assert_eq!(loaded.fields[0].switch.as_deref(), Some("door"));
+    assert!(!loaded.fields[0].initially_on);
     assert_eq!(
         loaded.fireworks.map(|fireworks| fireworks.switch).as_deref(),
         Some("door")
     );
     let root = &loaded.geometry;
     assert!(root.switches.is_empty() && root.fireworks.is_none());
-    assert!(root.field_kinds.is_empty());
+    assert!(root.fields.is_empty());
     for (key, nested) in [
         (
             "switches",
             json!([{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]),
         ),
-        ("field_kinds", json!([{"id": "red", "color": "#ff0000"}])),
+        ("fields", json!([{"id": "red", "color": "#ff0000"}])),
         ("fireworks", json!({"switch": "door", "cooldown_secs": 3.0})),
         ("nested_geometry", json!({"inner": geometry(&[])})),
     ] {
@@ -298,4 +300,31 @@ fn ramps_may_stack_end_to_start_but_not_share_a_storey() {
     .expect_err("a ramp through another's shaft accepted")
     .to_string();
     assert!(error.contains("overlaps another ramp"), "{error}");
+}
+
+#[test]
+fn a_field_names_a_known_switch_and_warns_while_no_plate_operates_it() {
+    let mut value = geometry(&[]);
+    value["switches"] = json!([{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]);
+    value["fields"] = json!([{"id": "red", "color": "#ff0000", "switch": "door"}]);
+    let parse = |value: &Value| serde_json::from_value::<MapDef>(value.clone()).expect("test source is invalid");
+    let warnings = prepare_source(parse(&value))
+        .expect("a field on a switch with no plate yet rejected")
+        .warnings;
+    assert_eq!(
+        warnings,
+        ["field 'red' names switch 'door', which no pressure plate operates"]
+    );
+    value["pressure_plates"] = json!([{"level": 0, "col": 0, "row": 0, "switch": "door"}]);
+    assert!(
+        prepare_source(parse(&value))
+            .expect("a plated field rejected")
+            .warnings
+            .is_empty()
+    );
+    value["fields"][0]["switch"] = json!("void");
+    let error = prepare_source(parse(&value))
+        .expect_err("a field on an unknown switch accepted")
+        .to_string();
+    assert!(error.contains("field 'red' names unknown switch 'void'"), "{error}");
 }

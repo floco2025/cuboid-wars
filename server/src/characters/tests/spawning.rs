@@ -4,7 +4,7 @@ use crate::{
     map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
-use common::protocol::{Barrier, Carrier, CarrierId, Checkpoint, CheckpointKind, FieldKindId, MapLayout, Wall};
+use common::protocol::{Barrier, Carrier, CarrierId, Checkpoint, CheckpointKind, FieldId, MapLayout, Wall};
 
 fn empty_layout() -> MapLayout {
     MapLayout::default()
@@ -371,11 +371,6 @@ fn checkpoint_spawns_follow_carriers_keep_off_the_flag_and_avoid_bodies_and_barr
     let barred = MapLayout {
         carriers: vec![resting_carrier(rest)],
         barriers: vec![Barrier {
-            id: Default::default(),
-
-            switch: None,
-            initially_on: true,
-
             x1: checkpoint.min_x,
             z1: geometry.cell_center_z(1),
             x2: checkpoint.max_x,
@@ -383,7 +378,7 @@ fn checkpoint_spawns_follow_carriers_keep_off_the_flag_and_avoid_bodies_and_barr
             y: 0.0,
             height: 3.0,
             width: geometry.cell_size(),
-            kind: FieldKindId(0),
+            field: FieldId(0),
             level: 0,
             levels: 1,
             carrier: zone.carrier,

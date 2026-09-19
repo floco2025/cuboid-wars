@@ -9,8 +9,8 @@ use common::{
     map::Carriers,
     physics::{CollisionWorld, PortalSet},
     protocol::{
-        Barrier, BarrierId, BridgeId, Carrier, CarrierId, FieldId, FieldKindId, Floor, LightBridge, MapLayout, Portal,
-        PortalEnd, PortalPairId, Position, Ramp, SwitchState, Wall,
+        Barrier, Carrier, CarrierId, FieldId, Floor, LightBridge, MapLayout, Portal, PortalEnd, PortalPairId, Position,
+        Ramp, SwitchState, Wall,
     },
 };
 
@@ -136,21 +136,16 @@ fn world_bounce_reports_first_contact_normal() {
 
 #[test]
 fn barrier_impact_reports_kind_and_surface_normal() {
-    let kind = FieldKindId(0);
+    let kind = FieldId(0);
     let world = CollisionWorld::from_map_layout(&MapLayout {
         barriers: vec![Barrier {
-            id: Default::default(),
-
-            switch: None,
-            initially_on: true,
-
             x1: -2.0,
             z1: 1.0,
             x2: 2.0,
             z2: 1.0,
             level: 0,
             levels: 1,
-            kind,
+            field: kind,
             y: 0.0,
             height: WALL_HEIGHT,
             width: BARRIER_THICKNESS,
@@ -164,7 +159,7 @@ fn barrier_impact_reports_kind_and_surface_normal() {
         .terminate_at_field(&pos, 0.1, &world, &[])
         .expect("projectile should hit barrier");
 
-    assert_eq!(impact.field, FieldId::Barrier(BarrierId(u32::from(kind.0))));
+    assert_eq!(impact.field, kind);
     assert!(impact.normal.dot(Vec3::NEG_Z) > 0.99);
     assert!(impact.point.z < 1.0);
 }
@@ -501,13 +496,9 @@ fn a_relayed_volley_reproduces_the_shooters_spawn_set_through_a_blocking_muzzle(
 
 #[test]
 fn solid_bridges_absorb_projectiles_from_both_sides_instead_of_bouncing() {
-    let bridge = FieldId::Bridge(BridgeId(0));
+    let bridge = FieldId(0);
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
-            id: Default::default(),
-            switch: None,
-            initially_on: true,
-
             x1: -2.0,
             z1: -2.0,
             x2: 2.0,
@@ -515,7 +506,7 @@ fn solid_bridges_absorb_projectiles_from_both_sides_instead_of_bouncing() {
             y: 2.0,
             thickness: 0.1,
             level: 1,
-            kind: FieldKindId(0),
+            field: FieldId(0),
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()

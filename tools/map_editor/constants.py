@@ -85,7 +85,7 @@ RAMP_DIRECTIONS = LIGHT_SIDES
 RAMP_SHAPE_LABELS = {"solid": "Solid", "plank": "Plank"}
 
 # Item type ids mirror `ItemType::from_config_id` in common/src/types/items.rs,
-# plus "key" (which additionally carries a field kind).
+# plus "key" (which additionally names a field).
 POWER_UP_TYPES = ("single_shot", "multi_shot", "portal_gun", "speed", "low_gravity")
 ITEM_KEY_TYPE = "key"
 ITEM_TYPES = (
@@ -100,7 +100,7 @@ ITEM_TYPES = (
     ITEM_KEY_TYPE,
 )
 # Canvas glyph colors for non-key items, mirroring the in-game `ITEM_*_COLOR`
-# constants in client/src/constants.rs; keys use their field kind's color.
+# constants in client/src/constants.rs; keys use their field's color.
 ITEM_TYPE_COLORS = {
     "single_shot": "#ffffff",
     "multi_shot": "#ffffff",

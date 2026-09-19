@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use crossbeam_channel::Sender;
 
 use crate::{
-    barriers::KeyKinds,
+    barriers::KeyFields,
     carriers::{CarrierStoreys, spawn_carrier_entities},
     characters::MaxHealth,
     config::{AssetSet, ClientSettings},
@@ -66,7 +66,7 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
     let map_settings = &message.world.map.settings;
     map_settings.movement.validate("map.settings.movement")?;
     map_settings.celestial.validate("map.settings.celestial")?;
-    let field_kind_table = map_settings.field_kind_table()?;
+    let field_table = map_settings.field_table()?;
     asset_set.validate_map_bindings(map_settings, &message.world.map.layout)?;
     asset_set.validate_gameplay_bindings(gameplay_config.actors.keys().map(String::as_str))?;
     let vfx = app.world().resource::<ClientSettings>().vfx;
@@ -77,8 +77,7 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
             build_field_assets(
                 &mut meshes,
                 &mut materials,
-                &map_settings.field_kinds,
-                &message.world.map.layout,
+                &map_settings.fields,
                 vfx.fields.rail_emissive_brightness,
                 vfx.pickups.emissive_brightness,
             ),
@@ -122,7 +121,7 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
         .insert_resource(MyPlayerId(message.player.id))
         .insert_resource(message.player.portal_access)
         .insert_resource(gameplay_config)
-        .insert_resource(field_kind_table)
+        .insert_resource(field_table)
         .insert_resource(field_assets)
         .insert_resource(projectile_assets)
         .insert_resource(message.world.map.layout)
@@ -134,7 +133,7 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
         .insert_resource(carrier_storeys)
         .insert_resource(blast_radii)
         .insert_resource(max_health)
-        .insert_resource(KeyKinds(message.world.map.items.key_kinds()))
+        .insert_resource(KeyFields(message.world.map.items.key_fields()))
         .insert_resource(message.world.map.items)
         .insert_resource(QuestLog::default())
         .insert_resource(HudBanner::default());

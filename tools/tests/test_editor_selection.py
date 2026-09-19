@@ -31,9 +31,9 @@ def furnished_block() -> dict:
             "inaccessible_floors": [{"col": 1, "row": 0, "all": DEFAULT_ALIAS}],
             "terrain": [{"col": 0, "row": 0, "all": DEFAULT_ALIAS}],
             "walls": [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "all": DEFAULT_ALIAS}],
-            "barriers": [{"c0": 3, "r0": 0, "c1": 4, "r1": 0, "kind": "gate"}],
+            "barriers": [{"c0": 3, "r0": 0, "c1": 4, "r1": 0, "field": "gate"}],
             "erasers": [{"c0": 1, "r0": 1, "c1": 2, "r1": 1}],
-            "light_bridges": [{"col": 2, "row": 0, "kind": "bridge"}],
+            "light_bridges": [{"col": 2, "row": 0, "field": "bridge"}],
             "lights": [{"col": 0, "row": 0, "side": "N"}],
         }
     )
@@ -446,11 +446,20 @@ class SelectionWindowTests(WindowTestCase):
     def test_paste_accepts_a_block_whose_switch_plate_lies_outside_it(self):
         data = empty_map(8, 8)
         data["checkpoints"] = [start_checkpoint(6, 6)]
-        data["switches"] = [{"id": "bridge_1", "activation": "toggle", "reset_on_player_death": "never"}]
-        data["field_kinds"] = [{"id": "bridge_1", "color": "#30d8ff"}]
-        data["pressure_plates"] = [{"col": 6, "row": 6, "level": 0, "switch": "bridge_1"}]
+        data["switches"] = [{"id": "guards", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["pressure_plates"] = [{"col": 6, "row": 6, "level": 0, "switch": "guards"}]
         data["levels"][0]["floors"] = [{"col": 6, "row": 6, "all": DEFAULT_ALIAS}]
-        data["levels"][0]["light_bridges"] = [{"col": 1, "row": 1, "kind": "bridge_1", "switch": "bridge_1"}]
+        data["actor_spawn_zones"] = [
+            {
+                "level": 0,
+                "cols": [1, 2],
+                "rows": [1, 2],
+                "kind": "scuttler",
+                "count": [1],
+                "respawn_secs": 90,
+                "switch": "guards",
+            }
+        ]
         other = Path(self.temp.name) / "obby" / "layout.json"
         write_map(other, data)
         self.window.load_path(other)
@@ -460,9 +469,9 @@ class SelectionWindowTests(WindowTestCase):
         self.click(3, 3)
         with patch.object(self.window, "notify", side_effect=AssertionError("paste refused")):
             self.window.paste_selection()
-        bridges = self.window.map_data["levels"][0]["light_bridges"]
-        self.assertEqual([(bridge["col"], bridge["row"]) for bridge in bridges], [(1, 1), (3, 3)])
-        self.assertTrue(all(bridge["switch"] == "bridge_1" for bridge in bridges))
+        zones = self.window.map_data["actor_spawn_zones"]
+        self.assertEqual([(zone["cols"], zone["rows"]) for zone in zones], [([1, 2], [1, 2]), ([3, 4], [3, 4])])
+        self.assertTrue(all(zone["switch"] == "guards" for zone in zones))
 
     def test_invalid_clipboard_disables_paste(self):
         self.click(1, 1)

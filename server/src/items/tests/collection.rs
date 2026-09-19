@@ -46,16 +46,16 @@ fn pickups_without_effect_stay_in_the_world() {
         &server_config
     ));
 
-    assert!(player.add_key(FieldKindId(0)));
+    assert!(player.add_key(FieldId(0)));
     assert!(!pickup_has_effect(
-        ItemType::Key(FieldKindId(0)),
+        ItemType::Key(FieldId(0)),
         &player,
         None,
         &config,
         &server_config
     ));
     assert!(pickup_has_effect(
-        ItemType::Key(FieldKindId(1)),
+        ItemType::Key(FieldId(1)),
         &player,
         None,
         &config,

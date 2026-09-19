@@ -1,25 +1,20 @@
 use super::*;
 use crate::test_geometry::{BARRIER_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, geometry};
-use common::protocol::FieldKindId;
+use common::protocol::FieldId;
 
-const RED: FieldKindId = FieldKindId(0);
-const BLUE: FieldKindId = FieldKindId(1);
-const GREEN: FieldKindId = FieldKindId(2);
+const RED: FieldId = FieldId(0);
+const BLUE: FieldId = FieldId(1);
+const GREEN: FieldId = FieldId(2);
 
-fn h(x1: f32, x2: f32, z: f32, kind: FieldKindId) -> Barrier {
+fn h(x1: f32, x2: f32, z: f32, kind: FieldId) -> Barrier {
     Barrier {
-        id: Default::default(),
-
-        switch: None,
-        initially_on: true,
-
         x1,
         x2,
         z1: z,
         z2: z,
         level: 0,
         levels: 1,
-        kind,
+        field: kind,
         y: 0.0,
         height: WALL_HEIGHT,
         width: BARRIER_THICKNESS,
@@ -27,20 +22,15 @@ fn h(x1: f32, x2: f32, z: f32, kind: FieldKindId) -> Barrier {
     }
 }
 
-fn v(x: f32, z1: f32, z2: f32, kind: FieldKindId) -> Barrier {
+fn v(x: f32, z1: f32, z2: f32, kind: FieldId) -> Barrier {
     Barrier {
-        id: Default::default(),
-
-        switch: None,
-        initially_on: true,
-
         x1: x,
         x2: x,
         z1,
         z2,
         level: 0,
         levels: 1,
-        kind,
+        field: kind,
         y: 0.0,
         height: WALL_HEIGHT,
         width: BARRIER_THICKNESS,
@@ -48,13 +38,10 @@ fn v(x: f32, z1: f32, z2: f32, kind: FieldKindId) -> Barrier {
     }
 }
 
-fn edge(c0: i32, r0: i32, c1: i32, r1: i32, kind: FieldKindId) -> BarrierEdge {
+fn edge(c0: i32, r0: i32, c1: i32, r1: i32, field: FieldId) -> BarrierEdge {
     BarrierEdge {
-        switch: None,
-        initially_on: true,
-
         edge: [c0, r0, c1, r1],
-        kind,
+        field,
     }
 }
 
@@ -106,7 +93,7 @@ fn a_floor_on_either_side_of_the_edge_splits_the_stack() {
 }
 
 #[test]
-fn stacks_do_not_cross_kinds() {
+fn stacks_do_not_cross_fields() {
     let levels = vec![vec![edge(0, 1, 1, 1, RED)], vec![edge(0, 1, 1, 1, BLUE)]];
     let masks = vec![empty_mask(), empty_mask()];
 
@@ -157,7 +144,7 @@ fn merges_adjacent_same_kind_horizontals() {
 }
 
 #[test]
-fn does_not_merge_across_kind_change() {
+fn does_not_merge_across_a_field_change() {
     let merged = merge_barriers(vec![
         h(0.0, 1.0, 0.0, RED),
         h(1.0, 2.0, 0.0, RED),

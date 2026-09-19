@@ -8,10 +8,7 @@ use crate::{map::MapConfig, schedule::ticks_from_secs};
 use common::{
     config::MapGeometryConfig,
     map::MapGeometry,
-    protocol::{
-        BarrierId, BridgeId, Carrier, CarrierId, FieldKindTable, LightBridge, MapLayout, MapSettings, SwitchId,
-        SwitchTable,
-    },
+    protocol::{Carrier, CarrierId, FieldDef, FieldTable, LightBridge, MapLayout, MapSettings, SwitchId, SwitchTable},
 };
 use map_core::{
     load::LoadedMaps,
@@ -27,7 +24,7 @@ pub(crate) fn compile_map(
     server_hz: u32,
     settings: &MapSettings,
     nested: &LoadedMaps,
-    kind_table: &FieldKindTable,
+    field_table: &FieldTable,
     switch_table: &SwitchTable,
 ) -> anyhow::Result<(MapLayout, MapConfig)> {
     let mut out = CompileOutput {
@@ -47,7 +44,8 @@ pub(crate) fn compile_map(
     let scope = CompileScope {
         server_hz,
         sizes: settings.geometry,
-        kind_table,
+        field_table,
+        fields: &settings.fields,
         switch_table,
         plated_switches,
     };
@@ -58,12 +56,6 @@ pub(crate) fn compile_map(
             "grounds.level is outside the map"
         );
         out.layout.grounds = Some(compile_grounds(&out.layout, grounds, settings.geometry));
-    }
-    for (index, barrier) in out.layout.barriers.iter_mut().enumerate() {
-        barrier.id = BarrierId(u32::try_from(index).expect("barrier count exceeds u32"));
-    }
-    for (index, bridge) in out.layout.light_bridges.iter_mut().enumerate() {
-        bridge.id = BridgeId(u32::try_from(index).expect("bridge count exceeds u32"));
     }
     for bridge in &out.layout.light_bridges {
         mark_bridge_cells(&mut out.config, bridge);
@@ -102,7 +94,7 @@ fn mark_bridge_cells(config: &mut MapConfig, bridge: &LightBridge) {
                 .zip(usize::try_from(col).ok())
                 .and_then(|(row, col)| level.cells.rows.get_mut(row)?.get_mut(col));
             if let Some(cell) = cell {
-                cell.bridge = Some(bridge.id);
+                cell.bridge = Some(bridge.field);
             }
         }
     }
@@ -111,15 +103,27 @@ fn mark_bridge_cells(config: &mut MapConfig, bridge: &LightBridge) {
 pub(super) struct CompileScope<'a> {
     server_hz: u32,
     pub(super) sizes: MapGeometryConfig,
-    pub(super) kind_table: &'a FieldKindTable,
+    pub(super) field_table: &'a FieldTable,
     pub(super) switch_table: &'a SwitchTable,
-    // Switches some plate in the tree operates: a barrier on any other stays as it starts.
+    pub(super) fields: &'a [FieldDef],
+    // Switches some plate in the tree operates: a field on any other stays as it starts.
     pub(super) plated_switches: HashSet<&'a str>,
 }
 
 impl CompileScope<'_> {
     pub(super) fn target_switch(&self, switch: Option<&str>) -> anyhow::Result<Option<SwitchId>> {
         switch.map(|switch| self.switch_table.resolve(switch)).transpose()
+    }
+
+    // Whether the field stays on for good: it starts on, and no plate operates its switch.
+    pub(super) fn always_on(&self, field: &str) -> bool {
+        self.fields.iter().find(|def| def.id == field).is_none_or(|def| {
+            def.initially_on
+                && !def
+                    .switch
+                    .as_deref()
+                    .is_some_and(|switch| self.plated_switches.contains(switch))
+        })
     }
 }
 

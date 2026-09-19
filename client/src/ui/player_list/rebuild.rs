@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    protocol::{FieldKindId, Health, ItemType, MapItems, PlayerId, PowerUpKind},
+    protocol::{FieldId, Health, ItemType, MapItems, PlayerId, PowerUpKind},
 };
 use std::{
     collections::hash_map::DefaultHasher,
@@ -14,7 +14,7 @@ use super::{
     shapes::HudShapeAssets,
 };
 use crate::{
-    barriers::KeyKinds,
+    barriers::KeyFields,
     characters::MaxHealth,
     config::ClientSettings,
     fields::FieldAssets,
@@ -29,7 +29,7 @@ pub fn ui_player_list_rebuild_system(
     map_items: Res<MapItems>,
     max_health: Res<MaxHealth>,
     client_settings: Res<ClientSettings>,
-    key_kinds: Res<KeyKinds>,
+    key_fields: Res<KeyFields>,
     field_assets: Res<FieldAssets>,
     shapes: Res<HudShapeAssets>,
     health_query: Query<&Health>,
@@ -73,7 +73,7 @@ pub fn ui_player_list_rebuild_system(
         local_player_id,
         max_health.player,
         &style,
-        &key_kinds.0,
+        &key_fields.0,
         Some(&field_assets),
         &shapes,
         &health_query,
@@ -88,7 +88,7 @@ fn rebuild_player_list(
     local_player_id: Option<PlayerId>,
     max_health: f32,
     style: &PlayerEntryStyle,
-    key_kinds: &[FieldKindId],
+    key_fields: &[FieldId],
     field_assets: Option<&FieldAssets>,
     shapes: &HudShapeAssets,
     health_query: &Query<&Health>,
@@ -113,7 +113,7 @@ fn rebuild_player_list(
             local_player_id == Some(*player_id),
             max_health,
             current_health,
-            key_kinds,
+            key_fields,
             field_assets,
             shapes,
             style,

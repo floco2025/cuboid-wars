@@ -1,7 +1,7 @@
 use super::*;
 use crate::config::fixtures;
 use crate::test_geometry::{WALL_HEIGHT, WALL_THICKNESS};
-use common::protocol::{Barrier, BarrierId, CarrierId, FieldId, FieldKindId, MapLayout, Wall};
+use common::protocol::{Barrier, CarrierId, FieldId, MapLayout, Wall};
 
 #[test]
 fn touching_an_actor_does_not_detonate_it_during_peace() {
@@ -97,14 +97,9 @@ fn vertically_separated_player_does_not_trigger_contact_explosion() {
 #[test]
 fn closed_barrier_blocks_contact_detonation() {
     let (player, actor, distance) = bodies();
-    let kind = FieldKindId(0);
+    let kind = FieldId(0);
     let layout = MapLayout {
         barriers: vec![Barrier {
-            id: Default::default(),
-
-            switch: None,
-            initially_on: true,
-
             x1: 0.0,
             z1: -2.0,
             x2: 0.0,
@@ -114,18 +109,12 @@ fn closed_barrier_blocks_contact_detonation() {
             width: 0.1,
             level: 0,
             levels: 1,
-            kind,
+            field: kind,
             carrier: CarrierId::WORLD,
         }],
         ..default()
     };
     let world = CollisionWorld::from_map_layout(&layout);
     assert!(!character_bodies_touch(&player, &actor, distance, &world, &[]));
-    assert!(character_bodies_touch(
-        &player,
-        &actor,
-        distance,
-        &world,
-        &[FieldId::Barrier(BarrierId(u32::from(kind.0)))]
-    ));
+    assert!(character_bodies_touch(&player, &actor, distance, &world, &[kind]));
 }

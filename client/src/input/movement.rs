@@ -1,7 +1,7 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
-    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
+    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, passable_fields, player_jump_velocity},
     protocol::{FaceYaw, FieldId, MapSettings, PlayerId, PlayerMoveIntent, PortalAccess, Position, SwitchState},
 };
 use std::f32::consts::PI;
@@ -108,7 +108,7 @@ pub fn input_movement_system(
         (!orbit || (!local_player_info.is_dead && camera_input.aiming_weapon())).then_some(face_yaw),
         jump_requested,
         &collision_world,
-        &collision_world.passable_fields(held_keys, &switch_state.open_fields),
+        &passable_fields(held_keys, &switch_state.open_fields),
         &gameplay_config,
         map_settings.movement.player.jump_speed,
         &mut local_player_query,

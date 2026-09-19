@@ -95,9 +95,9 @@ def fields_for(window, name):
         add("type", "Type", "choice", CHECKPOINT_TYPE_LABELS.items())
     elif name == "items":
         choice("type", "Item", window.pickup_types)
-        choice("kind", "Key kind", [None, *window.field_kinds], window.field_kind_colors)
+        choice("field", "Field", [None, *window.fields], window.field_colors)
     elif name in ("barriers", "light_bridges"):
-        choice("kind", "Kind", window.field_kinds, window.field_kind_colors)
+        choice("field", "Field", window.fields, window.field_colors)
     elif name == "lights":
         choice("kind", "Style", window.wall_light_kinds)
         choice("side", "Side", ("N", "S", "E", "W"))
@@ -110,7 +110,7 @@ def fields_for(window, name):
         add("travel_secs", "Travel time (s)", "positive", tooltip=MOTION_TOOLTIPS["travel_secs"])
         add("pause_secs", "Cycle pause (s)", "nonnegative", tooltip=MOTION_TOOLTIPS["pause_secs"])
         add("phase_secs", "Cycle phase (s)", "nonnegative", tooltip=MOTION_TOOLTIPS["phase_secs"])
-    if name in ("barriers", "light_bridges", "actor_spawn_zones", "nested_maps", "pressure_plates"):
+    if name in ("actor_spawn_zones", "nested_maps", "pressure_plates"):
         values = window.switches if name == "pressure_plates" else [None, *window.switches]
         choice("switch", "Switch", values, window.switch_colors)
         if name != "pressure_plates":

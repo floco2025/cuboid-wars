@@ -2,11 +2,8 @@ use rapier3d::{control::KinematicCharacterController, prelude::Vector};
 
 use super::*;
 use crate::{
-    config::gameplay::load_test_gameplay,
-    constants::TICK_SECS,
-    map::Carriers,
-    physics::characters::character_movement_pose,
-    protocol::{BridgeId, SwitchState},
+    config::gameplay::load_test_gameplay, constants::TICK_SECS, map::Carriers,
+    physics::characters::character_movement_pose, protocol::SwitchState,
 };
 
 #[test]
@@ -99,11 +96,6 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         carrier,
     };
     let barrier = Barrier {
-        id: Default::default(),
-
-        switch: None,
-        initially_on: true,
-
         x1: wall.x1,
         x2: wall.x2,
         z1: wall.z1,
@@ -113,14 +105,10 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         height: wall.height,
         level: 0,
         levels: 1,
-        kind: FieldKindId(0),
+        field: FieldId(0),
         carrier,
     };
     let bridge = LightBridge {
-        id: Default::default(),
-        switch: None,
-        initially_on: true,
-
         x1: -2.0,
         x2: 2.0,
         z1: -2.0,
@@ -128,7 +116,7 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         y: 1.5,
         thickness: 1.0,
         level: 0,
-        kind: FieldKindId(0),
+        field: FieldId(1),
         carrier,
     };
     let physics = load_test_gameplay()
@@ -182,10 +170,10 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
             for barrier_open in [false, true] {
                 let mut passable = Vec::new();
                 if bridge_open {
-                    passable.push(FieldId::Bridge(BridgeId(0)));
+                    passable.push(FieldId(1));
                 }
                 if barrier_open {
-                    passable.push(FieldId::Barrier(BarrierId(0)));
+                    passable.push(FieldId(0));
                 }
                 for excluded in [&[][..], handles.as_slice()] {
                     let movement = world.push_character_from_carriers(

@@ -1,13 +1,8 @@
 use super::*;
-use common::protocol::{BarrierId, SwitchId, Wall};
+use common::protocol::Wall;
 
 fn barrier() -> Barrier {
     Barrier {
-        id: Default::default(),
-
-        switch: None,
-        initially_on: true,
-
         x1: 0.0,
         z1: 0.0,
         x2: 4.0,
@@ -17,14 +12,14 @@ fn barrier() -> Barrier {
         width: 0.1,
         level: 0,
         levels: 1,
-        kind: FieldKindId(0),
+        field: FieldId(0),
         carrier: CarrierId::WORLD,
     }
 }
 
-fn field(kind: Option<FieldKindId>) -> VisualField {
+fn field(field: Option<FieldId>) -> VisualField {
     VisualField {
-        kind,
+        field,
         ..VisualField::from_barrier(&barrier())
     }
 }
@@ -89,16 +84,14 @@ fn barriers_and_erasers_have_identical_visual_bounds_in_both_axes_and_directions
 }
 
 #[test]
-fn adjacent_fields_merge_without_internal_frames_but_not_across_kinds_or_carriers() {
-    for kind in [None, Some(FieldKindId(0))] {
+fn adjacent_panes_merge_without_internal_frames_but_not_across_fields_or_carriers() {
+    for kind in [None, Some(FieldId(0))] {
         let a = field(kind);
         let b = VisualField {
-            barrier: Some(BarrierId(1)),
             rect: Rect::new(4.0, 0.0, 8.0, 3.5),
             ..a
         };
         let c = VisualField {
-            barrier: Some(BarrierId(2)),
             rect: Rect::new(8.0, 0.0, 12.0, 3.5),
             ..a
         };
@@ -108,19 +101,11 @@ fn adjacent_fields_merge_without_internal_frames_but_not_across_kinds_or_carrier
         assert_eq!(merged[0].frame_rects(&MapLayout::default()).len(), 4);
         for other in [
             VisualField {
-                kind: Some(FieldKindId(1)),
+                field: Some(FieldId(1)),
                 ..b
             },
             VisualField {
                 carrier: CarrierId(1),
-                ..b
-            },
-            VisualField {
-                switch: Some(SwitchId(0)),
-                ..b
-            },
-            VisualField {
-                initially_on: false,
                 ..b
             },
             VisualField {
@@ -136,10 +121,8 @@ fn adjacent_fields_merge_without_internal_frames_but_not_across_kinds_or_carrier
 #[test]
 fn scrambled_rectangular_grids_merge_to_one_outer_frame() {
     let order = [(0, 0), (1, 0), (1, 1), (2, 1), (2, 2), (1, 2), (0, 2), (0, 1), (2, 0)];
-    for kind in [None, Some(FieldKindId(0))] {
-        let mut ids = 0..;
+    for kind in [None, Some(FieldId(0))] {
         let fields = order.map(|(column, level)| VisualField {
-            barrier: ids.next().map(BarrierId),
             rect: Rect::new(
                 column as f32 * 4.0,
                 level as f32 * 4.0,
@@ -158,10 +141,9 @@ fn scrambled_rectangular_grids_merge_to_one_outer_frame() {
 
 #[test]
 fn stacked_fields_bridge_floorless_gaps_and_keep_floor_separated_storeys_apart() {
-    for kind in [None, Some(FieldKindId(0))] {
+    for kind in [None, Some(FieldId(0))] {
         let lower = field(kind);
         let upper = VisualField {
-            barrier: Some(BarrierId(1)),
             rect: Rect::new(0.0, 4.0, 4.0, 7.5),
             level: 1,
             ..lower
@@ -176,11 +158,10 @@ fn stacked_fields_bridge_floorless_gaps_and_keep_floor_separated_storeys_apart()
 
 #[test]
 fn stacked_fields_merge_between_wall_trim_without_leaving_an_open_seam() {
-    for kind in [None, Some(FieldKindId(0))] {
+    for kind in [None, Some(FieldId(0))] {
         for axis in [0, 2] {
             let lower = VisualField { axis, ..field(kind) };
             let upper = VisualField {
-                barrier: Some(BarrierId(1)),
                 rect: Rect::new(0.0, 4.0, 4.0, 7.5),
                 level: 1,
                 ..lower

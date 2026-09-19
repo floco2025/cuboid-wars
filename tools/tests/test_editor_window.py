@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QComboBox, QDialog, QMenu, QMessageBox
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase
 from map_editor.constants import (
     FACES,
+    HIT_ITEM,
     HIT_LADDER,
     HIT_LIGHT,
     HIT_TERRAIN,
@@ -31,7 +32,7 @@ from map_editor.constants import (
 )
 from map_editor.dependencies import MapDependencies
 from map_editor.dialogs import ActorSpawnFieldsDialog
-from map_editor.editing import paint_floors, update_records
+from map_editor.editing import paint_floors
 from map_editor.io import write_map
 from map_editor.nesting import NestedMotion
 from map_editor.normalization import empty_map
@@ -213,16 +214,17 @@ class WindowTests(WindowTestCase):
         self.app.processEvents()
         self.assertTrue(window.tool_settings.isVisible())
 
-    def test_item_kind_control_only_shows_for_keys_including_recalled_settings(self):
+    def test_item_field_control_only_shows_for_keys_including_recalled_settings(self):
         window = self.window
         window.recent_item_type = "gold"
         window.set_mode(MODE_ITEM)
         self.app.processEvents()
-        item, kind = window.tool_settings.body.findChildren(QComboBox)
-        self.assertFalse(kind.isVisible())
+        item, field = window.tool_settings.body.findChildren(QComboBox)
+        self.assertEqual(field.accessibleName(), "Field")
+        self.assertFalse(field.isVisible())
         item.setCurrentText("key")
         self.app.processEvents()
-        self.assertTrue(kind.isVisible())
+        self.assertTrue(field.isVisible())
         window.recent_item_type = "gold"
         window.tool_settings.refresh()
         self.app.processEvents()
@@ -382,7 +384,9 @@ class WindowTests(WindowTestCase):
         window = self.window
         first, second = window.materials_catalog[:2]
         data = paint_floors(window.map_data, 0, (2, 1, 3, 2), second)
-        data = update_records(data, "floors", lambda f: f["col"] == 1, {"top": first}, 0)
+        for entry in data["levels"][0]["floors"]:
+            if entry["col"] == 1:
+                entry["top"] = first
         window.apply_change("Materials", data)
         window.assign_floor_materials_rect((1, 1), (2, 1))
         panel = window.properties_panel
@@ -469,19 +473,17 @@ class WindowTests(WindowTestCase):
                 window.add_ladder_at(QPointF(col + 0.5, 3.05))
         self.assertEqual([ladder["levels"] for ladder in window.map_data["ladders"]], [2, 2])
 
-    def test_item_and_kind_placement_uses_previous_values_without_dialogs(self):
+    def test_item_and_field_placement_uses_previous_values_without_dialogs(self):
         window = self.window
         window.add_floor_rect((2, 1), (2, 1))
-        window.field_kind_colors = {"gate": "#ff0000", "bridge": "#00ff00"}
-        window.doc.root_data["field_kinds"] = [
-            {"id": kind, "color": color} for kind, color in window.field_kind_colors.items()
-        ]
+        window.field_colors = {"gate": "#ff0000", "bridge": "#00ff00"}
+        window.doc.root_data["fields"] = [{"id": field, "color": color} for field, color in window.field_colors.items()]
         window.doc.root_data["switches"] = [
             {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["gate", "bridge"]
         ]
         window.switch_ids = ["gate", "bridge"]
-        window.recent_barrier_kind = window.recent_pressure_plate_switch = "gate"
-        window.recent_bridge_kind = "bridge"
+        window.recent_barrier_field = window.recent_pressure_plate_switch = "gate"
+        window.recent_bridge_field = "bridge"
         window.recent_item_type = "health_potion"
         with (
             patch("map_editor.placement.KindDialog.prompt") as kind,
@@ -497,6 +499,22 @@ class WindowTests(WindowTestCase):
             item.assert_not_called()
         self.assertEqual(window.map_data["items"][0]["type"], "health_potion")
         self.assertEqual([p["switch"] for p in window.map_data["pressure_plates"]], ["gate", "bridge"])
+        level = window.map_data["levels"][0]
+        self.assertEqual(level["barriers"], [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, "field": "gate"}])
+        self.assertEqual(level["light_bridges"], [{"col": 4, "row": 4, "field": "bridge"}])
+
+    def test_a_key_names_its_field_and_loses_it_with_its_type(self):
+        window = self.window
+        window.recent_item_type = "key"
+        window.recent_item_key_field = "treasure"
+        window.prompt_and_add_item(1, 1)
+        key = {"level": 0, "col": 1, "row": 1, "type": "key", "field": "treasure"}
+        self.assertEqual(window.map_data["items"], [key])
+        window.inspect_hit((HIT_ITEM, (1, 1)))
+        self.set_property("field", "lobby")
+        self.assertEqual(window.map_data["items"], [{**key, "field": "lobby"}])
+        self.set_property("type", "gold")
+        self.assertEqual(window.map_data["items"], [{"level": 0, "col": 1, "row": 1, "type": "gold"}])
 
     def test_nested_map_placement_reuses_configured_motion(self):
         window = self.window

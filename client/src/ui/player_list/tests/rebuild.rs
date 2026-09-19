@@ -1,6 +1,6 @@
 use super::*;
 use crate::players::PlayerInfo;
-use common::protocol::{FieldKindId, PlayerGeneration, PowerUpKind};
+use common::protocol::{FieldId, PlayerGeneration, PowerUpKind};
 
 fn player(name: &str, score: i32) -> PlayerInfo {
     PlayerInfo {
@@ -50,7 +50,7 @@ fn content_hash_changes_when_rendered_fields_change() {
     assert_ne!(player_list_content_hash(&renamed, Some(PlayerId(1))), base_hash);
 
     let mut with_key = player("alice", 3);
-    with_key.held_keys.push(FieldKindId(0));
+    with_key.held_keys.push(FieldId(0));
     let keyed = map(vec![(1, with_key)]);
     assert_ne!(player_list_content_hash(&keyed, Some(PlayerId(1))), base_hash);
 

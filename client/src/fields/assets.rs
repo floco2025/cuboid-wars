@@ -67,15 +67,15 @@ fn rail_material(color: Color, emissive: f32) -> StandardMaterial {
     }
 }
 
-// One field kind's shared look: its frame material, the configured colour,
+// One field's shared look: its frame material, the configured colour,
 // and the material of its key pickup.
-pub(crate) struct KindVisual {
+pub(crate) struct FieldVisual {
     pub frame: Handle<StandardMaterial>,
     pub base_color: Color,
     pub key_material: Handle<StandardMaterial>,
 }
 
-impl KindVisual {
+impl FieldVisual {
     pub fn new(materials: &mut Assets<StandardMaterial>, color: Color, rail_emissive: f32, pickup_glow: f32) -> Self {
         Self {
             frame: materials.add(rail_material(color, rail_emissive)),

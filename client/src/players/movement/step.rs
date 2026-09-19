@@ -5,9 +5,9 @@ use common::{
     map::Carriers,
     physics::{
         AirborneMomentum, CharacterEnvironment, CharacterMovementResult, CharacterStep, CollisionWorld,
-        KnockbackVelocity, LadderMode, PortalSet, step_character_movement,
+        KnockbackVelocity, LadderMode, PortalSet, passable_fields, step_character_movement,
     },
-    protocol::{FieldId, FieldKindId, MapSettings, Position},
+    protocol::{FieldId, MapSettings, Position},
 };
 
 pub(crate) struct PlayerMovementStep<'a> {
@@ -16,7 +16,7 @@ pub(crate) struct PlayerMovementStep<'a> {
     pub control_velocity: Vec3,
     pub delta: f32,
     pub has_low_gravity: bool,
-    pub held_keys: &'a [FieldKindId],
+    pub held_keys: &'a [FieldId],
     // Barriers switches hold open (`SwitchState`).
     pub open_fields: &'a [FieldId],
     pub knockback: &'a KnockbackVelocity,
@@ -30,7 +30,7 @@ pub(crate) struct PlayerMovementStep<'a> {
 
 #[must_use]
 pub(crate) fn step_player_movement(step: PlayerMovementStep<'_>) -> CharacterMovementResult {
-    let passable_fields = step.collision_world.passable_fields(step.held_keys, step.open_fields);
+    let passable_fields = passable_fields(step.held_keys, step.open_fields);
     let external_displacement = momentum_displacement(Some(step.knockback), Some(&*step.airborne_momentum), step.delta);
     let movement = step_character_movement(
         CharacterStep {

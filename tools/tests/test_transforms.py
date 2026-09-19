@@ -15,8 +15,7 @@ from map_editor.transforms import (
     translate_map,
 )
 
-KIND = "treasure"
-BRIDGE_KIND = "skyway"
+BRIDGE_FIELD = "skyway"
 
 
 class ResizeTests(unittest.TestCase):
@@ -85,12 +84,12 @@ class ResizeTests(unittest.TestCase):
         level["floors"] = [floor(1, 1)]
         level["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, **faces()}]
         level["lights"] = [{"col": 1, "row": 1, "side": "N"}]
-        level["light_bridges"] = [{"col": 1, "row": 3, "kind": BRIDGE_KIND}]
+        level["light_bridges"] = [{"col": 1, "row": 3, "field": BRIDGE_FIELD}]
         data["actor_spawn_zones"] = [
             {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "scuttler", "count": [1], "respawn_secs": 90}
         ]
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
-        data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": KIND}]
+        data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": "treasure"}]
         data["ramps"] = [{"lower_level": 0, "cols": [1, 3], "rows": [1, 2], "direction": "E", **faces()}]
         data["ladders"] = [{"lower_level": 0, "col": 1, "row": 1, "side": "N", "levels": 1}]
 
@@ -101,7 +100,7 @@ class ResizeTests(unittest.TestCase):
         self.assertEqual((wall["c0"], wall["r0"], wall["c1"], wall["r1"]), (2, 2, 3, 2))
         self.assertEqual(result["actor_spawn_zones"][0]["cols"], [2, 4])
         bridge = result["levels"][0]["light_bridges"][0]
-        self.assertEqual((bridge["col"], bridge["row"], bridge["kind"]), (2, 4, BRIDGE_KIND))
+        self.assertEqual((bridge["col"], bridge["row"], bridge["field"]), (2, 4, BRIDGE_FIELD))
         self.assertEqual((result["items"][0]["col"], result["items"][0]["row"]), (2, 2))
         self.assertEqual((result["pressure_plates"][0]["col"], result["pressure_plates"][0]["row"]), (2, 2))
         self.assertEqual((result["ramps"][0]["cols"], result["ramps"][0]["rows"]), ([2, 4], [2, 3]))

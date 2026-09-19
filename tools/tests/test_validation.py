@@ -8,8 +8,8 @@ from map_editor.catalogs import MapCatalogs
 from map_editor.repairs import repair_summary
 from map_editor.validation import placed_definitions, validate_document, validate_map
 
-KIND = "treasure"
-BRIDGE_KIND = "skyway"
+FIELD = "treasure"
+BRIDGE_FIELD = "skyway"
 
 
 def terrain(col: int, row: int) -> dict:
@@ -159,26 +159,26 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(validate_map(data, [], material_aliases=[DEFAULT_ALIAS]))
 
 
-class FieldKindTests(unittest.TestCase):
-    def test_one_catalog_names_the_kinds_of_barriers_bridges_and_keys(self) -> None:
+class FieldTests(unittest.TestCase):
+    def test_one_catalog_names_the_fields_of_barriers_bridges_and_keys(self) -> None:
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
-        data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "nope"}]
-        data["levels"][0]["light_bridges"] = [{"col": 1, "row": 1, "kind": "nope"}]
-        data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "key", "kind": "nope"}]
+        data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "field": "nope"}]
+        data["levels"][0]["light_bridges"] = [{"col": 1, "row": 1, "field": "nope"}]
+        data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "key", "field": "nope"}]
 
-        errors = validate_map(data, [KIND, "lobby"])
+        errors = validate_map(data, [FIELD, "lobby"])
 
-        self.assertTrue(any("barrier[0] has unknown kind 'nope'; known: [treasure, lobby]" in e for e in errors))
-        self.assertTrue(any("light_bridge[0] has unknown kind 'nope'; known: [treasure, lobby]" in e for e in errors))
-        self.assertTrue(any("unknown key kind 'nope'; known: [treasure, lobby]" in e for e in errors))
+        self.assertTrue(any("barrier[0] has unknown field 'nope'; known: [treasure, lobby]" in e for e in errors))
+        self.assertTrue(any("light_bridge[0] has unknown field 'nope'; known: [treasure, lobby]" in e for e in errors))
+        self.assertTrue(any("unknown key field 'nope'; known: [treasure, lobby]" in e for e in errors))
 
         errors = validate_map(data, [])
         self.assertTrue(any("known: [(none listed)]" in e for e in errors))
 
         for entry in (data["levels"][0]["barriers"][0], data["levels"][0]["light_bridges"][0], data["items"][0]):
-            entry["kind"] = KIND
-        self.assertFalse(any("unknown" in e for e in validate_map(data, [KIND, "lobby"])))
+            entry["field"] = FIELD
+        self.assertFalse(any("unknown" in e for e in validate_map(data, [FIELD, "lobby"])))
 
 
 class PressurePlateTests(unittest.TestCase):
@@ -192,12 +192,12 @@ class PressurePlateTests(unittest.TestCase):
             {"level": 0, "col": 1, "row": 1, "switch": "fireworks"},
         ]
 
-        errors = validate_map(data, [KIND], switches=[KIND, "fireworks"])
+        errors = validate_map(data, [FIELD], switches=[FIELD, "fireworks"])
 
         self.assertTrue(any("pressure_plates[0] has no switch" in error for error in errors))
         self.assertTrue(any("unknown switch 'nope'; known: [treasure, fireworks]" in error for error in errors))
         self.assertTrue(any("duplicates a plate" in error for error in errors))
-        self.assertFalse(any("unknown switch" in error for error in validate_map(data, [KIND])))
+        self.assertFalse(any("unknown switch" in error for error in validate_map(data, [FIELD])))
 
     def test_actor_zone_respawn_must_be_explicit_and_non_negative(self) -> None:
         data = empty_map(4, 4)
@@ -348,6 +348,28 @@ class PressurePlateTests(unittest.TestCase):
         self.assertEqual(validate_document(repaired, catalogs), [])
         self.assertEqual(repair_summary(repaired, canonicalize_map(repaired)), [])
 
+    def test_a_fields_switch_and_initial_state_are_checked_with_the_document(self) -> None:
+        data = started_map(2, 1, DEFAULT_ALIAS)
+        data["pressure_plates"] = [{"level": 0, "col": 1, "row": 0, "switch": "door"}]
+        data["switches"] = [
+            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ("door", "idle")
+        ]
+        data["fields"] = [
+            {"id": "red", "color": "#ff0000", "switch": "void"},
+            {"id": "green", "color": "#00ff00", "switch": "idle", "initially_on": "off"},
+            {"id": "blue", "color": "#0000ff", "switch": "door", "initially_on": False},
+        ]
+        catalogs = MapCatalogs({}, 0.1, {DEFAULT_ALIAS: True}).for_layout(data)
+        issues = validate_document(data, catalogs)
+        self.assertEqual(
+            list(issues),
+            [
+                "field 'red' names unknown switch 'void'; known: [door, idle]",
+                "field 'green' initially_on must be true or false",
+            ],
+        )
+        self.assertEqual(issues.warnings, ["field 'green' names switch 'idle', which no pressure plate operates"])
+
     def test_only_placed_geometry_supplies_a_targets_plates(self) -> None:
         data = empty_map(6, 6)
         data["levels"][0]["floors"] = [floor(0, 0), floor(3, 3)]
@@ -404,27 +426,27 @@ class PressurePlateTests(unittest.TestCase):
 
 
 class LightBridgeTests(unittest.TestCase):
-    def test_bridge_validation_flags_kinds_cells_and_plate_conflicts(self) -> None:
+    def test_bridge_validation_flags_fields_cells_and_plate_conflicts(self) -> None:
         data = empty_map(3, 3)
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["levels"][0]["inaccessible_floors"] = [floor(1, 0)]
         data["levels"].append({**empty_level(1), "floors": [floor(2, 2)]})
         data["ramps"] = [{"lower_level": 0, "cols": [1, 3], "rows": [1, 2], "direction": "E", **faces()}]
         data["levels"][0]["light_bridges"] = [
-            {"col": 0, "row": 0, "kind": "nope"},
-            {"col": 1, "row": 0, "kind": BRIDGE_KIND},
-            {"col": 1, "row": 1, "kind": BRIDGE_KIND},
-            {"col": 2, "row": 2, "kind": BRIDGE_KIND},
-            {"col": 2, "row": 2, "kind": BRIDGE_KIND},
+            {"col": 0, "row": 0, "field": "nope"},
+            {"col": 1, "row": 0, "field": BRIDGE_FIELD},
+            {"col": 1, "row": 1, "field": BRIDGE_FIELD},
+            {"col": 2, "row": 2, "field": BRIDGE_FIELD},
+            {"col": 2, "row": 2, "field": BRIDGE_FIELD},
         ]
         data["pressure_plates"] = [
             {"level": 0, "col": 2, "row": 2, "switch": "fireworks"},
             {"level": 0, "col": 0, "row": 0, "switch": "nope"},
         ]
 
-        errors = validate_map(data, [BRIDGE_KIND], switches=["fireworks", BRIDGE_KIND])
+        errors = validate_map(data, [BRIDGE_FIELD], switches=["fireworks", BRIDGE_FIELD])
 
-        self.assertTrue(any("light_bridge[0] has unknown kind 'nope'; known: [skyway]" in e for e in errors))
+        self.assertTrue(any("light_bridge[0] has unknown field 'nope'; known: [skyway]" in e for e in errors))
         self.assertTrue(any("light_bridge[0] [0, 0] sits on a floor" in e for e in errors))
         self.assertTrue(any("light_bridge[1] [1, 0] sits on a floor" in e for e in errors))
         self.assertTrue(any("light_bridge[2] [1, 1] sits on a ramp" in e for e in errors))

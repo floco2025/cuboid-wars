@@ -429,11 +429,11 @@ pub struct SSnapshot {
     pub items: Vec<(ItemId, Item)>,
     // Seeds joining observers and repeats the latest owner samples.
     pub missiles: Vec<(MissileId, Missile)>,
-    // The current switch state: the active switches, the barrier and light
-    // bridge instances that are off (both sides fade them and let bodies
-    // through, and the owning client unions them with its `held_keys` for
-    // the collision filter), and each switched carrier's run (both sides
-    // place it from that and the tick).
+    // The current switch state: the active switches, the fields that are
+    // off (both sides fade their barriers and bridges and let bodies through,
+    // and the owning client unions them with its `held_keys` for the
+    // collision filter), and each switched carrier's run (both sides place it
+    // from that and the tick).
     pub switch_state: SwitchState,
     // Unlocked `shared` / `everyone` quests. Completed quests stay listed
     // for the session so late joiners and clients that missed updates catch up.
@@ -620,7 +620,7 @@ pub struct SPlayerStatus {
     // Held key inventory. Kept sorted ascending on the server so the encoded
     // bytes are deterministic and the client can change-detect via a single
     // equality test.
-    pub held_keys: Vec<FieldKindId>,
+    pub held_keys: Vec<FieldId>,
     pub missiles: u32,
 }
 
@@ -666,7 +666,7 @@ pub struct SHealthPotionCollected {
 // A pressure plate transitioned this tick: `pressed` is true when some alive
 // player just stepped onto its inner-25% rect, false when the last alive
 // player stepped off. Broadcast — any client may hear the click. Edge-triggered
-// side-effect; durable state (which kinds are currently open) rides `SSnapshot`.
+// side-effect; durable state (which fields are currently off) rides `SSnapshot`.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPressurePlate {
     pub pressed: bool,

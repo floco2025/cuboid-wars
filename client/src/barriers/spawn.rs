@@ -4,12 +4,12 @@ use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
     config::ClientSettings,
     fields::{
-        FieldAssets, FieldMeshes, FieldSurface, FieldSurfaces, VisualField, fade_target, merge_fields,
+        FieldAssets, FieldMeshes, FieldPiece, FieldSurface, FieldSurfaces, VisualField, fade_target, merge_fields,
         spawn_patterned_surface,
     },
     materials::{FieldMaterial, field_material},
 };
-use common::protocol::{FieldId, MapLayout, MapSettings, SwitchState};
+use common::protocol::{MapLayout, MapSettings, SwitchState};
 
 #[derive(Component)]
 pub struct BarrierMarker;
@@ -41,7 +41,7 @@ pub fn barriers_spawn_system(
     for entity in &existing {
         commands.entity(entity).despawn();
     }
-    surfaces.forget_barriers();
+    surfaces.forget(FieldPiece::Barrier);
 
     let config = client_settings.vfx.fields;
     let fields = merge_fields(
@@ -50,16 +50,16 @@ pub fn barriers_spawn_system(
         settings.geometry.floor_thickness,
     );
     for field in fields {
-        let kind = field.kind.expect("barrier visual missing its kind");
-        let state = FieldId::Barrier(field.barrier.expect("barrier visual missing its id"));
-        let color = field_assets.base_color(kind);
+        let id = field.field.expect("barrier visual missing its field");
+        let color = field_assets.base_color(id);
         let material = materials.add(field_material(
             color,
-            fade_target(&switch_state, state, config),
+            fade_target(&switch_state, id, config),
             config.emissive_brightness,
         ));
         surfaces.0.push(FieldSurface {
-            state,
+            field: id,
+            piece: FieldPiece::Barrier,
             material: material.clone(),
             base_color: color,
         });
@@ -78,7 +78,7 @@ pub fn barriers_spawn_system(
                     &mut meshes,
                     &field_meshes,
                     &material,
-                    field_assets.kind(kind),
+                    field_assets.visual(id),
                     field.panel_rects(&layout),
                     field.frame_rects(&layout),
                     field.rect.center(),

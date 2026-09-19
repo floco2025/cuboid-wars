@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::protocol::{FieldKindId, Health, PlayerId, PowerUpKind};
+use common::protocol::{FieldId, Health, PlayerId, PowerUpKind};
 
 use super::{
     components::{LOCAL_PLAYER_BG_COLOR, PlayerEntryMarker},
@@ -35,7 +35,7 @@ pub(super) fn spawn_player_entry(
     is_local: bool,
     max_health: f32,
     current_health: f32,
-    key_kinds: &[FieldKindId],
+    key_fields: &[FieldId],
     field_assets: Option<&FieldAssets>,
     shapes: &HudShapeAssets,
     style: &PlayerEntryStyle,
@@ -114,9 +114,9 @@ pub(super) fn spawn_player_entry(
                             }
                         });
                     }
-                    if !key_kinds.is_empty() {
+                    if !key_fields.is_empty() {
                         spawn_icon_group(strip, |row| {
-                            for &kind in key_kinds {
+                            for &kind in key_fields {
                                 let color = field_assets
                                     .filter(|_| player_info.held_keys.contains(&kind))
                                     .map_or(HUD_SLOT_EMPTY_COLOR, |assets| assets.base_color(kind));

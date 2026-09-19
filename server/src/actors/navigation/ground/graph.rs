@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use common::{
     constants::LEVEL_CLASSIFICATION_TOLERANCE,
     map::{Grounds, MapGeometry},
-    protocol::{BridgeId, FieldId, Position},
+    protocol::{FieldId, Position},
 };
 
 use super::LadderLink;
@@ -23,10 +23,10 @@ pub(crate) struct NavNode {
 pub struct NavGraph {
     pub(super) levels: Vec<LevelGrid>,
     pub(super) geometry: MapGeometry,
-    // Links every bridge cell, so `open_bridges` alone decides which of
+    // Links every bridge cell, so `open_fields` alone decides which of
     // them a route may use.
     adjacency: HashMap<NavNode, Vec<NavNode>>,
-    open_bridges: Vec<BridgeId>,
+    open_fields: Vec<FieldId>,
     pub(super) ladder_routes: HashMap<String, Vec<LadderLink>>,
     // The exterior grounds, on the root graph of a map that has them. The
     // grid continues over them at their level as cells the graph never
@@ -43,7 +43,7 @@ impl NavGraph {
             levels: grid.levels.clone(),
             geometry: grid.geometry,
             adjacency: HashMap::new(),
-            open_bridges: Vec::new(),
+            open_fields: Vec::new(),
             ladder_routes: HashMap::new(),
             grounds: None,
         };
@@ -55,14 +55,8 @@ impl NavGraph {
     }
 
     pub fn set_open_fields(&mut self, open: &[FieldId]) {
-        self.open_bridges = open
-            .iter()
-            .filter_map(|field| match field {
-                FieldId::Bridge(bridge) => Some(*bridge),
-                FieldId::Barrier(_) => None,
-            })
-            .collect();
-        self.open_bridges.sort_unstable();
+        self.open_fields = open.to_vec();
+        self.open_fields.sort_unstable();
     }
 
     pub fn set_grounds(&mut self, grounds: Grounds) {
@@ -95,8 +89,8 @@ impl NavGraph {
             && grounds.distance_outside_bounds(x, z) <= grounds.extent() - self.geometry.cell_size()
     }
 
-    fn bridge_open(&self, bridge: BridgeId) -> bool {
-        self.open_bridges.binary_search(&bridge).is_ok()
+    fn bridge_open(&self, bridge: FieldId) -> bool {
+        self.open_fields.binary_search(&bridge).is_ok()
     }
 
     // Whether `pos` stands over a bridge that is off.

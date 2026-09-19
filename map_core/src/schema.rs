@@ -6,7 +6,7 @@ use serde_json::{Value, from_value};
 use common::{
     config::deserialize_required_option,
     protocol::{
-        CarrierMotion, CheckpointKind, FaceMaterials, KindDef, RampDirection, RampShape, SwitchDef, TERRAIN_MATERIAL,
+        CarrierMotion, CheckpointKind, FaceMaterials, FieldDef, RampDirection, RampShape, SwitchDef, TERRAIN_MATERIAL,
     },
 };
 
@@ -36,7 +36,7 @@ pub struct MapSource {
     pub geometry: MapDef,
     pub nested_geometry: HashMap<String, MapDef>,
     pub switches: Vec<SwitchDef>,
-    pub field_kinds: Vec<KindDef>,
+    pub fields: Vec<FieldDef>,
     pub fireworks: Option<FireworksConfig>,
     // What `load` found inert but playable, for the server's log.
     pub warnings: Vec<String>,
@@ -76,7 +76,7 @@ pub struct MapDef {
     #[serde(default)]
     pub switches: Vec<SwitchDef>,
     #[serde(default)]
-    pub field_kinds: Vec<KindDef>,
+    pub fields: Vec<FieldDef>,
     #[serde(default)]
     pub fireworks: Option<FireworksConfig>,
     #[serde(default)]
@@ -160,10 +160,9 @@ const fn default_storeys() -> u32 {
     1
 }
 
-// Every switch target starts on: a barrier or light bridge solid, an actor
-// zone spawning, a nested map running (or, following its switch, at end 2).
-// Its optional `switch` flips that state while active; without one it keeps
-// it for good.
+// Every switch target starts on: a field solid, an actor zone spawning, a
+// nested map running (or, following its switch, at end 2). Its optional
+// `switch` flips that state while active; without one it keeps it for good.
 const fn initially_on() -> bool {
     true
 }
@@ -304,6 +303,8 @@ pub struct WallDef {
     pub materials: FaceMaterials,
 }
 
+// One edge of its `field`, a string id looked up in the loaded `FieldTable`
+// at compile time.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BarrierDef {
@@ -311,27 +312,17 @@ pub struct BarrierDef {
     pub r0: i32,
     pub c1: i32,
     pub r1: i32,
-    // String id, looked up in the loaded `FieldKindTable` at compile time.
-    pub kind: String,
-    #[serde(default)]
-    pub switch: Option<String>,
-    #[serde(default = "initially_on")]
-    pub initially_on: bool,
+    pub field: String,
 }
 
-// One cell of a light bridge. Same-kind cells merge into rectangles at
+// One cell of its `field`. Cells of one field merge into rectangles at
 // compile time (`map::bridges`), so authoring stays per cell like floors.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct LightBridgeDef {
     pub col: i32,
     pub row: i32,
-    // String id, looked up in the loaded `FieldKindTable` at compile time.
-    pub kind: String,
-    #[serde(default)]
-    pub switch: Option<String>,
-    #[serde(default = "initially_on")]
-    pub initially_on: bool,
+    pub field: String,
 }
 
 // Editor-authored ramp: a footprint of cells (`cols` and `rows`, the end
@@ -399,8 +390,8 @@ const fn default_zone_levels() -> u32 {
 }
 
 // A single map-authored item. `item_type` is an `ItemType` config id
-// (`ItemType::from_config_id`), or "key" with `kind` referencing the
-// `FieldKindTable`. Placed items hide on pickup and reappear in place
+// (`ItemType::from_config_id`), or "key" with `field` referencing the
+// `FieldTable`. Placed items hide on pickup and reappear in place
 // after the map's per-type `placed_items.respawn_secs` delay, if configured.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Serialize)]
 pub struct ItemDef {
@@ -410,7 +401,7 @@ pub struct ItemDef {
     #[serde(rename = "type")]
     pub item_type: String,
     #[serde(default)]
-    pub kind: Option<String>,
+    pub field: Option<String>,
 }
 
 // A single-cell plate operating one of the map's switches by id (see

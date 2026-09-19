@@ -115,9 +115,7 @@ class EditorWindow(
         self.mode = MODE_SELECT
         self.shortcuts = []
         # The last values placed, shown in the toolbar and reused without a
-        # prompt; the kinds start on the map's first listed kind.
-        self.recent_barrier_controls = {}
-        self.recent_bridge_controls = {}
+        # prompt; the fields start on the map's first listed field.
         self.recent_checkpoint_number: int = 1
         self.recent_checkpoint_type: str = "individual"
         self.recent_actor_spawn_kind: str = ""
@@ -130,12 +128,12 @@ class EditorWindow(
         # None = the zone stays active whatever checkpoint the players reach.
         self.recent_actor_until_checkpoint: int | None = None
         self.recent_actor_on_checkpoint: str = "stop"
-        first_kind = self.field_kinds[0] if self.field_kinds else None
-        self.recent_barrier_kind: str | None = first_kind
+        first_field = self.fields[0] if self.fields else None
+        self.recent_barrier_field: str | None = first_field
         self.recent_pressure_plate_switch: str | None = self.switches[0] if self.switches else None
         self.recent_item_type: str = self.pickup_types[0]
-        self.recent_item_key_kind: str | None = first_kind
-        self.recent_bridge_kind: str | None = first_kind
+        self.recent_item_key_field: str | None = first_field
+        self.recent_bridge_field: str | None = first_field
         # (row_spacing, row_offset, col_spacing, col_offset) — remembered
         # across opens of the Auto-Place Lights dialog. Spacing is "cells
         # skipped between lights": 0 = every cell, 1 = every other, 2 = every
@@ -213,8 +211,8 @@ class EditorWindow(
         return self.doc.map_data
 
     @property
-    def field_kinds(self) -> list[str]:
-        return list(self.field_kind_colors)
+    def fields(self) -> list[str]:
+        return list(self.field_colors)
 
     @property
     def switches(self) -> list[str]:
@@ -237,7 +235,7 @@ class EditorWindow(
     def validate(self, data: dict, plated_from: dict | None = None) -> ValidationErrors:
         return validate_map(
             data,
-            self.field_kinds,
+            self.fields,
             switches=self.switches,
             plated_switches=plated_switches(self._document_geometries(data if plated_from is None else plated_from)),
             map_name=self.doc.active_map,
@@ -287,7 +285,7 @@ class EditorWindow(
 
     def current_catalogs(self) -> MapCatalogs:
         return MapCatalogs(
-            self.field_kind_colors,
+            self.field_colors,
             self.wall_width_cells,
             self.texture_catalog,
             self.switches,
@@ -305,7 +303,7 @@ class EditorWindow(
         self._document_issues = None
         catalogs = catalogs.for_layout(self.doc.root_data)
         self.catalog_map = map_name
-        self.field_kind_colors = catalogs.field_kind_colors
+        self.field_colors = catalogs.field_colors
         self.switch_ids = list(catalogs.switches)
         self.switch_colors = dict(catalogs.switch_colors)
         self.wall_width_cells = catalogs.wall_width_cells

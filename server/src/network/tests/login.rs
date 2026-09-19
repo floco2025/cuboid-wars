@@ -2,8 +2,8 @@ use super::{MAX_NAME_CHARS, sanitize_player_name};
 use crate::config::fixtures;
 use common::celestial::{CelestialClockAnchor, CelestialCycleSettings};
 use common::protocol::{
-    FieldKindId, HexColor, ItemType, KindDef, MapBootstrap, MapItems, MapLayout, MapSettings, PlayerBootstrap,
-    PlayerId, PortalAccess, SInit, ServerMessage, SwitchState, WorldBootstrap,
+    FieldDef, FieldId, HexColor, ItemType, MapBootstrap, MapItems, MapLayout, MapSettings, PlayerBootstrap, PlayerId,
+    PortalAccess, SInit, ServerMessage, SwitchState, WorldBootstrap,
 };
 
 #[test]
@@ -80,19 +80,23 @@ fn init_message_round_trips_complete_bootstrap() {
                 missile_air_grids: Vec::new(),
                 layout: MapLayout::default(),
                 settings: MapSettings {
-                    field_kinds: vec![
-                        KindDef {
+                    fields: vec![
+                        FieldDef {
                             id: "lobby".to_owned(),
                             color: HexColor([0x22, 0xcc, 0x33]),
+                            switch: Some("lobby".to_owned()),
+                            initially_on: true,
                         },
-                        KindDef {
+                        FieldDef {
                             id: "basement".to_owned(),
                             color: HexColor([0xf0, 0xc0, 0x20]),
+                            switch: None,
+                            initially_on: false,
                         },
                     ],
                     ..map_settings
                 },
-                items: MapItems(vec![ItemType::Key(FieldKindId(1))]),
+                items: MapItems(vec![ItemType::Key(FieldId(1))]),
             },
         },
     });
@@ -111,12 +115,16 @@ fn init_message_round_trips_complete_bootstrap() {
     assert!(decoded.celestial_clock.running);
     assert_eq!(decoded.world.celestial.day_duration_secs, 600.0);
     assert_eq!(decoded.world.celestial.lunar_cycle_days, 8.0);
-    let kinds = &decoded.world.map.settings.field_kinds;
+    let fields = &decoded.world.map.settings.fields;
     assert_eq!(
-        kinds.iter().map(|kind| kind.id.as_str()).collect::<Vec<_>>(),
+        fields.iter().map(|field| field.id.as_str()).collect::<Vec<_>>(),
         ["lobby", "basement"]
     );
-    assert_eq!(kinds[1].color, HexColor([0xf0, 0xc0, 0x20]));
-    assert_eq!(decoded.world.map.items.key_kinds(), [FieldKindId(1)]);
+    assert_eq!(fields[0].switch.as_deref(), Some("lobby"));
+    assert_eq!(
+        (fields[1].color, fields[1].initially_on),
+        (HexColor([0xf0, 0xc0, 0x20]), false)
+    );
+    assert_eq!(decoded.world.map.items.key_fields(), [FieldId(1)]);
     assert_eq!(decoded.world.gameplay.actors.len(), config.actors.len());
 }

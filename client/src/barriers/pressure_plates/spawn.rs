@@ -36,7 +36,7 @@ pub fn pressure_plates_spawn_system(
     }
     for plate in &layout.pressure_plates {
         let color = settings
-            .switch_color(plate.switch, &layout)
+            .switch_color(plate.switch)
             .unwrap_or(assets.pressure_plate().default_color);
         commands.spawn((
             PressurePlateMarker,

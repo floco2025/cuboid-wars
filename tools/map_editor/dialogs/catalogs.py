@@ -124,7 +124,7 @@ class ActorSpawnFieldsDialog(QDialog):
 
 class KindDialog(QDialog):
     """Modal dialog asking which id to use from one of the map's catalogs
-    (field kinds or switches).
+    (fields or switches).
     `noun` names one entry of that catalog in the empty-catalog warning.
     Returns the chosen id string on accept, None on cancel."""
 
@@ -152,7 +152,7 @@ class KindDialog(QDialog):
     def value(self) -> str:
         return self._combo.currentText()
 
-    # `noun` is the catalog entry ("field kind", "switch"), pluralized with an s.
+    # `noun` is the catalog entry ("field", "switch"), pluralized with an s.
     @classmethod
     def prompt(cls, parent, title: str, kinds: list[str], current: str | None, noun: str, colors=None) -> str | None:
         if not kinds:
@@ -170,16 +170,16 @@ class KindDialog(QDialog):
 
 class ItemTypeDialog(QDialog):
     """Modal dialog asking which item type to place. Key items additionally
-    pick a field kind; the kind combo is disabled for every other type.
-    Returns (type, kind-or-None) on accept, None on cancel."""
+    pick a field; the field combo is disabled for every other type.
+    Returns (type, field-or-None) on accept, None on cancel."""
 
     def __init__(
         self,
         parent,
         title: str,
-        kinds: list[str],
+        fields: list[str],
         current_type: str | None,
-        current_kind: str | None,
+        current_field: str | None,
         colors=None,
         *,
         item_types=ITEM_TYPES,
@@ -193,17 +193,17 @@ class ItemTypeDialog(QDialog):
         if current_type and current_type in item_types:
             self._type_combo.setCurrentIndex(item_types.index(current_type))
 
-        self._kind_combo = QComboBox()
-        for id_ in kinds:
-            self._kind_combo.addItem(color_icon((colors or {}).get(id_)), id_)
-        if current_kind and current_kind in kinds:
-            self._kind_combo.setCurrentIndex(kinds.index(current_kind))
-        self._type_combo.currentTextChanged.connect(self._update_kind_enabled)
-        self._update_kind_enabled(self._type_combo.currentText())
+        self._field_combo = QComboBox()
+        for id_ in fields:
+            self._field_combo.addItem(color_icon((colors or {}).get(id_)), id_)
+        if current_field and current_field in fields:
+            self._field_combo.setCurrentIndex(fields.index(current_field))
+        self._type_combo.currentTextChanged.connect(self._update_field_enabled)
+        self._update_field_enabled(self._type_combo.currentText())
 
         form = QFormLayout()
         form.addRow("Type:", self._type_combo)
-        form.addRow("Key kind:", self._kind_combo)
+        form.addRow("Field:", self._field_combo)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -213,35 +213,35 @@ class ItemTypeDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(buttons)
 
-    def _update_kind_enabled(self, item_type: str) -> None:
-        self._kind_combo.setEnabled(item_type == ITEM_KEY_TYPE)
+    def _update_field_enabled(self, item_type: str) -> None:
+        self._field_combo.setEnabled(item_type == ITEM_KEY_TYPE)
 
     def values(self) -> tuple[str, str | None]:
         item_type = self._type_combo.currentText()
-        kind = self._kind_combo.currentText() if item_type == ITEM_KEY_TYPE else None
-        return item_type, kind
+        field = self._field_combo.currentText() if item_type == ITEM_KEY_TYPE else None
+        return item_type, field
 
     @classmethod
     def prompt(
         cls,
         parent,
         title: str,
-        kinds: list[str],
+        fields: list[str],
         current_type: str | None,
-        current_kind: str | None,
+        current_field: str | None,
         colors=None,
         *,
         item_types=ITEM_TYPES,
     ) -> tuple[str, str | None] | None:
-        dialog = cls(parent, title, kinds, current_type, current_kind, colors, item_types=item_types)
+        dialog = cls(parent, title, fields, current_type, current_field, colors, item_types=item_types)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
-        item_type, kind = dialog.values()
-        if item_type == ITEM_KEY_TYPE and not kind:
+        item_type, field = dialog.values()
+        if item_type == ITEM_KEY_TYPE and not field:
             QMessageBox.warning(
                 parent,
                 title,
-                "This map lists no field kinds. Add them in the Map menu first.",
+                "This map lists no fields. Add them in the Map menu first.",
             )
             return None
-        return item_type, kind
+        return item_type, field

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPen
 
+from .catalogs import field_entries
 from .elements import ELEMENT_MODES, element_refs
 from .transforms import record_levels, record_rect
 
@@ -25,13 +26,27 @@ class Connection:
         return self.role == "Plate"
 
 
+def field_switches(root):
+    return {field["id"]: field.get("switch") for field in field_entries(root)}
+
+
+# The switch a record answers to: a barrier or bridge piece through its field,
+# every other record by naming it.
+def record_switch(fields, ref, entry):
+    if ref.name not in ("barriers", "light_bridges"):
+        return entry.get("switch")
+    field = entry.get("field")
+    return fields.get(field) if isinstance(field, str) else None
+
+
 def connections_for(root, switches):
     if not switches:
         return []
+    fields = field_switches(root)
     connections = []
     for name, data in [(None, root), *root.get("nested_geometry", {}).items()]:
         for ref, entry in element_refs(data):
-            switch = entry.get("switch")
+            switch = record_switch(fields, ref, entry)
             if isinstance(switch, str) and switch in switches:
                 lower, upper = record_levels(entry, ref.level)
                 role = "Plate" if ref.name == "pressure_plates" else ELEMENT_MODES[ref.name]
@@ -53,9 +68,11 @@ class ConnectionOverlay:
         self.window.canvas.update()
 
     def set_selection(self, refs):
-        values = (ref.get(self.window.map_data).get("switch") for ref in refs)
+        root = self.window.doc.root_data
+        fields = field_switches(root)
+        values = (record_switch(fields, ref, ref.get(self.window.map_data)) for ref in refs)
         switches = {value for value in values if isinstance(value, str) and value}
-        self.connections = connections_for(self.window.doc.root_data, switches)
+        self.connections = connections_for(root, switches)
         self.window.canvas.update()
 
     def paint(self, painter, cell):

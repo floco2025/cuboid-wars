@@ -34,14 +34,11 @@ fn barrier_corridor() -> MapDef {
     let mut map = map_with_zones(3, vec![level(vec![[0, 0], [1, 0], [2, 0]])], Vec::new(), Vec::new());
     for (col, kind) in [(1, "red"), (2, "blue")] {
         map.levels[0].barriers.push(BarrierDef {
-            switch: (kind == "red").then(|| "red".into()),
-            initially_on: kind != "red",
-
             c0: col,
             r0: 0,
             c1: col,
             r1: 1,
-            kind: kind.into(),
+            field: kind.into(),
         });
     }
     map
@@ -129,14 +126,11 @@ fn a_deeply_nested_plate_allows_actor_routes_through_a_siblings_barriers() {
 fn firework_plate_does_not_open_any_barrier_kind() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 1,
         r0: 0,
         c1: 1,
         r1: 1,
-        kind: "red".into(),
+        field: "red".into(),
     });
     map_def.pressure_plates.push(PressurePlateDef {
         level: 0,
@@ -190,7 +184,7 @@ fn room() -> MapDef {
         col: 2,
         row: 1,
         item_type: "gold".into(),
-        kind: None,
+        field: None,
     });
     map_def.pressure_plates.push(PressurePlateDef {
         level: 0,
@@ -371,14 +365,11 @@ fn nested_records_stay_in_their_own_frame_and_carry_their_id() {
 fn nested_kinds_resolve_against_the_root_tables_and_an_unknown_kind_names_the_nested_map() {
     let mut keyed_room = room();
     keyed_room.levels[0].barriers.push(BarrierDef {
-        switch: None,
-        initially_on: true,
-
         c0: 1,
         r0: 0,
         c1: 1,
         r1: 1,
-        kind: "red".into(),
+        field: "red".into(),
     });
     let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
     let nested_maps = tree(vec![("room", keyed_room)]);

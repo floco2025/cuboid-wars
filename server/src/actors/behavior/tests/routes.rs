@@ -218,7 +218,7 @@ fn graph_with_bridge_at_3_2(fixture: &Fixture) -> NavGraph {
         }
     }
     cells.rows[2][3].has_floor = false;
-    cells.rows[2][3].bridge = Some(BridgeId(0));
+    cells.rows[2][3].bridge = Some(FieldId(0));
     NavGraph::new(&CarrierGrid::new(
         CarrierId::WORLD,
         fixture.geometry,
@@ -242,7 +242,7 @@ fn route_onto_a_bridge_that_lost_power_is_dropped_for_a_fresh_decision() {
     assert!(info.route.is_some(), "a solid bridge keeps the route");
     assert_eq!(info.decision_timer, 1.0);
 
-    graph.set_open_fields(&[FieldId::Bridge(BridgeId(0))]);
+    graph.set_open_fields(&[FieldId(0)]);
     drop_route_onto_lost_bridge(&mut info, &graph);
     assert!(info.route.is_none(), "the leg onto the gap is abandoned");
     assert_eq!(info.decision_timer, 0.0, "the actor decides afresh at once");
@@ -255,7 +255,7 @@ fn route_over_floor_survives_a_bridge_losing_power_elsewhere() {
     let mut info = info(CONTACT);
     info.route = Some(route_through(&[fixture.pos(2, 2), fixture.pos(2, 4)], &fixture));
 
-    graph.set_open_fields(&[FieldId::Bridge(BridgeId(0))]);
+    graph.set_open_fields(&[FieldId(0)]);
     drop_route_onto_lost_bridge(&mut info, &graph);
 
     assert!(info.route.is_some());

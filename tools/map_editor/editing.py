@@ -17,28 +17,6 @@ def replace_records(data: dict, name: str, entries: list[dict], level: int | Non
     return after
 
 
-def merge_record(entry: dict, values: dict) -> dict:
-    merged = {**entry, **values}
-    if values.get("switch", "") is None:
-        del merged["switch"]
-    if merged.get("initially_on") is True:
-        del merged["initially_on"]
-    if values.get("until_checkpoint", 0) is None:
-        merged.pop("until_checkpoint", None)
-        merged.pop("on_checkpoint", None)
-    return merged
-
-
-def update_records(data: dict, name: str, predicate, values: dict, level: int | None = None) -> dict:
-    target = data if level is None else data["levels"][level]
-    return replace_records(
-        data,
-        name,
-        [merge_record(entry, values) if predicate(entry) else entry for entry in target.get(name, [])],
-        level,
-    )
-
-
 def placement_materials(material, faces=FACES):
     return (
         {face: material.get(face, next(iter(material.values()), "")) for face in faces}
@@ -91,8 +69,7 @@ def paint_edges(
     end: tuple,
     *,
     material: str | dict[str, str] | None = None,
-    kind: str | None = None,
-    controls: dict | None = None,
+    field: str | None = None,
 ) -> dict:
     after = copy.deepcopy(data)
     level = after["levels"][level_idx]
@@ -106,7 +83,7 @@ def paint_edges(
         if material is not None:
             existing.setdefault(key, {**entry, **placement_materials(material)})
         elif key not in walls:
-            existing[key] = {**entry, "kind": kind, **(controls or {})}
+            existing[key] = {**entry, "field": field}
     level[name] = list(existing.values())
     if material is not None:
         level["barriers"] = [b for b in level["barriers"] if edge_key(b) not in existing]
@@ -120,12 +97,10 @@ def paint_erasers(data: dict, level_idx: int, start: tuple, end: tuple) -> dict:
     return replace_records(data, "erasers", list(existing.values()), level_idx)
 
 
-def paint_bridges(data: dict, level_idx: int, rect: tuple, kind: str, controls: dict | None = None) -> dict:
+def paint_bridges(data: dict, level_idx: int, rect: tuple, field: str) -> dict:
     c0, r0, c1, r1 = rect
     existing = {(b["col"], b["row"]): b for b in data["levels"][level_idx].get("light_bridges", [])}
-    existing.update(
-        {(c, r): {"col": c, "row": r, "kind": kind, **(controls or {})} for r in range(r0, r1) for c in range(c0, c1)}
-    )
+    existing.update({(c, r): {"col": c, "row": r, "field": field} for r in range(r0, r1) for c in range(c0, c1)})
     return replace_records(data, "light_bridges", list(existing.values()), level_idx)
 
 

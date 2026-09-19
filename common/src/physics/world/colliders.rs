@@ -13,7 +13,7 @@ use crate::{
     constants::PRESSURE_PLATE_HEIGHT,
     map::{DecorationKind, Grounds, ROCK_HULL_SUBDIVISIONS, rock_shape},
     math::{rapier_pose, to_rapier},
-    protocol::{Barrier, BarrierId, BridgeId, CarrierId, FieldId, Floor, LightBridge, PressurePlate, Ramp, Wall},
+    protocol::{Barrier, CarrierId, FieldId, Floor, LightBridge, PressurePlate, Ramp, Wall},
 };
 
 pub(super) const WALL_COLLISION_GROUP: Group = Group::GROUP_1;
@@ -22,16 +22,15 @@ const RAMP_COLLISION_GROUP: Group = Group::GROUP_3;
 pub(super) const BRIDGE_COLLISION_GROUP: Group = Group::GROUP_4;
 pub(super) const BARRIER_COLLISION_GROUP: Group = Group::GROUP_5;
 
-// Field IDs and surface material indices share bit 40; the collider tag distinguishes them.
+// Field ids and surface material indices share bit 40; the collider tag distinguishes them.
 const COLLIDER_KIND_MASK: u128 = 0xff;
-const KIND_SHIFT: u32 = 40;
+const FIELD_SHIFT: u32 = 40;
 const ID_MASK: u128 = 0xffff;
 const CARRIER_SHIFT: u32 = 24;
 
-// A barrier or light bridge blocks a query unless it is among the fields the
-// caller passes through: the ones that are off (`SwitchState.open_fields`)
-// and, for a body's own movement, the ones it holds a key to
-// (`passable_fields`).
+// A barrier or light bridge blocks a query unless its field is among the ones
+// the caller passes through: those that are off (`SwitchState.open_fields`)
+// and, for a body's own movement, those it holds a key to (`passable_fields`).
 pub(super) fn field_blocks(collider: &Collider, passable: &[FieldId]) -> bool {
     ColliderKind::field_from_user_data(collider.user_data).is_none_or(|field| !passable.contains(&field))
 }
@@ -96,21 +95,13 @@ impl ColliderKind {
         tag | (u128::from(carrier.0) << CARRIER_SHIFT)
     }
 
-    fn barrier_user_data(kind: BarrierId, carrier: CarrierId) -> u128 {
-        Self::Barrier.user_data(carrier) | (u128::from(kind.0) << KIND_SHIFT)
-    }
-
-    fn bridge_user_data(kind: BridgeId, carrier: CarrierId) -> u128 {
-        Self::Bridge.user_data(carrier) | (u128::from(kind.0) << KIND_SHIFT)
+    fn field_user_data(self, field: FieldId, carrier: CarrierId) -> u128 {
+        self.user_data(carrier) | (u128::from(field.0) << FIELD_SHIFT)
     }
 
     pub(super) fn field_from_user_data(user_data: u128) -> Option<FieldId> {
-        let id = ((user_data >> KIND_SHIFT) & u128::from(u32::MAX)) as u32;
-        match Self::from_user_data(user_data)? {
-            Self::Barrier => Some(FieldId::Barrier(BarrierId(id))),
-            Self::Bridge => Some(FieldId::Bridge(BridgeId(id))),
-            _ => None,
-        }
+        matches!(Self::from_user_data(user_data)?, Self::Barrier | Self::Bridge)
+            .then(|| FieldId(((user_data >> FIELD_SHIFT) & ID_MASK) as u16))
     }
 
     pub(super) fn carrier_from_user_data(user_data: u128) -> CarrierId {
@@ -222,7 +213,7 @@ pub(super) fn insert_pressure_plate_collider(colliders: &mut ColliderSet, plate:
 }
 
 // Barriers mirror walls geometrically (a thin cuboid along a grid edge),
-// with instance IDs so each query can exclude the fields it passes.
+// tagged with their field so each query can exclude the fields it passes.
 pub(super) fn insert_barrier_collider(colliders: &mut ColliderSet, barrier: &Barrier) -> ColliderHandle {
     let (center, half_extents) = edge_cuboid(
         barrier.x1,
@@ -237,7 +228,7 @@ pub(super) fn insert_barrier_collider(colliders: &mut ColliderSet, barrier: &Bar
         colliders,
         center,
         half_extents,
-        ColliderKind::barrier_user_data(barrier.id, barrier.carrier),
+        ColliderKind::Barrier.field_user_data(barrier.field, barrier.carrier),
         BARRIER_COLLISION_GROUP,
     )
 }
@@ -249,7 +240,7 @@ pub(super) fn insert_bridge_collider(colliders: &mut ColliderSet, bridge: &Light
         colliders,
         center,
         half_extents,
-        ColliderKind::bridge_user_data(bridge.id, bridge.carrier),
+        ColliderKind::Bridge.field_user_data(bridge.field, bridge.carrier),
         BRIDGE_COLLISION_GROUP,
     )
 }

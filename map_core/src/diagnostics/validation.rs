@@ -110,8 +110,8 @@ pub fn validate_catalog(catalog: &str, entries: &Value) -> Result<()> {
         "{catalog}: expected a list of definitions"
     );
     ensure!(
-        catalog != "field_kinds" || values.len() <= 256,
-        "field_kinds: at most 256 kinds fit in the key inventory"
+        catalog != "fields" || values.len() <= 256,
+        "fields: at most 256 fields fit in the key inventory"
     );
     let mut seen = BTreeSet::new();
     for entry in values {
@@ -256,7 +256,7 @@ pub fn validate_map(data: &Value, context: &Value) -> Vec<Issue> {
 pub fn validate_document(root: &Value, context: &Value) -> Vec<Issue> {
     let definitions = &root["nested_geometry"];
     let mut errors = Errors::default();
-    for catalog in ["switches", "field_kinds"] {
+    for catalog in ["switches", "fields"] {
         if let Err(error) = validate_catalog(catalog, &get(root, catalog, json!([]))) {
             errors.add(error.to_string());
             break;
@@ -273,6 +273,9 @@ pub fn validate_document(root: &Value, context: &Value) -> Vec<Issue> {
     let mut context = context.clone();
     context["plated_switches"] = json!(plates(&used));
     context["checkpoint_numbers"] = json!(checkpoint_numbers(&used));
+    for field in list(root, "fields") {
+        switch_target(field, &format!("field {}", repr(&field["id"])), &context, &mut errors);
+    }
     let fireworks = &root["fireworks"];
     if !fireworks.is_null() {
         if !fireworks.is_object() {
@@ -323,7 +326,7 @@ pub fn validate_document(root: &Value, context: &Value) -> Vec<Issue> {
             if !crate::is_valid_geometry_name(name) {
                 add(format!("{prefix}the name must be nonempty with no surrounding spaces"));
             }
-            for key in ["switches", "field_kinds", "fireworks"] {
+            for key in ["switches", "fields", "fireworks"] {
                 if truth(&data[key]) {
                     add(format!("{prefix}{key}: control definitions belong in the outer map"));
                 }

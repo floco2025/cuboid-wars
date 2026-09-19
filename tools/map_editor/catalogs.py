@@ -1,5 +1,5 @@
-"""The catalogs the editor reads: the map registry, each map's layout kinds
-and settings, and the global actor and wall-light kinds. Catalog entries are
+"""The catalogs the editor reads: the map registry, each map's layout fields,
+switches, and settings, and the global actor and wall-light kinds. Catalog entries are
 metadata; no texture image is ever loaded."""
 
 from __future__ import annotations
@@ -52,17 +52,24 @@ def load_actor_kinds() -> list[str]:
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 
 
-# The layout's field kinds in catalog order: id → "#rrggbb". Malformed
+# The entries of a root catalog that carry a name, in catalog order. Malformed
 # entries are validation's business and are left out here.
-def kind_colors(root: dict) -> dict[str, str]:
-    entries = root.get("field_kinds", [])
-    if not isinstance(entries, list):
-        return {}
-    return {
-        entry["id"]: entry["color"]
-        for entry in entries
-        if isinstance(entry, dict) and isinstance(entry.get("id"), str) and isinstance(entry.get("color"), str)
-    }
+def catalog_entries(root: dict, catalog: str) -> list[dict]:
+    entries = root.get(catalog, [])
+    return (
+        [entry for entry in entries if isinstance(entry, dict) and isinstance(entry.get("id"), str)]
+        if isinstance(entries, list)
+        else []
+    )
+
+
+def field_entries(root: dict) -> list[dict]:
+    return catalog_entries(root, "fields")
+
+
+# The layout's fields in catalog order: id → "#rrggbb".
+def field_colors(root: dict) -> dict[str, str]:
+    return {entry["id"]: entry["color"] for entry in field_entries(root) if isinstance(entry.get("color"), str)}
 
 
 SWITCH_ACTIVATIONS = ("momentary", "toggle", "auto")
@@ -71,31 +78,16 @@ SWITCH_HOLDS = ("any", "everyone")
 
 
 def switch_entries(root: dict) -> list[dict]:
-    entries = root.get("switches", [])
-    return (
-        [entry for entry in entries if isinstance(entry, dict) and isinstance(entry.get("id"), str)]
-        if isinstance(entries, list)
-        else []
-    )
+    return catalog_entries(root, "switches")
 
 
-# A plate takes the first kind, in catalog order, that a barrier or bridge on
-# its switch uses; the switch's own colour overrides that.
-def switch_colors(root: dict, kinds: dict[str, str]) -> dict[str, str]:
-    from .validation import placed_definitions
-
+# A plate takes the first field, in catalog order, that its switch flips; the
+# switch's own colour overrides that.
+def switch_colors(root: dict) -> dict[str, str]:
     with ASSETS_PATH.open(encoding="utf-8") as handle:
         default_color = json.load(handle)["pressure_plate"]["default_color"]
-    geometries = [root, *placed_definitions(root, root.get("nested_geometry", {})).values()]
-    targets = [
-        (entry.get("switch"), color)
-        for kind, color in kinds.items()
-        for geometry in geometries
-        for level in geometry.get("levels", [])
-        for name in ("barriers", "light_bridges")
-        for entry in level.get(name, [])
-        if entry.get("kind") == kind
-    ]
+    colors = field_colors(root)
+    targets = [(entry.get("switch"), colors[entry["id"]]) for entry in field_entries(root) if entry["id"] in colors]
 
     def override(entry):
         color = entry.get("color")
@@ -234,8 +226,8 @@ def require_map_settings(name: str) -> None:
 class MapCatalogs:
     """The host map's appearance, controls, materials, and drawing settings."""
 
-    # The kinds barriers, light bridges, and keys share, in catalog order.
-    field_kind_colors: dict[str, str]
+    # The fields barriers, light bridges, and keys name, in catalog order.
+    field_colors: dict[str, str]
     wall_width_cells: float
     texture_catalog: dict[str, bool]
     # The switch ids in catalog order.
@@ -246,14 +238,13 @@ class MapCatalogs:
     floor_thickness: float = 0.0
     pickup_types: tuple[str, ...] = ITEM_TYPES
 
-    # The layout owns the kinds and switches; the rest stays as loaded.
+    # The layout owns the fields and switches; the rest stays as loaded.
     def for_layout(self, root: dict) -> "MapCatalogs":
-        kinds = kind_colors(root)
         return replace(
             self,
-            field_kind_colors=kinds,
+            field_colors=field_colors(root),
             switches=[entry["id"] for entry in switch_entries(root)],
-            switch_colors=switch_colors(root, kinds),
+            switch_colors=switch_colors(root),
         )
 
     @classmethod

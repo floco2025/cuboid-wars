@@ -30,7 +30,7 @@ fn app() -> (App, Receiver<ClientMessage>) {
     let mut meshes = Assets::default();
     let mut materials = Assets::default();
     let assets = ProjectileAssets::new(&mut meshes, &mut materials, gameplay.projectiles.radius);
-    let fields = build_field_assets(&mut meshes, &mut materials, &[], &MapLayout::default(), 1.0, 1.0);
+    let fields = build_field_assets(&mut meshes, &mut materials, &[], 1.0, 1.0);
     let mut time = Time::<()>::default();
     time.advance_by(Duration::from_secs_f32(1.0 / 30.0));
     let (sender, receiver) = unbounded();

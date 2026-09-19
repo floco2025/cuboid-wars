@@ -52,13 +52,14 @@ impl NavGraphs {
         if !config.actors.values().any(|actor| actor.character.can_use_ladders) {
             return;
         }
-        // Barriers that are ever off: a route may plan through them and
-        // wait for physics to let the actor pass.
-        let passable: Vec<FieldId> = layout
-            .barriers
+        // Fields that are ever off: a route may plan through their barriers
+        // and wait for physics to let the actor pass.
+        let passable: Vec<FieldId> = settings
+            .fields
             .iter()
-            .filter(|barrier| barrier.switch.is_some() || !barrier.initially_on)
-            .map(|barrier| FieldId::Barrier(barrier.id))
+            .enumerate()
+            .filter(|(_, field)| field.switch.is_some() || !field.initially_on)
+            .map(|(index, _)| FieldId(index as u16))
             .collect();
         for (index, graph) in self.0.iter_mut().enumerate() {
             let carrier = CarrierId(index as u16);

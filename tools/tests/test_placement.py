@@ -12,7 +12,7 @@ from map_editor.normalization import empty_level, empty_map
 from map_editor.transforms import insert_level_data
 from map_editor.validation import validate_map
 
-BRIDGE_KIND = "skyway"
+BRIDGE_FIELD = "skyway"
 
 
 class PlacementTests(unittest.TestCase):
@@ -26,19 +26,30 @@ class PlacementTests(unittest.TestCase):
         data["levels"][0]["inaccessible_floors"] = [floor(1, 0)]
         data["levels"].append(empty_level(1))
         data["ramps"] = [{"lower_level": 0, "cols": [1, 3], "rows": [1, 2], "direction": "E", **faces()}]
-        host = EditorHost(data, [BRIDGE_KIND])
+        host = EditorHost(data, [BRIDGE_FIELD])
 
-        host.add_light_bridge_rect((0, 0), (2, 1), BRIDGE_KIND)
+        host.add_light_bridge_rect((0, 0), (2, 1), BRIDGE_FIELD)
 
         self.assertEqual(
-            {(b["col"], b["row"], b["kind"]) for b in host.map_data["levels"][0]["light_bridges"]},
-            {(col, row, BRIDGE_KIND) for row in range(2) for col in range(3)},
+            host.map_data["levels"][0]["light_bridges"],
+            [{"col": col, "row": row, "field": BRIDGE_FIELD} for row in range(2) for col in range(3)],
         )
         self.assertEqual(host.statuses, [])
-        errors = validate_map(host.map_data, [BRIDGE_KIND])
+        errors = validate_map(host.map_data, [BRIDGE_FIELD])
         self.assertTrue(any("[0, 0] sits on a floor" in e for e in errors))
         self.assertTrue(any("[1, 0] sits on a floor" in e for e in errors))
         self.assertTrue(any("[1, 1] sits on a ramp" in e for e in errors))
+
+    def test_placing_a_barrier_line_writes_only_its_edges_and_field(self) -> None:
+        host = EditorHost(empty_map(3, 3), ["door"])
+        host.add_barrier_line((0, 1), (2, 1), "door")
+        self.assertEqual(
+            host.map_data["levels"][0]["barriers"],
+            [{"c0": col, "r0": 1, "c1": col + 1, "r1": 1, "field": "door"} for col in range(2)],
+        )
+        host.add_barrier_line((0, 0), (1, 0), "vault")
+        self.assertEqual(host.statuses, ["Unknown field 'vault'"])
+        self.assertEqual(len(host.map_data["levels"][0]["barriers"]), 2)
 
     def test_placing_on_an_occupied_cell_flashes_instead_of_removing(self) -> None:
         host = EditorHost(furnished_map(), ["bridge_1"])

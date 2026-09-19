@@ -105,8 +105,8 @@ pub fn normalize_record(kind: &str, v: &Value) -> Value {
                     &["col", "row"]
                 },
             );
-            out["kind"] = get(v, "kind", json!(""));
-            merge(out, controls)
+            out["field"] = get(v, "field", json!(""));
+            out
         }
         "ramp" => {
             let mut out = coords(v, &["lower_level"]);
@@ -193,8 +193,8 @@ pub fn normalize_record(kind: &str, v: &Value) -> Value {
         "item" => {
             let mut out = coords(v, &["level", "col", "row"]);
             out["type"] = get(v, "type", json!(""));
-            if v["type"] == "key" || v.get("kind").is_some() {
-                out["kind"] = get(v, "kind", json!(""));
+            if v["type"] == "key" || v.get("field").is_some() {
+                out["field"] = get(v, "field", json!(""));
             }
             out
         }
@@ -203,7 +203,7 @@ pub fn normalize_record(kind: &str, v: &Value) -> Value {
     }
 }
 pub fn normalize_map(v: &Value) -> Value {
-    let mut out = select(v, &["switches", "field_kinds", "fireworks"]);
+    let mut out = select(v, &["switches", "fields", "fireworks"]);
     out["grid_cols"] = get(v, "grid_cols", json!(20));
     out["grid_rows"] = get(v, "grid_rows", json!(20));
     for (key, kind) in [

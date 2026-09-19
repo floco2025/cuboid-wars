@@ -24,7 +24,7 @@ struct Switch {
     // Whether its inputs met the hold rule last tick; an `everyone` toggle
     // flips on that rule's rising edge.
     occupied: bool,
-    // Each barrier and light bridge it drives, with the field's initial state.
+    // Each field it drives, with the field's initial state.
     fields: Vec<(FieldId, bool)>,
     carriers: Vec<(CarrierId, Carrier, CarrierRun)>,
 }
@@ -107,21 +107,17 @@ impl Switches {
                 carriers: Vec::new(),
             })
             .collect();
-        let fields = layout
-            .barriers
-            .iter()
-            .map(|barrier| (FieldId::Barrier(barrier.id), barrier.switch, barrier.initially_on))
-            .chain(
-                layout
-                    .light_bridges
-                    .iter()
-                    .map(|bridge| (FieldId::Bridge(bridge.id), bridge.switch, bridge.initially_on)),
-            );
         let mut unswitched_open_fields = Vec::new();
-        for (field, switch, initially_on) in fields {
+        for (index, field) in settings.fields.iter().enumerate() {
+            let id = FieldId(index as u16);
+            let switch = field.switch.as_deref().map(|switch| {
+                switch_table
+                    .index_of(switch)
+                    .expect("field switch missing from SwitchTable")
+            });
             match switch {
-                Some(switch) => switches[usize::from(switch.0)].fields.push((field, initially_on)),
-                None if !initially_on => unswitched_open_fields.push(field),
+                Some(switch) => switches[usize::from(switch.0)].fields.push((id, field.initially_on)),
+                None if !field.initially_on => unswitched_open_fields.push(id),
                 None => {}
             }
         }

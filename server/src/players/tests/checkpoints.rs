@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     physics::{CharacterSupport, CollisionWorld},
     protocol::{
-        CarrierId, Checkpoint, CheckpointKind, FaceYaw, FieldKindId, Floor, Health, MapLayout, PlayerId, Position,
+        CarrierId, Checkpoint, CheckpointKind, FaceYaw, FieldId, Floor, Health, MapLayout, PlayerId, Position,
         ServerMessage,
     },
 };
@@ -250,7 +250,7 @@ fn deaths_preserve_checkpoints_clear_equipment_and_retry_blocked_group_or_indivi
         {
             let mut players = app.world_mut().resource_mut::<PlayerMap>();
             let player = players.get_mut(&id).expect("player missing");
-            player.life.held_keys = vec![FieldKindId(0)];
+            player.life.held_keys = vec![FieldId(0)];
             player.life.power_ups.fill(PowerUpState::Permanent);
         }
         kill(&mut app, id);

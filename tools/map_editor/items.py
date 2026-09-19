@@ -27,27 +27,27 @@ class ItemsMixin:
             self.notify(f"Item not placed: cell [{col}, {row}] already holds one; right-click it to edit or erase.")
             return
         if self.recent_item_type in self.pickup_types:
-            if self.recent_item_type != ITEM_KEY_TYPE or self.recent_item_key_kind in self.field_kinds:
-                self.add_item(col, row, self.recent_item_type, self.recent_item_key_kind)
+            if self.recent_item_type != ITEM_KEY_TYPE or self.recent_item_key_field in self.fields:
+                self.add_item(col, row, self.recent_item_type, self.recent_item_key_field)
                 return
         result = ItemTypeDialog.prompt(
             self,
             "Place Item",
-            self.field_kinds,
+            self.fields,
             self.recent_item_type,
-            self.recent_item_key_kind,
-            self.field_kind_colors,
+            self.recent_item_key_field,
+            self.field_colors,
             item_types=self.pickup_types,
         )
         if result is None:
             return
-        item_type, kind = result
+        item_type, field = result
         self.recent_item_type = item_type
-        if kind is not None:
-            self.recent_item_key_kind = kind
-        self.add_item(col, row, item_type, kind)
+        if field is not None:
+            self.recent_item_key_field = field
+        self.add_item(col, row, item_type, field)
 
-    def add_item(self, col: int, row: int, item_type: str, kind: str | None, label: str | None = None) -> None:
+    def add_item(self, col: int, row: int, item_type: str, field: str | None, label: str | None = None) -> None:
         if item_type not in self.pickup_types:
             self.notify(f"Item not placed: {item_type} is unavailable as a pickup.")
             return
@@ -55,8 +55,8 @@ class ItemsMixin:
         if error is not None:
             self.notify(f"Item not placed: cell {error}.")
             return
-        if item_type == ITEM_KEY_TYPE and kind not in self.field_kinds:
-            self.notify(f"Unknown key kind {kind!r}")
+        if item_type == ITEM_KEY_TYPE and field not in self.fields:
+            self.notify(f"Unknown key field {field!r}")
             return
         after = copy.deepcopy(self.map_data)
         items = after.setdefault(ITEMS_LIST, [])
@@ -64,8 +64,8 @@ class ItemsMixin:
         items[:] = [i for i in items if not (i["level"] == self.current_level and i["col"] == col and i["row"] == row)]
         new_item = {"level": self.current_level, "col": col, "row": row, "type": item_type}
         if item_type == ITEM_KEY_TYPE:
-            new_item["kind"] = kind
+            new_item["field"] = field
         items.append(new_item)
         if label is None:
-            label = f"Place Item ({item_type} {kind})" if kind else f"Place Item ({item_type})"
+            label = f"Place Item ({item_type} {field})" if field else f"Place Item ({item_type})"
         self.apply_change(label, after)

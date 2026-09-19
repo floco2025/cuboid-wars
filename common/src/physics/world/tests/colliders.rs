@@ -3,38 +3,18 @@ use crate::map::{GroundsSettings, ROCK_VARIANTS, RockClass};
 use rapier3d::prelude::Ray;
 
 #[test]
-fn barrier_user_data_round_trips_kind() {
-    let kind = BarrierId(7);
-    let user_data = ColliderKind::barrier_user_data(kind, CarrierId::WORLD);
-    assert_eq!(ColliderKind::from_user_data(user_data), Some(ColliderKind::Barrier));
-    assert_eq!(
-        ColliderKind::field_from_user_data(user_data),
-        Some(FieldId::Barrier(kind))
-    );
-}
-
-#[test]
-fn bridge_user_data_is_not_a_barrier() {
-    let user_data = ColliderKind::bridge_user_data(BridgeId(2), CarrierId::WORLD);
-    assert_eq!(ColliderKind::from_user_data(user_data), Some(ColliderKind::Bridge));
-    assert_eq!(
-        ColliderKind::field_from_user_data(user_data),
-        Some(FieldId::Bridge(BridgeId(2)))
-    );
-}
-
-#[test]
-fn user_data_round_trips_kind_and_carrier() {
+fn field_user_data_round_trips_the_piece_its_field_and_its_carrier() {
     let carrier = CarrierId(300);
+    for piece in [ColliderKind::Barrier, ColliderKind::Bridge] {
+        let user_data = piece.field_user_data(FieldId(u16::MAX), carrier);
+        assert_eq!(ColliderKind::from_user_data(user_data), Some(piece));
+        assert_eq!(ColliderKind::field_from_user_data(user_data), Some(FieldId(u16::MAX)));
+        assert_eq!(ColliderKind::carrier_from_user_data(user_data), carrier);
+    }
     let floor = ColliderKind::Floor.user_data(carrier);
     assert_eq!(ColliderKind::from_user_data(floor), Some(ColliderKind::Floor));
+    assert_eq!(ColliderKind::field_from_user_data(floor), None);
     assert_eq!(ColliderKind::carrier_from_user_data(floor), carrier);
-    let barrier = ColliderKind::barrier_user_data(BarrierId(70000), carrier);
-    assert_eq!(
-        ColliderKind::field_from_user_data(barrier),
-        Some(FieldId::Barrier(BarrierId(70000)))
-    );
-    assert_eq!(ColliderKind::carrier_from_user_data(barrier), carrier);
     assert_eq!(
         ColliderKind::carrier_from_user_data(ColliderKind::Wall.user_data(CarrierId::WORLD)),
         CarrierId::WORLD
@@ -49,29 +29,22 @@ fn characters_query_all_surface_and_barrier_groups() {
 }
 
 #[test]
-fn passability_excludes_only_the_named_field_instance() {
-    let a = ColliderBuilder::ball(1.0)
-        .user_data(ColliderKind::barrier_user_data(BarrierId(70000), CarrierId(300)))
-        .build();
-    let b = ColliderBuilder::ball(1.0)
-        .user_data(ColliderKind::barrier_user_data(BarrierId(70001), CarrierId(300)))
-        .build();
-    let bridge = ColliderBuilder::ball(1.0)
-        .user_data(ColliderKind::bridge_user_data(BridgeId(70000), CarrierId(300)))
-        .build();
+fn passability_lets_a_body_through_every_piece_of_the_named_field_alone() {
+    let piece = |kind: ColliderKind, field| {
+        ColliderBuilder::ball(1.0)
+            .user_data(kind.field_user_data(FieldId(field), CarrierId(300)))
+            .build()
+    };
     let wall = ColliderBuilder::ball(1.0)
         .user_data(ColliderKind::Wall.user_data(CarrierId(300)))
         .build();
-    let passable = [FieldId::Barrier(BarrierId(70000))];
-    assert!(!field_blocks(&a, &passable));
-    assert!(field_blocks(&b, &passable));
-    assert!(
-        field_blocks(&bridge, &passable),
-        "a bridge sharing the barrier's number is another field"
-    );
-    assert!(!field_blocks(&bridge, &[FieldId::Bridge(BridgeId(70000))]));
+    let passable = [FieldId(7)];
+    assert!(!field_blocks(&piece(ColliderKind::Barrier, 7), &passable));
+    assert!(!field_blocks(&piece(ColliderKind::Bridge, 7), &passable));
+    assert!(field_blocks(&piece(ColliderKind::Barrier, 8), &passable));
+    assert!(field_blocks(&piece(ColliderKind::Bridge, 8), &passable));
     assert!(field_blocks(&wall, &passable));
-    assert!(field_blocks(&a, &[]));
+    assert!(field_blocks(&piece(ColliderKind::Barrier, 7), &[]));
 }
 
 #[test]

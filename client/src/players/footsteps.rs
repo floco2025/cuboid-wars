@@ -7,7 +7,7 @@ use bevy::{
 };
 use common::{
     map::Carriers,
-    physics::{CharacterSupport, CollisionWorld},
+    physics::{CharacterSupport, CollisionWorld, passable_fields},
     protocol::{CarrierId, Health, MapLayout, MapSettings, PlayerId, SwitchState},
 };
 use rand::RngExt;
@@ -192,7 +192,7 @@ fn player_footsteps_system(
             assets.ladder_material_def().footstep.as_deref()
         } else {
             let keys = players.get(id).map_or(&[][..], |player| player.held_keys.as_slice());
-            let passable = world.passable_fields(keys, &switch_state.open_fields);
+            let passable = passable_fields(keys, &switch_state.open_fields);
             let mut nearest = None;
             for carrier in iter::once(CarrierId::WORLD).chain(carriers.carried_ids()) {
                 // Queries use tick poses; the feet and contact sound use the rendered carrier pose.

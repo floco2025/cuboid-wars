@@ -14,7 +14,7 @@ from .nesting import DEFAULT_MOTION
 
 class ControlActionsMixin:
     def build_control_menu(self, menu):
-        for catalog, title in (("switches", "Switches"), ("field_kinds", "Field Kinds")):
+        for catalog, title in (("switches", "Switches"), ("fields", "Fields")):
             self.add_menu_action(
                 menu, title + "…", None, lambda checked=False, c=catalog, t=title: self.edit_control_catalog(c, t)
             )
@@ -24,7 +24,15 @@ class ControlActionsMixin:
 
     def edit_control_catalog(self, catalog, title):
         root = self.doc.root_data
-        result = ControlCatalogDialog.prompt(self, title, catalog, root.get(catalog, []), catalog_usage(root, catalog))
+        result = ControlCatalogDialog.prompt(
+            self,
+            title,
+            catalog,
+            root.get(catalog, []),
+            catalog_usage(root, catalog),
+            switches=self.switches,
+            switch_colors=self.switch_colors,
+        )
         if result is None:
             return
         entries, renames = result
@@ -36,23 +44,18 @@ class ControlActionsMixin:
         self.doc.apply_root_change("Edit " + title, after, self.doc.active_map)
         self.retarget_defaults(catalog, {entry["id"] for entry in entries}, renames)
 
-    # The toolbar defaults name kinds like the document does, so a catalog
-    # edit renames or drops them the same way.
+    # The toolbar defaults name fields and switches like the document does, so
+    # a catalog edit renames or drops them the same way.
     def retarget_defaults(self, catalog, remaining, renames):
         def follow(name):
             name = renames.get(name, name)
             return name if name in remaining else None
 
         if catalog == "switches":
-            # An initial state was chosen for the switch that flips it, so a
-            # default losing its switch returns to the placement default, On.
-            for attribute in ("recent_barrier_controls", "recent_bridge_controls"):
-                controls = getattr(self, attribute)
-                if controls.get("switch"):
-                    switch = follow(controls["switch"])
-                    setattr(self, attribute, {**controls, "switch": switch} if switch else {})
             if self.recent_actor_spawn_switch:
                 self.recent_actor_spawn_switch = follow(self.recent_actor_spawn_switch) or ""
+                # An initial state was chosen for the switch that flips it, so a
+                # default losing its switch returns to the placement default, On.
                 if not self.recent_actor_spawn_switch:
                     self.recent_actor_spawn_initially_on = True
             switch = follow(self.recent_pressure_plate_switch) if self.recent_pressure_plate_switch else None
@@ -69,7 +72,7 @@ class ControlActionsMixin:
                     motion=motion.motion if switch else DEFAULT_MOTION,
                 )
         else:
-            for attribute in ("recent_barrier_kind", "recent_bridge_kind", "recent_item_key_kind"):
+            for attribute in ("recent_barrier_field", "recent_bridge_field", "recent_item_key_field"):
                 setattr(self, attribute, follow(getattr(self, attribute)))
         self.tool_settings.refresh()
 

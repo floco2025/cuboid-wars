@@ -96,7 +96,7 @@ class SpawnValidationTests(unittest.TestCase):
                     elif surface == "inaccessible_floor":
                         level["inaccessible_floors"] = [{"col": 0, "row": 0, "all": DEFAULT_ALIAS}]
                     elif surface == "bridge":
-                        level["light_bridges"] = [{"col": 0, "row": 0, "kind": "green"}]
+                        level["light_bridges"] = [{"col": 0, "row": 0, "field": "green"}]
                     elif surface == "ramp":
                         data["levels"].append(empty_level(1))
                         data["ramps"] = [
@@ -113,7 +113,7 @@ class SpawnValidationTests(unittest.TestCase):
         data = {"fireworks": None, **empty_map(8, 8)}
         data["levels"][0]["floors"] = [{"col": c, "row": r, "all": DEFAULT_ALIAS} for c in range(2) for r in range(2)]
         child = spawn_map()
-        child["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "kind": "green"}]
+        child["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "field": "green"}]
         data["nested_geometry"] = {"turret_room": child}
         errors = validate_document(
             data,

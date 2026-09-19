@@ -1,5 +1,4 @@
 use super::*;
-use common::protocol::{BarrierId, BridgeId, FieldId};
 
 const CONFIG: FieldVfxConfig = FieldVfxConfig {
     emissive_brightness: 1.0,
@@ -12,25 +11,16 @@ const CONFIG: FieldVfxConfig = FieldVfxConfig {
 #[test]
 fn fade_targets_follow_the_open_fields() {
     let switch_state = SwitchState {
-        open_fields: vec![FieldId::Barrier(BarrierId(3)), FieldId::Bridge(BridgeId(0))],
+        open_fields: vec![FieldId(0), FieldId(3)],
         ..Default::default()
     };
-    assert_eq!(
-        fade_target(&switch_state, FieldId::Barrier(BarrierId(3)), CONFIG),
-        CONFIG.passable_opacity
-    );
-    assert_eq!(
-        fade_target(&switch_state, FieldId::Barrier(BarrierId(0)), CONFIG),
-        CONFIG.opacity
-    );
-    assert_eq!(
-        fade_target(&switch_state, FieldId::Bridge(BridgeId(1)), CONFIG),
-        CONFIG.opacity
-    );
-    assert_eq!(
-        fade_target(&switch_state, FieldId::Bridge(BridgeId(0)), CONFIG),
-        CONFIG.passable_opacity
-    );
+    for (field, opacity) in [
+        (FieldId(3), CONFIG.passable_opacity),
+        (FieldId(0), CONFIG.passable_opacity),
+        (FieldId(1), CONFIG.opacity),
+    ] {
+        assert_eq!(fade_target(&switch_state, field, CONFIG), opacity);
+    }
 }
 
 #[test]
@@ -58,24 +48,19 @@ fn fade_duration_controls_how_quickly_opacity_changes() {
 }
 
 #[test]
-fn forgetting_one_domain_keeps_the_other() {
-    let surface = |state| FieldSurface {
-        state,
+fn forgetting_one_kind_of_piece_keeps_the_other() {
+    let surface = |piece| FieldSurface {
+        field: FieldId(0),
+        piece,
         material: Handle::default(),
         base_color: Color::WHITE,
     };
-    let mut surfaces = FieldSurfaces(vec![
-        surface(FieldId::Barrier(BarrierId(0))),
-        surface(FieldId::Bridge(BridgeId(0))),
-    ]);
-    surfaces.forget_barriers();
-    assert!(matches!(
-        surfaces.0.as_slice(),
-        [FieldSurface {
-            state: FieldId::Bridge(_),
-            ..
-        }]
-    ));
-    surfaces.forget_bridges();
+    let mut surfaces = FieldSurfaces(vec![surface(FieldPiece::Barrier), surface(FieldPiece::Bridge)]);
+    surfaces.forget(FieldPiece::Barrier);
+    assert_eq!(
+        surfaces.0.iter().map(|surface| surface.piece).collect::<Vec<_>>(),
+        [FieldPiece::Bridge]
+    );
+    surfaces.forget(FieldPiece::Bridge);
     assert!(surfaces.0.is_empty());
 }

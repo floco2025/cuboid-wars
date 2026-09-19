@@ -14,8 +14,8 @@ from map_editor.normalization import (
 )
 from map_editor.validation import validate_map
 
-KIND = "treasure"
-BRIDGE_KIND = "skyway"
+FIELD = "treasure"
+BRIDGE_FIELD = "skyway"
 
 
 class NormalizationTests(unittest.TestCase):
@@ -67,14 +67,14 @@ class NormalizationTests(unittest.TestCase):
     def test_canonicalization_preserves_conflicting_plate_switches_for_validation(self) -> None:
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
-        barrier = {"level": 0, "col": 0, "row": 0, "switch": KIND}
+        barrier = {"level": 0, "col": 0, "row": 0, "switch": FIELD}
         firework = {"level": 0, "col": 0, "row": 0, "switch": "fireworks"}
         data["pressure_plates"] = [firework, barrier, dict(firework)]
 
         result = canonicalize_map(data)
 
         self.assertEqual(result["pressure_plates"], [firework, barrier])
-        errors = validate_map(result, [KIND], switches=[KIND, "fireworks"])
+        errors = validate_map(result, [FIELD], switches=[FIELD, "fireworks"])
         self.assertTrue(any("duplicates a plate at level 0 [0, 0]" in error for error in errors))
 
     def test_canonicalization_keeps_actor_zones_that_differ_only_by_switch(self) -> None:
@@ -176,10 +176,10 @@ class NormalizationTests(unittest.TestCase):
         data = empty_map(3, 3)
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["levels"][0]["light_bridges"] = [
-            {"col": 2, "row": 1, "kind": BRIDGE_KIND},
-            {"col": 1, "row": 0, "kind": BRIDGE_KIND},
-            {"col": 2, "row": 1, "kind": "other"},
-            {"col": 0, "row": 1, "kind": BRIDGE_KIND},
+            {"col": 2, "row": 1, "field": BRIDGE_FIELD},
+            {"col": 1, "row": 0, "field": BRIDGE_FIELD},
+            {"col": 2, "row": 1, "field": "other"},
+            {"col": 0, "row": 1, "field": BRIDGE_FIELD},
         ]
 
         result = canonicalize_map(data)
@@ -187,9 +187,9 @@ class NormalizationTests(unittest.TestCase):
         self.assertEqual(
             result["levels"][0]["light_bridges"],
             [
-                {"col": 1, "row": 0, "kind": BRIDGE_KIND},
-                {"col": 0, "row": 1, "kind": BRIDGE_KIND},
-                {"col": 2, "row": 1, "kind": "other"},
+                {"col": 1, "row": 0, "field": BRIDGE_FIELD},
+                {"col": 0, "row": 1, "field": BRIDGE_FIELD},
+                {"col": 2, "row": 1, "field": "other"},
             ],
         )
 

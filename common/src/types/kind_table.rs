@@ -2,18 +2,6 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use anyhow::{Result, anyhow, bail};
 use bevy_ecs::prelude::Resource;
-use bincode::{Decode, Encode};
-use serde::{Deserialize, Serialize};
-
-use super::color::HexColor;
-
-// A reusable appearance or key identity with its display color.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct KindDef {
-    pub id: String,
-    pub color: HexColor,
-}
 
 // A kind id: a stable on-wire index into one of the selected map's ordered
 // kind catalogs. The server ships those catalogs in `SInit` so both sides
@@ -46,10 +34,6 @@ impl<K: KindId> Default for KindTable<K> {
 }
 
 impl<K: KindId> KindTable<K> {
-    pub fn from_defs(defs: &[KindDef]) -> Result<Self> {
-        Self::from_ids(defs.iter().map(|def| def.id.clone()).collect())
-    }
-
     pub fn from_ids(ids: Vec<String>) -> Result<Self> {
         if let Some(max) = K::MAX
             && ids.len() > max

@@ -4,8 +4,8 @@ use bincode::{Decode, Encode};
 use super::{CarrierId, FieldId, SwitchId};
 use crate::map::CarrierRun;
 
-// The active switches and what they drive: the barriers and light bridges
-// that are off, switched or not, and each switched carrier's run. One value
+// The active switches and what they drive: the fields that are off,
+// switched or not, and each switched carrier's run. One value
 // on both sides — the server's switch system writes it, `SInit` and every
 // snapshot carry it, the collision filters read the open fields,
 // `Carriers::advance` places switched carriers from their runs, and the

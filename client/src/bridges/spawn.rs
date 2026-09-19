@@ -6,10 +6,10 @@ use super::surface::bridge_visuals;
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
     config::ClientSettings,
-    fields::{FieldAssets, FieldMeshes, FieldSurface, FieldSurfaces, fade_target, spawn_patterned_surface},
+    fields::{FieldAssets, FieldMeshes, FieldPiece, FieldSurface, FieldSurfaces, fade_target, spawn_patterned_surface},
     materials::{FieldMaterial, field_material},
 };
-use common::protocol::{FieldId, MapLayout, SwitchState};
+use common::protocol::{MapLayout, SwitchState};
 
 #[derive(Component)]
 pub struct LightBridgeMarker;
@@ -39,23 +39,22 @@ pub fn bridges_spawn_system(
     for entity in &existing {
         commands.entity(entity).despawn();
     }
-    surfaces.forget_bridges();
+    surfaces.forget(FieldPiece::Bridge);
 
     let config = client_settings.vfx.fields;
     for visual in bridge_visuals(&map_layout) {
         let bridge = &visual.bridge;
         let (x1, x2, z1, z2) = bridge.bounds_xz();
         let center = Rect::new(x1, z1, x2, z2).center();
-        // Every member of the group shares the switch, so one stands for all.
-        let state = FieldId::Bridge(bridge.id);
-        let color = field_assets.base_color(bridge.kind);
+        let color = field_assets.base_color(bridge.field);
         let material = materials.add(field_material(
             color,
-            fade_target(&switch_state, state, config),
+            fade_target(&switch_state, bridge.field, config),
             config.emissive_brightness,
         ));
         surfaces.0.push(FieldSurface {
-            state,
+            field: bridge.field,
+            piece: FieldPiece::Bridge,
             material: material.clone(),
             base_color: color,
         });
@@ -74,7 +73,7 @@ pub fn bridges_spawn_system(
                     &mut meshes,
                     &field_meshes,
                     &material,
-                    field_assets.kind(bridge.kind),
+                    field_assets.visual(bridge.field),
                     visual.surfaces,
                     visual.frames,
                     center,

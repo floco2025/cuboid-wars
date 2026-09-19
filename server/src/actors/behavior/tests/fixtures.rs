@@ -31,8 +31,8 @@ pub(super) use common::{
     map::{CarrierPose, Carriers, MapGeometry},
     physics::{CharacterSupport, CollisionWorld},
     protocol::{
-        ActorBeam, ActorId, ActorMarker, Barrier, BridgeId, Carrier, CarrierId, FieldId, FieldKindId, Health, MapItems,
-        MapLayout, PlayerId, PlayerMarker, Position, ServerMessage, ServerTick, SwitchState, Wall,
+        ActorBeam, ActorId, ActorMarker, Barrier, Carrier, CarrierId, FieldId, Health, MapItems, MapLayout, PlayerId,
+        PlayerMarker, Position, ServerMessage, ServerTick, SwitchState, Wall,
     },
 };
 
