@@ -99,7 +99,9 @@ class SpawnValidationTests(unittest.TestCase):
                         level["light_bridges"] = [{"col": 0, "row": 0, "kind": "green"}]
                     elif surface == "ramp":
                         data["levels"].append(empty_level(1))
-                        data["ramps"] = [{"lower_level": 0, "low": [1, 0], "high": [2, 2], "all": DEFAULT_ALIAS}]
+                        data["ramps"] = [
+                            {"lower_level": 0, "cols": [1, 2], "rows": [0, 2], "direction": "S", "all": DEFAULT_ALIAS}
+                        ]
                     self.assertEqual(self.validate(data), [])
 
     def test_invalid_level_is_reported_without_reading_a_missing_floor_list(self):

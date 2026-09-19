@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn record_rect(name: &str, v: &Value) -> [i64; 4] {
-    if ZONE_LISTS.contains(&name) {
+    if ZONE_LISTS.contains(&name) || name == "ramps" {
         return geometry::zone_rect(v);
     }
     if EDGE_LISTS.contains(&name) {
@@ -19,19 +19,9 @@ pub fn record_rect(name: &str, v: &Value) -> [i64; 4] {
         let d = i(v, "r1");
         return [a.min(c), b.min(d), a.max(c), b.max(d)];
     }
-    if ["ramps", "nested_maps"].contains(&name) {
-        let (a, b) = if name == "ramps" {
-            (point(&v["low"]), point(&v["high"]))
-        } else {
-            (point(&v["from"]), point(&v["to"]))
-        };
-        let extra = i64::from(name == "nested_maps");
-        return [
-            a[0].min(b[0]),
-            a[1].min(b[1]),
-            a[0].max(b[0]) + extra,
-            a[1].max(b[1]) + extra,
-        ];
+    if name == "nested_maps" {
+        let (a, b) = (point(&v["from"]), point(&v["to"]));
+        return [a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]) + 1, a[1].max(b[1]) + 1];
     }
     [i(v, "col"), i(v, "row"), i(v, "col") + 1, i(v, "row") + 1]
 }
@@ -85,7 +75,7 @@ pub fn lists_mut(data: &mut Value, mut f: impl FnMut(&str, &mut Vec<Value>)) {
 }
 fn translate_entry(name: &str, v: &Value, dc: i64, dr: i64, dl: i64) -> Value {
     let mut moved = v.clone();
-    if ZONE_LISTS.contains(&name) {
+    if ZONE_LISTS.contains(&name) || name == "ramps" {
         for (key, delta) in [("cols", dc), ("rows", dr)] {
             moved[key] = json!(array(&v[key]).iter().map(|n| int(n) + delta).collect::<Vec<_>>());
         }
@@ -93,12 +83,8 @@ fn translate_entry(name: &str, v: &Value, dc: i64, dr: i64, dl: i64) -> Value {
         for (key, delta) in [("c0", dc), ("c1", dc), ("r0", dr), ("r1", dr)] {
             moved[key] = json!(i(v, key) + delta);
         }
-    } else if ["ramps", "nested_maps"].contains(&name) {
-        for key in if name == "ramps" {
-            ["low", "high"]
-        } else {
-            ["from", "to"]
-        } {
+    } else if name == "nested_maps" {
+        for key in ["from", "to"] {
             let p = point(&v[key]);
             moved[key] = json!([p[0] + dc, p[1] + dr]);
         }
@@ -168,8 +154,8 @@ fn remap_levels(data: &Value, pivot: i64, remove: bool) -> Value {
             if remove && lower <= pivot && pivot <= upper {
                 continue;
             }
-            if name == "ladders" && lower < pivot && pivot <= upper {
-                e["levels"] = json!(i(&e, "levels") + 1);
+            if ["ladders", "ramps"].contains(&name) && lower < pivot && pivot <= upper {
+                e["levels"] = json!(upper - lower + 1);
             }
             for key in ["level", "lower_level", "to_level"] {
                 if let Some(value) = e.get(key)
@@ -227,7 +213,7 @@ fn edit_levels(data: &Value, levels: &[Value]) -> Result<Value> {
         for v in list(&after, name) {
             let mut e = v.clone();
             let [lower, upper] = record_levels(&e, None);
-            if name == "ramps" && remap(upper) != remap(lower) + 1 {
+            if name == "ramps" && remap(upper) <= remap(lower) {
                 continue;
             }
             let span = get(&e, "levels", json!(1));
@@ -245,6 +231,9 @@ fn edit_levels(data: &Value, levels: &[Value]) -> Result<Value> {
                 if e.get("levels").is_some() {
                     e["levels"] = json!(max - min + 1);
                 }
+            } else if name == "ramps" {
+                e["lower_level"] = json!(remap(lower));
+                e["levels"] = json!(remap(upper) - remap(lower));
             } else if name == "ladders" && i(&e, "levels") > 0 {
                 e["lower_level"] = json!(remap(lower).min(remap(upper)));
                 e["levels"] = json!((remap(upper) - remap(lower)).abs());
@@ -335,17 +324,7 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
         "map_content_bounds" => content_bounds(&a[0], &a[1], number(&a[2]), number(&a[3])),
         "insert_level_data" => {
             let idx = int(&a[1]);
-            if !truth(&a[2]) && list(&a[0], "ramps").iter().any(|v| i(v, "lower_level") + 1 == idx) {
-                bail!("The inserted level separates ramp endpoints.");
-            }
             let mut after = remap_levels(&a[0], idx, false);
-            after["ramps"] = json!(
-                list(&after, "ramps")
-                    .iter()
-                    .filter(|v| i(v, "lower_level") + 1 != idx)
-                    .cloned()
-                    .collect::<Vec<_>>()
-            );
             let levels = after["levels"]
                 .as_array_mut()
                 .expect("levels missing from the edited map");

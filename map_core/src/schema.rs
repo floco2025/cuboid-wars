@@ -5,7 +5,9 @@ use serde_json::{Value, from_value};
 
 use common::{
     config::deserialize_required_option,
-    protocol::{CarrierMotion, CheckpointKind, FaceMaterials, KindDef, SwitchDef, TERRAIN_MATERIAL},
+    protocol::{
+        CarrierMotion, CheckpointKind, FaceMaterials, KindDef, RampDirection, RampShape, SwitchDef, TERRAIN_MATERIAL,
+    },
 };
 
 use crate::CheckpointResponse;
@@ -150,11 +152,11 @@ pub struct LadderDef {
     pub col: i32,
     pub row: i32,
     pub side: WallSide,
-    #[serde(default = "default_ladder_levels")]
+    #[serde(default = "default_storeys")]
     pub levels: u32,
 }
 
-const fn default_ladder_levels() -> u32 {
+const fn default_storeys() -> u32 {
     1
 }
 
@@ -324,11 +326,20 @@ pub struct LightBridgeDef {
     pub switch_inverted: bool,
 }
 
+// Editor-authored ramp: a footprint of cells (`cols` and `rows`, the end
+// exclusive like a zone's), the storeys it rises from `lower_level`, and the
+// way it rises. Nothing is read off the footprint's shape, so a one-cell or a
+// wider-than-long ramp is as valid as any.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RampDef {
-    pub low: [i32; 2],
-    pub high: [i32; 2],
     pub lower_level: u32,
+    #[serde(default = "default_storeys")]
+    pub levels: u32,
+    pub cols: [i32; 2],
+    pub rows: [i32; 2],
+    pub direction: RampDirection,
+    #[serde(default)]
+    pub shape: RampShape,
     #[serde(flatten)]
     pub materials: FaceMaterials,
 }

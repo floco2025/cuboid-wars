@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use common::{
     map::MapGeometry,
-    protocol::{FaceMaterials, Floor, Ramp, Wall},
+    protocol::{FaceMaterials, Floor, Wall},
 };
 
 use super::{
-    grid::{floor_cells, ramp_cells, ramp_lower_level, wall_edges},
+    grid::{floor_cells, wall_edges},
     loading::wall_edge_key,
 };
 
@@ -21,8 +21,6 @@ pub(super) struct SegmentMaterials {
     pub(super) floors: HashMap<(u8, i32, i32), FaceMaterials>,
     // Keyed by (level, normalized edge endpoints).
     pub(super) walls: HashMap<(u8, [i32; 2], [i32; 2]), FaceMaterials>,
-    // Keyed by (lower_level, col, row) for each cell in the ramp footprint.
-    pub(super) ramps: HashMap<(u8, i32, i32), FaceMaterials>,
 }
 
 #[derive(Debug, Clone)]
@@ -184,21 +182,6 @@ impl MaterialRules {
             .iter()
             .find(|((l, _, _), _)| *l == level)
             .map(|(_, m)| m.clone())
-    }
-
-    #[must_use]
-    pub fn materials_for_ramp_top(&self, ramp: &Ramp) -> FaceMaterials {
-        let lower_level = ramp_lower_level(&self.geometry, ramp);
-        for (col, row) in ramp_cells(&self.geometry, ramp) {
-            if let Some(materials) = self.segments.ramps.get(&(lower_level, col, row)) {
-                return materials.clone();
-            }
-            // Fall back to floor materials at the ramp footprint cell.
-            if let Some(materials) = self.segments.floors.get(&(lower_level, col, row)) {
-                return materials.clone();
-            }
-        }
-        missing_materials()
     }
 }
 

@@ -190,7 +190,7 @@ mod spawning {
     use crate::test_fixtures;
     use common::{
         physics::CollisionWorld,
-        protocol::{CarrierId, Floor, MapLayout, Position, Ramp, Wall},
+        protocol::{CarrierId, Floor, MapLayout, Position, Ramp, RampDirection, RampShape, Wall},
     };
 
     use crate::{
@@ -229,11 +229,16 @@ mod spawning {
     fn test_ramp() -> Ramp {
         Ramp {
             x1: 0.0,
-            y1: 0.0,
             z1: 0.0,
             x2: 4.0,
-            y2: LEVEL_HEIGHT,
             z2: 8.0,
+            y: 0.0,
+            height: LEVEL_HEIGHT,
+            direction: RampDirection::South,
+            shape: RampShape::Solid,
+            thickness: 0.4,
+            level: 0,
+            levels: 1,
             carrier: CarrierId::WORLD,
         }
     }

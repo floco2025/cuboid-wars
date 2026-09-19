@@ -25,7 +25,7 @@ class PlacementTests(unittest.TestCase):
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["levels"][0]["inaccessible_floors"] = [floor(1, 0)]
         data["levels"].append(empty_level(1))
-        data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 2], **faces()}]
+        data["ramps"] = [{"lower_level": 0, "cols": [1, 3], "rows": [1, 2], "direction": "E", **faces()}]
         host = EditorHost(data, [BRIDGE_KIND])
 
         host.add_light_bridge_rect((0, 0), (2, 1), BRIDGE_KIND)

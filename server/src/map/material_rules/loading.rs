@@ -23,26 +23,11 @@ impl MaterialRules {
                 wall_materials.insert((level_u8, key.0, key.1), wall.materials.clone());
             }
         }
-        let mut ramp_materials: HashMap<(u8, i32, i32), FaceMaterials> = HashMap::new();
-        for ramp in &map_def.ramps {
-            let lower_level = u8::try_from(ramp.lower_level).expect("ramp lower_level out of u8 range");
-            let col_min = ramp.low[0].min(ramp.high[0]);
-            let col_max = ramp.low[0].max(ramp.high[0]);
-            let row_min = ramp.low[1].min(ramp.high[1]);
-            let row_max = ramp.low[1].max(ramp.high[1]);
-            for col in col_min..col_max {
-                for row in row_min..row_max {
-                    ramp_materials.insert((lower_level, col, row), ramp.materials.clone());
-                }
-            }
-        }
-
         Self {
             geometry,
             segments: SegmentMaterials {
                 floors: floor_materials,
                 walls: wall_materials,
-                ramps: ramp_materials,
             },
         }
     }

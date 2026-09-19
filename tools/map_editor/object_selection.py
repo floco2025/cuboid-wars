@@ -4,7 +4,7 @@ import copy
 
 from .constants import ITEMS_LIST, LIGHT_SIDES
 from .elements import element_refs
-from .geometry import ramp_rect, wall_endpoints_for_cell_side
+from .geometry import wall_endpoints_for_cell_side
 from .normalization import edge_key, empty_level, empty_map, ladders_overlap, light_key, normalize_map
 from .regions import TileRegion
 from .transforms import GLOBAL_LISTS, record_levels, record_lists, record_rect, translate_entry, translate_map
@@ -90,7 +90,7 @@ def copy_objects(data, refs, definitions):
 # Records are judged one by one against the grid, not the block's rectangle:
 # a nested map's footprint may overhang while its anchor cells fit.
 def _within_grid(name, entry, data):
-    c0, r0, c1, r1 = ramp_rect(entry) if name == "ramps" else record_rect(name, entry)
+    c0, r0, c1, r1 = record_rect(name, entry)
     return 0 <= c0 <= c1 <= data["grid_cols"] and 0 <= r0 <= r1 <= data["grid_rows"]
 
 

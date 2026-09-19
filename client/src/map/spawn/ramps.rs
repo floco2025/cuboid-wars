@@ -5,50 +5,24 @@ use super::{
     ramp_mesh::build_ramp_meshes,
 };
 use crate::{carriers::CarrierStoreys, config::MapMaterials};
-use common::{config::MapGeometryConfig, protocol::*};
+use common::protocol::*;
 
-// Spawn a ramp entity based on shared `Ramp` config.
-//
-// A ramp has two visible mesh groups: the sloped top (`top` material) and the
-// vertical/triangular sides (one of the `N/S/E/W` face materials). Today the
-// editor writes a single material to all four perimeter faces uniformly, so we
-// just read `north` and use it for the entire side mesh; if per-cardinal ramp
-// sides are added later, this is the spot to split them.
+// Batches a ramp's faces, each under the material of the face it is: the
+// slope is a top, a wedge's base or a plank's sloped underside a bottom, and
+// every vertical face its cardinal.
 pub fn batch_ramp(
     batcher: &mut MapGeometryBatch,
     map_materials: MapMaterials<'_>,
-    geometry: MapGeometryConfig,
     storeys: &CarrierStoreys,
     ramp: &Ramp,
     material_ids: &FaceMaterials,
 ) {
-    let top_material_id = material_ids.top.clone();
-    let side_material_id = material_ids.north.clone();
-    let top_material_def = map_materials.get(&top_material_id);
-    let side_material_def = map_materials.get(&side_material_id);
-
-    // Build meshes split by material usage
-    let (mesh_top, mesh_side) = build_ramp_meshes(
-        ramp.x1,
-        ramp.z1,
-        ramp.x2,
-        ramp.z2,
-        ramp.y1,
-        ramp.y2,
-        top_material_def.tile_size(),
-        side_material_def.tile_size(),
-    );
-
-    // Lower of the two levels this ramp connects (derived from the lower y
-    // in the carrier's frame); the ramp reaches one storey further.
-    let y_low = ramp.y1.min(ramp.y2);
-    let level = storeys.tag(ramp.carrier, geometry.nearest_level_to_y(y_low), 1);
     batcher.begin_segment(SegmentTarget {
         kind: MapGeometryKind::Ramp,
         carrier: ramp.carrier,
-        level,
+        level: storeys.tag(ramp.carrier, ramp.level, ramp.levels),
     });
-
-    batcher.add_mesh(top_material_id, &mesh_top, Transform::default());
-    batcher.add_mesh(side_material_id, &mesh_side, Transform::default());
+    for (material_id, mesh) in build_ramp_meshes(ramp, material_ids, |alias| map_materials.get(alias).tile_size()) {
+        batcher.add_mesh(material_id, &mesh, Transform::default());
+    }
 }

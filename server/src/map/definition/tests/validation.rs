@@ -71,7 +71,7 @@ fn validation_accepts_actor_zone_overlapping_ramp_footprint() {
         4,
         vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
         vec![actor_zone(1, 0, 0)],
-        vec![ramp([0, 0], [1, 2], 1)],
+        vec![ramp([0, 1], [0, 2], RampDirection::South, 1)],
     );
 
     validate_map(&map_def).expect("actor zone overlapping ramp footprint should load");
@@ -201,7 +201,7 @@ fn validate_rejects_a_light_bridge_on_a_ramp() {
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![ramp([1, 0], [3, 1], 0)],
+        vec![ramp([1, 3], [0, 1], RampDirection::East, 0)],
     );
     map_def.levels[0].light_bridges.push(bridge_def(1, 0));
 
@@ -242,7 +242,7 @@ fn validate_rejects_a_plate_without_a_floor_or_on_a_ramp() {
         4,
         vec![level_with_inaccessible(vec![[0, 0]], vec![[0, 1]]), level(vec![[0, 0]])],
         Vec::new(),
-        vec![ramp([1, 0], [3, 1], 0)],
+        vec![ramp([1, 3], [0, 1], RampDirection::East, 0)],
     );
     let plate = |level: u32, col: i32, row: i32| PressurePlateDef {
         level,
@@ -321,7 +321,7 @@ fn validation_rejects_terrain_on_floors_and_ramps() {
         4,
         vec![level(vec![[0, 0]]), level(Vec::new())],
         Vec::new(),
-        vec![ramp([1, 1], [3, 2], 0)],
+        vec![ramp([1, 3], [1, 2], RampDirection::East, 0)],
     );
     map_def.levels[0].terrain.push(cell_def(0, 0));
     assert!(

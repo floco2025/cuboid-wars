@@ -9,7 +9,7 @@ use common::{
 use super::{NavGraph, NavGraphs, NavNode};
 use crate::{
     actors::test_kinds,
-    map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
+    map::{ActorSpawnZone, CarrierGrid, CellGrid, CellSide, EdgeGrid, LevelGrid, MapConfig},
     test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
 
@@ -261,8 +261,9 @@ fn ramp_map() -> MapConfig {
     }
     let center = &mut cells.rows[1][1];
     center.has_ramp = true;
-    center.ramp_base_south = true;
-    center.ramp_top_north = true;
+    center.ramp_levels = 1;
+    center.ramp_base = Some(CellSide::South);
+    center.ramp_top = Some(CellSide::North);
     MapConfig::for_grid(vec![level(cells, EdgeGrid::new(3, 3))], geometry(3, 3))
 }
 
@@ -403,11 +404,13 @@ fn floorless_arrival_strip_is_reachable() {
     // could never climb ramps whose exits aren't explicitly floored.
     let mut lower_cells = CellGrid::new(1, 2);
     lower_cells.rows[0][0].has_ramp = true;
-    lower_cells.rows[0][0].ramp_base_north = true;
+    lower_cells.rows[0][0].ramp_levels = 1;
+    lower_cells.rows[0][0].ramp_base = Some(CellSide::North);
     lower_cells.rows[1][0].has_ramp = true;
-    lower_cells.rows[1][0].ramp_top_south = true;
+    lower_cells.rows[1][0].ramp_levels = 1;
+    lower_cells.rows[1][0].ramp_top = Some(CellSide::South);
     let mut upper_cells = CellGrid::new(1, 2);
-    upper_cells.rows[1][0].has_ramp_from_below = true;
+    upper_cells.rows[1][0].ramp_below = 1;
 
     let nav = nav_for(MapConfig::for_grid(
         vec![
@@ -433,12 +436,14 @@ fn hole_over_ramp_base_is_not_traversable() {
     // The opening above the slope's BASE cell is a level-deep hole.
     let mut lower_cells = CellGrid::new(1, 2);
     lower_cells.rows[0][0].has_ramp = true;
-    lower_cells.rows[0][0].ramp_base_north = true;
+    lower_cells.rows[0][0].ramp_levels = 1;
+    lower_cells.rows[0][0].ramp_base = Some(CellSide::North);
     lower_cells.rows[1][0].has_ramp = true;
-    lower_cells.rows[1][0].ramp_top_south = true;
+    lower_cells.rows[1][0].ramp_levels = 1;
+    lower_cells.rows[1][0].ramp_top = Some(CellSide::South);
     let mut upper_cells = CellGrid::new(1, 2);
-    upper_cells.rows[0][0].has_ramp_from_below = true;
-    upper_cells.rows[1][0].has_ramp_from_below = true;
+    upper_cells.rows[0][0].ramp_below = 1;
+    upper_cells.rows[1][0].ramp_below = 1;
 
     let nav = nav_for(MapConfig::for_grid(
         vec![
@@ -473,11 +478,13 @@ fn arrival_strip_connects_only_through_the_top_side() {
         }
     }
     lower_cells.rows[1][1].has_ramp = true;
-    lower_cells.rows[1][1].ramp_top_north = true;
+    lower_cells.rows[1][1].ramp_levels = 1;
+    lower_cells.rows[1][1].ramp_top = Some(CellSide::North);
     lower_cells.rows[2][1].has_ramp = true;
-    lower_cells.rows[2][1].ramp_base_south = true;
+    lower_cells.rows[2][1].ramp_levels = 1;
+    lower_cells.rows[2][1].ramp_base = Some(CellSide::South);
     let mut upper_cells = CellGrid::new(3, 3);
-    upper_cells.rows[1][1].has_ramp_from_below = true;
+    upper_cells.rows[1][1].ramp_below = 1;
     upper_cells.rows[0][1].has_floor = true;
     upper_cells.rows[0][0].has_floor = true;
     upper_cells.rows[1][0].has_floor = true;
@@ -512,14 +519,16 @@ fn path_uses_ramp_top_to_change_levels() {
     let mut lower_cells = CellGrid::new(1, 2);
     lower_cells.rows[0][0].has_floor = true;
     lower_cells.rows[0][0].has_ramp = true;
-    lower_cells.rows[0][0].ramp_base_north = true;
+    lower_cells.rows[0][0].ramp_levels = 1;
+    lower_cells.rows[0][0].ramp_base = Some(CellSide::North);
     lower_cells.rows[1][0].has_floor = true;
     lower_cells.rows[1][0].has_ramp = true;
-    lower_cells.rows[1][0].ramp_top_south = true;
+    lower_cells.rows[1][0].ramp_levels = 1;
+    lower_cells.rows[1][0].ramp_top = Some(CellSide::South);
 
     let mut upper_cells = CellGrid::new(1, 2);
     upper_cells.rows[1][0].has_floor = true;
-    upper_cells.rows[1][0].has_ramp_from_below = true;
+    upper_cells.rows[1][0].ramp_below = 1;
 
     let nav = nav_for(MapConfig::for_grid(
         vec![
@@ -552,6 +561,63 @@ fn path_uses_ramp_top_to_change_levels() {
             .iter()
             .any(|waypoint| waypoint.position.y < LEVEL_HEIGHT)
     );
+}
+
+// Column 0: an approach floor in row 0, a two-storey ramp rising south over
+// rows 1-2, and an arrival floor in row 3 two storeys up. Column 1 holds a
+// decoy floor beside the shaft on the storey the slope only passes.
+fn two_storey_ramp_nav() -> NavGraph {
+    let mut grids = [CellGrid::new(2, 4), CellGrid::new(2, 4), CellGrid::new(2, 4)];
+    grids[0].rows[0][0].has_floor = true;
+    for row in 1..3 {
+        let cell = &mut grids[0].rows[row][0];
+        cell.has_ramp = true;
+        cell.ramp_levels = 2;
+        cell.ramp_center_y = LEVEL_HEIGHT * (row as f32 * 2.0 - 1.0) / 2.0;
+        grids[1].rows[row][0].ramp_below = 1;
+        grids[1].rows[row][1].has_floor = true;
+        grids[2].rows[row][0].ramp_below = 2;
+    }
+    grids[0].rows[1][0].ramp_base = Some(CellSide::North);
+    grids[0].rows[2][0].ramp_top = Some(CellSide::South);
+    grids[2].rows[3][0].has_floor = true;
+    nav_for(MapConfig::for_grid(
+        grids.map(|cells| level(cells, EdgeGrid::new(2, 4))).into(),
+        geometry(2, 4),
+    ))
+}
+
+#[test]
+fn a_two_storey_ramp_links_its_ends_and_nothing_on_the_storey_it_passes() {
+    let nav = two_storey_ramp_nav();
+    let bottom = cell_center(2, 4, 0, 0);
+    let top = Position {
+        y: LEVEL_HEIGHT * 2.0,
+        ..cell_center(2, 4, 0, 3)
+    };
+
+    let up = path_to_spawn_zone(&nav, &bottom, &zone(2, 0, 3)).expect("arrival floor unreachable from below");
+    assert!(up.iter().any(|pos| (pos.y - top.y).abs() < 0.001), "{up:?}");
+    let down = path_to_spawn_zone(&nav, &top, &zone(0, 0, 0)).expect("approach floor unreachable from above");
+    assert!(down.iter().any(|pos| pos.y.abs() < 0.001), "{down:?}");
+
+    // Half-way up the slope a body stands at the height of the storey between.
+    let on_slope = Position {
+        y: LEVEL_HEIGHT,
+        ..cell_center(2, 4, 0, 2)
+    };
+    assert_eq!(
+        nav.nearest_node_for_position(&on_slope),
+        Some(NavNode {
+            level: 0,
+            row: 2,
+            col: 0
+        })
+    );
+    for row in 1..3 {
+        let decoy = NavNode { level: 1, row, col: 1 };
+        assert!(nav.neighbors(decoy).iter().all(|next| next.col == 1), "row {row}");
+    }
 }
 
 // Two cells side by side per row; a wall on the shared grid line covers

@@ -3,7 +3,10 @@ use std::f32::consts::FRAC_PI_2;
 use super::*;
 use crate::{
     constants::PORTAL_LIGHT_CLEARANCE,
-    protocol::{Barrier, BarrierId, BridgeId, BridgeKindId, LightBridge, PressurePlate, SwitchId, WallLight},
+    protocol::{
+        Barrier, BarrierId, BridgeId, BridgeKindId, LightBridge, PressurePlate, RampDirection, RampShape, SwitchId,
+        WallLight,
+    },
     test_geometry::{BARRIER_THICKNESS, BRIDGE_THICKNESS},
 };
 
@@ -202,11 +205,16 @@ fn ramp_side_portal_rim_can_meet_the_slope() {
         }],
         ramps: vec![Ramp {
             x1: -2.0,
-            y1: 0.0,
             z1: 0.0,
             x2: 2.0,
-            y2: LEVEL_HEIGHT,
             z2: ramp_length,
+            y: 0.0,
+            height: LEVEL_HEIGHT,
+            direction: RampDirection::South,
+            shape: RampShape::Solid,
+            thickness: 0.4,
+            level: 0,
+            levels: 1,
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
@@ -241,11 +249,16 @@ fn wall_portal_near_ramp_excludes_only_wall_backing() {
         }],
         ramps: vec![Ramp {
             x1: -2.0,
-            y1: 0.0,
             z1: 0.0,
             x2: 2.0,
-            y2: LEVEL_HEIGHT,
             z2: ramp_length,
+            y: 0.0,
+            height: LEVEL_HEIGHT,
+            direction: RampDirection::South,
+            shape: RampShape::Solid,
+            thickness: 0.4,
+            level: 0,
+            levels: 1,
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
@@ -367,11 +380,16 @@ fn ramp_lip_shot_nudges_the_whole_aperture_onto_the_slope() {
     let layout = MapLayout {
         ramps: vec![Ramp {
             x1: -2.0,
-            y1: 0.0,
             z1: 0.0,
             x2: 2.0,
-            y2: LEVEL_HEIGHT,
             z2: ramp_length,
+            y: 0.0,
+            height: LEVEL_HEIGHT,
+            direction: RampDirection::South,
+            shape: RampShape::Solid,
+            thickness: 0.4,
+            level: 0,
+            levels: 1,
             carrier: CarrierId::WORLD,
         }],
         floors: vec![Floor {

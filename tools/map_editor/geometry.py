@@ -53,33 +53,49 @@ def grid_point_in_bounds(col: int, row: int, cols: int, rows: int):
     return call("grid_point_in_bounds", col, row, cols, rows)
 
 
-def ramp_error(low: list[int], high: list[int], lower_level: int, cols: int, rows: int, level_count: int):
-    return call("ramp_error", low, high, lower_level, cols, rows, level_count)
+def ramp_error(ramp: dict, cols: int, rows: int, level_count: int):
+    return call("ramp_error", ramp, cols, rows, level_count)
 
 
-def ramp_rect(ramp: dict):
-    return tuple(call("ramp_rect", ramp))
+# The slope against the character motor's limit, as `degrees`, `limit_degrees`,
+# and `climbable`; `None` for a ramp without a valid direction or rise.
+def ramp_slope(ramp: dict, cell_size: float, level_height: float):
+    return call("ramp_slope", ramp, cell_size, level_height)
 
 
-def ramp_cells(ramp: dict):
-    return {tuple(cell) for cell in call("ramp_cells", ramp)}
+# Python, not map_core: the canvas calls these per record on every mouse move (see `grid_int` in core.py).
+def ramp_rect(ramp: dict) -> tuple[int, int, int, int]:
+    return zone_rect(ramp)
+
+
+def ramp_cells(ramp: dict) -> set[tuple[int, int]]:
+    c0, r0, c1, r1 = zone_rect(ramp)
+    return {(col, row) for col in range(c0, c1) for row in range(r0, r1)}
+
+
+# What tells two ramps apart: one footprint may hold a ramp per level.
+def ramp_key(ramp: dict) -> tuple[int, int, int, int, int]:
+    return (grid_int(ramp["lower_level"]), *zone_rect(ramp))
+
+
+# A ramp is drawn on its lower level alone; the adjacent-levels overlay also
+# ghosts it one level below that and on every level it passes or arrives at.
+def ramp_ghosts_on(ramp: dict, level_idx: int) -> bool:
+    lower = grid_int(ramp["lower_level"])
+    return lower != level_idx and lower - 1 <= level_idx <= lower + grid_int(ramp.get("levels", 1))
 
 
 def ramp_cells_on_level(ramps: list[dict], level_idx: int):
     return {tuple(cell) for cell in call("ramp_cells_on_level", ramps, level_idx)}
 
 
-def ramp_axis(ramp: dict):
-    return call("ramp_axis", ramp)
-
-
-def opposite_direction(direction: str) -> str:
-    return {
-        "north": "south",
-        "south": "north",
-        "east": "west",
-        "west": "east",
-    }[direction]
+# The way a drag rises: its dominant axis and sign, `None` without motion.
+def drag_direction(dx: float, dy: float) -> str | None:
+    if dx == 0 and dy == 0:
+        return None
+    if abs(dx) >= abs(dy):
+        return "E" if dx > 0 else "W"
+    return "S" if dy > 0 else "N"
 
 
 # ============================================================================
@@ -93,19 +109,6 @@ def rect_from_cells(a: tuple[int, int], b: tuple[int, int]) -> tuple[int, int, i
     c1 = max(a[0], b[0]) + 1
     r1 = max(a[1], b[1]) + 1
     return c0, r0, c1, r1
-
-
-def ramp_points_from_cells(start: tuple[int, int], end: tuple[int, int]) -> tuple[list[int], list[int]]:
-    c0, r0, c1, r1 = rect_from_cells(start, end)
-    dx = end[0] - start[0]
-    dy = end[1] - start[1]
-    if abs(dx) >= abs(dy):
-        if dx >= 0:
-            return [c0, r0], [c1, r1]
-        return [c1, r0], [c0, r1]
-    if dy >= 0:
-        return [c0, r0], [c1, r1]
-    return [c0, r1], [c1, r0]
 
 
 # Python, not map_core: the canvas calls this per record on every mouse move (see `grid_int` in core.py).
@@ -131,14 +134,6 @@ def snapped_wall_end(start: tuple[int, int], current: tuple[int, int]) -> tuple[
     if abs(dx) >= abs(dy):
         return current[0], start[1]
     return start[0], current[1]
-
-
-def draw_direction(start: tuple[int, int], end: tuple[int, int]) -> str:
-    dx = end[0] - start[0]
-    dy = end[1] - start[1]
-    if abs(dx) > abs(dy):
-        return "east" if dx > 0 else "west"
-    return "south" if dy > 0 else "north"
 
 
 def wall_segments_between(start: tuple[int, int], end: tuple[int, int]) -> list[list[int]]:

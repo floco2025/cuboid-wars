@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from . import constants as c
-from .geometry import rects_overlap, wall_overlaps_rect
+from .geometry import ramp_key, rects_overlap, wall_overlaps_rect
 from .normalization import edge_key, ladder_key, nested_map_key
 from .transforms import EDGE_LISTS, record_lists, record_levels, record_rect
 
@@ -12,7 +12,7 @@ ELEMENT_MODES = {
     "inaccessible_floors": c.MODE_INACCESSIBLE_FLOOR,
     "terrain": c.MODE_TERRAIN,
     "walls": c.MODE_WALL,
-    "ramps": c.MODE_RAMP_UP,
+    "ramps": c.MODE_RAMP,
     "ladders": c.MODE_LADDER,
     "nested_maps": c.MODE_NESTED_MAP,
     "actor_spawn_zones": c.MODE_ACTOR_SPAWN_ZONE,
@@ -74,7 +74,7 @@ def refs_for_hit(data, level, hit):
         if name in EDGE_LISTS:
             matches = edge_key(entry) == value
         elif name == "ramps":
-            matches = (entry["lower_level"], tuple(entry["low"]), tuple(entry["high"])) == value
+            matches = ramp_key(entry) == value
         elif name == "ladders":
             matches = ladder_key(entry) == value
         elif name == "nested_maps":
@@ -92,6 +92,9 @@ def refs_in_region(data, region):
     selected = []
     for ref, entry in element_refs(data):
         low, high = record_levels(entry, ref.level)
+        # A ramp is drawn, and so picked, on its lower level alone.
+        if ref.name == "ramps":
+            high = low
         if low >= region.top or high < region.level:
             continue
         if ref.name in EDGE_LISTS:

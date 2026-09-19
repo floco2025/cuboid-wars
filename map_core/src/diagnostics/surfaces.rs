@@ -85,7 +85,7 @@ pub(super) fn validate(data: &Value, context: &Value, errors: &mut Errors) {
                 }
             }
         }
-        let ramps = geometry::cells_on_level(list(data, "ramps"), level_idx as i64);
+        let ramps = geometry::terrain_excluded_cells(list(data, "ramps"), level_idx as i64);
         for [c, r] in terrain.intersection(&ramps) {
             errors.locate("terrain", &json!({"col":c,"row":r}), Some(level_idx as i64));
             errors.add(format!("{prefix}: terrain [{c}, {r}] sits on a ramp"));
@@ -191,9 +191,9 @@ pub(super) fn materials(data: &Value, context: &Value, errors: &mut Errors) {
         face_aliases(
             ramp,
             &format!(
-                "ramp {}->{} (level {})",
-                repr(&ramp["low"]),
-                repr(&ramp["high"]),
+                "ramp cols={} rows={} (level {})",
+                repr(&ramp["cols"]),
+                repr(&ramp["rows"]),
                 i(ramp, "lower_level")
             ),
             &FACES,

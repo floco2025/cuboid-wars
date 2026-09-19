@@ -25,16 +25,14 @@ def record_lists(data: dict):
 
 # Python, not map_core: the canvas calls this per record on every mouse move (see `grid_int` in core.py).
 def record_rect(name: str, entry: dict) -> tuple[int, int, int, int]:
-    if name in ZONE_LISTS:
+    if name in ZONE_LISTS or name == "ramps":
         return zone_rect(entry)
     if name in EDGE_LISTS:
         c0, r0, c1, r1 = (grid_int(entry.get(key)) for key in ("c0", "r0", "c1", "r1"))
         return min(c0, c1), min(r0, r1), max(c0, c1), max(r0, r1)
-    if name in ("ramps", "nested_maps"):
-        ends = ("low", "high") if name == "ramps" else ("from", "to")
-        (c0, r0), (c1, r1) = (grid_point(entry.get(end)) for end in ends)
-        extra = int(name == "nested_maps")
-        return min(c0, c1), min(r0, r1), max(c0, c1) + extra, max(r0, r1) + extra
+    if name == "nested_maps":
+        (c0, r0), (c1, r1) = (grid_point(entry.get(end)) for end in ("from", "to"))
+        return min(c0, c1), min(r0, r1), max(c0, c1) + 1, max(r0, r1) + 1
     col, row = grid_int(entry.get("col")), grid_int(entry.get("row"))
     return col, row, col + 1, row + 1
 
@@ -104,13 +102,8 @@ def dropped_summary(before: dict, after: dict) -> str:
     return "This will drop:\n  - " + "\n  - ".join(parts) if parts else ""
 
 
-# The ramps a level inserted at `insert_at` would separate from their top.
-def crossing_ramps(map_data: dict, insert_at: int) -> list[dict]:
-    return [ramp for ramp in map_data["ramps"] if ramp["lower_level"] + 1 == insert_at]
-
-
-def insert_level_data(map_data: dict, insert_at: int, *, remove_crossing_ramps: bool = False):
-    return call("insert_level_data", map_data, insert_at, remove_crossing_ramps)
+def insert_level_data(map_data: dict, insert_at: int):
+    return call("insert_level_data", map_data, insert_at)
 
 
 def remove_level_data(map_data: dict, removed: int):

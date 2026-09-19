@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
     physics::CollisionWorld,
-    protocol::{ActorMarker, CarrierId, Floor, MapLayout, Position, Ramp},
+    protocol::{ActorMarker, CarrierId, Floor, MapLayout, Position, Ramp, RampDirection, RampShape},
 };
 
 use super::wheel_grounding::{WheelGrounding, ground_pose, wheel_grounding_system};
@@ -47,11 +47,16 @@ fn ramp_world() -> CollisionWorld {
     CollisionWorld::from_map_layout(&MapLayout {
         ramps: vec![Ramp {
             x1: -4.0,
-            x2: 4.0,
             z1: 0.0,
+            x2: 4.0,
             z2: 12.0,
-            y1: 0.0,
-            y2: 6.0,
+            y: 0.0,
+            height: 6.0,
+            direction: RampDirection::South,
+            shape: RampShape::Solid,
+            thickness: 0.4,
+            level: 0,
+            levels: 1,
             carrier: CarrierId::WORLD,
         }],
         floors: vec![Floor {

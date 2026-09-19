@@ -60,14 +60,57 @@ impl Floor {
     }
 }
 
+// The way a ramp rises: north is -Z, south +Z, west -X, east +X.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize, Serialize)]
+pub enum RampDirection {
+    #[serde(rename = "N")]
+    North,
+    #[serde(rename = "S")]
+    South,
+    #[serde(rename = "E")]
+    East,
+    #[serde(rename = "W")]
+    West,
+}
+
+impl RampDirection {
+    #[must_use]
+    pub const fn opposite(self) -> Self {
+        match self {
+            Self::North => Self::South,
+            Self::South => Self::North,
+            Self::East => Self::West,
+            Self::West => Self::East,
+        }
+    }
+}
+
+// A solid ramp is a wedge filled down to its low edge's height; a plank is a
+// slab of `Ramp::thickness` under the slope, open beneath.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RampShape {
+    #[default]
+    Solid,
+    Plank,
+}
+
+// `y` is the surface along the low edge and `height` the rise to the edge
+// `direction` names, over the whole of `x1..z2`: a solid's cells, and a
+// plank's cells plus the overhang a floor slab would have beside the run.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Ramp {
     pub x1: f32,
-    pub y1: f32,
     pub z1: f32,
     pub x2: f32,
-    pub y2: f32,
     pub z2: f32,
+    pub y: f32,
+    pub height: f32,
+    pub direction: RampDirection,
+    pub shape: RampShape,
+    pub thickness: f32,
+    pub level: u8,
+    pub levels: u8,
     pub carrier: CarrierId,
 }
 
@@ -80,11 +123,6 @@ impl Ramp {
             self.z1.min(self.z2),
             self.z1.max(self.z2),
         )
-    }
-
-    #[must_use]
-    pub const fn bounds_y(&self) -> (f32, f32) {
-        (self.y1.min(self.y2), self.y1.max(self.y2))
     }
 }
 

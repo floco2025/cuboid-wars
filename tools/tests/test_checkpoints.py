@@ -113,7 +113,7 @@ class CheckpointTests(unittest.TestCase):
             lambda d: d["checkpoints"].append({**copy.deepcopy(d["checkpoints"][0]), "number": 2}),
             lambda d: d["checkpoints"].append({**copy.deepcopy(d["checkpoints"][0]), "cols": [3, 5]}),
             lambda d: d["checkpoints"][0].update(level=2),
-            lambda d: d["ramps"].append({"low": [1, 1], "high": [2, 3], "lower_level": 0}),
+            lambda d: d["ramps"].append({"cols": [1, 2], "rows": [1, 3], "direction": "S", "lower_level": 0}),
         ):
             bad = copy.deepcopy(data)
             mutate(bad)

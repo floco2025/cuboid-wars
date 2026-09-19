@@ -6,6 +6,8 @@ from .constants import (
     CHECKPOINT_RESPONSE_LABELS,
     CHECKPOINT_TYPE_LABELS,
     FACES,
+    RAMP_DIRECTIONS,
+    RAMP_SHAPE_LABELS,
     RESPOND_WHEN,
     SOLID_WHEN,
     TERRAIN_FACES,
@@ -44,6 +46,10 @@ def fields_for(window, name):
     def choice(key, label, values, colors=None):
         add(key, label, "choice", [(value, str(value)) for value in values], colors)
 
+    if name == "ramps":
+        add("levels", "Storeys", "positive_int")
+        choice("direction", "Direction", RAMP_DIRECTIONS)
+        add("shape", "Shape", "choice", RAMP_SHAPE_LABELS.items())
     if name in ("floors", "inaccessible_floors", "walls", "ramps", "terrain"):
         for face in TERRAIN_FACES if name == "terrain" else FACES:
             choice(face, face.capitalize(), window.materials_catalog)

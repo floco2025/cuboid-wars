@@ -7,7 +7,6 @@ import copy
 from .constants import (
     ACTOR_ZONE_LIST,
     CHECKPOINT_LIST,
-    MODE_RAMP_UP,
     START_CHECKPOINT,
     START_CHECKPOINT_TYPE,
 )
@@ -28,7 +27,6 @@ from .editing import (
 from .normalization import plate_cell_error
 from .geometry import (
     ramp_error,
-    ramp_points_from_cells,
     ramp_rect,
     rect_from_cells,
     rects_overlap,
@@ -45,9 +43,6 @@ class PlacementMixin:
 
     def placement_material(self):
         return self.sampled_materials if self.sampled_materials is not None else self.current_material
-
-    def _new_ramp(self, low: list[int], high: list[int], lower_level: int) -> dict:
-        return {"low": low, "high": high, "lower_level": lower_level, **placement_materials(self.placement_material())}
 
     def add_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         self.apply_change(
@@ -283,36 +278,30 @@ class PlacementMixin:
             ),
         )
 
-    def add_ramp(self, start_cell: tuple[int, int], end_cell: tuple[int, int], mode: str) -> None:
-        start_point, end_point = ramp_points_from_cells(start_cell, end_cell)
-        if mode == MODE_RAMP_UP:
-            if self.current_level + 1 >= len(self.map_data["levels"]):
-                self.notify("Ramp not placed: Ramp (Up) needs an upper level")
-                return
-            lower_level = self.current_level
-            low = start_point
-            high = end_point
-        else:
-            if self.current_level == 0:
-                self.notify("Ramp not placed: Ramp (Down) needs a lower level")
-                return
-            lower_level = self.current_level - 1
-            low = end_point
-            high = start_point
-
-        msg = ramp_error(
-            low,
-            high,
-            lower_level,
-            self.map_data["grid_cols"],
-            self.map_data["grid_rows"],
-            len(self.map_data["levels"]),
-        )
+    # A ramp rises from the current level over the dragged cells, toward `direction`.
+    def add_ramp(self, start_cell: tuple[int, int], end_cell: tuple[int, int], direction: str) -> None:
+        max_levels = len(self.map_data["levels"]) - 1 - self.current_level
+        if max_levels < 1:
+            self.notify("Ramp not placed: a ramp needs a level above this one to arrive at")
+            return
+        levels = min(max_levels, max(1, self.recent_ramp_levels))
+        c0, r0, c1, r1 = rect_from_cells(start_cell, end_cell)
+        new_ramp = {
+            "lower_level": self.current_level,
+            "levels": levels,
+            "cols": [c0, c1],
+            "rows": [r0, r1],
+            "direction": direction,
+            "shape": self.recent_ramp_shape,
+            **placement_materials(self.placement_material()),
+        }
+        msg = ramp_error(new_ramp, self.map_data["grid_cols"], self.map_data["grid_rows"], len(self.map_data["levels"]))
         if msg:
             self.notify(f"Ramp not placed: {msg}")
             return
-        new_ramp = self._new_ramp(low, high, lower_level)
-        self.apply_change(f"Place {mode}", place_ramp(self.map_data, new_ramp))
+        self.recent_ramp_levels = levels
+        self.recent_ramp_direction = direction
+        self.apply_change("Place Ramp", place_ramp(self.map_data, new_ramp))
 
     # === Material assignment ===
 
@@ -342,8 +331,5 @@ class PlacementMixin:
         rect = rect_from_cells(start, end)
         self.open_properties_for(
             "ramps",
-            lambda entry: (
-                self.current_level in (entry["lower_level"], entry["lower_level"] + 1)
-                and rects_overlap(rect, ramp_rect(entry))
-            ),
+            lambda entry: self.current_level == entry["lower_level"] and rects_overlap(rect, ramp_rect(entry)),
         )

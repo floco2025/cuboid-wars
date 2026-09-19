@@ -157,13 +157,13 @@ class LevelsWindowTests(WindowTestCase):
         window = self.window
         data = empty_map(8, 8)
         data["levels"].append(empty_level(1))
-        data["ramps"] = [{"lower_level": 0, "low": [3, 3], "high": [6, 4], "all": DEFAULT_ALIAS}]
+        data["ramps"] = [{"lower_level": 0, "cols": [3, 6], "rows": [3, 4], "direction": "E", "all": DEFAULT_ALIAS}]
         window.doc.replace_with_new(data)
         before = copy.deepcopy(window.map_data)
 
         def edit(dialog):
             dialog.table.item(0, 1).setText("Renamed")
-            dialog.add_button.click()
+            dialog.down_button.click()
             self.assertIn("1 ramps", dialog.summary.text())
             with patch(
                 "map_editor.dialogs.levels.QMessageBox.question", return_value=QMessageBox.StandardButton.Cancel
@@ -215,18 +215,19 @@ class LevelsWindowTests(WindowTestCase):
         window.undo_stack.undo()
         self.assertEqual(window.map_data, before)
 
-    def test_undoing_a_staged_insertion_restores_ramps_without_a_document_edit(self):
+    def test_a_staged_insertion_grows_a_ramp_and_undoing_it_needs_no_document_edit(self):
         data = empty_map(8, 8)
         data["levels"].append(empty_level(1))
-        data["ramps"] = [{"lower_level": 0, "low": [3, 3], "high": [6, 4], "all": DEFAULT_ALIAS}]
+        data["ramps"] = [{"lower_level": 0, "cols": [3, 6], "rows": [3, 4], "direction": "E", "all": DEFAULT_ALIAS}]
         self.window.doc.replace_with_new(data)
         before = copy.deepcopy(self.window.map_data)
 
         def edit(dialog):
             dialog.add_button.click()
-            self.assertIn("ramps", dialog.summary.text())
-            dialog.remove_button.click()
             self.assertEqual(dialog.summary.text(), "")
+            self.assertEqual(dialog.edited_data()["ramps"][0]["levels"], 2)
+            dialog.remove_button.click()
+            self.assertEqual(dialog.edited_data(), before)
             dialog.accept()
             return dialog.result()
 
@@ -238,7 +239,7 @@ class LevelsWindowTests(WindowTestCase):
     def test_reversing_moves_restores_ramps_and_cancel_discards_reordering(self):
         data = empty_map(8, 8)
         data["levels"].append(empty_level(1))
-        data["ramps"] = [{"lower_level": 0, "low": [3, 3], "high": [6, 4], "all": DEFAULT_ALIAS}]
+        data["ramps"] = [{"lower_level": 0, "cols": [3, 6], "rows": [3, 4], "direction": "E", "all": DEFAULT_ALIAS}]
         self.window.doc.replace_with_new(data)
         before = copy.deepcopy(self.window.map_data)
 

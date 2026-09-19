@@ -16,118 +16,116 @@ fn compile_terrain_map(map: &MapDef) -> anyhow::Result<(MapLayout, MapConfig)> {
 
 #[test]
 fn compiled_ramps_support_actor_routes_and_movement_in_both_directions() {
-    for (low, high, bottom_cell, top_cell) in [
-        ([1, 1], [3, 2], [0, 1], [3, 1]),
-        ([3, 2], [1, 1], [3, 1], [0, 1]),
-        ([1, 1], [2, 3], [1, 0], [1, 3]),
-        ([2, 3], [1, 1], [1, 3], [1, 0]),
-    ] {
-        let map_def = map_with_zones(
-            4,
-            vec![level(vec![bottom_cell]), level(vec![top_cell])],
-            Vec::new(),
-            vec![ramp(low, high, 0)],
-        );
-        let (layout, config) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
-            .expect("ramp test map failed to compile");
-        let geometry = config.root_grid().geometry;
-        let graphs = NavGraphs::new(&config);
-        let carriers = Carriers::from_layout(&layout);
-        let world = CollisionWorld::from_map_layout(&layout);
-        let bottom = Position {
-            x: geometry.cell_center_x(bottom_cell[0]),
-            y: 0.0,
-            z: geometry.cell_center_z(bottom_cell[1]),
-        };
-        let top = Position {
-            x: geometry.cell_center_x(top_cell[0]),
-            y: LEVEL_HEIGHT,
-            z: geometry.cell_center_z(top_cell[1]),
-        };
-        for kind in [CONTACT, CONTACT_BEAM] {
-            let physics = test_kinds::physics(kind);
-            let navigation = GroundNavigation {
-                graphs: &graphs,
-                carriers: &carriers,
-                carrier: CarrierId::WORLD,
-                kind,
-                world: &world,
-                physics,
-                open: &[],
+    // Two cells of run per storey keep the slope the same whatever the rise.
+    for levels in [1_u32, 2] {
+        let far = 1 + 2 * levels as i32;
+        for (cols, rows, direction, bottom_cell, top_cell) in [
+            ([1, far], [1, 2], RampDirection::East, [0, 1], [far, 1]),
+            ([1, far], [1, 2], RampDirection::West, [far, 1], [0, 1]),
+            ([1, 2], [1, far], RampDirection::South, [1, 0], [1, far]),
+            ([1, 2], [1, far], RampDirection::North, [1, far], [1, 0]),
+        ] {
+            let mut floors = vec![level(vec![bottom_cell])];
+            floors.extend((1..levels).map(|_| level(Vec::new())));
+            floors.push(level(vec![top_cell]));
+            let mut ramp = ramp(cols, rows, direction, 0);
+            ramp.levels = levels;
+            let map_def = map_with_zones(6, floors, Vec::new(), vec![ramp]);
+            let (layout, config) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
+                .expect("ramp test map failed to compile");
+            let geometry = config.root_grid().geometry;
+            let rise = LEVEL_HEIGHT * levels as f32;
+
+            // The arrival slab ends flush with the slope's high edge instead of overhanging it.
+            let (min_x, max_x, min_z, max_z) = layout
+                .floors
+                .iter()
+                .find(|floor| (floor.y - rise).abs() < 0.001)
+                .expect("arrival floor missing")
+                .bounds_xz();
+            let (edge, expected) = match direction {
+                RampDirection::East => (min_x, geometry.cell_to_world_x(far)),
+                RampDirection::West => (max_x, geometry.cell_to_world_x(1)),
+                RampDirection::South => (min_z, geometry.cell_to_world_z(far)),
+                RampDirection::North => (max_z, geometry.cell_to_world_z(1)),
             };
-            let slope = LEVEL_HEIGHT / (geometry.cell_size() * 2.0);
-            let middle = Position {
-                x: f32::midpoint(bottom.x, top.x),
-                y: LEVEL_HEIGHT / 2.0
-                    + physics.movement_collider.radius() * ((1.0 + slope * slope).sqrt() - 1.0)
-                    + CHARACTER_CONTACT_OFFSET * 2.0,
-                z: f32::midpoint(bottom.z, top.z),
+            assert!((edge - expected).abs() < 0.001, "{direction:?} over {levels}");
+
+            let graphs = NavGraphs::new(&config);
+            let carriers = Carriers::from_layout(&layout);
+            let world = CollisionWorld::from_map_layout(&layout);
+            let bottom = Position {
+                x: geometry.cell_center_x(bottom_cell[0]),
+                y: 0.0,
+                z: geometry.cell_center_z(bottom_cell[1]),
             };
-            for (start, target) in [(bottom, top), (top, bottom), (middle, top), (middle, bottom)] {
-                walk_ramp_route(&navigation, start, target);
+            let top = Position {
+                x: geometry.cell_center_x(top_cell[0]),
+                y: rise,
+                z: geometry.cell_center_z(top_cell[1]),
+            };
+            for kind in [CONTACT, CONTACT_BEAM] {
+                let physics = test_kinds::physics(kind);
+                let navigation = GroundNavigation {
+                    graphs: &graphs,
+                    carriers: &carriers,
+                    carrier: CarrierId::WORLD,
+                    kind,
+                    world: &world,
+                    physics,
+                    open: &[],
+                };
+                let slope = LEVEL_HEIGHT / (geometry.cell_size() * 2.0);
+                // Half-way up a two-storey ramp a body stands at the height of the storey it passes.
+                let middle = Position {
+                    x: f32::midpoint(bottom.x, top.x),
+                    y: rise / 2.0
+                        + physics.movement_collider.radius() * ((1.0 + slope * slope).sqrt() - 1.0)
+                        + CHARACTER_CONTACT_OFFSET * 2.0,
+                    z: f32::midpoint(bottom.z, top.z),
+                };
+                for (start, target) in [(bottom, top), (top, bottom), (middle, top), (middle, bottom)] {
+                    walk_ramp_route(&navigation, start, target);
+                }
             }
         }
     }
 }
 
 #[test]
-fn off_center_routes_into_a_walled_ramp_keep_moving_past_the_crest() {
-    let upper = (0..4)
-        .flat_map(|row| (0..4).map(move |col| [col, row]))
-        .filter(|&[col, row]| col != 0 || row == 0 || row == 3)
-        .collect();
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 1], [0, 2], [0, 3]]), level(upper)],
-        Vec::new(),
-        vec![ramp([0, 3], [1, 1], 0)],
-    );
-    for tier in &mut map_def.levels {
-        tier.walls.push(WallDef {
-            c0: 0,
-            r0: 0,
-            c1: 0,
-            r1: 4,
-            materials: FaceMaterials::uniform("test"),
-        });
-    }
-    map_def.levels[0].walls.push(WallDef {
-        c0: 1,
-        r0: 1,
-        c1: 1,
-        r1: 3,
-        materials: FaceMaterials::uniform("test"),
-    });
-    let (layout, config) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
-        .expect("trench ramp failed to compile");
-    let geometry = config.root_grid().geometry;
-    let graphs = NavGraphs::new(&config);
-    let carriers = Carriers::from_layout(&layout);
-    let world = CollisionWorld::from_map_layout(&layout);
-    let navigation = GroundNavigation {
-        graphs: &graphs,
-        carriers: &carriers,
-        carrier: CarrierId::WORLD,
-        kind: CONTACT,
-        world: &world,
-        physics: test_kinds::physics(CONTACT),
-        open: &[],
-    };
-    let target = Position {
-        x: geometry.cell_center_x(0),
-        y: 0.0,
-        z: geometry.cell_center_z(3),
-    };
-    for col_offset in [0.0, 0.3, 0.6, 0.9, 1.2, 1.5, 2.0] {
-        for row_offset in [-0.5, 0.0, 0.5, 0.8, 1.0, 1.2, 1.5] {
-            let start = Position {
-                x: geometry.cell_center_x(0) + col_offset * geometry.cell_size(),
-                y: LEVEL_HEIGHT,
-                z: geometry.cell_center_z(0) + row_offset * geometry.cell_size(),
-            };
-            walk_ramp_route(&navigation, start, target);
+fn a_plank_overhangs_its_cells_like_the_walkway_it_continues_except_along_a_wall() {
+    let footprint = |shape, walled: bool| {
+        let mut plank = ramp([1, 2], [1, 3], RampDirection::South, 0);
+        plank.shape = shape;
+        let mut map = map_with_zones(
+            4,
+            vec![level(vec![[1, 0]]), level(vec![[1, 3]])],
+            Vec::new(),
+            vec![plank],
+        );
+        if walled {
+            map.levels[0].walls.push(WallDef {
+                c0: 1,
+                r0: 1,
+                c1: 1,
+                r1: 2,
+                materials: FaceMaterials::uniform("test"),
+            });
         }
-    }
+        let (layout, config) = compile_with(&map, &no_nested(), &empty_kind_table(), &no_bridges())
+            .expect("plank test map failed to compile");
+        let geometry = config.root_grid().geometry;
+        let (min_x, max_x, ..) = layout.ramps[0].bounds_xz();
+        (min_x - geometry.cell_to_world_x(1), max_x - geometry.cell_to_world_x(2))
+    };
+    let pad = WALL_THICKNESS / 2.0;
+    let close = |(west, east): (f32, f32), expected: (f32, f32)| {
+        (west - expected.0).abs() < 0.001 && (east - expected.1).abs() < 0.001
+    };
+
+    assert!(close(footprint(RampShape::Plank, false), (-pad, pad)));
+    assert!(close(footprint(RampShape::Plank, true), (0.0, pad)));
+    assert!(close(footprint(RampShape::Solid, false), (0.0, 0.0)));
 }
 
 fn walk_ramp_route(navigation: &GroundNavigation<'_>, start: Position, target: Position) {
@@ -144,7 +142,7 @@ fn walk_ramp_route(navigation: &GroundNavigation<'_>, start: Position, target: P
     assert!(navigation.join_route(start, &mut route, &|_, _| true));
     let mut pos = start;
     let mut vertical_velocity = 0.0;
-    for _ in 0..600 {
+    for _ in 0..1200 {
         while route.waypoints.front().is_some_and(|point| point.reached(&pos)) {
             route.waypoints.pop_front();
         }
@@ -671,7 +669,7 @@ fn compile_rejects_item_on_ramp_cell() {
         4,
         vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
         Vec::new(),
-        vec![ramp([0, 0], [1, 2], 1)],
+        vec![ramp([0, 1], [0, 2], RampDirection::South, 1)],
     );
     map_def.items.push(item_def(1, 0, 0, "gold", None));
     let err = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())

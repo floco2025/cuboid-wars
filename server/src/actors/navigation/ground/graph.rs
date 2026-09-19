@@ -88,7 +88,7 @@ impl NavGraph {
         // Authored surfaces cut the footprint, so their cells skip the rectangle scan.
         let authored = self
             .cell(node)
-            .is_some_and(|cell| cell.has_floor || cell.has_ramp || cell.has_ramp_from_below || cell.bridge.is_some());
+            .is_some_and(|cell| cell.has_floor || cell.has_ramp || cell.ramp_below > 0 || cell.bridge.is_some());
         if authored {
             return false;
         }
@@ -160,9 +160,9 @@ impl NavGraph {
     fn grounds_edge_walkable(&self, node: NavNode, next: NavNode, side: CellSide) -> bool {
         match (self.is_grounds(node), self.is_grounds(next)) {
             (true, true) => {
-                !self.has_blocking_edge_on_side(node, side) && !self.has_blocking_edge_on_side(next, opposite(side))
+                !self.has_blocking_edge_on_side(node, side) && !self.has_blocking_edge_on_side(next, side.opposite())
             }
-            (true, false) => self.rim_cell_open_toward_grounds(next, opposite(side)),
+            (true, false) => self.rim_cell_open_toward_grounds(next, side.opposite()),
             (false, true) => self.rim_cell_open_toward_grounds(node, side),
             (false, false) => false,
         }
@@ -189,14 +189,10 @@ impl NavGraph {
                 z,
             };
         }
-        let surface_node = if self.opening_walk_side(node).is_some() {
-            NavNode {
-                level: node.level - 1,
-                ..node
-            }
-        } else {
-            node
-        };
+        let surface_node = self
+            .opening_walk_side(node)
+            .and_then(|_| self.ramp_node_under(node))
+            .unwrap_or(node);
         Position {
             x: self.geometry.cell_center_x(node.col),
             y: self
@@ -257,7 +253,7 @@ impl NavGraph {
         self.is_traversable(node)
             && self
                 .cell(node)
-                .is_none_or(|cell| !cell.has_ramp && !cell.has_ramp_from_below)
+                .is_none_or(|cell| !cell.has_ramp && cell.ramp_below == 0)
     }
 
     fn flat_floor_node_at(&self, x: f32, z: f32, level: u8) -> Option<NavNode> {
@@ -316,7 +312,10 @@ impl NavGraph {
 
     // Hills can lie inside the root grid. An authored surface at the
     // body's storey still wins, so an elevated course isn't mapped down to
-    // the terrain underneath it.
+    // the terrain underneath it. A slope's nodes all live on its lower storey,
+    // while a body part-way up stands at the height of a storey above: with
+    // nothing standable there, it is on the slope, so it resolves to the ramp's
+    // node instead of the nearest floor beside the shaft.
     fn node_containing(&self, pos: &Position) -> NavNode {
         let row = self.geometry.cell_row_containing_z(pos.z);
         let col = self.geometry.cell_col_containing_x(pos.x);
@@ -325,16 +324,22 @@ impl NavGraph {
             row,
             col,
         };
+        let standable = self
+            .cell(node)
+            .is_some_and(|cell| cell.has_floor || cell.has_ramp || cell.bridge.is_some())
+            || self.opening_walk_side(node).is_some();
+        if standable {
+            return node;
+        }
+        if let Some(ramp_node) = self.ramp_node_under(node) {
+            return ramp_node;
+        }
         if let Some(grounds) = &self.grounds {
             let ground_node = NavNode {
                 level: grounds.settings.level,
                 ..node
             };
-            let authored = self
-                .cell(node)
-                .is_some_and(|cell| cell.has_floor || cell.has_ramp || cell.bridge.is_some())
-                || self.opening_walk_side(node).is_some();
-            if !authored && self.is_grounds(ground_node) {
+            if self.is_grounds(ground_node) {
                 return ground_node;
             }
         }
@@ -405,49 +410,49 @@ impl NavGraph {
         }
         if self
             .opening_walk_side(next)
-            .is_some_and(|required| opposite(side) != required)
+            .is_some_and(|required| side.opposite() != required)
         {
             return;
         }
         out.push(next);
     }
 
-    // The single walkable side of a bare ramp opening (`has_ramp_from_below`
-    // with neither floor nor own ramp): where the slope below meets the upper
-    // floor. `None` for anything that isn't a bare opening — or for an
-    // opening over a non-top slope cell, which is a plain hole.
+    // The slope cell a ramp shaft cell lies over: `ramp_below` storeys down.
+    fn ramp_node_under(&self, node: NavNode) -> Option<NavNode> {
+        let below = self.cell(node)?.ramp_below;
+        let ramp_node = NavNode {
+            level: node.level.checked_sub(below).filter(|_| below > 0)?,
+            ..node
+        };
+        self.cell(ramp_node)
+            .is_some_and(|cell| cell.has_ramp)
+            .then_some(ramp_node)
+    }
+
+    // The single walkable side of a bare ramp opening (a shaft cell with
+    // neither floor nor own ramp, on the storey the slope arrives at): where
+    // the slope meets the upper floor. `None` for anything that isn't a bare
+    // opening: a storey the slope only passes, or an opening over a non-top
+    // slope cell, which is a plain hole.
     fn opening_walk_side(&self, node: NavNode) -> Option<CellSide> {
         let cell = self.cell(node)?;
-        if cell.has_floor || cell.has_ramp || !cell.has_ramp_from_below || node.level == 0 {
+        if cell.has_floor || cell.has_ramp {
             return None;
         }
-        let below = self.cell(NavNode {
-            level: node.level - 1,
-            ..node
-        })?;
-        if !below.has_ramp {
+        let ramp_cell = self.cell(self.ramp_node_under(node)?)?;
+        if ramp_cell.ramp_levels != cell.ramp_below {
             return None;
         }
-        if below.ramp_top_north {
-            Some(CellSide::North)
-        } else if below.ramp_top_south {
-            Some(CellSide::South)
-        } else if below.ramp_top_west {
-            Some(CellSide::West)
-        } else if below.ramp_top_east {
-            Some(CellSide::East)
-        } else {
-            None
-        }
+        ramp_cell.ramp_top
     }
 
     fn push_ramp_transition_neighbors(&self, out: &mut Vec<NavNode>, node: NavNode) {
         let Some(cell) = self.cell(node) else {
             return;
         };
-        if cell.has_ramp && cell_is_ramp_top(cell) {
+        if cell.has_ramp && cell.ramp_top.is_some() {
             let upper = NavNode {
-                level: node.level.saturating_add(1),
+                level: node.level.saturating_add(cell.ramp_levels),
                 ..node
             };
             // The upper cell is standable by construction here — it sits
@@ -455,22 +460,17 @@ impl NavGraph {
             // own floor).
             if self
                 .cell(upper)
-                .is_some_and(|upper_cell| upper_cell.has_ramp_from_below)
+                .is_some_and(|upper_cell| upper_cell.ramp_below == cell.ramp_levels)
             {
                 out.push(upper);
             }
         }
-        if cell.has_ramp_from_below && node.level > 0 {
-            let lower = NavNode {
-                level: node.level - 1,
-                ..node
-            };
-            if self
+        if let Some(lower) = self.ramp_node_under(node)
+            && self
                 .cell(lower)
-                .is_some_and(|lower_cell| lower_cell.has_ramp && cell_is_ramp_top(lower_cell))
-            {
-                out.push(lower);
-            }
+                .is_some_and(|lower_cell| lower_cell.ramp_top.is_some() && lower_cell.ramp_levels == cell.ramp_below)
+        {
+            out.push(lower);
         }
     }
 
@@ -498,9 +498,9 @@ impl NavGraph {
         if let Some(bridge) = cell.bridge {
             return self.bridge_powered(bridge);
         }
-        // A bare ramp opening (`has_ramp_from_below` without authored floor)
-        // is standable only on its arrival strip — directly above the
-        // slope's top cell; the rest of the opening is a hole over the slope.
+        // A bare ramp opening (a shaft cell without authored floor) is
+        // standable only on its arrival strip — directly above the slope's
+        // top cell; the rest of the opening is a hole over the slope.
         cell.has_floor || cell.has_ramp || self.opening_walk_side(node).is_some()
     }
 
@@ -513,59 +513,28 @@ impl NavGraph {
     }
 }
 
-fn cell_is_ramp_top(cell: &Cell) -> bool {
-    cell.ramp_top_north || cell.ramp_top_south || cell.ramp_top_west || cell.ramp_top_east
-}
-
-const fn opposite(side: CellSide) -> CellSide {
-    match side {
-        CellSide::North => CellSide::South,
-        CellSide::South => CellSide::North,
-        CellSide::West => CellSide::East,
-        CellSide::East => CellSide::West,
-    }
-}
-
-const fn ramp_top_on_side(cell: &Cell, side: CellSide) -> bool {
-    match side {
-        CellSide::North => cell.ramp_top_north,
-        CellSide::South => cell.ramp_top_south,
-        CellSide::West => cell.ramp_top_west,
-        CellSide::East => cell.ramp_top_east,
-    }
-}
-
-const fn ramp_base_on_side(cell: &Cell, side: CellSide) -> bool {
-    match side {
-        CellSide::North => cell.ramp_base_north,
-        CellSide::South => cell.ramp_base_south,
-        CellSide::West => cell.ramp_base_west,
-        CellSide::East => cell.ramp_base_east,
-    }
-}
-
-// A ramp is a solid wedge with no authored wall edges around it: at the
-// lower level only its base edge is walkable. The side faces are vertical
-// wedge walls and the high edge is a storey-high face over solid
-// volume, so those crossings are physically blocked even though the edge
-// grids are empty there. Two adjacent ramp cells are the same wedge's
+// A ramp has no authored wall edges around it: at the lower level only its
+// base edge is walkable. A wedge's side faces are vertical walls and its high
+// edge is a face over solid volume, so those crossings are physically blocked
+// even though the edge grids are empty there; past a plank's sides and high
+// edge lies the space under the slope, where the graph has no node, so a
+// plank is judged the same way. Two adjacent ramp cells are the same ramp's
 // footprint (lateral or along-axis on the slope) or two bases meeting at
 // floor level — both walkable. Known limitation: two side-by-side ramps
-// with opposite directions would be misjudged; the editor doesn't author
-// that shape.
+// with opposite directions would be misjudged.
 fn ramp_edge_walkable(node: &Cell, next: &Cell, side: CellSide) -> bool {
     if !node.has_ramp && !next.has_ramp {
         return true;
     }
-    if (node.has_ramp && ramp_top_on_side(node, side)) || (next.has_ramp && ramp_top_on_side(next, opposite(side))) {
+    if (node.has_ramp && node.ramp_top == Some(side)) || (next.has_ramp && next.ramp_top == Some(side.opposite())) {
         return false;
     }
     if node.has_ramp && next.has_ramp {
         return true;
     }
     if next.has_ramp {
-        ramp_base_on_side(next, opposite(side))
+        next.ramp_base == Some(side.opposite())
     } else {
-        ramp_base_on_side(node, side)
+        node.ramp_base == Some(side)
     }
 }

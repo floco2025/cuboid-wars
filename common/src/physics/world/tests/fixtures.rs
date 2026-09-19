@@ -11,7 +11,7 @@ pub(super) use rapier3d::prelude::Pose;
 
 use crate::{
     config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
-    protocol::Ramp,
+    protocol::{Ramp, RampDirection, RampShape},
 };
 
 pub(crate) fn test_map_layout() -> MapLayout {
@@ -39,11 +39,16 @@ pub(crate) fn test_map_layout() -> MapLayout {
         }],
         ramps: vec![Ramp {
             x1: 0.0,
-            y1: 0.0,
             z1: 0.0,
             x2: 4.0,
-            y2: LEVEL_HEIGHT,
             z2: 8.0,
+            y: 0.0,
+            height: LEVEL_HEIGHT,
+            direction: RampDirection::South,
+            shape: RampShape::Solid,
+            thickness: 0.4,
+            level: 0,
+            levels: 1,
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()

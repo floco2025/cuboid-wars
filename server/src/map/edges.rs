@@ -1,11 +1,35 @@
 use crate::map::EdgeGrid;
+use common::protocol::RampDirection;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum CellSide {
+pub enum CellSide {
     North,
     South,
     West,
     East,
+}
+
+impl CellSide {
+    #[must_use]
+    pub const fn opposite(self) -> Self {
+        match self {
+            Self::North => Self::South,
+            Self::South => Self::North,
+            Self::West => Self::East,
+            Self::East => Self::West,
+        }
+    }
+}
+
+impl From<RampDirection> for CellSide {
+    fn from(direction: RampDirection) -> Self {
+        match direction {
+            RampDirection::North => Self::North,
+            RampDirection::South => Self::South,
+            RampDirection::West => Self::West,
+            RampDirection::East => Self::East,
+        }
+    }
 }
 
 #[must_use]

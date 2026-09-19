@@ -2,7 +2,7 @@ use super::{
     super::variants::{ScorchStyle, scorch_variant},
     *,
 };
-use common::protocol::{Floor, Ramp, SwitchState, Wall};
+use common::protocol::{Floor, Ramp, RampDirection, RampShape, SwitchState, Wall};
 use rand::{SeedableRng, rngs::SmallRng};
 
 const WALL_HEIGHT: f32 = 3.0;
@@ -247,11 +247,16 @@ fn a_blast_over_a_hole_marks_the_floor_below_only_through_it() {
 fn a_ramp_hides_the_wall_beneath_it_and_takes_its_own_mark() {
     let ramp = Ramp {
         x1: 0.0,
-        y1: 0.0,
         z1: -2.0,
         x2: 4.0,
-        y2: 2.0,
         z2: 2.0,
+        y: 0.0,
+        height: 2.0,
+        direction: RampDirection::East,
+        shape: RampShape::Solid,
+        thickness: 0.4,
+        level: 0,
+        levels: 1,
         carrier: CarrierId::WORLD,
     };
     let layout = MapLayout {
@@ -294,11 +299,16 @@ fn marks_on_adjoining_wall_sections_cover_the_seam() {
 fn ground_mark_on_a_ramp_ends_at_its_top() {
     let ramp = Ramp {
         x1: 0.0,
-        y1: 0.0,
         z1: -2.0,
         x2: 4.0,
-        y2: 2.0,
         z2: 2.0,
+        y: 0.0,
+        height: 2.0,
+        direction: RampDirection::East,
+        shape: RampShape::Solid,
+        thickness: 0.4,
+        level: 0,
+        levels: 1,
         carrier: CarrierId::WORLD,
     };
     let layout = MapLayout {

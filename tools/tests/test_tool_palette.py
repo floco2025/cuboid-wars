@@ -51,17 +51,13 @@ class ToolPaletteTests(WindowTestCase):
 
     def test_shared_erase_operations_return_to_the_selected_variant(self):
         palette = self.window.tool_palette
-        for mode, erase in (
-            (c.MODE_INACCESSIBLE_FLOOR, c.MODE_ERASE_FLOORS),
-            (c.MODE_RAMP_DOWN, c.MODE_ERASE_RAMPS),
-        ):
-            with self.subTest(mode=mode):
-                self.choose(mode)
-                QTest.mouseClick(palette.erase_button, Qt.MouseButton.LeftButton)
-                self.assertEqual(self.window.mode, erase)
-                self.assertTrue(self.button(mode).isChecked())
-                QTest.mouseClick(palette.place_button, Qt.MouseButton.LeftButton)
-                self.assertEqual(self.window.mode, mode)
+        mode, erase = c.MODE_INACCESSIBLE_FLOOR, c.MODE_ERASE_FLOORS
+        self.choose(mode)
+        QTest.mouseClick(palette.erase_button, Qt.MouseButton.LeftButton)
+        self.assertEqual(self.window.mode, erase)
+        self.assertTrue(self.button(mode).isChecked())
+        QTest.mouseClick(palette.place_button, Qt.MouseButton.LeftButton)
+        self.assertEqual(self.window.mode, mode)
         self.choose(c.MODE_SELECT)
         self.assertFalse(palette.erase_button.isEnabled())
         self.choose(c.MODE_FLOOR_MATERIAL)

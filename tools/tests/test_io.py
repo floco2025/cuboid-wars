@@ -83,6 +83,32 @@ class FileIoTests(unittest.TestCase):
             self.assertEqual(loaded["checkpoints"], data["checkpoints"])
             self.assertEqual(loaded["nested_maps"], data["nested_maps"])
 
+    def test_a_ramp_line_omits_its_defaults_and_round_trips_the_rest(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"] += [dict(data["levels"][0]), dict(data["levels"][0])]
+        data["ramps"] = [
+            {"lower_level": 0, "cols": [1, 2], "rows": [1, 3], "direction": "S", "all": "test"},
+            {
+                "lower_level": 0,
+                "levels": 2,
+                "cols": [3, 4],
+                "rows": [1, 5],
+                "direction": "N",
+                "shape": "plank",
+                "all": "test",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ramps.json"
+            write_map(path, data)
+            plain, tall = (line for line in path.read_text(encoding="utf-8").splitlines() if '"direction"' in line)
+            self.assertNotIn('"levels"', plain)
+            self.assertNotIn('"shape"', plain)
+            self.assertIn('"levels": 2', tall)
+            self.assertIn('"shape": "plank"', tall)
+            loaded = read_map(path)["ramps"]
+            self.assertEqual([(r["levels"], r["shape"]) for r in loaded], [(1, "solid"), (2, "plank")])
+
     def test_nested_maps_round_trip_and_are_the_last_key(self) -> None:
         data = empty_map(6, 6)
         data["nested_maps"] = [

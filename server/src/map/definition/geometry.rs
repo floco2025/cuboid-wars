@@ -64,7 +64,7 @@ pub(super) fn compile_geometry(
         &floors,
         geometry.wall_half_thickness(),
     );
-    let (ramps, ramp_materials) = compile_ramps(&ramp_specs, &geometry, &assets, carrier);
+    let (ramps, ramp_materials) = compile_ramps(&ramp_specs, &level_grids, &geometry, carrier);
     let placed_items = placed_items(map_def, scope.kind_table, &level_grids, carrier)?;
 
     let layout = &mut out.layout;
@@ -281,8 +281,12 @@ fn compile_floors(
         let y = geometry.level_y(level);
         let mut ramp_landings = EdgeGrid::new(geometry.grid_cols, geometry.grid_rows);
         for ramp in ramp_specs {
-            if ramp.lower_level + 1 == level_idx as u32 {
-                ramp.mark_high_end(&mut ramp_landings);
+            let level = level_idx as u32;
+            if ramp.lower_level + ramp.levels == level {
+                ramp.mark_edge(ramp.direction, &mut ramp_landings);
+            }
+            if ramp.lower_level == level {
+                ramp.mark_edge(ramp.direction.opposite(), &mut ramp_landings);
             }
         }
         let mut tier = floors::emit_floor_tier(m, &ramp_landings, geometry, level, y, carrier);
@@ -306,12 +310,12 @@ fn compile_floors(
 
 fn compile_ramps(
     ramp_specs: &[ramps::RampSpec],
+    level_grids: &[LevelGrid],
     geometry: &MapGeometry,
-    assets: &MaterialRules,
     carrier: CarrierId,
 ) -> (Vec<Ramp>, Vec<FaceMaterials>) {
-    let ramps = ramps::specs_to_ramps(geometry, ramp_specs, carrier);
-    let materials = ramps.iter().map(|r| assets.materials_for_ramp_top(r)).collect();
+    let ramps = ramps::specs_to_ramps(geometry, ramp_specs, level_grids, carrier);
+    let materials = ramp_specs.iter().map(|spec| spec.materials.clone()).collect();
     (ramps, materials)
 }
 
@@ -358,8 +362,12 @@ fn compile_erasers(map_def: &MapDef, geometry: &MapGeometry, carrier: CarrierId)
 pub(super) fn ramp_spec_from_def(r: &RampDef) -> ramps::RampSpec {
     ramps::RampSpec {
         lower_level: r.lower_level,
-        low: r.low,
-        high: r.high,
+        levels: r.levels,
+        cols: r.cols,
+        rows: r.rows,
+        direction: r.direction,
+        shape: r.shape,
+        materials: r.materials.clone(),
     }
 }
 
@@ -420,7 +428,7 @@ fn placed_items(
             };
             let cell = level_grids[item.level as usize].cells.rows[item.row as usize][item.col as usize];
             anyhow::ensure!(
-                cell.has_floor && !cell.has_ramp,
+                cell.is_flat_floor(),
                 "items[{idx}] ({}) at level {} col {} row {} needs a floor cell without a ramp",
                 item.item_type,
                 item.level,

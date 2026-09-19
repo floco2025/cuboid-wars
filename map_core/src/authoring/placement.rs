@@ -29,11 +29,9 @@ pub fn cell_error(data: &Value, level: i64, col: i64, row: i64, plate: bool) -> 
             if plate { "" } else { "regular " }
         ));
     }
-    let occupied = list(data, "ramps").iter().any(|r| {
-        (i(r, "lower_level") == level || plate && i(r, "lower_level") + 1 == level)
-            && geometry::cells(r).contains(&[col as i32, row as i32])
-    });
-    occupied.then(|| format!("[{col}, {row}] is inside a ramp footprint"))
+    geometry::cells_on_level(list(data, "ramps"), level)
+        .contains(&[col as i32, row as i32])
+        .then(|| format!("[{col}, {row}] is inside a ramp footprint"))
 }
 pub fn light_error(data: &Value, level: i64, col: i64, row: i64, side: &str) -> Option<String> {
     let level_data = &data["levels"][level as usize];

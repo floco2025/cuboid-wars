@@ -48,6 +48,7 @@ from .geometry import (
     zone_spans_level,
     cell_side_from_click,
     point_near_wall,
+    ramp_key,
     ramp_rect,
     rect_from_cells,
     rects_overlap,
@@ -76,11 +77,7 @@ def edges_outside(entries: list[dict], rect: Rect) -> list[dict]:
 
 
 def ramps_outside(ramps: list[dict], level_idx: int, rect: Rect) -> list[dict]:
-    return [
-        ramp
-        for ramp in ramps
-        if level_idx not in (ramp["lower_level"], ramp["lower_level"] + 1) or not rects_overlap(rect, ramp_rect(ramp))
-    ]
+    return [ramp for ramp in ramps if level_idx != ramp["lower_level"] or not rects_overlap(rect, ramp_rect(ramp))]
 
 
 def zones_outside(zones: list[dict], level_idx: int, rect: Rect) -> list[dict]:
@@ -336,12 +333,8 @@ def hit_at(data: dict, level_idx: int, px: float, py: float, tolerance: float):
             if zone_spans_level(zone, level_idx) and zone_contains_cell(zone, col, row):
                 return (HIT_CHECKPOINT if list_name == CHECKPOINT_LIST else HIT_SPAWN_ZONE, (list_name, idx))
     for ramp in data["ramps"]:
-        lower = ramp["lower_level"]
-        if level_idx not in (lower, lower + 1):
-            continue
-        c0, r0, c1, r1 = ramp_rect(ramp)
-        if c0 <= col < c1 and r0 <= row < r1:
-            return (HIT_RAMP, (lower, tuple(ramp["low"]), tuple(ramp["high"])))
+        if ramp["lower_level"] == level_idx and zone_contains_cell(ramp, col, row):
+            return (HIT_RAMP, ramp_key(ramp))
     if any(b["col"] == col and b["row"] == row for b in level.get("light_bridges", [])):
         return (HIT_LIGHT_BRIDGE, (col, row))
     # A nested map's anchor cells rank above the floors and below every
@@ -408,12 +401,7 @@ def erase_hit(data: dict, level_idx: int, hit, preserve_floors: bool = False) ->
     elif kind == HIT_BARRIER:
         level["barriers"] = [barrier for barrier in level.get("barriers", []) if edge_key(barrier) != value]
     elif kind == HIT_RAMP:
-        lower, low, high = value
-        after["ramps"] = [
-            ramp
-            for ramp in after["ramps"]
-            if (ramp["lower_level"], tuple(ramp["low"]), tuple(ramp["high"])) != (lower, low, high)
-        ]
+        after["ramps"] = [ramp for ramp in after["ramps"] if ramp_key(ramp) != value]
     elif kind == HIT_LADDER:
         after["ladders"] = [ladder for ladder in after.get("ladders", []) if ladder_key(ladder) != value]
     return after

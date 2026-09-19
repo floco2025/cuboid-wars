@@ -21,6 +21,7 @@ from .elements import ELEMENT_MODES, element_refs
 from .compact_widgets import CompactComboBox
 from .constants import FACES, START_CHECKPOINT, START_CHECKPOINT_TYPE
 from .display import color_icon, portal_label
+from .geometry import ramp_slope
 from .transforms import record_rect
 from .tool_catalog import TOOLS
 from .nesting import motion_uses_cycle
@@ -44,6 +45,7 @@ class SelectionProperties(QDockWidget):
         self.field_signature = None
         self.widgets = {}
         self.fields = {}
+        self.slope_note = None
         self.changed_keys = set()
         self.applying = False
         self.loading = False
@@ -113,7 +115,11 @@ class SelectionProperties(QDockWidget):
 
     def current_field_signature(self):
         names = dict.fromkeys(ref.name for ref in self.refs)
-        return ([fields_for(self.window, name) for name in names], dict(self.window.texture_catalog))
+        return (
+            [fields_for(self.window, name) for name in names],
+            dict(self.window.texture_catalog),
+            (self.window.grid_cell_size, self.window.level_height),
+        )
 
     def rebuild(self, *_):
         self.field_signature = self.current_field_signature()
@@ -179,6 +185,11 @@ class SelectionProperties(QDockWidget):
             self.apply_all_button = QPushButton(f"Apply {face_keys[0][0]} to all faces")
             self.apply_all_button.clicked.connect(self.apply_material_to_all)
             form.addRow(self.apply_all_button)
+        self.slope_note = None
+        if names == ["ramps"]:
+            self.slope_note = QLabel()
+            self.slope_note.setWordWrap(True)
+            form.addRow(self.slope_note)
         if refs and not fields:
             form.addRow(QLabel("Choose an element type." if len(names) > 1 else "No editable properties."))
         previous = self.scroll.takeWidget()
@@ -225,6 +236,30 @@ class SelectionProperties(QDockWidget):
                 widget.setText(text)
         self.loading = False
         self.sync_dependencies()
+        self.load_slope_note()
+
+    # How steep the steepest selected ramp is, against what the character
+    # motor climbs. A note only: a steep ramp is a valid one, so this never
+    # joins the errors that hold back a commit.
+    def load_slope_note(self):
+        if self.slope_note is None:
+            return
+        cell_size, level_height = self.window.grid_cell_size, self.window.level_height
+        slopes = [
+            slope
+            for ref in self.targets()
+            if cell_size and level_height
+            if (slope := ramp_slope(ref.get(self.window.map_data), cell_size, level_height)) is not None
+        ]
+        steepest = max(slopes, key=lambda slope: slope["degrees"], default=None)
+        self.slope_note.setVisible(steepest is not None)
+        if steepest is None:
+            return
+        text = f"Slope {steepest['degrees']:.1f}°"
+        if not steepest["climbable"]:
+            text += f" — too steep to walk up (limit {steepest['limit_degrees']:.0f}°)"
+        self.slope_note.setText(text)
+        self.slope_note.setStyleSheet("" if steepest["climbable"] else "color: #d97706;")
 
     def refresh(self):
         if self.field_signature != self.current_field_signature():

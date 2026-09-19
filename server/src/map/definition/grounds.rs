@@ -2,13 +2,15 @@ use bevy::math::Vec2;
 use common::{
     config::MapGeometryConfig,
     map::{Grounds, GroundsSettings},
-    protocol::{CarrierId, Floor, LightBridge, MapLayout, Ramp},
+    protocol::{CarrierId, Floor, LightBridge, MapLayout, Ramp, RampShape},
 };
 
 // Only the root geometry at ground level cuts the landscape. Upper storeys
 // must not leave a hole beneath an elevated course, and carriers cannot cut
-// static terrain. Include ramps meeting this plane to keep basement access
-// open even where it reaches the outside of the base.
+// static terrain. A ramp cuts it where it comes up through this plane, which
+// keeps basement access open even outside the base, and where a solid one
+// stands on it, since the wedge fills its own cut. A plank standing on the
+// plane leaves the ground under it.
 pub(super) fn compile_grounds(layout: &MapLayout, settings: &GroundsSettings, geometry: MapGeometryConfig) -> Grounds {
     let y = geometry.level_y(settings.level);
     let floors = layout
@@ -32,8 +34,9 @@ pub(super) fn compile_grounds(layout: &MapLayout, settings: &GroundsSettings, ge
         .ramps
         .iter()
         .filter(|ramp| {
-            let (low, high) = ramp.bounds_y();
-            ramp.carrier == CarrierId::WORLD && low <= y && y <= high
+            let through = ramp.level < settings.level && settings.level <= ramp.level + ramp.levels;
+            let standing = ramp.level == settings.level && ramp.shape == RampShape::Solid;
+            ramp.carrier == CarrierId::WORLD && (through || standing)
         })
         .map(Ramp::bounds_xz);
     let bridges = layout

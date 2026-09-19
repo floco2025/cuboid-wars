@@ -21,8 +21,7 @@ TOOL_GROUPS = (
             Tool(c.MODE_INACCESSIBLE_FLOOR, "Blocked floor", c.MODE_ERASE_FLOORS),
             Tool(c.MODE_TERRAIN, "Terrain", c.MODE_ERASE_TERRAIN),
             Tool(c.MODE_WALL, "Wall", c.MODE_ERASE_WALLS),
-            Tool(c.MODE_RAMP_UP, "Ramp up", c.MODE_ERASE_RAMPS),
-            Tool(c.MODE_RAMP_DOWN, "Ramp down", c.MODE_ERASE_RAMPS),
+            Tool(c.MODE_RAMP, "Ramp", c.MODE_ERASE_RAMPS),
             Tool(c.MODE_LADDER, "Ladder", c.MODE_ERASE_LADDERS),
             Tool(c.MODE_NESTED_MAP, "Nested map", c.MODE_ERASE_NESTED_MAPS),
         ),
@@ -63,7 +62,7 @@ TOOL_GROUPS = (
     ),
 )
 TOOLS = {tool.mode: tool for tool in (*PINNED_TOOLS, *(tool for _, group in TOOL_GROUPS for tool in group))}
-# Shared erase modes retain the selected variant (blocked floor, ramp down).
+# Shared erase modes retain the selected variant (blocked floor).
 # Use the first variant when there is no such selection.
 ERASE_TOOLS = {}
 for tool in TOOLS.values():

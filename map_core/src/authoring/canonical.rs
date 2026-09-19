@@ -1,4 +1,4 @@
-use super::{FACES, cell_error, ladders_overlap, normalize_map, record_key};
+use super::{cell_error, ladders_overlap, normalize_map, record_key};
 use crate::{geometry, values::*};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -34,39 +34,19 @@ fn positions(values: &[Value]) -> BTreeSet<[i32; 2]> {
         .map(|v| [i(v, "col") as i32, i(v, "row") as i32])
         .collect()
 }
+// A ramp opens the floors of every level it passes or arrives at. What lies
+// under it on its own level is the author's: a ramp needs no floor there.
 pub fn enforce_ramp_floor_rules(data: &mut Value) {
-    let ramps = list(data, "ramps").to_vec();
-    for ramp in ramps {
-        let lower = i(&ramp, "lower_level");
-        let upper = lower + 1;
-        if lower < 0 || upper >= list(data, "levels").len() as i64 {
+    for level in 0..list(data, "levels").len() {
+        let opening = geometry::opening_cells(list(data, "ramps"), level as i64);
+        if opening.is_empty() {
             continue;
         }
-        let cells: BTreeSet<_> = geometry::cells(&ramp).into_iter().collect();
-        if cells.is_empty() {
-            continue;
-        }
-        let existing = positions(list(&data["levels"][lower as usize], "floors"));
-        let mut floors = list(&data["levels"][lower as usize], "floors").to_vec();
-        for [col, row] in &cells {
-            if !existing.contains(&[*col, *row]) {
-                let mut floor = json!({"col":col,"row":row});
-                for face in FACES {
-                    floor[face] = get(&ramp, face, json!(""));
-                }
-                floors.push(floor);
-            }
-        }
-        data["levels"][lower as usize]["floors"] = json!(floors);
-        for (level, key) in [
-            (lower, "inaccessible_floors"),
-            (upper, "floors"),
-            (upper, "inaccessible_floors"),
-        ] {
-            data["levels"][level as usize][key] = json!(
-                list(&data["levels"][level as usize], key)
+        for key in ["floors", "inaccessible_floors", "terrain"] {
+            data["levels"][level][key] = json!(
+                list(&data["levels"][level], key)
                     .iter()
-                    .filter(|v| !cells.contains(&[i(v, "col") as i32, i(v, "row") as i32]))
+                    .filter(|v| !opening.contains(&[i(v, "col") as i32, i(v, "row") as i32]))
                     .cloned()
                     .collect::<Vec<_>>()
             );
@@ -79,12 +59,7 @@ pub fn canonicalize_map(v: &Value) -> Value {
         f.remove("switch_inverted");
     }
     let mut ramps = list(&b, "ramps").to_vec();
-    ramps.sort_by(|a, b| {
-        cmp(
-            &json!([a["lower_level"], a["low"], a["high"]]),
-            &json!([b["lower_level"], b["low"], b["high"]]),
-        )
-    });
+    ramps.sort_by(|a, b| cmp(&record_key("ramp", a), &record_key("ramp", b)));
     b["ramps"] = json!(ramps);
     enforce_ramp_floor_rules(&mut b);
     for (key, kind) in [
@@ -109,10 +84,11 @@ pub fn canonicalize_map(v: &Value) -> Value {
     let count = list(&b, "levels").len();
     for index in 0..count {
         let ramp_cells = geometry::cells_on_level(list(&b, "ramps"), index as i64);
+        let no_terrain = geometry::terrain_excluded_cells(list(&b, "ramps"), index as i64);
         let level = &mut b["levels"][index];
         let terrain: Vec<_> = dedupe_cells(list(level, "terrain"))
             .into_iter()
-            .filter(|v| !ramp_cells.contains(&[i(v, "col") as i32, i(v, "row") as i32]))
+            .filter(|v| !no_terrain.contains(&[i(v, "col") as i32, i(v, "row") as i32]))
             .collect();
         let terrain_keys = positions(&terrain);
         let floors: Vec<_> = dedupe_cells(list(level, "floors"))

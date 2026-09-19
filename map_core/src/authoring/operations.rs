@@ -133,11 +133,9 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
         | "transform_block" => transforms::dispatch(op, a)?,
         "normalized_wall"
         | "wall_endpoints_for_cell_side"
-        | "ramp_rect"
-        | "ramp_cells"
         | "ramp_cells_on_level"
-        | "ramp_axis"
         | "ramp_error"
+        | "ramp_slope"
         | "zone_rect"
         | "rects_overlap"
         | "grid_point_in_bounds"

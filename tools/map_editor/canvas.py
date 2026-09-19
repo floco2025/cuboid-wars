@@ -20,8 +20,9 @@ from .display import materials_summary
 from .hover import element_hover_text
 from .geometry import (
     cell_side_from_click,
+    drag_direction,
     point_near_wall,
-    ramp_cells,
+    zone_contains_cell,
 )
 
 from .canvas_painting import CanvasPaintingMixin
@@ -216,6 +217,16 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def drag_current_cell(self):
         return self._tool_point(True)
 
+    # The way the ramp being dragged rises: the pointer's own motion, so a
+    # one-cell ramp takes it from the move inside the cell; a click without a
+    # move reuses the last direction.
+    @property
+    def drag_direction(self) -> str:
+        gesture = self.input.gesture
+        moved = gesture.current - gesture.start if gesture is not None and gesture.moved else None
+        direction = drag_direction(moved.x(), moved.y()) if moved is not None else None
+        return direction or self.window.recent_ramp_direction
+
     @property
     def drag_start_point(self):
         return self._tool_point(grid=True)
@@ -297,7 +308,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
             if cell is not None:
                 col, row = cell
                 for ramp in self.window.map_data["ramps"]:
-                    if ramp["lower_level"] == level_idx and (col, row) in ramp_cells(ramp):
+                    if ramp["lower_level"] == level_idx and zone_contains_cell(ramp, col, row):
                         kind, target = "ramp", ramp
                         tooltip = f"Ramp\n{materials_summary(ramp)}"
                         break

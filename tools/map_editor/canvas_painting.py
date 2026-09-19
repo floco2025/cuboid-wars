@@ -27,7 +27,8 @@ from .constants import (
     MODE_WALL_MATERIAL,
     MODE_CHECKPOINT,
     CHECKPOINT_LIST,
-    RAMP_MODES,
+    MODE_RAMP,
+    RAMP_DIRECTIONS,
     START_CHECKPOINT,
     ZONE_MODES,
 )
@@ -58,12 +59,9 @@ from .display import (
 from .selection_painting import paint_selection
 from .ladder_glyph import ladder_marker_lines
 from .geometry import (
-    draw_direction,
     ladder_anchor_from_click,
-    opposite_direction,
-    ramp_axis,
     ramp_cells,
-    ramp_points_from_cells,
+    ramp_ghosts_on,
     ramp_rect,
     rect_from_cells,
     snapped_wall_end,
@@ -108,18 +106,20 @@ def orthogonal_arrow_points(
     direction: str,
     cell: float,
 ) -> tuple[tuple[float, float], tuple[float, float]]:
-    pad = min(cell * 0.35, 14.0)
+    # A one-cell run leaves the shaft shorter than the head unless the pad shrinks with it.
+    run = (c1 - c0 if direction in ("E", "W") else r1 - r0) * cell
+    pad = min(cell * 0.35, 14.0, run * 0.2)
     left = c0 * cell + pad
     right = c1 * cell - pad
     top = r0 * cell + pad
     bottom = r1 * cell - pad
     mid_x = (c0 + c1) * cell / 2.0
     mid_y = (r0 + r1) * cell / 2.0
-    if direction == "east":
+    if direction == "E":
         return (left, mid_y), (right, mid_y)
-    if direction == "west":
+    if direction == "W":
         return (right, mid_y), (left, mid_y)
-    if direction == "south":
+    if direction == "S":
         return (mid_x, top), (mid_x, bottom)
     return (mid_x, bottom), (mid_x, top)
 
@@ -415,11 +415,12 @@ class CanvasPaintingMixin:
                 painter.restore()
         painter.setPen(Qt.PenStyle.NoPen)
 
+    # A ramp shows on the level it rises from; where it passes or arrives is
+    # left to the adjacent-levels overlay.
     def _paint_ramps(self, painter: QPainter, cell: float, level_idx: int) -> None:
         for ramp in self.visible_entries("ramps", self.window.map_data["ramps"]):
-            lower = ramp["lower_level"]
-            if level_idx in (lower, lower + 1):
-                self.paint_ramp(painter, ramp, cell, lower == level_idx)
+            if ramp["lower_level"] == level_idx:
+                self.paint_ramp(painter, ramp, cell)
 
     def _paint_drag_preview_rect(self, painter: QPainter, cell: float) -> None:
         if not (self.drag_start_cell and self.drag_current_cell):
@@ -452,7 +453,7 @@ class CanvasPaintingMixin:
         elif self.drag_start_point and self.drag_current_point and self.window.mode == MODE_EQUIPMENT_ERASER:
             end = snapped_wall_end(self.drag_start_point, self.drag_current_point)
             self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(EQUIPMENT_ERASER_COLOR))
-        elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
+        elif self.drag_start_cell and self.drag_current_cell and self.window.mode == MODE_RAMP:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode == MODE_NESTED_MAP:
             self._paint_nested_map_drag(painter, cell)
@@ -736,11 +737,13 @@ class CanvasPaintingMixin:
                 self._paint_floors(painter, neighbor, cell)
                 self._paint_light_bridges(painter, neighbor, cell)
                 self._paint_nested_maps(painter, cell, target)
-                self._paint_ramps(painter, cell, target)
                 self._paint_walls(painter, neighbor, cell)
                 self._paint_barriers(painter, neighbor, cell)
                 self._paint_erasers(painter, neighbor, cell)
                 self._paint_ladders(painter, cell, target)
+        for ramp in self.visible_entries("ramps", self.window.map_data["ramps"]):
+            if ramp_ghosts_on(ramp, level_idx):
+                self.paint_ramp(painter, ramp, cell)
         painter.restore()
 
     def _paint_pending_auto_lights(self, painter: QPainter, cell: float, level_idx: int) -> None:
@@ -769,7 +772,7 @@ class CanvasPaintingMixin:
             painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
         elif self.hover_kind == "ramp":
             ramp = self.hover_target
-            if level_idx not in (ramp["lower_level"], ramp["lower_level"] + 1):
+            if level_idx != ramp["lower_level"]:
                 return
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(QPen(highlight, 3))
@@ -873,32 +876,34 @@ class CanvasPaintingMixin:
         if cell >= 8:
             painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "Start")
 
-    def paint_ramp(self, painter: QPainter, ramp: dict, cell: float, is_lower_level: bool) -> None:
+    # The arrow runs from the low edge to the high one, and `+N` counts the
+    # storeys of a ramp rising more than one. A plank is see-through, since
+    # whatever lies under it stays reachable.
+    def paint_ramp(self, painter: QPainter, ramp: dict, cell: float) -> None:
         c0, r0, c1, r1 = ramp_rect(ramp)
         painter.setPen(QPen(QColor("#111827"), 1))
-        if self.window.show_material_overlay:
-            painter.setBrush(face_color(ramp))
-        else:
-            painter.setBrush(QColor("#d97706") if is_lower_level else QColor("#8b5cf6"))
+        fill = face_color(ramp) if self.window.show_material_overlay else QColor("#d97706")
+        if ramp["shape"] == "plank":
+            fill = QColor(fill)
+            fill.setAlpha(115)
+        painter.setBrush(fill)
         inset = min(3, cell * 0.15)
         painter.drawRect(
             QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset)
         )
         if cell < 8:
             return
+        self._paint_ramp_marks(painter, (c0, r0, c1, r1), ramp["direction"], ramp["levels"], cell, QColor("#ffffff"))
 
-        if is_lower_level:
-            direction = ramp_axis(ramp)
-            label = "UP"
-        else:
-            direction = opposite_direction(ramp_axis(ramp))
-            label = "DOWN"
-        start, end = orthogonal_arrow_points(c0, r0, c1, r1, direction, cell)
-        self.draw_arrow(painter, start, end, QColor("#ffffff"))
-
-        painter.setPen(QColor("#ffffff"))
-        rect = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell)
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
+    def _paint_ramp_marks(self, painter: QPainter, rect, direction: str, levels: int, cell: float, color) -> None:
+        c0, r0, c1, r1 = rect
+        if direction in RAMP_DIRECTIONS:
+            start, end = orthogonal_arrow_points(c0, r0, c1, r1, direction, cell)
+            self.draw_arrow(painter, start, end, color)
+        if levels > 1:
+            painter.setPen(color)
+            area = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(4, 2, -4, -2)
+            painter.drawText(area, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight, f"+{levels}")
 
     def paint_ramp_preview(
         self,
@@ -907,15 +912,13 @@ class CanvasPaintingMixin:
         end_cell: tuple[int, int],
         cell: float,
     ) -> None:
-        start_point, end_point = ramp_points_from_cells(start_cell, end_cell)
-        c0, r0 = min(start_point[0], end_point[0]), min(start_point[1], end_point[1])
-        c1, r1 = max(start_point[0], end_point[0]), max(start_point[1], end_point[1])
+        c0, r0, c1, r1 = rect_from_cells(start_cell, end_cell)
         painter.setPen(QPen(QColor("#fbbf24"), 2, Qt.PenStyle.DashLine))
         painter.setBrush(QColor(217, 119, 6, 90))
         painter.drawRect(QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell))
-        direction = draw_direction(start_cell, end_cell)
-        start, end = orthogonal_arrow_points(c0, r0, c1, r1, direction, cell)
-        self.draw_arrow(painter, start, end, QColor("#fbbf24"))
+        levels_above = len(self.window.map_data["levels"]) - 1 - self.window.current_level
+        levels = min(levels_above, max(1, self.window.recent_ramp_levels))
+        self._paint_ramp_marks(painter, (c0, r0, c1, r1), self.drag_direction, levels, cell, QColor("#fbbf24"))
 
     def paint_wall_preview(
         self,

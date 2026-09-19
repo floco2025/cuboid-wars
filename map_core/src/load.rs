@@ -97,8 +97,10 @@ pub fn canonicalize(map_def: &mut MapDef) {
         level.walls.dedup_by_key(|w| (w.c0, w.r0, w.c1, w.r1));
     }
 
-    map_def.ramps.sort_by_key(|r| (r.lower_level, r.low, r.high));
-    map_def.ramps.dedup_by_key(|r| (r.lower_level, r.low, r.high));
+    map_def
+        .ramps
+        .sort_by_key(|r| (r.lower_level, r.rows[0], r.cols[0], r.rows[1], r.cols[1]));
+    map_def.ramps.dedup_by_key(|r| (r.lower_level, r.rows, r.cols));
 
     map_def
         .ladders

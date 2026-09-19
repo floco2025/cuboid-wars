@@ -4,7 +4,7 @@ pub(super) use common::{
     physics::{CollisionWorld, compute_portal_placement},
     protocol::{
         BarrierKindTable, BridgeKindTable, CarrierId, FaceMaterials, HexColor, KindDef, MapLayout, MapSettings,
-        Position, SwitchDef, SwitchId, SwitchTable, TERRAIN_MATERIAL, TextureSettings,
+        Position, RampDirection, RampShape, SwitchDef, SwitchId, SwitchTable, TERRAIN_MATERIAL, TextureSettings,
     },
 };
 
@@ -188,11 +188,14 @@ pub(crate) fn actor_zone(level: u32, col: i32, row: i32) -> ActorSpawnZoneDef {
     }
 }
 
-pub(crate) fn ramp(low: [i32; 2], high: [i32; 2], lower_level: u32) -> RampDef {
+pub(crate) fn ramp(cols: [i32; 2], rows: [i32; 2], direction: RampDirection, lower_level: u32) -> RampDef {
     RampDef {
-        low,
-        high,
         lower_level,
+        levels: 1,
+        cols,
+        rows,
+        direction,
+        shape: RampShape::Solid,
         materials: FaceMaterials::uniform("test"),
     }
 }

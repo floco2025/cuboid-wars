@@ -104,16 +104,17 @@ class ContextEditingTests(WindowTestCase):
                     self.assertEqual(window.map_data, before)
                     self.assertEqual(window.undo_stack.count(), 0)
 
-    def test_material_edits_target_the_picked_surface_including_a_ramps_upper_level(self):
+    def test_material_edits_target_the_picked_surface_and_a_ramp_only_on_its_lower_level(self):
         window = self.window
         data = empty_map(8, 8)
-        data["levels"].append(empty_level(1))
+        data["levels"] += [empty_level(1), empty_level(2)]
         level = data["levels"][1]
         level["floors"] = [{"col": 2, "row": 3, "all": DEFAULT_ALIAS}]
         level["inaccessible_floors"] = [{"col": 4, "row": 3, "all": DEFAULT_ALIAS}]
         level["walls"] = [{"c0": 2, "r0": 5, "c1": 3, "r1": 5, "all": DEFAULT_ALIAS}]
         data["ramps"] = [
-            {"lower_level": 0, "low": [col, 1], "high": [col + 2, 2], "all": DEFAULT_ALIAS} for col in (1, 4)
+            {"lower_level": 1, "cols": [col, col + 2], "rows": [1, 2], "direction": "E", "all": DEFAULT_ALIAS}
+            for col in (1, 4)
         ]
         window.doc.replace_with_new(data)
         window.set_level_index(1)
@@ -141,6 +142,9 @@ class ContextEditingTests(WindowTestCase):
                 window.undo_stack.redo()
                 self.assertEqual(window.map_data, expected)
                 window.undo_stack.undo()
+        window.set_level_index(2)
+        self.context((1.5, 1.5))
+        self.assertEqual(window.selection_refs(), [])
 
     def test_ladder_span_edit_from_an_upper_level_keeps_its_base_and_undoes(self):
         window = self.window

@@ -41,8 +41,7 @@ MODE_BARRIER = "Barrier"
 MODE_ERASE_BARRIERS = "Erase Barriers"
 MODE_LIGHT_BRIDGE = "Light Bridge"
 MODE_ERASE_LIGHT_BRIDGES = "Erase Light Bridges"
-MODE_RAMP_UP = "Ramp (Up)"
-MODE_RAMP_DOWN = "Ramp (Down)"
+MODE_RAMP = "Ramp"
 MODE_ERASE_RAMPS = "Erase Ramps"
 MODE_NESTED_MAP = "Nested Map"
 MODE_ERASE_NESTED_MAPS = "Erase Nested Maps"
@@ -57,7 +56,6 @@ MODE_LADDER = "Ladder"
 MODE_ERASE_LADDERS = "Erase Ladders"
 MODE_PRESSURE_PLATE = "Pressure Plate"
 MODE_ERASE_PRESSURE_PLATES = "Erase Pressure Plates"
-RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
 ZONE_MODES = (MODE_ACTOR_SPAWN_ZONE, MODE_CHECKPOINT)
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
@@ -82,6 +80,9 @@ HIT_PRESSURE_PLATE = "Pressure Plate"
 FLOOR_HIT_KINDS = (HIT_FLOOR, HIT_INACCESSIBLE_FLOOR, HIT_TERRAIN, HIT_LIGHT_BRIDGE, HIT_NESTED_MAP)
 LIGHT_SIDES = ("N", "S", "E", "W")
 LADDER_SIDES = LIGHT_SIDES
+# The side a ramp rises toward.
+RAMP_DIRECTIONS = LIGHT_SIDES
+RAMP_SHAPE_LABELS = {"solid": "Solid", "plank": "Plank"}
 
 # Item type ids mirror `ItemType::from_config_id` in common/src/types/items.rs,
 # plus "key" (which additionally carries a barrier kind).

@@ -7,7 +7,7 @@ Choose a tool in the left palette. **Place / Erase** switches between placing th
 - **Resize Map** — Map → Resize Map… changes rows and columns in the active map. **Shrink to fit** trims empty borders around the contents across all levels, including both ends of moving nested maps. It fills in the fitted size and disables the manual size and anchor controls; turn it off to restore those controls. At least one row and column remain. OK applies one undoable change; Cancel discards it. Resizing preserves the number of levels.
 - **Levels** — Map → Edit Levels… opens a table of all levels in the active map. Edit names directly; Add inserts above the selected level, and Remove deletes the selected level. **Shrink to fit** removes empty levels below and above the contents while retaining empty levels between them, spanning objects, and nested-map motion. At least one level must remain. OK applies the whole batch as one undoable change; Cancel discards it. The dialog lists any objects that would be removed and asks before applying those changes. View → Next Level and Previous Level switch the level being shown.
 
-- **Tool Palette** — Icons and short labels stay in fixed positions under Build, Zones & Items, Mechanisms, Appearance, and Measure. Select, Sample, and Erase stay at the top. View → **Tool Icons Only** collapses the palette to a narrow icon strip; tooltips identify each tool. Selecting an element starts in Place mode; click Erase or press `E` with canvas focus to switch its operation. Floors and Blocked Floor share Erase Floors, and both ramp directions share Erase Ramps. The highlighted tool and operation buttons show what is active.
+- **Tool Palette** — Icons and short labels stay in fixed positions under Build, Zones & Items, Mechanisms, Appearance, and Measure. Select, Sample, and Erase stay at the top. View → **Tool Icons Only** collapses the palette to a narrow icon strip; tooltips identify each tool. Selecting an element starts in Place mode; click Erase or press `E` with canvas focus to switch its operation. Floors and Blocked Floor share Erase Floors. The highlighted tool and operation buttons show what is active.
 - **Map** — Open a map registered by name in `gameplay.json`. Its folder contains `layout.json` for placement, controls, and kind catalogs, and `settings.json` for tuning. The Map picker switches between the outer map and its named nested geometry; all views use the parent's kinds and texture catalog. Save, autosave, and undo cover the whole document. Undo switches to the affected map.
 
 - **Zoom / Pan / Fit Map** — `Cmd+Plus` / `Cmd+Minus` on macOS, or `Ctrl+Plus` / `Ctrl+Minus` elsewhere, zoom in and out. Scroll with a wheel, Magic Mouse, or touchpad to pan; Shift-wheel pans horizontally. Scroll bars appear when the map extends outside the view, and panning stops at the map edges. Space-drag and middle-drag also pan. View → Fit Map (`F`) shows the whole map.
@@ -40,7 +40,7 @@ Choose a tool in the left palette. **Place / Erase** switches between placing th
 - **Handles** — Selecting one spawn or checkpoint zone shows its resize handles immediately. Drag a handle to resize; drag the body to move the zone. Selecting one nested map shows its endpoint handles; drag one to move just that end. Left-click and right-click produce the same selection, Properties, and handles. Alt/Option helps pick a zone or nested endpoint through overlapping objects.
 - **Cancel** — Escape cancels an active drag or placement preview; press it again to clear the selection. Changing tool, level, map geometry, or selection scope clears selection. Copy, Delete, and other selection shortcuts act on the map only while the canvas has focus; property fields keep their normal text shortcuts.
 
-- **Rotate / Mirror** — Use the Select toolbar, Edit menu, or selection’s right-click menu. Rotate turns clockwise by 90°; horizontal and vertical mirrors flip left/right and top/bottom. Place the preview to commit one undoable edit. Directional materials, ramps, lights, ladders, and nested motion transform together; a square ramp cannot turn, since its slope always runs north-south, so rotating a block that holds one is refused. Nested geometry receives a transformed copy so other placements keep their original definition; include each nested footprint at both motion ends.
+- **Rotate / Mirror** — Use the Select toolbar, Edit menu, or selection’s right-click menu. Rotate turns clockwise by 90°; horizontal and vertical mirrors flip left/right and top/bottom. Place the preview to commit one undoable edit. Directional materials, ramps, lights, ladders, and nested motion transform together; a ramp turns its Direction with the block, whatever its footprint. Nested geometry receives a transformed copy so other placements keep their original definition; include each nested footprint at both motion ends.
 
 ## Jump Reach
 
@@ -110,10 +110,11 @@ A checkpoint is a rectangle of flat accessible floor that players respawn in onc
 
 ## Ramps
 
-- **Ramp (Up)** — Drag from this level toward the upper level.
-- **Ramp (Down)** — Drag from this level toward the lower level.
-- **Erase Ramps** — Drag a rectangle to remove every ramp it touches that leaves from or arrives at the current level.
-- **Edit Levels** — Adding a level between a ramp's endpoints removes that ramp. The Edit Levels dialog includes it in the removal summary before you apply the changes.
+- **Ramp** — Drag across the cells the ramp covers, from its low end toward its high end; it rises from the current level. The pointer's own movement sets the direction, so a one-tile ramp takes it from the move inside the cell, and a click without a move repeats the last direction. Any footprint works, including one tile and wider than long; for a wide one, draw the footprint and set **Direction** in Properties, since a drag follows its longer side. The toolbar sets the materials, **Storeys** (how many levels it rises, capped at the top level) and **Shape**: **Solid** is a wedge filled down to the level it stands on, **Plank** a sloped slab as thick as a floor and as wide as a walkway of the same cells, open underneath, drawn see-through. Neither needs a floor under it; the floors it rises through are opened automatically, on every level it passes or arrives at.
+- **Where it shows** — A ramp is drawn, picked, and erased on the level it rises from, with an arrow from low to high and `+N` for a ramp rising more than one storey. View → **Show Adjacent Levels** also ghosts every ramp that passes or arrives at the viewed level.
+- **Properties** — Storeys, Direction, Shape, and the six materials. A **Slope** note shows the angle and says when the ramp is too steep to walk up; it is only a note, and a steep ramp places, saves, and passes Check Map like any other. At the default sizes two cells of run per storey walk comfortably and one cell per storey does not.
+- **Erase Ramps** — Drag a rectangle to remove every ramp it touches that rises from the current level.
+- **Edit Levels** — A ramp follows its two ends like a ladder: a level added between them makes it taller, and one removed from inside it removes the ramp. A reorder that puts its top at or below its bottom removes it too, and the dialog lists it in the removal summary first.
 
 ## Nested Maps
 
@@ -138,14 +139,14 @@ Selecting a ladder highlights its rails and rungs on the climbing side of the ed
 
 ## Materials
 
-Right-click a floor, blocked floor, wall, or ramp to edit that element's materials. A ramp can be edited from either level it connects.
+Right-click a floor, blocked floor, wall, or ramp to edit that element's materials. A ramp is edited from the level it rises from.
 
 Faces with different materials across the selection start at **Mixed / unchanged**. Those faces keep their individual values unless you choose a material; **Apply Top to all faces** uses the Top choice for every face.
 **Use top-left materials** fills all six fields from the topmost, then leftmost selected floor, wall, or ramp, independently of file order or drag direction. Each button commits all six faces as one edit.
 
 - **Floor Material** — Click a single floor cell, or drag a rectangle to cover many; Properties edits the selected faces.
 - **Wall Material** — Click a single wall to select it, or drag along grid lines to span many; Properties edits the selected faces.
-- **Ramp Material** — Click any cell of a ramp, or drag a rectangle covering one or more ramps; Properties edits the selected faces.
+- **Ramp Material** — Click any cell of a ramp rising from this level, or drag a rectangle covering one or more; Properties edits the selected faces.
 
 ## Lights
 

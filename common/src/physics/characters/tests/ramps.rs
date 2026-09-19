@@ -6,7 +6,7 @@ fn player_walking_off_ramp_side_is_not_blocked_by_ramp_side() {
     let collision_world = collision_world(&[], &[ramp]);
     let pos = Position {
         x: 2.0,
-        y: ramp_surface_at(&ramp, 2.0, 4.0),
+        y: ramp.surface_at(2.0, 4.0),
         z: 4.0,
     };
     let motion = 0.0;
@@ -22,24 +22,25 @@ fn player_walking_off_ramp_side_is_not_blocked_by_ramp_side() {
 }
 
 #[test]
-fn lower_floor_player_hits_wedge_side_from_collision_world() {
-    let ramp = test_ramp();
-    let collision_world = collision_world(&[], &[ramp]);
-    let pos = Position {
-        x: -1.0,
-        y: 0.0,
-        z: 4.0,
-    };
-    let motion = 0.0;
+fn a_solid_ramp_fills_the_space_under_its_high_end_and_a_plank_leaves_it_open() {
+    for (shape, blocked) in [(RampShape::Solid, true), (RampShape::Plank, false)] {
+        let ramp = Ramp { shape, ..test_ramp() };
+        let collision_world = collision_world(&[], &[ramp]);
+        let pos = Position {
+            x: -1.0,
+            y: 0.0,
+            z: 7.0,
+        };
 
-    let step = step_in(
-        &collision_world,
-        character_step_toward(pos, motion, 1.0, pos.z, 0.1),
-        LadderMode::Automatic,
-    );
+        let step = step_in(
+            &collision_world,
+            character_step_toward(pos, 0.0, 1.0, pos.z, 0.1),
+            LadderMode::Automatic,
+        );
 
-    assert!(step.blocked);
-    assert!(step.position.x < 0.0);
+        assert_eq!(step.blocked, blocked, "{shape:?}: {step:?}");
+        assert_eq!(step.position.x < 0.0, blocked, "{shape:?}: {step:?}");
+    }
 }
 
 #[test]
@@ -89,7 +90,7 @@ fn capsule_cannot_step_sideways_onto_a_floor_above_step_height() {
     let ramp = test_ramp();
     let floor = upper_floor_west_of_ramp();
     let collision_world = collision_world(&[floor], &[ramp]);
-    let y = ramp_surface_at(&ramp, 2.0, 7.0);
+    let y = ramp.surface_at(2.0, 7.0);
     let pos = Position { x: 2.0, y, z: 7.0 };
     let motion = 0.0;
 

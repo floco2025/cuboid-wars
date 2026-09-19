@@ -5,7 +5,7 @@ use crate::map::definition::{
 };
 use common::{
     physics::CollisionWorld,
-    protocol::{Position, Wall},
+    protocol::{Position, RampDirection, Wall},
 };
 
 #[test]
@@ -160,11 +160,16 @@ fn an_exterior_basement_ramp_is_not_capped_by_ground_infill() {
         }],
         ramps: vec![Ramp {
             x1: -2.0,
-            x2: 2.0,
             z1: -8.0,
+            x2: 2.0,
             z2: 0.0,
-            y1: 0.0,
-            y2: geometry.level_y(1),
+            y: 0.0,
+            height: geometry.level_y(1),
+            direction: RampDirection::South,
+            shape: RampShape::Solid,
+            thickness: 0.4,
+            level: 0,
+            levels: 1,
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
@@ -185,6 +190,52 @@ fn an_exterior_basement_ramp_is_not_capped_by_ground_infill() {
         .ground_surface_below(bevy::math::Vec3::new(6.0, geometry.level_y(1) + 1.0, -4.0), 10.0)
         .expect("ground beside the ramp");
     assert!((beside.point.y - geometry.level_y(1)).abs() < 0.001);
+}
+
+#[test]
+fn a_plank_standing_on_the_grounds_leaves_them_under_it_while_a_wedge_or_a_ramp_from_below_cuts_them() {
+    let geometry = crate::test_geometry::sizes();
+    let ramp = |shape, level, levels| Ramp {
+        x1: 20.0,
+        z1: 0.0,
+        x2: 24.0,
+        z2: 8.0,
+        y: geometry.level_y(level),
+        height: f32::from(levels) * geometry.level_height,
+        direction: RampDirection::South,
+        shape,
+        thickness: geometry.floor_thickness,
+        level,
+        levels,
+        carrier: CarrierId::WORLD,
+    };
+    for (shape, level, levels, cut) in [
+        (RampShape::Plank, 1, 1, false),
+        (RampShape::Solid, 1, 1, true),
+        (RampShape::Plank, 0, 2, true),
+        (RampShape::Plank, 2, 1, false),
+    ] {
+        let layout = MapLayout {
+            floors: vec![Floor {
+                x1: 0.0,
+                x2: 8.0,
+                z1: 0.0,
+                z2: 8.0,
+                y: geometry.level_y(1),
+                thickness: geometry.floor_thickness,
+                level: 1,
+                carrier: CarrierId::WORLD,
+            }],
+            ramps: vec![ramp(shape, level, levels)],
+            ..Default::default()
+        };
+        let grounds = compile_grounds(&layout, &GroundsSettings { level: 1 }, geometry);
+        assert_eq!(
+            grounds.is_inside_footprint(22.0, 4.0),
+            cut,
+            "{shape:?} from level {level} over {levels}"
+        );
+    }
 }
 
 #[test]

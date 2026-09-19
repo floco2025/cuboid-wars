@@ -27,6 +27,7 @@ from .constants import (
 from .checkpoint_numbers import is_start
 from .display import materials_summary, pressure_plate_label
 from .nesting import MOTION_LABELS, motion_uses_cycle
+from .geometry import ramp_key
 from .normalization import edge_key, ladder_key, nested_map_key
 
 SIDE_LABELS = {"N": "North", "S": "South", "E": "East", "W": "West"}
@@ -99,9 +100,9 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
         return f"Checkpoint {zone.get('number', '?')}: {CHECKPOINT_TYPE_LABELS.get(zone['type'], zone['type'])}"
 
     if kind == HIT_RAMP:
-        lower = value[0]
-        ramp = next(e for e in data["ramps"] if (e["lower_level"], tuple(e["low"]), tuple(e["high"])) == value)
-        return f"Ramp\nLevels {lower} → {lower + 1}\n{materials_summary(ramp)}"
+        ramp = next(e for e in data["ramps"] if ramp_key(e) == value)
+        shape = "Plank\n" if ramp["shape"] == "plank" else ""
+        return f"Ramp\nLevels {value[0]} → {value[0] + ramp['levels']}\n{shape}{materials_summary(ramp)}"
 
     if kind == HIT_NESTED_MAP:
         entry = next(e for e in data[NESTED_MAPS_LIST] if nested_map_key(e) == value)

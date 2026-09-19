@@ -24,7 +24,7 @@ from map_editor.constants import (
     MODE_LIGHT,
     MODE_NESTED_MAP,
     MODE_PRESSURE_PLATE,
-    MODE_RAMP_UP,
+    MODE_RAMP,
     TERRAIN_FACES,
     MODE_SELECT,
     MODE_WALL,
@@ -183,7 +183,7 @@ class WindowTests(WindowTestCase):
             MODE_ERASE: "erase_cell_rect",
             MODE_FLOOR_MATERIAL: "assign_floor_materials_rect",
             MODE_WALL: "add_wall_line",
-            MODE_RAMP_UP: "add_ramp",
+            MODE_RAMP: "add_ramp",
             MODE_NESTED_MAP: "add_nested_map",
         }
         for mode, method in methods.items():

@@ -1,6 +1,7 @@
 use super::prepare_source;
 use crate::schema::*;
 use anyhow::Result;
+use common::protocol::RampShape;
 use serde_json::{Value, json};
 
 // A floored corner with the start on it, placing `names` along the top row.
@@ -225,7 +226,7 @@ fn duplicate_ramps_are_rejected() {
         {"floors": [{"col": 0, "row": 0, "all": "test"}]},
         {"floors": []}
     ]);
-    let ramp = json!({"lower_level": 0, "low": [1, 1], "high": [3, 2], "all": "test"});
+    let ramp = json!({"lower_level": 0, "cols": [1, 3], "rows": [1, 2], "direction": "E", "all": "test"});
     value["ramps"] = json!([ramp]);
     let parse = |value: &Value| serde_json::from_value::<MapDef>(value.clone()).expect("test source is invalid");
     prepare_source(parse(&value)).expect("single ramp rejected");
@@ -234,4 +235,58 @@ fn duplicate_ramps_are_rejected() {
         .expect_err("duplicate ramp accepted")
         .to_string();
     assert!(error.contains("duplicates another ramp"), "{error}");
+}
+
+fn three_levels_with(ramps: Value) -> Value {
+    let mut value = geometry(&[]);
+    value["levels"] = json!([
+        {"floors": [{"col": 0, "row": 0, "all": "test"}]},
+        {"floors": []},
+        {"floors": []}
+    ]);
+    value["ramps"] = ramps;
+    value
+}
+
+#[test]
+fn a_ramp_defaults_to_one_solid_storey_and_needs_a_direction() {
+    let ramp = json!({"lower_level": 0, "cols": [1, 2], "rows": [1, 2], "direction": "N", "all": "test"});
+    let map: MapDef = serde_json::from_value(three_levels_with(json!([ramp]))).expect("one-cell ramp rejected");
+    assert_eq!((map.ramps[0].levels, map.ramps[0].shape), (1, RampShape::Solid));
+
+    let mut undirected = ramp.clone();
+    undirected
+        .as_object_mut()
+        .expect("ramp is not an object")
+        .remove("direction");
+    assert!(serde_json::from_value::<MapDef>(three_levels_with(json!([undirected]))).is_err());
+}
+
+#[test]
+fn a_ramp_must_arrive_at_an_existing_level() {
+    let ramp = |levels: u32| json!({"lower_level": 1, "levels": levels, "cols": [1, 2], "rows": [1, 3], "direction": "S", "all": "test"});
+    let parse = |value: Value| serde_json::from_value::<MapDef>(value).expect("test source is invalid");
+    prepare_source(parse(three_levels_with(json!([ramp(1)])))).expect("ramp to the top level rejected");
+    let error = prepare_source(parse(three_levels_with(json!([ramp(2)]))))
+        .expect_err("ramp past the top level accepted")
+        .to_string();
+    assert!(error.contains("needs level 3 to arrive at"), "{error}");
+}
+
+#[test]
+fn ramps_may_stack_end_to_start_but_not_share_a_storey() {
+    let ramp = |lower: u32, levels: u32, cols: [i32; 2]| json!({"lower_level": lower, "levels": levels, "cols": cols, "rows": [1, 3], "direction": "S", "all": "test"});
+    let parse = |value: Value| serde_json::from_value::<MapDef>(value).expect("test source is invalid");
+    prepare_source(parse(three_levels_with(json!([
+        ramp(0, 1, [1, 2]),
+        ramp(1, 1, [1, 2])
+    ]))))
+    .expect("a ramp starting where another arrives rejected");
+    let error = prepare_source(parse(three_levels_with(json!([
+        ramp(0, 2, [1, 3]),
+        ramp(1, 1, [2, 4])
+    ]))))
+    .expect_err("a ramp through another's shaft accepted")
+    .to_string();
+    assert!(error.contains("overlaps another ramp"), "{error}");
 }

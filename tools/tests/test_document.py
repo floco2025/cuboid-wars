@@ -158,17 +158,15 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(self.doc.map_data, before)
         self.assertEqual(self.doc.path, self.path)
 
-    def test_inserting_through_ramps_requires_removal_and_undo_restores_everything(self):
+    def test_inserting_a_level_through_a_ramp_grows_it_and_undo_restores_everything(self):
         data = empty_map()
         data["levels"].append(copy.deepcopy(data["levels"][0]))
-        data["ramps"] = [{"lower_level": 0, "low": [2, 2], "high": [5, 3], "all": DEFAULT_ALIAS}]
+        data["ramps"] = [{"lower_level": 0, "cols": [2, 5], "rows": [2, 3], "direction": "E", "all": DEFAULT_ALIAS}]
         data["ladders"] = [{"lower_level": 0, "levels": 1, "col": 6, "row": 6, "side": "N"}]
         self.doc.replace_with_new(data)
         before = copy.deepcopy(self.doc.map_data)
-        with self.assertRaises(ValueError):
-            insert_level_data(before, 1)
-        after = insert_level_data(before, 1, remove_crossing_ramps=True)
-        self.assertEqual(after["ramps"], [])
+        after = insert_level_data(before, 1)
+        self.assertEqual((after["ramps"][0]["lower_level"], after["ramps"][0]["levels"]), (0, 2))
         self.assertEqual(after["ladders"][0]["levels"], 2)
         self.doc.apply_change("Insert", after)
         self.assertEqual(len(self.doc.map_data["levels"]), 3)

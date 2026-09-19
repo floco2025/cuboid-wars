@@ -24,7 +24,8 @@ mod weather;
 #[path = "tests/carriers.rs"]
 mod carrier_tests;
 
-pub(crate) use edges::{CellSide, has_edge_on_cell_side};
+pub use edges::CellSide;
+pub(crate) use edges::has_edge_on_cell_side;
 
 pub use generation::{GeneratedMap, generate_map};
 pub use grid::grid_coords_from_position;

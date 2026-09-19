@@ -1,5 +1,5 @@
 use super::*;
-use common::protocol::{CheckpointKind, MapLayout};
+use common::protocol::{CheckpointKind, MapLayout, RampDirection};
 use map_core::schema::CheckpointDef;
 
 fn checkpoint_def(level: u32, col: i32, row: i32) -> CheckpointDef {
@@ -47,7 +47,7 @@ fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
             .contains("flat accessible floor")
     );
     map.checkpoints[0].zone.cols = [0, 1];
-    map.ramps.push(ramp([0, 0], [1, 2], 0));
+    map.ramps.push(ramp([0, 1], [0, 2], RampDirection::South, 0));
     map.levels.push(level(Vec::new()));
     assert!(
         validate_map(&map)

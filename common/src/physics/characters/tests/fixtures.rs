@@ -1,9 +1,9 @@
 pub(super) use super::super::*;
 pub(super) use crate::{
     config::CharacterPhysicsConfig,
-    map::{Carriers, ramp_surface_at},
+    map::Carriers,
     physics::CollisionWorld,
-    protocol::{Floor, Ladder, MapLayout, Position, Ramp, Wall},
+    protocol::{Floor, Ladder, MapLayout, Position, Ramp, RampDirection, RampShape, Wall},
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
 use crate::{
@@ -19,11 +19,16 @@ pub(crate) const TEST_PLAYER_SPEED: f32 = 9.0;
 pub(crate) fn test_ramp() -> Ramp {
     Ramp {
         x1: 0.0,
-        y1: 0.0,
         z1: 0.0,
         x2: 4.0,
-        y2: LEVEL_HEIGHT,
         z2: 8.0,
+        y: 0.0,
+        height: LEVEL_HEIGHT,
+        direction: RampDirection::South,
+        shape: RampShape::Solid,
+        thickness: 0.4,
+        level: 0,
+        levels: 1,
         carrier: CarrierId::WORLD,
     }
 }

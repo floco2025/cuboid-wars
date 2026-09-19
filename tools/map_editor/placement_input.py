@@ -22,13 +22,13 @@ from .constants import (
     MODE_LIGHT_BRIDGE,
     MODE_NESTED_MAP,
     MODE_PRESSURE_PLATE,
+    MODE_RAMP,
     MODE_RAMP_MATERIAL,
     MODE_RUN_TIME,
     MODE_SAMPLE,
     MODE_TERRAIN,
     MODE_WALL,
     MODE_WALL_MATERIAL,
-    RAMP_MODES,
 )
 
 if TYPE_CHECKING:
@@ -78,7 +78,7 @@ def _click_place_tool(add_method: str):
 
 def _ramp_tool(canvas: "Canvas", event) -> None:
     if canvas.drag_start_cell and canvas.drag_current_cell:
-        canvas.window.add_ramp(canvas.drag_start_cell, canvas.drag_current_cell, canvas.input.gesture.mode)
+        canvas.window.add_ramp(canvas.drag_start_cell, canvas.drag_current_cell, canvas.drag_direction)
 
 
 def _nested_map_tool(canvas: "Canvas", event) -> None:
@@ -144,7 +144,7 @@ RELEASE_TOOLS = {
     MODE_WALL_MATERIAL: _wall_material_tool,
     MODE_RAMP_MATERIAL: _cell_rect_tool("assign_ramp_materials_rect"),
     MODE_NESTED_MAP: _nested_map_tool,
-    **dict.fromkeys(RAMP_MODES, _ramp_tool),
+    MODE_RAMP: _ramp_tool,
     **dict.fromkeys(ERASE_GROUPS, _erase_group_tool),
     **dict.fromkeys(ERASE_MODES, _erase_cells_tool),
 }

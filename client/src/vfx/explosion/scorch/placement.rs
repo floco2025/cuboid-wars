@@ -7,8 +7,7 @@ use super::{
 };
 use crate::map::GrassBurn;
 use common::{
-    map::{Carriers, RampAxis, ramp_axis},
-    math::PHYSICS_EPSILON,
+    map::Carriers,
     protocol::{CarrierId, Floor, MapLayout, Ramp, Wall},
 };
 
@@ -291,35 +290,15 @@ fn floor_prism(floor: &Floor) -> Prism {
     }
 }
 
-// The wedge: its cross-section along the run, swept across the width.
+// The ramp's volume, a wedge or a plank: its cross-section along the run,
+// swept across the width.
 fn ramp_prism(ramp: &Ramp) -> Option<Prism> {
-    let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
-    let (min_y, max_y) = ramp.bounds_y();
-    let rises = ramp.y2 >= ramp.y1;
-    match ramp_axis(ramp) {
-        RampAxis::X => {
-            let (low_x, high_x) = if rises { (ramp.x1, ramp.x2) } else { (ramp.x2, ramp.x1) };
-            ((high_x - low_x).abs() >= PHYSICS_EPSILON).then(|| Prism {
-                base: vec![
-                    Vec3::new(low_x, min_y, min_z),
-                    Vec3::new(high_x, min_y, min_z),
-                    Vec3::new(high_x, max_y, min_z),
-                ],
-                extrusion: Vec3::Z * (max_z - min_z),
-            })
-        }
-        RampAxis::Z => {
-            let (low_z, high_z) = if rises { (ramp.z1, ramp.z2) } else { (ramp.z2, ramp.z1) };
-            ((high_z - low_z).abs() >= PHYSICS_EPSILON).then(|| Prism {
-                base: vec![
-                    Vec3::new(min_x, min_y, low_z),
-                    Vec3::new(min_x, min_y, high_z),
-                    Vec3::new(min_x, max_y, high_z),
-                ],
-                extrusion: Vec3::X * (max_x - min_x),
-            })
-        }
-    }
+    ramp.surface_normal()?;
+    let prism = ramp.prism();
+    Some(Prism {
+        base: prism.profile,
+        extrusion: prism.sweep,
+    })
 }
 
 // The shadow of a convex face lit from `center`: past its plane, inside the
@@ -385,19 +364,8 @@ fn wall_bounds_xz(wall: &Wall) -> (f32, f32, f32, f32) {
 
 // A ramp's surface as `normal · p = offset`.
 fn ramp_plane(ramp: &Ramp) -> Option<(Vec3, f32)> {
-    let rise = ramp.y2 - ramp.y1;
-    let normal = match ramp_axis(ramp) {
-        RampAxis::X => {
-            let run = ramp.x2 - ramp.x1;
-            (run.abs() >= PHYSICS_EPSILON).then(|| Vec3::new(-rise / run, 1.0, 0.0))
-        }
-        RampAxis::Z => {
-            let run = ramp.z2 - ramp.z1;
-            (run.abs() >= PHYSICS_EPSILON).then(|| Vec3::new(0.0, 1.0, -rise / run))
-        }
-    }?
-    .normalize();
-    Some((normal, normal.dot(Vec3::new(ramp.x1, ramp.y1, ramp.z1))))
+    let normal = ramp.surface_normal()?;
+    Some((normal, normal.dot(ramp.corners().low[0])))
 }
 
 fn wall_scorch_diameter(scorch_radius: f32, wall_distance: f32, reach_factor: f32) -> Option<f32> {

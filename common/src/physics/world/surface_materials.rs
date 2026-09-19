@@ -3,8 +3,8 @@ use rapier3d::prelude::Collider;
 
 use super::{CollisionWorld, WorldSurfaceHit, colliders::ColliderKind};
 use crate::{
-    math::to_rapier,
-    protocol::{MapLayout, TERRAIN_MATERIAL},
+    math::{from_rapier, to_rapier},
+    protocol::{Face, MapLayout, TERRAIN_MATERIAL},
 };
 
 pub(super) const MATERIAL_INDEX_SHIFT: u32 = 40;
@@ -26,20 +26,5 @@ pub(super) fn collider_material<'a>(collider: &Collider, normal: Vec3, layout: &
     };
     let materials = materials?;
     let local = collider.position().rotation.inverse() * to_rapier(normal);
-    let alias = if local.y > 0.001 {
-        &materials.top
-    } else if local.y < -0.001 {
-        &materials.bottom
-    } else if local.x.abs() > local.z.abs() {
-        if local.x > 0.0 {
-            &materials.east
-        } else {
-            &materials.west
-        }
-    } else if local.z > 0.0 {
-        &materials.south
-    } else {
-        &materials.north
-    };
-    Some(alias)
+    Some(materials.face(Face::from_normal(from_rapier(local))))
 }

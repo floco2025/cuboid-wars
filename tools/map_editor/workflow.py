@@ -33,8 +33,6 @@ class WorkflowMixin:
             faces = c.TERRAIN_FACES if name == "terrain" else c.FACES
             self.sampled_materials = {face: entry.get(face, entry.get("all", "")) for face in faces}
             self.current_material = entry.get("top", entry.get("bottom", entry.get("all", "")))
-            if name == "ramps" and self.current_level != entry["lower_level"]:
-                mode = c.MODE_RAMP_DOWN
         if name in ("barriers", "light_bridges"):
             prefix = "barrier" if name == "barriers" else "bridge"
             setattr(self, f"recent_{prefix}_kind", entry["kind"])
@@ -68,6 +66,10 @@ class WorkflowMixin:
             self.recent_light_kind = entry["kind"]
         elif name == "ladders":
             self.recent_ladder_levels = entry["levels"]
+        if name == "ramps":
+            self.recent_ramp_levels = entry["levels"]
+            self.recent_ramp_shape = entry["shape"]
+            self.recent_ramp_direction = entry["direction"]
         elif name == "nested_maps":
             self.recent_nested_map = NestedMotion.from_entry(entry)
         self.activate_tool(mode)

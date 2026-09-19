@@ -57,7 +57,7 @@ class ValidationTests(unittest.TestCase):
         level["floors"] = [floor(0, 0)]
         level["inaccessible_floors"] = [floor(3, 0)]
         level["terrain"] = [terrain(0, 0), terrain(3, 0), terrain(2, 2), terrain(2, 2), terrain(1, 1)]
-        data["ramps"] = [{"lower_level": 0, "low": [0, 1], "high": [2, 2], **faces()}]
+        data["ramps"] = [{"lower_level": 0, "cols": [0, 2], "rows": [1, 2], "direction": "E", **faces()}]
 
         errors = validate_map(data, [], [])
 
@@ -68,6 +68,37 @@ class ValidationTests(unittest.TestCase):
             "terrain [1, 1] sits on a ramp",
         ):
             self.assertTrue(any(expected in error for error in errors), expected)
+
+    def test_ramps_report_a_missing_arrival_level_a_bad_direction_and_shared_storeys(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"] += [dict(data["levels"][0]), dict(data["levels"][0])]
+        ramp = {"lower_level": 0, "cols": [1, 2], "rows": [1, 3], "direction": "S", **faces()}
+        data["ramps"] = [
+            {**ramp, "levels": 3},
+            {**ramp, "cols": [3, 4], "direction": "up"},
+            {**ramp, "cols": [4, 5], "levels": 2},
+            {**ramp, "cols": [4, 5], "direction": "N"},
+            {**ramp, "cols": [4, 6], "lower_level": 1},
+        ]
+        errors = validate_map(data, [], [])
+        for expected in (
+            "needs level 3 to arrive at",
+            "direction must be N, S, E, or W",
+            "duplicates another ramp",
+            "overlaps another ramp",
+        ):
+            self.assertTrue(any(expected in error for error in errors), expected)
+
+    def test_terrain_may_lie_under_a_plank_but_not_under_a_wedge_or_in_an_opening(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"].append({**dict(data["levels"][0]), "terrain": [terrain(1, 1)]})
+        data["levels"][0]["terrain"] = [terrain(1, 1), terrain(3, 1)]
+        ramp = {"lower_level": 0, "rows": [1, 3], "direction": "S", **faces()}
+        data["ramps"] = [{**ramp, "cols": [1, 2], "shape": "plank"}, {**ramp, "cols": [3, 4]}]
+        errors = sorted(error for error in validate_map(data, [], []) if "sits on a ramp" in error)
+        self.assertEqual(len(errors), 2, errors)
+        self.assertTrue(errors[0].startswith("Level 0") and "[3, 1]" in errors[0], "under the wedge")
+        self.assertTrue(errors[1].startswith("Level 1") and "[1, 1]" in errors[1], "in the opening above the plank")
 
     def test_a_new_map_seeds_an_in_bounds_start_and_a_started_map_floors_it(self) -> None:
         data = empty_map(1, 1)
@@ -344,7 +375,7 @@ class PressurePlateTests(unittest.TestCase):
         data["levels"].append(empty_level(1))
         data["levels"][0]["floors"] = [floor(0, 0), floor(1, 1)]
         data["levels"][0]["inaccessible_floors"] = [floor(3, 3)]
-        data["ramps"] = [{"lower_level": 0, "low": [0, 1], "high": [2, 2], **faces()}]
+        data["ramps"] = [{"lower_level": 0, "cols": [0, 2], "rows": [1, 2], "direction": "E", **faces()}]
         data["pressure_plates"] = [
             {"level": 0, "col": 0, "row": 0, "switch": "fireworks"},
             {"level": 0, "col": 3, "row": 3, "switch": "fireworks"},
@@ -368,7 +399,7 @@ class LightBridgeTests(unittest.TestCase):
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["levels"][0]["inaccessible_floors"] = [floor(1, 0)]
         data["levels"].append({**empty_level(1), "floors": [floor(2, 2)]})
-        data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 2], **faces()}]
+        data["ramps"] = [{"lower_level": 0, "cols": [1, 3], "rows": [1, 2], "direction": "E", **faces()}]
         data["levels"][0]["light_bridges"] = [
             {"col": 0, "row": 0, "kind": "nope"},
             {"col": 1, "row": 0, "kind": BRIDGE_KIND},

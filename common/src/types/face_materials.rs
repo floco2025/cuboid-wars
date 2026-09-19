@@ -1,5 +1,36 @@
+use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Deserializer, Serialize, de};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Face {
+    Top,
+    Bottom,
+    North,
+    South,
+    East,
+    West,
+}
+
+impl Face {
+    // The face a surface with this outward normal belongs to, in the record's
+    // own frame: a slope is a top, and a vertical surface takes its nearer
+    // cardinal.
+    #[must_use]
+    pub fn from_normal(normal: Vec3) -> Self {
+        if normal.y > 0.001 {
+            Self::Top
+        } else if normal.y < -0.001 {
+            Self::Bottom
+        } else if normal.x.abs() > normal.z.abs() {
+            if normal.x > 0.0 { Self::East } else { Self::West }
+        } else if normal.z > 0.0 {
+            Self::South
+        } else {
+            Self::North
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Serialize)]
 pub struct FaceMaterials {
@@ -37,6 +68,18 @@ impl FaceMaterials {
     #[must_use]
     pub fn primary(&self) -> &str {
         &self.top
+    }
+
+    #[must_use]
+    pub fn face(&self, face: Face) -> &str {
+        match face {
+            Face::Top => &self.top,
+            Face::Bottom => &self.bottom,
+            Face::North => &self.north,
+            Face::South => &self.south,
+            Face::East => &self.east,
+            Face::West => &self.west,
+        }
     }
 
     #[must_use]

@@ -39,11 +39,21 @@ pub fn emit_floor_tier(
                 sw: in_mask(row + 1, col - 1),
                 se: in_mask(row + 1, col + 1),
             };
+            let vertical = |r: i32, c: i32| {
+                usize::try_from(r)
+                    .ok()
+                    .and_then(|r| ramp_landings.vertical.get(r))
+                    .is_some_and(|edges| edges[c as usize])
+            };
             let landings = RampLandings {
                 n: ramp_landings.horizontal[row as usize][col as usize],
                 s: ramp_landings.horizontal[row as usize + 1][col as usize],
-                w: ramp_landings.vertical[row as usize][col as usize],
-                e: ramp_landings.vertical[row as usize][col as usize + 1],
+                w: vertical(row, col),
+                e: vertical(row, col + 1),
+                nw: vertical(row - 1, col),
+                ne: vertical(row - 1, col + 1),
+                sw: vertical(row + 1, col),
+                se: vertical(row + 1, col + 1),
             };
             let bounds = [
                 grid_x(geometry, col),

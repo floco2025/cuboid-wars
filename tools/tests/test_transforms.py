@@ -29,7 +29,7 @@ class ResizeTests(unittest.TestCase):
         data["levels"][4]["terrain"] = [{"col": 5, "row": 5}]
         data["actor_spawn_zones"] = [{"level": 3, "cols": [4, 8], "rows": [6, 10], "levels": 2}]
         data["items"] = [{"level": 5, "col": 10, "row": 7, "type": "gold"}]
-        data["ramps"] = [{"lower_level": 1, "low": [4, 6], "high": [5, 9]}]
+        data["ramps"] = [{"lower_level": 1, "cols": [4, 5], "rows": [6, 9], "direction": "S"}]
         data["ladders"] = [{"lower_level": 3, "col": 4, "row": 7, "side": "N", "levels": 3}]
         before = copy.deepcopy(data)
         bounds = map_content_bounds(data)
@@ -39,7 +39,7 @@ class ResizeTests(unittest.TestCase):
         self.assertEqual(len(after["levels"]), 9)
         self.assertEqual(after["items"][0], {"level": 5, "col": 7, "row": 2, "type": "gold"})
         self.assertEqual(after["actor_spawn_zones"][0]["rows"], [1, 5])
-        self.assertEqual(after["ramps"][0]["low"], [1, 1])
+        self.assertEqual((after["ramps"][0]["cols"], after["ramps"][0]["rows"]), ([1, 2], [1, 4]))
         self.assertEqual(data, before)
 
     def test_content_bounds_include_nested_footprints_nudges_and_both_motion_ends(self):
@@ -91,7 +91,7 @@ class ResizeTests(unittest.TestCase):
         ]
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": KIND}]
-        data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 2], **faces()}]
+        data["ramps"] = [{"lower_level": 0, "cols": [1, 3], "rows": [1, 2], "direction": "E", **faces()}]
         data["ladders"] = [{"lower_level": 0, "col": 1, "row": 1, "side": "N", "levels": 1}]
 
         result = resize_map_offset(data, 6, 6, 1, 1)
@@ -104,7 +104,7 @@ class ResizeTests(unittest.TestCase):
         self.assertEqual((bridge["col"], bridge["row"], bridge["kind"]), (2, 4, BRIDGE_KIND))
         self.assertEqual((result["items"][0]["col"], result["items"][0]["row"]), (2, 2))
         self.assertEqual((result["pressure_plates"][0]["col"], result["pressure_plates"][0]["row"]), (2, 2))
-        self.assertEqual(result["ramps"][0]["low"], [2, 2])
+        self.assertEqual((result["ramps"][0]["cols"], result["ramps"][0]["rows"]), ([2, 4], [2, 3]))
         self.assertEqual((result["ladders"][0]["col"], result["ladders"][0]["row"]), (2, 2))
 
     def test_resize_drops_a_nested_map_with_an_anchor_outside(self) -> None:
@@ -121,7 +121,7 @@ class LevelTests(unittest.TestCase):
         data["items"] = [{"level": 2, "col": 1, "row": 1, "type": "gold"}]
         data["pressure_plates"] = [{"level": 3, "col": 2, "row": 2, "switch": "lift"}]
         data["actor_spawn_zones"] = [{"level": 0, "levels": 3, "cols": [0, 2], "rows": [0, 2], "kind": "turret"}]
-        data["ramps"] = [{"lower_level": i, "low": [1, 1], "high": [3, 2]} for i in range(3)]
+        data["ramps"] = [{"lower_level": i, "cols": [1, 3], "rows": [1, 2], "direction": "E"} for i in range(3)]
         data["ladders"] = [{"lower_level": 0, "levels": 2, "col": 3, "row": 3, "side": "N"}]
         data["nested_geometry"] = {"cabin": empty_map(1, 1)}
         data["nested_maps"] = [nested("cabin", 2, [1, 1], [3, 1], 0)]
@@ -145,10 +145,19 @@ class LevelTests(unittest.TestCase):
     def test_reordering_with_insertions_and_removals_uses_final_ramp_connections(self):
         data = empty_map(6, 6)
         data["levels"] += [empty_level(i) for i in range(1, 5)]
-        data["ramps"] = [{"lower_level": i, "low": [1, 1], "high": [3, 2]} for i in range(4)]
+        data["ramps"] = [{"lower_level": i, "cols": [1, 3], "rows": [1, 2], "direction": "E"} for i in range(4)]
         after = edit_levels_data(data, [(2, "Middle"), (3, "Upper"), (None, "Landing"), (0, "Ground"), (1, "Lower")])
-        self.assertEqual([ramp["lower_level"] for ramp in after["ramps"]], [3, 0])
+        self.assertEqual([(ramp["lower_level"], ramp["levels"]) for ramp in after["ramps"]], [(3, 1), (0, 1)])
         self.assertEqual(after["levels"][2], {**empty_level(2), "name": "Landing"})
+
+    def test_a_level_inserted_inside_a_ramp_grows_it_and_swapped_ends_drop_it(self):
+        data = empty_map(6, 6)
+        data["levels"] += [empty_level(1), empty_level(2)]
+        data["ramps"] = [{"lower_level": 0, "levels": 2, "cols": [1, 2], "rows": [1, 5], "direction": "S"}]
+        grown = edit_levels_data(data, [(0, "Ground"), (None, "Mezzanine"), (1, "Middle"), (2, "Roof")])
+        self.assertEqual([(ramp["lower_level"], ramp["levels"]) for ramp in grown["ramps"]], [(0, 3)])
+        swapped = edit_levels_data(data, [(2, "Roof"), (1, "Middle"), (0, "Ground")])
+        self.assertEqual(swapped["ramps"], [])
 
     def test_batch_level_changes_remap_spans_and_keep_original_geometry(self):
         data = empty_map(6, 6)

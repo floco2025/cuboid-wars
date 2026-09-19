@@ -28,7 +28,10 @@ class EditingTests(unittest.TestCase):
         cases = {
             "floors": ({"col": 2, "row": 1}, {"col": 1, "row": 2}),
             "walls": ({"c0": 3, "r0": 1, "c1": 2, "r1": 1}, {"c0": 0, "r0": 2, "c1": 1, "r1": 2}),
-            "ramps": ({"low": [2, 1], "high": [5, 2]}, {"low": [0, 3], "high": [3, 4]}),
+            "ramps": (
+                {"cols": [2, 5], "rows": [1, 2], "direction": "E"},
+                {"cols": [0, 3], "rows": [3, 4], "direction": "E"},
+            ),
         }
         for name, (first, second) in cases.items():
             with self.subTest(name=name):

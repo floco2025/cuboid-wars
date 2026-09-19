@@ -1,7 +1,6 @@
-import copy
 import unittest
 
-from editor_fixtures import DEFAULT_ALIAS, faces, floor, nested
+from editor_fixtures import faces, floor, nested
 from map_editor.constants import TERRAIN_FACES
 from map_editor.normalization import (
     canonicalize_map,
@@ -35,33 +34,35 @@ class NormalizationTests(unittest.TestCase):
             {"all": "stone", "north": "brick"},
         )
 
-    def test_canonicalization_deduplicates_edges_and_applies_ramp_floor_rules(self) -> None:
+    def test_canonicalization_deduplicates_edges_and_opens_the_floors_a_ramp_rises_through(self) -> None:
         data = empty_map(4, 4)
-        data["levels"].append({**empty_level(1), "floors": [floor(0, 0), floor(1, 0)]})
+        data["levels"][0]["floors"] = [floor(0, 0)]
+        for index in (1, 2):
+            data["levels"].append({**empty_level(index), "floors": [floor(0, 0), floor(1, 0), floor(3, 3)]})
         data["levels"][0]["walls"] = [
             {"c0": 1, "r0": 1, "c1": 0, "r1": 1, **faces()},
             {"c0": 0, "r0": 1, "c1": 1, "r1": 1, **faces()},
         ]
-        data["ramps"] = [{"lower_level": 0, "low": [0, 0], "high": [2, 1], **faces()}]
+        data["ramps"] = [{"lower_level": 0, "levels": 2, "cols": [0, 2], "rows": [0, 1], "direction": "E", **faces()}]
 
         result = canonicalize_map(data)
 
         self.assertEqual(len(result["levels"][0]["walls"]), 1)
-        self.assertEqual(
-            {(entry["col"], entry["row"]) for entry in result["levels"][0]["floors"]},
-            {(0, 0), (1, 0)},
-        )
-        self.assertEqual(result["levels"][1]["floors"], [])
+        cells = lambda level: {(entry["col"], entry["row"]) for entry in result["levels"][level]["floors"]}
+        self.assertEqual(cells(0), {(0, 0)}, "the authored floor stays and none is added under the rest")
+        self.assertEqual((cells(1), cells(2)), ({(3, 3)}, {(3, 3)}))
+        self.assertEqual(canonicalize_map(result), result)
 
-    def test_canonicalization_of_stacked_ramps_is_a_fixed_point(self) -> None:
-        data = empty_map(6, 6)
-        data["levels"] = [copy.deepcopy(data["levels"][0]) for _ in range(3)]
+    def test_a_ramp_keeps_its_span_direction_and_shape_and_defaults_the_omitted_ones(self) -> None:
+        data = empty_map(4, 4)
+        data["levels"] += [empty_level(1), empty_level(2)]
         data["ramps"] = [
-            {"lower_level": 1, "low": [1, 1], "high": [3, 1], "all": DEFAULT_ALIAS},
-            {"lower_level": 0, "low": [1, 1], "high": [3, 1], "all": DEFAULT_ALIAS},
+            {"lower_level": 0, "levels": 2, "cols": [0, 1], "rows": [0, 1], "direction": "w", "shape": "plank"},
+            {"lower_level": 1, "cols": [2, 3], "rows": [0, 2], "direction": "S"},
         ]
-        once = canonicalize_map(data)
-        self.assertEqual(canonicalize_map(once), once)
+        tall, plain = normalize_map(data)["ramps"]
+        self.assertEqual((tall["levels"], tall["direction"], tall["shape"]), (2, "W", "plank"))
+        self.assertEqual((plain["levels"], plain["direction"], plain["shape"]), (1, "S", "solid"))
 
     def test_canonicalization_preserves_conflicting_plate_switches_for_validation(self) -> None:
         data = empty_map(2, 2)

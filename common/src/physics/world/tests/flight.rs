@@ -127,7 +127,9 @@ fn flying_body_is_pushed_by_rising_geometry_and_crushed_only_when_pinned() {
 
 #[test]
 fn flight_respects_barrier_and_bridge_power_and_ramp_solids() {
-    use crate::protocol::{Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, LightBridge, Ramp};
+    use crate::protocol::{
+        Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, LightBridge, Ramp, RampDirection, RampShape,
+    };
     let physics = wide_body();
     let mut layout = MapLayout {
         barriers: vec![Barrier {
@@ -174,11 +176,16 @@ fn flight_respects_barrier_and_bridge_power_and_ramp_solids() {
     assert!(!world.character_flight_path_clear(below, above, physics, &[]));
     layout.ramps.push(Ramp {
         x1: -8.0,
-        y1: 0.0,
         z1: -4.0,
         x2: -2.0,
-        y2: 4.0,
         z2: 4.0,
+        y: 0.0,
+        height: 4.0,
+        direction: RampDirection::South,
+        shape: RampShape::Solid,
+        thickness: 0.4,
+        level: 0,
+        levels: 1,
         carrier: CarrierId::WORLD,
     });
     let world = CollisionWorld::from_map_layout(&layout);

@@ -60,31 +60,35 @@ class FloorFootprintTests(unittest.TestCase):
         self.assertAlmostEqual(footprints.distance((0, 2, 2), (1, 5, 2)), 7.6)
         self.assertTrue(all(not cells for cells in footprints.cells))
 
-    def test_ramp_high_ends_skip_only_upper_level_north_south_fillers(self):
+    def test_ramp_ends_skip_only_the_fillers_along_their_own_edges(self):
         data = self.data([(1, 1), (3, 1), (2, 2)])
         data["levels"].append(dict(data["levels"][0]))
-        data["ramps"] = [{"lower_level": 0, "low": [2, 0], "high": [3, 2]}]
+        data["ramps"] = [{"lower_level": 0, "cols": [2, 3], "rows": [0, 2], "direction": "S"}]
         footprints = FloorFootprints(data, 4, 0.4)
-        self.assertEqual(ramp_landing_edges(data), [set(), {("h", 2, 2)}])
+        self.assertEqual(ramp_landing_edges(data), [{("h", 0, 2)}, {("h", 2, 2)}])
         self.assertEqual(len(footprints.rectangles(0, 2, 2)), 2)
         self.assertEqual(footprints.rectangles(1, 2, 2), [(7.8, 8, 12.2, 12.2)])
-        data["ramps"] = [{"lower_level": 0, "low": [3, 5], "high": [2, 3]}]
-        self.assertEqual(ramp_landing_edges(data), [set(), {("h", 3, 2)}])
-        data["ramps"] = [{"lower_level": 0, "low": [0, 2], "high": [2, 3]}]
-        self.assertEqual(ramp_landing_edges(data), [set(), {("v", 2, 2)}])
+        data["ramps"] = [{"lower_level": 0, "cols": [2, 3], "rows": [3, 5], "direction": "N"}]
+        self.assertEqual(ramp_landing_edges(data), [{("h", 5, 2)}, {("h", 3, 2)}])
+        data["ramps"] = [{"lower_level": 0, "cols": [0, 2], "rows": [2, 3], "direction": "E"}]
+        self.assertEqual(ramp_landing_edges(data), [{("v", 2, 0)}, {("v", 2, 2)}])
+        # A one-cell ramp rising two storeys lands along the side it rises toward, two levels up.
+        data["levels"].append(dict(data["levels"][0]))
+        data["ramps"] = [{"lower_level": 0, "levels": 2, "cols": [1, 2], "rows": [2, 3], "direction": "W"}]
+        self.assertEqual(ramp_landing_edges(data), [{("v", 2, 2)}, set(), {("v", 2, 1)}])
 
     def test_ramp_landings_meet_slopes_without_slab_overhangs(self):
         cases = [
-            ([3, 1], [4, 3], [(11.8, 12, 16.2, 16.2)]),
-            ([4, 6], [3, 4], [(11.8, 11.8, 16.2, 16)]),
-            ([1, 3], [3, 4], [(12, 11.8, 16.2, 16.2)]),
-            ([6, 4], [4, 3], [(11.8, 11.8, 16, 16.2)]),
+            ([3, 4], [1, 3], "S", [(11.8, 12, 16.2, 16.2)]),
+            ([3, 4], [4, 6], "N", [(11.8, 11.8, 16.2, 16)]),
+            ([1, 3], [3, 4], "E", [(12, 11.8, 16.2, 16.2)]),
+            ([4, 6], [3, 4], "W", [(11.8, 11.8, 16, 16.2)]),
         ]
-        for low, high, expected in cases:
-            with self.subTest(low=low, high=high):
+        for cols, rows, direction, expected in cases:
+            with self.subTest(direction=direction):
                 data = self.data([(3, 3)])
                 data["levels"].append(dict(data["levels"][0]))
-                data["ramps"] = [{"lower_level": 0, "low": low, "high": high}]
+                data["ramps"] = [{"lower_level": 0, "cols": cols, "rows": rows, "direction": direction}]
                 footprints = FloorFootprints(data, 4, 0.4)
                 self.assertEqual(footprints.rectangles(1, 3, 3), expected)
                 self.assertEqual(footprints.rectangles(0, 3, 3), [(11.8, 11.8, 16.2, 16.2)])

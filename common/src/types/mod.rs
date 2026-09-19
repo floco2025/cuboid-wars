@@ -27,7 +27,7 @@ pub use color::HexColor;
 pub use entities::{
     Actor, ActorAnchor, ActorBeam, ActorMarker, Item, ItemMarker, Missile, Player, PlayerMarker, SpawningActor,
 };
-pub use face_materials::FaceMaterials;
+pub use face_materials::{Face, FaceMaterials};
 pub use feed::{FeedSpan, FeedStyle};
 pub use field_ids::{BarrierId, BridgeId};
 pub use ids::{ActorId, CarrierId, HomingTarget, ItemId, MissileId, PlayerId, PortalPairId, QuestId};
@@ -35,7 +35,8 @@ pub use items::{ItemType, PowerUpKind};
 pub use kind_table::{KindDef, KindId, KindTable};
 pub use map_layout::{
     Barrier, Carrier, CarrierMotion, Checkpoint, CheckpointKind, Eraser, Floor, Ladder, LightBridge, MapItems,
-    MapLayout, MapSettings, PortalMode, PressurePlate, Ramp, TERRAIN_MATERIAL, TerrainCell, Wall, WallLight,
+    MapLayout, MapSettings, PortalMode, PressurePlate, Ramp, RampDirection, RampShape, TERRAIN_MATERIAL, TerrainCell,
+    Wall, WallLight,
 };
 pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,

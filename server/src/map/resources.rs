@@ -1,4 +1,4 @@
-use super::{FireworksConfig, ZoneVolume};
+use super::{CellSide, FireworksConfig, ZoneVolume};
 use bevy::prelude::Resource;
 
 use common::{
@@ -13,23 +13,21 @@ pub struct MapFireworks(pub Option<FireworksConfig>);
 
 // Cell flags. A light bridge sets only `bridge`, the slab over the cell:
 // actor navigation walks it while switches power it, and item, spawn,
-// and air-graph cells ignore it.
+// and air-graph cells ignore it. A ramp's slope lives on its lower level's
+// grid: `ramp_levels` is the storeys it rises, `ramp_base` and `ramp_top` the
+// cell sides its low and high edges run along. Every storey it passes or
+// arrives at carries `ramp_below`, the storeys down to that grid, 0 for none.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Cell {
     pub has_ramp: bool,
     pub ramp_center_y: f32,
-    pub has_ramp_from_below: bool,
+    pub ramp_levels: u8,
+    pub ramp_below: u8,
     pub has_floor: bool,
     pub has_floor_slab: bool,
     pub has_floor_above: bool,
-    pub ramp_base_north: bool,
-    pub ramp_base_south: bool,
-    pub ramp_base_west: bool,
-    pub ramp_base_east: bool,
-    pub ramp_top_north: bool,
-    pub ramp_top_south: bool,
-    pub ramp_top_west: bool,
-    pub ramp_top_east: bool,
+    pub ramp_base: Option<CellSide>,
+    pub ramp_top: Option<CellSide>,
     pub bridge: Option<BridgeId>,
 }
 
@@ -39,7 +37,7 @@ impl Cell {
     // floor underfoot.
     #[must_use]
     pub fn is_spawnable(&self) -> bool {
-        if self.has_ramp {
+        if self.has_ramp || self.ramp_below > 0 {
             return false;
         }
         if self.has_floor_slab && !self.has_floor {
@@ -51,7 +49,7 @@ impl Cell {
     // Standable floor with no slope in it or arriving into it.
     #[must_use]
     pub fn is_flat_floor(&self) -> bool {
-        self.has_floor && !self.has_ramp && !self.has_ramp_from_below
+        self.has_floor && !self.has_ramp && self.ramp_below == 0
     }
 }
 

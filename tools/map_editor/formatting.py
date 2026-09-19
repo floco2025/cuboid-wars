@@ -21,12 +21,13 @@ def with_trailing_comma(lines: list[str]) -> list[str]:
 
 
 def _ramp_body(ramp: dict) -> str:
-    body = {
-        "lower_level": ramp["lower_level"],
-        "low": ramp["low"],
-        "high": ramp["high"],
-        **compact_face_materials(ramp),
-    }
+    body = {"lower_level": ramp["lower_level"]}
+    if ramp.get("levels", 1) != 1:
+        body["levels"] = ramp["levels"]
+    body.update(cols=ramp["cols"], rows=ramp["rows"], direction=ramp["direction"])
+    if ramp.get("shape", "solid") != "solid":
+        body["shape"] = ramp["shape"]
+    body.update(compact_face_materials(ramp))
     return _inline_object_body(body)
 
 

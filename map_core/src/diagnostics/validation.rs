@@ -1,6 +1,12 @@
 //! Structured source diagnostics; callers keep the original editable document.
 use super::{nesting, placed_definitions, records, surfaces};
-use crate::{authoring::actor_count_error, geometry::ramp_error, schema::FireworksConfig, transforms, values::*};
+use crate::{
+    authoring::actor_count_error,
+    geometry::{overlap, ramp_error, ramp_levels, zone_rect},
+    schema::FireworksConfig,
+    transforms,
+    values::*,
+};
 use anyhow::{Result, bail, ensure};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -205,20 +211,25 @@ pub fn validate_map(data: &Value, context: &Value) -> Vec<Issue> {
     records::items(data, context, &mut errors);
     records::pressure_plates(data, context, &mut errors);
     surfaces::validate(data, context, &mut errors);
-    let mut ramps = BTreeSet::new();
-    for ramp in list(data, "ramps") {
+    // A cell holds one slope and one way down to a slope, so two ramps may
+    // share cells only where one ends on the level the other starts from.
+    let ramps = list(data, "ramps");
+    for (index, ramp) in ramps.iter().enumerate() {
         errors.locate("ramps", ramp, None);
-        if !ramps.insert((i(ramp, "lower_level"), point(&ramp["low"]), point(&ramp["high"]))) {
+        let span = |r: &Value| (i(r, "lower_level"), i(r, "lower_level") + ramp_levels(r));
+        let (lower, upper) = span(ramp);
+        if ramps[..index]
+            .iter()
+            .any(|other| span(other).0 == lower && zone_rect(other) == zone_rect(ramp))
+        {
             errors.add(format!("ramp {}: duplicates another ramp", repr(ramp)));
+        } else if ramps[..index].iter().any(|other| {
+            let (other_lower, other_upper) = span(other);
+            lower < other_upper && other_lower < upper && overlap(zone_rect(other), zone_rect(ramp))
+        }) {
+            errors.add(format!("ramp {}: overlaps another ramp", repr(ramp)));
         }
-        if let Some(error) = ramp_error(
-            point(&ramp["low"]).map(|v| v as i32),
-            point(&ramp["high"]).map(|v| v as i32),
-            i(ramp, "lower_level"),
-            cols,
-            rows,
-            levels.len() as i64,
-        ) {
+        if let Some(error) = ramp_error(ramp, cols, rows, levels.len() as i64) {
             errors.add(format!("ramp {}: {error}", repr(ramp)));
         }
     }

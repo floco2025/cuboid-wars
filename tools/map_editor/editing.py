@@ -129,10 +129,20 @@ def paint_bridges(data: dict, level_idx: int, rect: tuple, kind: str, controls: 
     return replace_records(data, "light_bridges", list(existing.values()), level_idx)
 
 
+# A new ramp replaces the ones it could not coexist with: those sharing cells
+# with it over more than the level one ends on and the other starts from.
 def place_ramp(data: dict, ramp: dict) -> dict:
-    lower = ramp["lower_level"]
+    lower, upper = ramp["lower_level"], ramp["lower_level"] + ramp["levels"]
     rect = ramp_rect(ramp)
-    kept = [r for r in data["ramps"] if abs(r["lower_level"] - lower) > 1 or not rects_overlap(rect, ramp_rect(r))]
+    kept = [
+        other
+        for other in data["ramps"]
+        if not (
+            lower < other["lower_level"] + other["levels"]
+            and other["lower_level"] < upper
+            and rects_overlap(rect, ramp_rect(other))
+        )
+    ]
     return replace_records(data, "ramps", [*kept, ramp])
 
 

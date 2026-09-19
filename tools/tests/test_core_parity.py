@@ -11,7 +11,8 @@ RECORDS = [
     ("lights", {"col": 2, "row": 1, "side": "N"}),
     ("walls", {"c0": 4, "r0": 2, "c1": 3, "r1": 2}),
     ("barriers", {"c0": 1, "r0": 5, "c1": 1, "r1": 4}),
-    ("ramps", {"lower_level": 1, "low": [6, 2], "high": [4, 3]}),
+    ("ramps", {"lower_level": 1, "cols": [4, 6], "rows": [2, 3], "direction": "W"}),
+    ("ramps", {"lower_level": 0, "levels": 3, "cols": [1, 2], "rows": [1, 2], "direction": "N"}),
     ("ladders", {"lower_level": 0, "col": 2, "row": 2, "side": "E", "levels": 3}),
     ("ladders", {"lower_level": 2, "col": 2, "row": 2, "side": "E"}),
     ("nested_maps", {"level": 3, "from": [5, 1], "to": [2, 1], "to_level": 1}),
@@ -22,7 +23,7 @@ RECORDS = [
     # Authored mistakes stay in an open document until they are repaired.
     ("floors", {"col": "3", "row": None}),
     ("walls", {"c0": 1.9, "r0": True, "c1": math.inf}),
-    ("ramps", {"lower_level": None, "low": [1], "high": "far"}),
+    ("ramps", {"lower_level": None, "cols": [1], "rows": "far"}),
     ("actor_spawn_zones", {"level": 1.5, "levels": 0, "cols": [2], "rows": None}),
     ("actor_spawn_zones", {"level": 1, "levels": 2.0, "cols": [1, 4], "rows": [2, 3]}),
     ("nested_maps", {"level": 1, "from": [0, 0], "to": [1, 1], "to_level": None}),

@@ -43,7 +43,7 @@ def furnished_block() -> dict:
     data["checkpoints"] = [{"level": 1, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 1}]
     data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "gold"}]
     data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "type": "firework"}]
-    data["ramps"] = [{"lower_level": 0, "low": [0, 2], "high": [3, 3], "all": DEFAULT_ALIAS}]
+    data["ramps"] = [{"lower_level": 0, "cols": [0, 3], "rows": [2, 3], "direction": "E", "all": DEFAULT_ALIAS}]
     data["ladders"] = [{"lower_level": 0, "col": 3, "row": 3, "side": "N", "levels": 1}]
     data["nested_maps"] = [{"map": "tile", "level": 0, "from": [1, 1], "to": [2, 1], "to_level": 1}]
     return canonicalize_map(data)
@@ -150,7 +150,7 @@ class RegionTests(unittest.TestCase):
     def test_paste_refusals_speak_of_the_destination(self):
         data = empty_map(8, 8)
         data["checkpoints"] = []
-        data["ramps"] = [{"lower_level": 0, "low": [2, 2], "high": [5, 3], "all": DEFAULT_ALIAS}]
+        data["ramps"] = [{"lower_level": 0, "cols": [2, 5], "rows": [2, 3], "direction": "E", "all": DEFAULT_ALIAS}]
         block = empty_map(1, 1)
         block["checkpoints"] = []
         with self.assertRaisesRegex(ValueError, "destination crosses a ramp"):

@@ -258,7 +258,7 @@ class PortalJumpTests(unittest.TestCase):
         surfaces = PortalSurfaces(self.data, self.settings, {"basement-floor": True})
         self.assertTrue(surfaces.status(target).available)
         self.assertFalse(surfaces.status(target).planned)
-        self.data["ramps"] = [{"lower_level": 0, "low": [5, 5], "high": [6, 8]}]
+        self.data["ramps"] = [{"lower_level": 0, "cols": [5, 6], "rows": [5, 8], "direction": "S"}]
         surfaces = PortalSurfaces(self.data, self.settings, {"basement-floor": True})
         self.assertIn("Ramp", surfaces.status(target).reason)
 

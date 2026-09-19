@@ -13,7 +13,7 @@ use super::shape_cast::FieldKind;
 
 use crate::{
     constants::PRESSURE_PLATE_HEIGHT,
-    map::{DecorationKind, Grounds, ROCK_HULL_SUBDIVISIONS, RampAxis, ramp_axis, rock_shape},
+    map::{DecorationKind, Grounds, ROCK_HULL_SUBDIVISIONS, rock_shape},
     math::{rapier_pose, to_rapier},
     protocol::{Barrier, BarrierId, BridgeId, CarrierId, Floor, LightBridge, PressurePlate, Ramp, Wall},
 };
@@ -301,34 +301,7 @@ fn insert_cuboid_collider(
 }
 
 pub(super) fn insert_ramp_collider(colliders: &mut ColliderSet, ramp: &Ramp) -> Option<ColliderHandle> {
-    let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
-    let (min_y, max_y) = ramp.bounds_y();
-    let high_is_second = ramp.y2 >= ramp.y1;
-    let points = match ramp_axis(ramp) {
-        RampAxis::X => {
-            let high_x = if high_is_second { ramp.x2 } else { ramp.x1 };
-            vec![
-                Vector::new(min_x, min_y, min_z),
-                Vector::new(min_x, min_y, max_z),
-                Vector::new(max_x, min_y, min_z),
-                Vector::new(max_x, min_y, max_z),
-                Vector::new(high_x, max_y, min_z),
-                Vector::new(high_x, max_y, max_z),
-            ]
-        }
-        RampAxis::Z => {
-            let high_z = if high_is_second { ramp.z2 } else { ramp.z1 };
-            vec![
-                Vector::new(min_x, min_y, min_z),
-                Vector::new(max_x, min_y, min_z),
-                Vector::new(min_x, min_y, max_z),
-                Vector::new(max_x, min_y, max_z),
-                Vector::new(min_x, max_y, high_z),
-                Vector::new(max_x, max_y, high_z),
-            ]
-        }
-    };
-
+    let points: Vec<_> = ramp.prism().points().map(to_rapier).collect();
     let collider = ColliderBuilder::convex_hull(&points)?
         .collision_groups(collider_interaction_groups(RAMP_COLLISION_GROUP))
         .user_data(ColliderKind::Ramp.user_data(ramp.carrier))

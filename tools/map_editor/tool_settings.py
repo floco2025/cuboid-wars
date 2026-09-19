@@ -27,8 +27,9 @@ from .constants import (
     MODE_LIGHT_BRIDGE,
     MODE_NESTED_MAP,
     MODE_PRESSURE_PLATE,
+    MODE_RAMP,
     MODE_WALL,
-    RAMP_MODES,
+    RAMP_SHAPE_LABELS,
     START_CHECKPOINT,
 )
 from .checkpoint_numbers import next_checkpoint_number, used_numbers
@@ -46,6 +47,7 @@ class ToolSettings(QWidget):
         self.window = window
         self.signature = None
         self.bindings = []
+        self.data_choices = set()
         self.selection_buttons = []
         self.body = None
         self.key_controls = None
@@ -63,7 +65,7 @@ class ToolSettings(QWidget):
             value = getattr(self.window, attribute)
             widget.blockSignals(True)
             if isinstance(widget, QComboBox):
-                if attribute == "recent_checkpoint_type":
+                if attribute in self.data_choices:
                     widget.setCurrentIndex(widget.findData(value))
                 else:
                     widget.setCurrentText(value or "")
@@ -74,8 +76,11 @@ class ToolSettings(QWidget):
                 if widget.text() != value:
                     widget.setText(value)
             else:
+                levels_above = len(self.window.map_data["levels"]) - self.window.current_level
                 if attribute == "selection_levels":
-                    widget.setMaximum(max(1, len(self.window.map_data["levels"]) - self.window.current_level))
+                    widget.setMaximum(max(1, levels_above))
+                elif attribute == "recent_ramp_levels":
+                    widget.setMaximum(max(1, levels_above - 1))
                 widget.setValue(value)
             widget.blockSignals(False)
         if self.actor_count is not None:
@@ -117,6 +122,7 @@ class ToolSettings(QWidget):
             return
         self.signature = signature
         self.bindings = []
+        self.data_choices = set()
         self.selection_buttons = []
         self.key_controls = None
         self.material_permission = None
@@ -178,6 +184,24 @@ class ToolSettings(QWidget):
             field(label, box)
             return box
 
+        # A choice stored by value and shown by label.
+        def labelled_choice(label, attribute, labels):
+            box = CompactComboBox()
+            for value, text in labels.items():
+                box.addItem(text, value)
+            box.setCurrentIndex(box.findData(getattr(window, attribute)))
+            box.currentIndexChanged.connect(lambda _: setattr(window, attribute, box.currentData()))
+            self.bindings.append((box, attribute))
+            self.data_choices.add(attribute)
+            return box, field(label, box)
+
+        def ramp_controls():
+            material_controls()
+            number(
+                "Storeys", "recent_ramp_levels", 1, max(1, len(window.map_data["levels"]) - 1 - window.current_level)
+            )
+            labelled_choice("Shape", "recent_ramp_shape", RAMP_SHAPE_LABELS)
+
         def checkpoint_controls():
             # The next free number, unless the author typed one the map does
             # not use yet; a start stands, since starts come several at a time.
@@ -185,13 +209,7 @@ class ToolSettings(QWidget):
             if recent != START_CHECKPOINT and recent in used_numbers(window.doc.root_data):
                 window.recent_checkpoint_number = next_checkpoint_number(window.doc.root_data)
             box = number("Number", "recent_checkpoint_number", START_CHECKPOINT, 999_999)
-            kind = CompactComboBox()
-            for value, label in CHECKPOINT_TYPE_LABELS.items():
-                kind.addItem(label, value)
-            kind.setCurrentIndex(kind.findData(window.recent_checkpoint_type))
-            kind.currentIndexChanged.connect(lambda _: setattr(window, "recent_checkpoint_type", kind.currentData()))
-            self.bindings.append((kind, "recent_checkpoint_type"))
-            self.checkpoint_type = (kind, field("Type", kind))
+            self.checkpoint_type = labelled_choice("Type", "recent_checkpoint_type", CHECKPOINT_TYPE_LABELS)
             box.valueChanged.connect(lambda _: self.sync_checkpoint_type())
             self.sync_checkpoint_type()
 
@@ -276,10 +294,8 @@ class ToolSettings(QWidget):
         # The controls each tool needs, by mode.
         builders = {
             MODE_SELECT: selection_controls,
-            **dict.fromkeys(
-                (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_WALL, *RAMP_MODES),
-                material_controls,
-            ),
+            **dict.fromkeys((MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_WALL), material_controls),
+            MODE_RAMP: ramp_controls,
             MODE_CHECKPOINT: checkpoint_controls,
             MODE_ACTOR_SPAWN_ZONE: actor_controls,
             MODE_BARRIER: lambda: field_controls(True),

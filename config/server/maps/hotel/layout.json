@@ -4136,16 +4136,16 @@
       {"lower_level": 4, "col": 19, "row": 15, "side": "E", "levels": 1}
     ],
     "ramps": [
-      {"lower_level": 0, "low": [0, 15], "high": [1, 13], "all": "basement-floor"},
-      {"lower_level": 0, "low": [6, 25], "high": [8, 24], "all": "basement-support-wall", "top": "basement-floor"},
-      {"lower_level": 0, "low": [24, 6], "high": [22, 5], "all": "basement-support-wall", "top": "basement-floor"},
-      {"lower_level": 0, "low": [29, 15], "high": [30, 17], "all": "basement-floor"},
-      {"lower_level": 1, "low": [8, 7], "high": [7, 9], "all": "slab", "top": "ground-floor"},
-      {"lower_level": 1, "low": [23, 23], "high": [22, 21], "all": "slab", "top": "ground-floor"},
-      {"lower_level": 2, "low": [7, 9], "high": [6, 7], "all": "slab", "top": "upper-floors"},
-      {"lower_level": 2, "low": [24, 21], "high": [23, 23], "all": "slab", "top": "rooftop-floor"},
-      {"lower_level": 3, "low": [8, 7], "high": [7, 9], "all": "slab", "top": "rooftop-floor"},
-      {"lower_level": 3, "low": [23, 23], "high": [22, 21], "all": "slab", "top": "rooftop-floor"}
+      {"lower_level": 0, "cols": [22, 24], "rows": [5, 6], "direction": "W", "all": "basement-support-wall", "top": "basement-floor"},
+      {"lower_level": 0, "cols": [0, 1], "rows": [13, 15], "direction": "N", "all": "basement-floor"},
+      {"lower_level": 0, "cols": [29, 30], "rows": [15, 17], "direction": "S", "all": "basement-floor"},
+      {"lower_level": 0, "cols": [6, 8], "rows": [24, 25], "direction": "E", "all": "basement-support-wall", "top": "basement-floor"},
+      {"lower_level": 1, "cols": [7, 8], "rows": [7, 9], "direction": "S", "all": "slab", "top": "ground-floor"},
+      {"lower_level": 1, "cols": [22, 23], "rows": [21, 23], "direction": "N", "all": "slab", "top": "ground-floor"},
+      {"lower_level": 2, "cols": [6, 7], "rows": [7, 9], "direction": "N", "all": "slab", "top": "upper-floors"},
+      {"lower_level": 2, "cols": [23, 24], "rows": [21, 23], "direction": "S", "all": "slab", "top": "rooftop-floor"},
+      {"lower_level": 3, "cols": [7, 8], "rows": [7, 9], "direction": "S", "all": "slab", "top": "rooftop-floor"},
+      {"lower_level": 3, "cols": [22, 23], "rows": [21, 23], "direction": "N", "all": "slab", "top": "rooftop-floor"}
     ],
     "nested_maps": []
   }

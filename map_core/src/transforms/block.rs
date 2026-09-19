@@ -128,7 +128,7 @@ impl Context<'_> {
         let mut transformed = BTreeMap::<(Option<usize>, String), Vec<Value>>::new();
         for (level, name, original) in records(data) {
             let mut entry = original.clone();
-            if ZONE_LISTS.contains(&name) {
+            if ZONE_LISTS.contains(&name) || name == "ramps" {
                 let [x0, y0, x1, y1] = geometry::zone_rect(&entry).map(|v| v as f64);
                 let [x, y] = plan.rect(x0, y0, x1 - x0, y1 - y0);
                 let [w, h] = if self.operation == "rotate" {
@@ -145,15 +145,6 @@ impl Context<'_> {
                 for (key, v) in ["c0", "r0", "c1", "r1"].into_iter().zip(edge) {
                     entry[key] = json!(v);
                 }
-            } else if name == "ramps" {
-                let a = point(&entry["low"]).map(|n| n as f64);
-                let b = point(&entry["high"]).map(|n| n as f64);
-                ensure!(
-                    self.operation != "rotate" || (b[0] - a[0]).abs() != (b[1] - a[1]).abs(),
-                    "Cannot rotate a square ramp: its slope always runs north-south."
-                );
-                entry["low"] = json!(plan.point(a[0], a[1]).map(n));
-                entry["high"] = json!(plan.point(b[0], b[1]).map(n));
             } else if name == "nested_maps" {
                 let original = s(&entry, "map").to_owned();
                 let child = self
@@ -181,8 +172,10 @@ impl Context<'_> {
                 entry["col"] = n(x);
                 entry["row"] = n(y);
             }
-            if let Some(side) = entry["side"].as_str() {
-                entry["side"] = json!(plan.direction(side));
+            for key in ["side", "direction"] {
+                if let Some(side) = entry[key].as_str() {
+                    entry[key] = json!(plan.direction(side));
+                }
             }
             let faces = [("north", "N"), ("east", "E"), ("south", "S"), ("west", "W")];
             let old = entry.clone();

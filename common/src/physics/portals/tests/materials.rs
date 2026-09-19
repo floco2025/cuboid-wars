@@ -1,4 +1,5 @@
 use super::*;
+use crate::protocol::{RampDirection, RampShape};
 
 #[test]
 fn insufficient_portal_space_dry_clicks_regardless_of_material() {
@@ -74,11 +75,16 @@ fn portal_ramp_slope_uses_the_top_material_even_on_a_steep_ramp() {
     let layout = MapLayout {
         ramps: vec![Ramp {
             x1: -3.0,
-            x2: 3.0,
-            y1: 0.0,
-            y2: 10.0,
             z1: 0.0,
+            x2: 3.0,
             z2: 5.0,
+            y: 0.0,
+            height: 10.0,
+            direction: RampDirection::South,
+            shape: RampShape::Solid,
+            thickness: 0.4,
+            level: 0,
+            levels: 1,
             carrier: CarrierId::WORLD,
         }],
         ramp_materials: vec![FaceMaterials {

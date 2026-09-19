@@ -46,6 +46,10 @@ class FloorFootprints:
             s=("h", row + 1, col) in edges,
             w=("v", row, col) in edges,
             e=("v", row, col + 1) in edges,
+            nw=("v", row - 1, col) in edges,
+            ne=("v", row - 1, col + 1) in edges,
+            sw=("v", row + 1, col) in edges,
+            se=("v", row + 1, col + 1) in edges,
         )
         bounds = (col * self.cell_size, row * self.cell_size, (col + 1) * self.cell_size, (row + 1) * self.cell_size)
         return list(map(tuple, call("floor_rectangles", bounds, self.pad, neighbors, landings)))

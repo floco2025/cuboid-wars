@@ -1,19 +1,24 @@
 use crate::{
     physics::world::{CollisionWorld, tests::wide_body},
-    protocol::{CarrierId, MapLayout, Position, Ramp},
+    protocol::{CarrierId, MapLayout, Position, Ramp, RampDirection, RampShape},
 };
 
 #[test]
 fn ground_route_clearance_accepts_ramp_surface_positions_in_both_directions() {
     let world = CollisionWorld::from_map_layout(&MapLayout {
         ramps: vec![Ramp {
-            carrier: CarrierId::WORLD,
             x1: -4.0,
-            y1: 0.0,
             z1: -2.0,
             x2: 4.0,
-            y2: 2.0,
             z2: 2.0,
+            y: 0.0,
+            height: 2.0,
+            direction: RampDirection::East,
+            shape: RampShape::Solid,
+            thickness: 0.4,
+            level: 0,
+            levels: 1,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     });

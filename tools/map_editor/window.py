@@ -27,8 +27,6 @@ from .constants import (
     DEFAULT_ACTOR_BEAM_IN_SECS,
     DEFAULT_ACTOR_COUNT,
     DEFAULT_ACTOR_RESPAWN_SECS,
-    MODE_RAMP_DOWN,
-    MODE_RAMP_UP,
     MODE_SELECT,
 )
 from .dependencies import MapDependencies
@@ -145,6 +143,10 @@ class EditorWindow(
         # third.
         self.recent_auto_place_lights: tuple[int, int, int, int] = (0, 0, 0, 0)
         self.recent_ladder_levels: int = 1
+        self.recent_ramp_levels: int = 1
+        self.recent_ramp_shape: str = "solid"
+        # The side the last ramp rose toward; a click without a drag reuses it.
+        self.recent_ramp_direction: str = "N"
         # The last nested map dialog answer:
         # (map, to_level, travel_secs, pause, phase, from_nudge, to_nudge).
         self.recent_nested_map: NestedMotion | None = None
@@ -156,8 +158,8 @@ class EditorWindow(
         self.tile_clipboard: dict | None = None
         self.show_material_overlay = False
         self.show_roam_extensions = False
-        # Show prev/next level geometry as ghosted overlays — helps when
-        # placing ramps that span two levels.
+        # Show prev/next level geometry as ghosted overlays, and the ramps
+        # arriving at this level from further below.
         self.show_adjacent_levels = False
 
         self.canvas = Canvas(self)
@@ -478,12 +480,6 @@ class EditorWindow(
         tool_settings_action.setVisible(False)
         toolbar.addAction(self.jump_reach.controls_action)
         toolbar.addAction(self.portal_jump.controls_action)
-        # Persistent "Building UP/DOWN" hint that disambiguates the two ramp
-        # modes mid-drag. Hidden outside ramp modes so it doesn't clutter the
-        # toolbar.
-        self.ramp_direction_label = QLabel()
-        self.ramp_direction_label.setStyleSheet("color: #fbbf24; padding: 0 8px;")
-        toolbar.addWidget(self.ramp_direction_label)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
         self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.jump_reach.toolbar)
@@ -550,17 +546,8 @@ class EditorWindow(
         self.issues_dialog.raise_()
         self.issues_dialog.activateWindow()
 
-    def refresh_issues(self, *, validate: bool = True) -> None:
-        if validate:
-            self.issues_dialog.set_issues(self.document_issues().issues)
-        if self.mode == MODE_RAMP_UP:
-            target = self.current_level + 1
-            self.ramp_direction_label.setText(f"↑ Building UP to Level {target}")
-        elif self.mode == MODE_RAMP_DOWN:
-            target = self.current_level - 1
-            self.ramp_direction_label.setText(f"↓ Building DOWN to Level {target}")
-        else:
-            self.ramp_direction_label.setText("")
+    def refresh_issues(self) -> None:
+        self.issues_dialog.set_issues(self.document_issues().issues)
 
     def notify(self, message: str) -> None:
         self.canvas.notice.show_message(message)
@@ -586,7 +573,6 @@ class EditorWindow(
             self.update_selection_actions()
             self.tool_settings.refresh()
             self.canvas.update()
-            self.refresh_issues(validate=False)
 
     def focus_canvas(self) -> None:
         self.activateWindow()
@@ -607,7 +593,6 @@ class EditorWindow(
         self.canvas.setCursor(self.cursor_for_mode(mode))
         self.canvas.update()
         self.update_selection_actions()
-        self.refresh_issues(validate=False)
         self.tool_settings.refresh()
         self.jump_reach.refresh()
         self.portal_jump.refresh()

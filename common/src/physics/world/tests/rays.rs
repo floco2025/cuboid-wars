@@ -1,7 +1,10 @@
 use super::*;
 use crate::{
     map::Carriers,
-    protocol::{BarrierId, BridgeId, FaceMaterials, PressurePlate, SwitchId, SwitchState},
+    protocol::{
+        BarrierId, BridgeId, CarrierId, FaceMaterials, PressurePlate, Ramp, RampDirection, RampShape, SwitchId,
+        SwitchState,
+    },
 };
 
 #[test]
@@ -26,6 +29,52 @@ fn ground_surface_below_returns_ramp_normal() {
 
     assert!(hit.normal.y > 0.1, "hit was {hit:?}");
     assert_ne!(hit.normal, Vec3::Y);
+}
+
+#[test]
+fn ramp_surfaces_rise_toward_their_direction_whatever_the_footprint() {
+    for (x2, z2) in [(4.0, 4.0), (8.0, 2.0)] {
+        for (direction, toward) in [
+            (RampDirection::North, Vec3::NEG_Z),
+            (RampDirection::South, Vec3::Z),
+            (RampDirection::East, Vec3::X),
+            (RampDirection::West, Vec3::NEG_X),
+        ] {
+            let ramp = Ramp {
+                x1: 0.0,
+                z1: 0.0,
+                x2,
+                z2,
+                y: 0.0,
+                height: 2.0,
+                direction,
+                shape: RampShape::Solid,
+                thickness: 0.4,
+                level: 0,
+                levels: 1,
+                carrier: CarrierId::WORLD,
+            };
+            let world = CollisionWorld::from_map_layout(&MapLayout {
+                ramps: vec![ramp],
+                ..Default::default()
+            });
+            let probe = |point: Vec3| {
+                world
+                    .ground_surface_below(point.with_y(5.0), 6.0)
+                    .expect("ramp missing below the probe")
+                    .point
+                    .y
+            };
+            let center = Vec3::new(x2 / 2.0, 0.0, z2 / 2.0);
+            let (low, high) = (center - toward * 0.5, center + toward * 0.5);
+
+            assert!(
+                (probe(low) - ramp.surface_at(low.x, low.z)).abs() < 0.001,
+                "{direction:?}"
+            );
+            assert!(probe(high) > probe(low) + 0.1, "{direction:?}");
+        }
+    }
 }
 
 #[test]

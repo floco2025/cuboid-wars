@@ -46,8 +46,8 @@ class LayerEraserTests(unittest.TestCase):
         level["walls"] = [wall(0, 0, 1, 0), wall(3, 3, 4, 3)]
         level["barriers"] = [{**wall(1, 0, 1, 1), "kind": KIND}]
         data["ramps"] = [
-            {"low": [0, 2], "high": [1, 4], "lower_level": 0, **faces()},
-            {"low": [2, 0], "high": [3, 1], "lower_level": 1, **faces()},
+            {"cols": [0, 1], "rows": [2, 4], "direction": "S", "lower_level": 0, **faces()},
+            {"cols": [2, 3], "rows": [0, 1], "direction": "S", "lower_level": 1, **faces()},
         ]
         data["actor_spawn_zones"] = [actor_zone(0, 0, 0, 2, 2), actor_zone(1, 0, 0, 2, 2)]
         data["checkpoints"] = [start_checkpoint(3, 3)]
@@ -81,6 +81,16 @@ class LayerEraserTests(unittest.TestCase):
         host = self.host()
         host.erase_group_rect(MODE_ERASE_RAMPS, (0, 0), (3, 3))
         self.assertEqual([ramp["lower_level"] for ramp in host.map_data["ramps"]], [1])
+
+    def test_a_ramp_arriving_at_the_current_level_survives_both_erasers(self) -> None:
+        for erase in (
+            lambda host: host.erase_group_rect(MODE_ERASE_RAMPS, (0, 0), (3, 3)),
+            lambda host: host.erase_cell_rect((0, 0), (3, 3), False),
+        ):
+            host = self.host()
+            host.current_level = 1
+            erase(host)
+            self.assertEqual([ramp["lower_level"] for ramp in host.map_data["ramps"]], [0])
 
     def test_erase_spawn_zones_clears_actor_zones_on_the_current_level_and_keeps_checkpoints(self) -> None:
         host = self.host()

@@ -108,7 +108,20 @@ pub fn normalize_record(kind: &str, v: &Value) -> Value {
             out["kind"] = get(v, "kind", json!(""));
             merge(out, controls)
         }
-        "ramp" => merge(select(v, &["low", "high", "lower_level"]), expand_materials(v, &FACES)),
+        "ramp" => {
+            let mut out = coords(v, &["lower_level"]);
+            out["levels"] = get(v, "levels", json!(1));
+            for k in ["cols", "rows"] {
+                out[k] = v.get(k).filter(|v| truth(v)).cloned().unwrap_or(json!([0, 0]));
+            }
+            out["direction"] = match v.get("direction") {
+                Some(Value::String(direction)) => json!(direction.to_uppercase()),
+                Some(other) => other.clone(),
+                None => json!(""),
+            };
+            out["shape"] = get(v, "shape", json!("solid"));
+            merge(out, expand_materials(v, &FACES))
+        }
         "ladder" => {
             let mut out = coords(v, &["lower_level", "col", "row"]);
             out["levels"] = get(v, "levels", json!(1));
@@ -289,6 +302,7 @@ fn control_key(v: &Value) -> Value {
 pub fn record_key(kind: &str, v: &Value) -> Value {
     match kind {
         "ladder" => json!([v["lower_level"], v["row"], v["col"], v["side"], v["levels"]]),
+        "ramp" => json!([v["lower_level"], v["rows"][0], v["cols"][0], v["rows"][1], v["cols"][1]]),
         "nested_map" => json!([v["level"], v["from"], v["to_level"], v["to"], v["map"]]),
         "light" => json!([v["row"], v["col"], v["side"]]),
         "pressure_plate" => json!([v["level"], v["row"], v["col"], get(v, "switch", json!(""))]),

@@ -49,7 +49,7 @@ pub(super) fn eligible_item_spawn_cells(grid: &CarrierGrid) -> Vec<ItemSpawnCell
         let level = u8::try_from(level_idx).unwrap_or(u8::MAX);
         for (row, grid_row) in level_grid.cells.rows.iter().enumerate() {
             for (col, cell) in grid_row.iter().enumerate() {
-                if cell.has_floor && !cell.has_ramp {
+                if cell.is_flat_floor() {
                     cells.push(ItemSpawnCell {
                         level,
                         col: col as i32,

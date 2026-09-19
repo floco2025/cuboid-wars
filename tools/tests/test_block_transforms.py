@@ -28,7 +28,7 @@ class BlockTransformTests(unittest.TestCase):
             }
         ]
         data["levels"][0]["lights"] = [{"col": 1, "row": 1, "side": "N", "kind": "utility"}]
-        data["ramps"] = [{"lower_level": 0, "low": [1, 2], "high": [4, 3], "all": DEFAULT_ALIAS}]
+        data["ramps"] = [{"lower_level": 0, "cols": [1, 4], "rows": [2, 3], "direction": "E", "all": DEFAULT_ALIAS}]
         data["ladders"] = [{"col": 4, "row": 3, "side": "W", "lower_level": 0, "levels": 1}]
         data["actor_spawn_zones"] = [
             {
@@ -45,16 +45,17 @@ class BlockTransformTests(unittest.TestCase):
         data["pressure_plates"] = [{"col": 1, "row": 1, "level": 0, "switch": "door"}]
         return normalize_map(data)
 
-    def test_rotating_a_square_ramp_is_refused_while_mirroring_is_not(self):
+    def test_a_square_ramp_turns_its_direction_with_the_block(self):
         data = empty_map(5, 5)
         data["checkpoints"] = []
         data["levels"].append(empty_level(1))
-        data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 3], "all": DEFAULT_ALIAS}]
+        data["ramps"] = [{"lower_level": 0, "cols": [1, 3], "rows": [1, 3], "direction": "E", "all": DEFAULT_ALIAS}]
         block = normalize_map(data)
-        with self.assertRaisesRegex(ValueError, "square ramp"):
-            transform_block(block, "rotate", {})
-        result, _ = transform_block(block, "mirror_x", {})
-        self.assertEqual((result["ramps"][0]["low"], result["ramps"][0]["high"]), ([4, 1], [2, 3]))
+        for operation, direction in (("rotate", "S"), ("mirror_x", "W"), ("mirror_y", "E")):
+            with self.subTest(operation=operation):
+                ramp = transform_block(block, operation, {})[0]["ramps"][0]
+                self.assertEqual(ramp["direction"], direction)
+                self.assertEqual((ramp["cols"][1] - ramp["cols"][0], ramp["rows"][1] - ramp["rows"][0]), (2, 2))
 
     def test_rotation_moves_attached_light_directions_faces_and_multilevel_shapes(self):
         block = self.block()
@@ -73,8 +74,8 @@ class BlockTransformTests(unittest.TestCase):
         self.assertEqual(
             (wall["east"], wall["south"], wall["top"]), ("north-material", "east-material", "top-material")
         )
-        self.assertEqual(result["ramps"][0]["low"], [2, 1])
-        self.assertEqual(result["ramps"][0]["high"], [1, 4])
+        ramp = result["ramps"][0]
+        self.assertEqual((ramp["cols"], ramp["rows"], ramp["direction"]), ([1, 2], [1, 4], "S"))
         self.assertEqual(result["ladders"][0]["side"], "N")
         zone = result["actor_spawn_zones"][0]
         self.assertEqual((zone["cols"], zone["rows"], zone["levels"], zone["count"]), ([3, 4], [0, 2], 2, [2, 4]))

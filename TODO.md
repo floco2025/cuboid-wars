@@ -12,6 +12,8 @@
 
 - **Render ramps as stairs:** add an option to show ramps as stairs while retaining smooth ramp collision and movement. Make stair use configurable per actor kind, like ladder use.
 
+- **Plank ramps:** an actor knocked under a plank resolves to the ramp's own node and only gets out through stall recovery, since the graph has no node beneath a slope; give `NavGraph::node_containing` the body's height against the ramp surface and fall back to the nearest flat node. Grass also grows through the low end of a plank standing on terrain or the exterior grounds.
+
 - **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier’s slope decomposition; `running_across_flat_floor_tiles_keeps_its_speed` still fails without it on 0.35. Whatever replaces it must keep its contact query bounded, since an unbounded prediction scans the whole terrain trimesh.
 
 ## Testing

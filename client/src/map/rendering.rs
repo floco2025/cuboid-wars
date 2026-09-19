@@ -121,14 +121,7 @@ pub fn map_spawn_geometry_system(
     }
 
     for (ramp, materials) in map_layout.ramps.iter().zip(map_layout.ramp_materials.iter()) {
-        batch_ramp(
-            &mut geometry,
-            map_materials,
-            map_settings.geometry,
-            &storeys,
-            ramp,
-            materials,
-        );
+        batch_ramp(&mut geometry, map_materials, &storeys, ramp, materials);
     }
 
     info!(
