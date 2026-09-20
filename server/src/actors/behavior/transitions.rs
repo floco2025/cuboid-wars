@@ -292,31 +292,46 @@ pub(super) fn keep_or_install_engagement_route(
     let standoff = context.kind_config.attack.contact_trigger_gap().map(|gap| {
         context.actor_physics.movement_collider.radius() + context.player_physics.movement_collider.radius() + gap * 0.5
     });
+    let goal = |pos: Position, cell_size: f32| {
+        if super::geometry::attack_position(pos, target_pos, beam) {
+            return Some(pos);
+        }
+        let reach = (cell_size * 0.5 - context.actor_physics.movement_collider.radius()).max(0.0);
+        let mut aim = Vec2::new(target_pos.x, target_pos.z);
+        if let Some(standoff) = standoff {
+            let toward = aim - Vec2::new(pos.x, pos.z);
+            let distance = toward.length();
+            if distance > standoff {
+                aim -= toward * (standoff / distance);
+            }
+        }
+        let candidate = Position {
+            x: aim.x.clamp(pos.x - reach, pos.x + reach),
+            y: pos.y,
+            z: aim.y.clamp(pos.z - reach, pos.z + reach),
+        };
+        super::geometry::attack_position(candidate, target_pos, beam).then_some(candidate)
+    };
+    let navigation = context.navigation(&info.spawn_kind);
+    let task = GroundTask::Pursue(target);
+    // An airborne target with no nearby attack position must not trigger a search across the grounds.
+    if let Some(gap) = context.kind_config.attack.contact_trigger_gap()
+        && !navigation.has_goal_near(
+            context.world_pos,
+            target_pos,
+            context.actor_physics.movement_collider.radius() + context.player_physics.movement_collider.radius() + gap,
+            goal,
+        )
+    {
+        info.ground.cancel(task);
+        return false;
+    }
     let result = info.ground.route(
-        &context.navigation(&info.spawn_kind),
-        GroundTask::Pursue(target),
+        &navigation,
+        task,
         context.world_pos,
         target_pos,
-        |pos, cell_size| {
-            if super::geometry::attack_position(pos, target_pos, beam) {
-                return Some(pos);
-            }
-            let reach = (cell_size * 0.5 - context.actor_physics.movement_collider.radius()).max(0.0);
-            let mut aim = Vec2::new(target_pos.x, target_pos.z);
-            if let Some(standoff) = standoff {
-                let toward = aim - Vec2::new(pos.x, pos.z);
-                let distance = toward.length();
-                if distance > standoff {
-                    aim -= toward * (standoff / distance);
-                }
-            }
-            let candidate = Position {
-                x: aim.x.clamp(pos.x - reach, pos.x + reach),
-                y: pos.y,
-                z: aim.y.clamp(pos.z - reach, pos.z + reach),
-            };
-            super::geometry::attack_position(candidate, target_pos, beam).then_some(candidate)
-        },
+        goal,
         |_, _| true,
         GroundSearchOptions {
             heuristic: Some(&travel_to_target),

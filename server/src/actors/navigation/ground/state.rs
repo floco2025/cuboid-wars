@@ -72,6 +72,12 @@ impl GroundState {
         self.query.as_ref().is_some_and(|query| query.task == task)
     }
 
+    pub fn cancel(&mut self, task: GroundTask) {
+        if self.pending(task) {
+            self.query = None;
+        }
+    }
+
     pub fn route(
         &mut self,
         nav: &GroundNavigation<'_>,

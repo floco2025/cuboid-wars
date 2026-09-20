@@ -356,6 +356,30 @@ impl NavGraph {
         })
     }
 
+    pub(super) fn nodes_near(&self, pos: Position, radius: f32) -> impl Iterator<Item = NavNode> + '_ {
+        let min_col = self.geometry.cell_col_containing_x(pos.x - radius);
+        let max_col = self.geometry.cell_col_containing_x(pos.x + radius);
+        let min_row = self.geometry.cell_row_containing_z(pos.z - radius);
+        let max_row = self.geometry.cell_row_containing_z(pos.z + radius);
+        let levels = self.levels.len().max(
+            self.grounds
+                .as_ref()
+                .map_or(0, |grounds| usize::from(grounds.settings.level) + 1),
+        );
+        (0..levels).flat_map(move |level| {
+            (min_row..=max_row).flat_map(move |row| {
+                (min_col..=max_col).filter_map(move |col| {
+                    let node = NavNode {
+                        level: level as u8,
+                        row,
+                        col,
+                    };
+                    self.is_traversable(node).then_some(node)
+                })
+            })
+        })
+    }
+
     fn node_position_score(&self, node: NavNode, pos: &Position, preferred_level: u8) -> f32 {
         let center = self.node_center(node);
         let dx = center.x - pos.x;

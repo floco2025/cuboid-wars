@@ -1,3 +1,4 @@
+mod goals;
 mod graph;
 mod graphs;
 mod ladders;

@@ -618,6 +618,19 @@ fn a_two_storey_ramp_links_its_ends_and_nothing_on_the_storey_it_passes() {
         let decoy = NavNode { level: 1, row, col: 1 };
         assert!(nav.neighbors(decoy).iter().all(|next| next.col == 1), "row {row}");
     }
+
+    let slope_node = NavNode {
+        level: 0,
+        row: 2,
+        col: 0,
+    };
+    assert!(nav.nodes_near(on_slope, 0.1).any(|node| node == slope_node));
+    assert!(nav.nodes_near(top, 0.1).any(|node| node
+        == NavNode {
+            level: 2,
+            row: 3,
+            col: 0
+        }));
 }
 
 // Two cells side by side per row; a wall on the shared grid line covers

@@ -1,6 +1,9 @@
 use super::*;
-use crate::test_geometry::WALL_THICKNESS;
-use common::protocol::FieldId;
+use crate::{actors::navigation::GroundTask, test_geometry::WALL_THICKNESS};
+use common::{
+    map::{Grounds, GroundsSettings},
+    protocol::FieldId,
+};
 
 #[test]
 fn contact_actor_engages_reachable_ground_player() {
@@ -679,11 +682,10 @@ fn contact_actor_reaches_touching_distance_of_a_player_against_a_wall() {
     );
 }
 
-#[test]
-fn a_target_no_node_can_attack_is_given_up_after_the_search_limit() {
+fn fixture_with_grounds(levels: usize) -> Fixture {
     let geometry = geometry(12, 5);
     let layout = MapLayout {
-        grounds: Some(common::map::Grounds::new(
+        grounds: Some(Grounds::new(
             [(
                 -geometry.width() / 2.0,
                 geometry.width() / 2.0,
@@ -691,25 +693,116 @@ fn a_target_no_node_can_attack_is_given_up_after_the_search_limit() {
                 geometry.depth() / 2.0,
             )],
             0.0,
-            common::map::GroundsSettings { level: 0 },
+            GroundsSettings { level: 0 },
         )),
         ..Default::default()
     };
-    let mut fixture = Fixture::with_world(CONTACT, CollisionWorld::from_map_layout(&layout));
+    let mut fixture = Fixture::with_levels_and_world(CONTACT, levels, CollisionWorld::from_map_layout(&layout));
     fixture.graphs.add_grounds(&layout);
+    fixture
+}
+
+#[test]
+fn an_attack_position_on_a_disconnected_floor_is_given_up_after_the_search_limit() {
+    let fixture = fixture_with_grounds(2);
     let actor_pos = fixture.pos(1, 2);
     let target = Position {
-        y: -40.0,
+        y: LEVEL_HEIGHT,
         ..fixture.pos(4, 2)
     };
     let mut info = info(CONTACT);
 
     let (engaged, calls) = pursue_until_settled(&mut info, &fixture, actor_pos, target, 200);
 
-    assert!(!engaged, "no attack position exists for a target far below the floor");
+    assert!(!engaged, "the upper floor has no connection to the actor's floor");
     assert!(info.route.is_none());
-    // The grounds continue the grid for hundreds of thousands of cells; a
-    // bounded search settles within a handful of ticks' work.
     assert!(calls > 1, "the search takes more than one tick's work");
     assert!(calls <= 4096 / 256 + 2, "the search gave up after {calls} calls");
+}
+
+#[test]
+fn targets_out_of_reach_of_every_surface_skip_pursuit_searches() {
+    let fixture = fixture_with_grounds(1);
+    let actor_pos = fixture.pos(1, 2);
+    let mut info = info(CONTACT);
+    let context = fixture.context(CONTACT, actor_pos);
+    for y in [-40.0, 3.0, 4.0, 5.0, 4.0, 3.0] {
+        info.ground.tick(0.1, 256);
+        let target = Position { y, ..fixture.pos(4, 2) };
+        assert!(!keep_or_install_engagement_route(
+            &mut info,
+            &context,
+            PlayerId(7),
+            target
+        ));
+        assert_eq!(
+            info.ground.work, 256,
+            "an impossible attack spent search work at height {y}"
+        );
+        assert!(info.route.is_none());
+    }
+    assert!(keep_or_install_engagement_route(
+        &mut info,
+        &context,
+        PlayerId(7),
+        fixture.pos(4, 2)
+    ));
+    assert!(info.route.is_some(), "landing did not restore pursuit");
+}
+
+#[test]
+fn an_unreachable_jump_cancels_pending_pursuit_and_allows_evasion() {
+    let fixture = Fixture::new(CONTACT);
+    let actor_pos = fixture.pos(1, 2);
+    let mut info = info(CONTACT);
+    let target = fixture.pos(8, 2);
+    let context = fixture.context(CONTACT, actor_pos);
+    info.awareness.push(aware(7, target, CharacterSupport::Ground, true));
+    info.ground.work = 1;
+    let mut rng = StdRng::seed_from_u64(1);
+    decide_contact_actor(&mut info, &context, &mut rng);
+    assert!(info.ground.pending(GroundTask::Pursue(PlayerId(7))));
+    assert!(info.route.is_none());
+
+    info.awareness[0].pos.y = 4.0;
+    info.awareness[0].support = CharacterSupport::Airborne;
+    info.ground.tick(0.1, 256);
+    decide_contact_actor(&mut info, &context, &mut rng);
+    assert!(!info.ground.pending(GroundTask::Pursue(PlayerId(7))));
+    assert!(matches!(info.mode, ActorMode::Evade { .. }));
+    assert!(
+        info.route.is_some(),
+        "evasion waited for an impossible pursuit to finish"
+    );
+
+    info.awareness[0].pos = target;
+    info.awareness[0].support = CharacterSupport::Ground;
+    info.ground.tick(0.1, 256);
+    decide_contact_actor(&mut info, &context, &mut rng);
+    assert!(matches!(
+        info.mode,
+        ActorMode::Engage {
+            target: PlayerId(7),
+            ..
+        }
+    ));
+    assert!(info.route.is_some());
+}
+
+#[test]
+fn pursuit_checks_the_actors_actual_height_between_navigation_nodes() {
+    let fixture = Fixture::new(CONTACT);
+    let actor_pos = Position {
+        y: 2.0,
+        ..fixture.pos(1, 2)
+    };
+    let target = Position { y: 3.0, ..actor_pos };
+    let mut info = info(CONTACT);
+    assert!(keep_or_install_engagement_route(
+        &mut info,
+        &fixture.context(CONTACT, actor_pos),
+        PlayerId(7),
+        target,
+    ));
+    assert!(matches!(info.mode, ActorMode::Engage { .. }));
 }

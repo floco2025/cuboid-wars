@@ -183,13 +183,9 @@ fn routes_cross_connected_carriers_but_cannot_cross_an_air_gap() {
             physics: test_kinds::physics(CONTACT),
             open: &[],
         };
-        let route = navigation.route(
-            Position::default(),
-            |pos, _| (pos.distance_sq(&target) < 0.001).then_some(target),
-            |_, _| true,
-            100,
-            None,
-        );
+        let goal = |pos: Position, _| (pos.distance_sq(&target) < 0.001).then_some(target);
+        assert!(navigation.has_goal_near(Position::default(), target, 0.1, goal));
+        let route = navigation.route(Position::default(), goal, |_, _| true, 100, None);
         assert_eq!(route.is_some(), gap == 0.0, "gap={gap}");
         if let Some(route) = route {
             assert_eq!(route.waypoints.back().map(|p: &NavWaypoint| p.position), Some(target));
@@ -449,14 +445,10 @@ fn routes_walk_out_onto_the_grounds() {
         y: 0.0,
         z: 0.0,
     };
+    let goal = |pos: Position, _| (pos.distance_sq(&target) < 0.001).then_some(target);
+    assert!(navigation.has_goal_near(start, target, 0.1, goal));
     let route = navigation
-        .route(
-            start,
-            |pos, _| (pos.distance_sq(&target) < 0.001).then_some(target),
-            |_, _| true,
-            100,
-            None,
-        )
+        .route(start, goal, |_, _| true, 100, None)
         .expect("the grounds continue the floor past the map's edge");
     assert_eq!(route.waypoints.back().map(|point| point.position), Some(target));
     assert!(target.x > half_width, "the target lies past the map's edge");
