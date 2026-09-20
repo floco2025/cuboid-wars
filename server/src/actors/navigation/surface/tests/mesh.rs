@@ -1,25 +1,56 @@
 use super::*;
-use crate::actors::navigation::surface::fixtures;
+use crate::actors::navigation::surface::{TraversalAction, fixtures};
+use common::{
+    map::{Grounds, GroundsSettings},
+    physics::CollisionWorld,
+    protocol::MapLayout,
+};
+
+#[test]
+fn terrain_route_does_not_reverse_for_small_goal_changes() {
+    let (world, physics) = exterior_scene();
+    let mesh = SurfaceMesh::bake_in(
+        &world.collision_meshes().expect("geometry"),
+        CarrierId::WORLD,
+        physics,
+        &[],
+        Some(SurfaceBounds {
+            min: Vec3::new(-64.0, -100.0, -320.0),
+            max: Vec3::new(64.0, 100.0, -192.0),
+        }),
+        &[],
+    )
+    .expect("terrain mesh");
+    let start = Position {
+        x: 7.0234556,
+        y: -1.7034619,
+        z: -235.40884,
+    };
+    for x in [-1.03, -1.397_502, -1.6729673] {
+        let goal = Position {
+            x,
+            y: -1.1480857,
+            z: -192.94998,
+        };
+        let route = mesh.route(start, goal, 1.0).expect("route");
+        let mut previous = start;
+        for action in &route.actions {
+            let TraversalAction::Walk { target, .. } = action else {
+                panic!("unexpected traversal")
+            };
+            assert!(
+                target.z >= previous.z - 0.01,
+                "small goal change introduced a backward waypoint: {action:?}"
+            );
+            previous = *target;
+        }
+    }
+}
 
 #[test]
 fn exterior_terrain_with_notched_region_boundaries_can_be_routed() {
-    use common::{
-        map::{Grounds, GroundsSettings},
-        physics::CollisionWorld,
-        protocol::MapLayout,
-    };
-    let world = CollisionWorld::from_map_layout(&MapLayout {
-        grounds: Some(Grounds::new(
-            [(-51.0, 51.0, -51.0, 51.0)],
-            4.4,
-            GroundsSettings { level: 1 },
-        )),
-        ..Default::default()
-    });
+    let (world, physics) = exterior_scene();
     let geometry = world.collision_meshes().expect("terrain collision geometry");
-    let mut physics = fixtures::config().expect_actor("bruiser").character.physics();
-    physics.movement_collider.diameter = 1.6422;
-    physics.movement_collider.height = 1.6675;
     let mesh = SurfaceMesh::bake_in(
         &geometry,
         CarrierId::WORLD,
@@ -41,6 +72,21 @@ fn exterior_terrain_with_notched_region_boundaries_can_be_routed() {
     };
     mesh.route(support(-193.0, -22.0), support(-145.0, -26.0), 1.0)
         .expect("cross the terrain region toward home");
+}
+
+fn exterior_scene() -> (CollisionWorld, CharacterPhysicsConfig) {
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        grounds: Some(Grounds::new(
+            [(-51.0, 51.0, -51.0, 51.0)],
+            4.4,
+            GroundsSettings { level: 1 },
+        )),
+        ..Default::default()
+    });
+    let mut physics = fixtures::config().expect_actor("bruiser").character.physics();
+    physics.movement_collider.diameter = 1.6422;
+    physics.movement_collider.height = 1.6675;
+    (world, physics)
 }
 
 #[test]

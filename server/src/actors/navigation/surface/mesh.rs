@@ -326,6 +326,7 @@ impl SurfaceMesh {
                     .distance_squared(boundary.xz())
                     .total_cmp(&b.xz().distance_squared(boundary.xz()))
             })
+            .map(|sample| Vec3::new(boundary.x, sample.y, boundary.z))
     }
 }
 
@@ -333,21 +334,28 @@ fn lookup_cell(coordinate: f32) -> i32 {
     (coordinate / LOOKUP_CELL_SIZE).floor() as i32
 }
 
+// An endpoint even one f32 rounding step outside its polygon can make a
+// valid corridor fail validation and replace a smooth route with backtracking.
+// Clamp outside points precisely; height sampling must preserve interior XZ.
 pub(super) fn closest_on_polygon(vertices: &[Vec3], point: Vec3) -> Option<Vec3> {
     let &origin = vertices.first()?;
     for pair in vertices[1..].windows(2) {
         let [b, c] = [pair[0], pair[1]];
-        let v = b.xz() - origin.xz();
-        let w = c.xz() - origin.xz();
-        let offset = point.xz() - origin.xz();
+        let v = b.xz().as_dvec2() - origin.xz().as_dvec2();
+        let w = c.xz().as_dvec2() - origin.xz().as_dvec2();
+        let offset = point.xz().as_dvec2() - origin.xz().as_dvec2();
         let area = v.perp_dot(w);
         if area.abs() < 1e-6 {
             continue;
         }
         let u = offset.perp_dot(w) / area;
         let t = v.perp_dot(offset) / area;
-        if u >= -1e-5 && t >= -1e-5 && u + t <= 1.00001 {
-            return Some(origin + (b - origin) * u + (c - origin) * t);
+        if u >= 0.0 && t >= 0.0 && u + t <= 1.0 {
+            return Some(Vec3::new(
+                point.x,
+                (f64::from(origin.y) + f64::from(b.y - origin.y) * u + f64::from(c.y - origin.y) * t) as f32,
+                point.z,
+            ));
         }
     }
     vertices
@@ -355,9 +363,10 @@ pub(super) fn closest_on_polygon(vertices: &[Vec3], point: Vec3) -> Option<Vec3>
         .zip(vertices.iter().cycle().skip(1))
         .take(vertices.len())
         .map(|(&a, &b)| {
-            let edge = b.xz() - a.xz();
-            let t = ((point.xz() - a.xz()).dot(edge) / edge.length_squared().max(1e-8)).clamp(0.0, 1.0);
-            a.lerp(b, t)
+            let edge = b.xz().as_dvec2() - a.xz().as_dvec2();
+            let t = ((point.xz().as_dvec2() - a.xz().as_dvec2()).dot(edge) / edge.length_squared().max(1e-8))
+                .clamp(0.0, 1.0);
+            (a.as_dvec3() + (b.as_dvec3() - a.as_dvec3()) * t).as_vec3()
         })
         .min_by(|a, b| a.distance_squared(point).total_cmp(&b.distance_squared(point)))
 }
