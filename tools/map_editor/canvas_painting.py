@@ -33,6 +33,7 @@ from .constants import (
     ZONE_MODES,
 )
 from .checkpoint_numbers import is_start
+from .core import grid_int
 from .symbols import ITEM_SYMBOLS, paint_item_symbol
 from .nesting import (
     nested_map_footprint,
@@ -899,7 +900,7 @@ class CanvasPaintingMixin:
         if direction in RAMP_DIRECTIONS:
             start, end = orthogonal_arrow_points(c0, r0, c1, r1, direction, cell)
             self.draw_arrow(painter, start, end, color)
-        if levels > 1:
+        if grid_int(levels) > 1:
             painter.setPen(color)
             area = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(4, 2, -4, -2)
             painter.drawText(area, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight, f"+{levels}")

@@ -74,6 +74,27 @@ class RampToolTests(WindowTestCase):
         self.assertIn("needs level 3", window.properties_panel.error.text())
         self.assertEqual(window.map_data["ramps"][0]["levels"], 2)
 
+    def test_invalid_ramp_storeys_paint_and_remain_available_for_diagnosis_and_repair(self):
+        window = self.window
+        for levels in ("2", None, [], {}):
+            with self.subTest(levels=levels):
+                data = empty_map(8, 8)
+                data["checkpoints"] = []
+                data["levels"] = [empty_level(index) for index in range(3)]
+                data["ramps"] = [ramp(0, levels, [1, 2], [1, 5])]
+                window.doc.replace_with_new(data)
+
+                self.assertFalse(window.canvas.grab().isNull())
+                self.assertEqual(window.map_data["ramps"][0]["levels"], levels)
+                self.assertTrue(any("levels must be a whole number" in error for error in window.document_issues()))
+
+                window.inspect_refs([ElementRef("ramps", 0)])
+                self.set_property("levels", 2)
+                self.assertEqual(window.map_data["ramps"][0]["levels"], 2)
+                window.undo_stack.undo()
+                self.assertEqual(window.map_data["ramps"][0]["levels"], levels)
+                self.assertFalse(window.canvas.grab().isNull())
+
     def test_a_ramp_too_steep_to_climb_is_a_note_and_never_an_error(self):
         self.storeys(3)
         window = self.window
