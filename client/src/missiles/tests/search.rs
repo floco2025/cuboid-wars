@@ -1,5 +1,8 @@
 use super::*;
-use crate::test_fixtures;
+use crate::{
+    constants::{MISSILE_SEARCH_TICK_QUERIES, MISSILE_SEARCH_WINDOW_MARGIN_CELLS},
+    test_fixtures,
+};
 use common::protocol::{CarrierId, MapLayout, MissileAirGrid, Wall};
 
 #[test]
@@ -31,7 +34,18 @@ fn searches_resume_within_a_shared_budget_outside_authored_bounds() {
     let start = Vec3::new(195.0, 1.0, 0.0);
     let goal = Vec3::new(205.0, 1.0, 0.0);
     let mut searches: Vec<_> = (0..8)
-        .map(|_| AirSearch::new(&graph, &carriers, &[], start, goal, 0.3, 0.0))
+        .map(|_| {
+            AirSearch::new(
+                &graph,
+                &carriers,
+                &[],
+                start,
+                goal,
+                0.3,
+                0.0,
+                MISSILE_SEARCH_WINDOW_MARGIN_CELLS,
+            )
+        })
         .collect();
     let mut paths = vec![None; searches.len()];
     let mut pending = false;
@@ -125,13 +139,24 @@ fn measure_sealed_searches(outside: bool) {
         (inside, exterior)
     };
     let mut searches: Vec<_> = (0..16)
-        .map(|_| Some(AirSearch::new(&graph, &carriers, &[], from, to, 0.3, 1.0)))
+        .map(|_| {
+            Some(AirSearch::new(
+                &graph,
+                &carriers,
+                &[],
+                from,
+                to,
+                0.3,
+                1.0,
+                MISSILE_SEARCH_WINDOW_MARGIN_CELLS,
+            ))
+        })
         .collect();
     let mut total = 0;
     let mut slowest = std::time::Duration::ZERO;
     for tick in 0..10000 {
         let start = Instant::now();
-        let mut budget = SearchBudget::new(TICK_SEARCH_QUERIES);
+        let mut budget = SearchBudget::new(MISSILE_SEARCH_TICK_QUERIES);
         for offset in 0..searches.len() {
             let index = (tick + offset) % searches.len();
             let Some(search) = &mut searches[index] else {
@@ -139,14 +164,14 @@ fn measure_sealed_searches(outside: bool) {
             };
             match search.advance(&graph, &carriers, &world, &mut budget) {
                 SearchProgress::Unreachable if !outside => searches[index] = None,
-                SearchProgress::Limited if outside => searches[index] = None,
+                SearchProgress::WindowLimited | SearchProgress::NodeLimited if outside => searches[index] = None,
                 SearchProgress::Pending => {}
                 _ => panic!("sealed room must exhaust its connected airspace"),
             }
         }
         slowest = slowest.max(start.elapsed());
         total += budget.used;
-        assert!(budget.used <= TICK_SEARCH_QUERIES);
+        assert!(budget.used <= MISSILE_SEARCH_TICK_QUERIES);
         if searches.iter().all(Option::is_none) {
             break;
         }

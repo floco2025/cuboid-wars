@@ -36,13 +36,13 @@ fn visual() -> GrassChunkVisual {
 }
 
 #[test]
-fn streaming_and_burn_jobs_share_start_and_inflight_limits() {
+fn streaming_and_burn_jobs_share_one_inflight_limit() {
     let mut app = fixtures::app();
     app.add_systems(Update, grass_chunk_build_system);
-    for _ in 0..MAX_BUILDS + 10 {
+    for _ in 0..GRASS_BUILD_MAX_ACTIVE + 10 {
         app.world_mut().spawn((visual(), GrassChunkBuild::default()));
     }
-    for frame in 1..=10 {
+    for _ in 0..3 {
         app.update();
         let active = app
             .world_mut()
@@ -50,8 +50,39 @@ fn streaming_and_burn_jobs_share_start_and_inflight_limits() {
             .iter(app.world())
             .filter(|job| job.task.is_some())
             .count();
-        assert_eq!(active, (frame * STARTS_PER_FRAME).min(MAX_BUILDS));
+        assert_eq!(active, GRASS_BUILD_MAX_ACTIVE);
     }
+}
+
+#[test]
+fn the_grass_nearest_the_viewer_builds_first_and_near_chunks_before_mid() {
+    let mut app = fixtures::app();
+    app.add_systems(Update, grass_chunk_build_system);
+    app.world_mut().spawn((
+        MainCameraMarker,
+        GlobalTransform::from_translation(Vec3::new(500.0, 2.0, 0.0)),
+    ));
+    let chunk = |x: f32, lod| GrassChunkVisual {
+        origin: Vec3::new(x, 0.0, 0.0),
+        lod,
+        ..visual()
+    };
+    for index in 0..GRASS_BUILD_MAX_ACTIVE {
+        app.world_mut()
+            .spawn((chunk(index as f32 * 10.0, GrassLod::Near), GrassChunkBuild::default()));
+    }
+    let underfoot = app
+        .world_mut()
+        .spawn((chunk(500.0, GrassLod::Near), GrassChunkBuild::default()))
+        .id();
+    let mid_underfoot = app
+        .world_mut()
+        .spawn((chunk(500.0, GrassLod::Mid), GrassChunkBuild::default()))
+        .id();
+    app.update();
+    let started = |app: &App, entity| app.world().get::<GrassChunkBuild>(entity).expect("job").task.is_some();
+    assert!(started(&app, underfoot));
+    assert!(!started(&app, mid_underfoot), "a mid chunk jumped the near queue");
 }
 
 #[test]
@@ -60,7 +91,7 @@ fn completion_budget_rejects_stale_results_and_keeps_latest_input_queued() {
     app.insert_resource(Assets::<Mesh>::default())
         .add_systems(Update, grass_chunk_finish_system);
     let mut entities = Vec::new();
-    for _ in 0..INSTALLS_PER_FRAME + 3 {
+    for _ in 0..GRASS_BUILD_INSTALLS_PER_FRAME + 3 {
         let visual = visual();
         let ready = grass_chunk_mesh(&visual, &[]);
         entities.push(
@@ -83,7 +114,7 @@ fn completion_budget_rejects_stale_results_and_keeps_latest_input_queued() {
     app.update();
     assert_eq!(
         app.world_mut().query::<&Mesh3d>().iter(app.world()).count(),
-        INSTALLS_PER_FRAME
+        GRASS_BUILD_INSTALLS_PER_FRAME
     );
     assert!(app.world().get::<Mesh3d>(stale).is_none());
     let job = app
@@ -94,7 +125,7 @@ fn completion_budget_rejects_stale_results_and_keeps_latest_input_queued() {
     app.update();
     assert_eq!(
         app.world_mut().query::<&Mesh3d>().iter(app.world()).count(),
-        INSTALLS_PER_FRAME + 2
+        GRASS_BUILD_INSTALLS_PER_FRAME + 2
     );
 }
 

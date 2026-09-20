@@ -6,6 +6,7 @@ use common::{
 use std::collections::VecDeque;
 
 use super::search::{AirSearch, RouteStatus};
+use crate::constants::MISSILE_SEARCH_WINDOW_MARGIN_CELLS;
 
 pub struct MissileFlight {
     pub shooter: PlayerId,
@@ -18,6 +19,9 @@ pub struct MissileFlight {
     pub path_retry_timer: f32,
     pub(crate) search: Option<AirSearch>,
     pub(crate) route_status: RouteStatus,
+    // Cells of search window around the missile and its target; grows while
+    // the window's edge stops searches, until sight of the target returns.
+    pub(crate) search_margin: i32,
     // Committed local-dodge direction, used only when the air graph has no
     // route; flown for a short window so the pick doesn't dither.
     pub avoid_dir: Option<Vec3>,
@@ -47,6 +51,7 @@ impl MissileFlight {
             path_retry_timer: 0.0,
             search: None,
             route_status: RouteStatus::Idle,
+            search_margin: MISSILE_SEARCH_WINDOW_MARGIN_CELLS,
             avoid_dir: None,
             avoid_timer: 0.0,
             last_target_center: None,

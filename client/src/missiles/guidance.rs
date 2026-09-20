@@ -6,7 +6,7 @@ use super::{
         terminal_approach, travel_clear, weave_direction,
     },
 };
-use crate::constants::MISSILE_RADIUS;
+use crate::constants::{MISSILE_RADIUS, MISSILE_SEARCH_WINDOW_MARGIN_CELLS, MISSILE_SEARCH_WINDOW_MARGIN_MAX_CELLS};
 use bevy::prelude::*;
 use common::{
     config::MissilesConfig,
@@ -82,6 +82,7 @@ pub fn guide_missile(
         info.search = None;
         info.path.clear();
         info.route_status = RouteStatus::Idle;
+        info.search_margin = MISSILE_SEARCH_WINDOW_MARGIN_CELLS;
     }
     if info
         .watchdog
@@ -137,6 +138,7 @@ fn guided_velocity(
         info.path.clear();
         info.search = None;
         info.route_status = RouteStatus::Idle;
+        info.search_margin = MISSILE_SEARCH_WINDOW_MARGIN_CELLS;
         info.path_target = None;
         info.path_retry_timer = 0.0;
         let aim = if sweep_clear(world, open_fields, origin, aim - origin, MISSILE_RADIUS) {
@@ -240,6 +242,7 @@ fn route_objective(
             target_center,
             radius,
             fuse_distance,
+            info.search_margin,
         ));
         info.path_target = Some(target_center);
         info.route_status = RouteStatus::Pending;
@@ -254,11 +257,18 @@ fn route_objective(
                 info.route_status = RouteStatus::Found;
                 info.path_retry_timer = MISSILE_PATH_RETRY_SECS;
             }
+            SearchProgress::WindowLimited if info.search_margin < MISSILE_SEARCH_WINDOW_MARGIN_MAX_CELLS => {
+                // The way round may lie outside the window: look wider at once.
+                info.search = None;
+                info.route_status = RouteStatus::Limited;
+                info.search_margin = (info.search_margin * 2).min(MISSILE_SEARCH_WINDOW_MARGIN_MAX_CELLS);
+                info.path_retry_timer = 0.0;
+            }
             progress => {
                 info.search = None;
                 info.route_status = match progress {
-                    SearchProgress::Limited => RouteStatus::Limited,
-                    _ => RouteStatus::Unreachable,
+                    SearchProgress::Unreachable => RouteStatus::Unreachable,
+                    _ => RouteStatus::Limited,
                 };
                 info.path_retry_timer = MISSILE_PATH_RETRY_SECS;
             }

@@ -131,6 +131,22 @@ fn air_path_descends_through_a_floor_opening() {
 }
 
 #[test]
+fn air_path_crests_a_wall_in_a_room_open_only_at_the_top() {
+    let graph = map(2, 1, 2);
+    let world = world(&sealed(MapLayout {
+        walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
+        ..default()
+    }));
+    let from = Vec3::new(-1.7, 1.0, 0.0);
+    let to = Vec3::new(1.7, 1.0, 0.0);
+    let path = graph
+        .path(&Carriers::default(), &world, &[], from, to, MISSILE_RADIUS, 1.0)
+        .expect("route over wall missing");
+    assert_clear_path(&world, from, to, &path);
+    assert!(path.iter().any(|point| point.y > WALL_HEIGHT));
+}
+
+#[test]
 fn air_path_avoids_an_open_wall() {
     let graph = map(2, 1, 1);
     let layout = MapLayout {

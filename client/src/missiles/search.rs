@@ -10,13 +10,7 @@ use super::{
     air_graph::{AirGraph, AirNode},
     steering::{sweep_clear, terminal_approach},
 };
-
-pub(super) const TICK_SEARCH_QUERIES: usize = 1024;
-const MISSILE_SEARCH_QUERIES: usize = 512;
-const SEARCH_NODE_LIMIT: usize = 8192;
-// A local airspace window, including below and beyond authored geometry.
-const WINDOW_MARGIN_CELLS: i32 = 8;
-const WINDOW_REACH_CELLS: i32 = 24;
+use crate::constants::{MISSILE_SEARCH_MISSILE_QUERIES, MISSILE_SEARCH_NODE_LIMIT, MISSILE_SEARCH_WINDOW_REACH_CELLS};
 
 pub(crate) struct SearchBudget {
     pub remaining: usize,
@@ -53,7 +47,9 @@ pub(crate) enum SearchProgress {
     Pending,
     Found(VecDeque<Vec3>),
     Unreachable,
-    Limited,
+    // The window's edge stopped the search: a wider window may still find a route.
+    WindowLimited,
+    NodeLimited,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -117,21 +113,22 @@ impl AirSearch {
         to: Vec3,
         radius: f32,
         fuse_distance: f32,
+        margin_cells: i32,
     ) -> Self {
         let a = graph.node_at(carriers, 0, from);
         let b = graph.node_at(carriers, 0, to);
         let a = IVec3::new(a.col, a.layer, a.row);
         let b = IVec3::new(b.col, b.layer, b.row).clamp(
-            a - IVec3::splat(WINDOW_REACH_CELLS),
-            a + IVec3::splat(WINDOW_REACH_CELLS),
+            a - IVec3::splat(MISSILE_SEARCH_WINDOW_REACH_CELLS),
+            a + IVec3::splat(MISSILE_SEARCH_WINDOW_REACH_CELLS),
         );
         Self {
             target: to,
             open: open.to_vec(),
             radius,
             fuse_distance,
-            min: a.min(b) - IVec3::splat(WINDOW_MARGIN_CELLS),
-            max: a.max(b) + IVec3::splat(WINDOW_MARGIN_CELLS),
+            min: a.min(b) - IVec3::splat(margin_cells),
+            max: a.max(b) + IVec3::splat(margin_cells),
             queue: BinaryHeap::from([Frontier {
                 node: Node::Origin,
                 cost: 0.0,
@@ -151,12 +148,12 @@ impl AirSearch {
         world: &CollisionWorld,
         budget: &mut SearchBudget,
     ) -> SearchProgress {
-        let mut slice = MISSILE_SEARCH_QUERIES;
+        let mut slice = MISSILE_SEARCH_MISSILE_QUERIES;
         loop {
             if self.active.is_none() {
                 let Some(frontier) = self.queue.pop() else {
                     return if self.touched_boundary {
-                        SearchProgress::Limited
+                        SearchProgress::WindowLimited
                     } else {
                         SearchProgress::Unreachable
                     };
@@ -169,7 +166,10 @@ impl AirSearch {
                     neighbors: None,
                 });
             }
-            let active = self.active.as_mut().expect("search expansion");
+            let active = self
+                .active
+                .as_mut()
+                .expect("expansion missing from an advancing search");
             let origin = match active.node {
                 Node::Origin => self.reached[&Node::Origin].1,
                 Node::Air(node) => graph.node_center(carriers, node),
@@ -208,7 +208,10 @@ impl AirSearch {
                     .into(),
                 );
             }
-            let neighbors = active.neighbors.as_mut().expect("expanded neighbors");
+            let neighbors = active
+                .neighbors
+                .as_mut()
+                .expect("neighbors missing from an expanded node");
             while let Some(&next) = neighbors.front() {
                 let key = Node::Air(next);
                 let point = graph.node_center(carriers, next);
@@ -222,8 +225,8 @@ impl AirSearch {
                 }
                 neighbors.pop_front();
                 if sweep_clear(world, &self.open, origin, point - origin, self.radius) {
-                    if !self.reached.contains_key(&key) && self.reached.len() >= SEARCH_NODE_LIMIT {
-                        return SearchProgress::Limited;
+                    if !self.reached.contains_key(&key) && self.reached.len() >= MISSILE_SEARCH_NODE_LIMIT {
+                        return SearchProgress::NodeLimited;
                     }
                     let cell = IVec3::new(next.col, next.layer, next.row);
                     self.touched_boundary |=

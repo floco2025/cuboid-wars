@@ -9,6 +9,8 @@
 ## Enhancements
 
 
+- **Missile search cleanup:** every neighbour edge in `client/src/missiles/search.rs` repeats its node's start-overlap query through `sweep_clear`, about a third of the search budget; judge edges by travel alone and charge one query. `AirGraph::endpoint_candidates` probes every carrier grid at any distance; apply the reach gate `neighbors` uses. `MissileFlight.route_status`, `RouteStatus`, and `SearchBudget.used` are written in production and read only by tests, and `AirGraph::path` is a test helper in the production file.
+
 - **Dependency upgrades:** Recheck the `encase` family held at 0.12.1 in `Cargo.lock` once [Bevy's syn compatibility issue](https://github.com/bevyengine/bevy/issues/25844) is resolved; 0.12.2 fails to compile with Bevy 0.19.1. Renet's `crypto-common` dependency also pins `generic-array` to 0.14.7.
 
 - **Obby player speed:** Once Obby is debugged, reduce `movement.player.walk_speed` and `run_speed` in `config/server/maps/obby/settings.json` to 5.0 m/s. The temporary 5.1 m/s setting makes testing easier.

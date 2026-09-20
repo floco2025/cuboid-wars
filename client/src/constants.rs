@@ -405,6 +405,20 @@ pub const MISSILE_NOSE_LENGTH: f32 = 0.2;
 pub const MISSILE_FIN_SPAN: f32 = 0.14; // outward reach beyond the body surface
 pub const MISSILE_FIN_LENGTH: f32 = 0.18; // along the body axis
 
+// Collision queries all missile route searches share each tick, the most one
+// missile may spend of them, and the nodes one search may reach.
+pub const MISSILE_SEARCH_TICK_QUERIES: usize = 1024;
+pub const MISSILE_SEARCH_MISSILE_QUERIES: usize = 512;
+pub const MISSILE_SEARCH_NODE_LIMIT: usize = 8192;
+// A search runs in a window of root-grid cells around the missile and its
+// target, which may lie below and beyond the authored grid. The margin doubles
+// each time the window's edge stops a search, so a detour wider than the
+// window is found on a later attempt; a target farther than the reach is
+// approached through a window that ends short of it.
+pub const MISSILE_SEARCH_WINDOW_MARGIN_CELLS: i32 = 8;
+pub const MISSILE_SEARCH_WINDOW_MARGIN_MAX_CELLS: i32 = 32;
+pub const MISSILE_SEARCH_WINDOW_REACH_CELLS: i32 = 24;
+
 pub const MISSILE_EXHAUST_PARTICLES_PER_SEC: f32 = 600.0;
 pub const MISSILE_EXHAUST_PARTICLE_SIZE: f32 = 0.02;
 pub const MISSILE_EXHAUST_PARTICLE_LIFETIME_SECS: f32 = 0.3;
@@ -670,6 +684,11 @@ pub const GRASS_STREAM_MARGIN: f32 = 10.0;
 pub const GRASS_STREAM_HYSTERESIS: f32 = 10.0;
 pub const GRASS_NEAR_CHUNKS_PER_FRAME: usize = 2;
 pub const GRASS_MID_CHUNKS_PER_FRAME: usize = 8;
+// Background chunk builds in flight, finished results awaiting installation
+// included, and the meshes installed per frame. Installation keeps pace with
+// what streaming spawns per frame, so a backlog drains as fast as it forms.
+pub const GRASS_BUILD_MAX_ACTIVE: usize = 16;
+pub const GRASS_BUILD_INSTALLS_PER_FRAME: usize = GRASS_NEAR_CHUNKS_PER_FRAME + GRASS_MID_CHUNKS_PER_FRAME;
 pub const GRASS_DRY: Color = Color::srgb(0.55, 0.50, 0.24);
 // No blades within this many rock radii of a rock's centre.
 pub const GRASS_ROCK_CLEARANCE: f32 = 1.15;

@@ -12,6 +12,8 @@ use common::{
 #[cfg(test)]
 use super::search::{AirSearch, SearchBudget, SearchProgress};
 #[cfg(test)]
+use crate::constants::MISSILE_SEARCH_WINDOW_MARGIN_CELLS;
+#[cfg(test)]
 use common::{physics::CollisionWorld, protocol::FieldId};
 
 const ADJACENT: [(i32, i32, i32); 6] = [(0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1), (-1, 0, 0), (1, 0, 0)];
@@ -63,12 +65,23 @@ impl AirGraph {
         radius: f32,
         fuse_distance: f32,
     ) -> Option<VecDeque<Vec3>> {
-        let mut search = AirSearch::new(self, carriers, open_fields, from, to, radius, fuse_distance);
+        let mut search = AirSearch::new(
+            self,
+            carriers,
+            open_fields,
+            from,
+            to,
+            radius,
+            fuse_distance,
+            MISSILE_SEARCH_WINDOW_MARGIN_CELLS,
+        );
         loop {
             match search.advance(self, carriers, world, &mut SearchBudget::new(128)) {
                 SearchProgress::Pending => {}
                 SearchProgress::Found(path) => return Some(path),
-                SearchProgress::Unreachable | SearchProgress::Limited => return None,
+                SearchProgress::Unreachable | SearchProgress::WindowLimited | SearchProgress::NodeLimited => {
+                    return None;
+                }
             }
         }
     }

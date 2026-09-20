@@ -1,7 +1,4 @@
-use super::{
-    MissileMarker, missile_blast_hits,
-    search::{SearchBudget, TICK_SEARCH_QUERIES},
-};
+use super::{MissileMarker, missile_blast_hits, search::SearchBudget};
 use crate::{
     actors::ActorMap,
     audio::play_explosion_sound,
@@ -9,7 +6,7 @@ use crate::{
     characters::PreviousTickPosition,
     characters::{ball_character_hit, ball_overlaps_character},
     config::{AssetSet, ClientSettings},
-    constants::MISSILE_RADIUS,
+    constants::{MISSILE_RADIUS, MISSILE_SEARCH_TICK_QUERIES},
     missiles::{AirGraph, MissileMap, MissileVelocity, OwnedMissile, guide_missile},
     network::ClientToServerChannel,
     players::PlayerMap,
@@ -123,7 +120,7 @@ pub fn missiles_movement_system(
     let rotation = *search_priority % ordered.len();
     ordered.rotate_left(rotation);
     *search_priority = search_priority.wrapping_add(1);
-    let mut search_budget = SearchBudget::new(TICK_SEARCH_QUERIES);
+    let mut search_budget = SearchBudget::new(MISSILE_SEARCH_TICK_QUERIES);
     for (entity, id, mut pos, mut previous, mut velocity, mut owned) in ordered {
         if !params.missiles.contains_key(id) {
             continue;

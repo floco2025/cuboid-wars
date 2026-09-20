@@ -1,5 +1,8 @@
 use super::*;
-use crate::test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, gameplay_config, geometry};
+use crate::{
+    constants::MISSILE_SEARCH_MISSILE_QUERIES,
+    test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, gameplay_config, geometry},
+};
 use common::{
     config::MissilesConfig,
     constants::TICK_SECS,
@@ -502,4 +505,48 @@ fn pending_replans_keep_a_usable_route_and_refresh_field_state() {
         assert_eq!(info.search.as_ref().expect("pending search").open, open);
         assert_eq!(budget.used, 0);
     }
+}
+
+#[test]
+fn a_detour_wider_than_the_first_search_window_is_found_by_widening_it() {
+    let graph = map(30, 30, 3);
+    let carriers = Carriers::default();
+    let slab = |y: f32, level: u8| Floor {
+        x1: -60.0,
+        x2: 60.0,
+        z1: -60.0,
+        z2: 60.0,
+        y,
+        thickness: FLOOR_THICKNESS,
+        level,
+        carrier: CarrierId::WORLD,
+    };
+    // Floor and roof leave the wall's ends, 30 m to either side, as the only way round.
+    let world = world(&MapLayout {
+        walls: vec![wall(0.0, -30.0, 0.0, 30.0)],
+        floors: vec![slab(0.0, 0), slab(WALL_HEIGHT + FLOOR_THICKNESS, 1)],
+        ..default()
+    });
+    let origin = Vec3::new(-6.0, 1.5, 0.0);
+    let target = Vec3::new(6.0, 1.5, 0.0);
+    let mut info = info();
+    let found_at = (0..150).find(|_| {
+        route_objective(
+            &mut info,
+            &graph,
+            &carriers,
+            &world,
+            &[],
+            origin,
+            target,
+            MISSILE_RADIUS,
+            1.0,
+            TICK_SECS,
+            &mut SearchBudget::new(MISSILE_SEARCH_MISSILE_QUERIES),
+        );
+        info.route_status == RouteStatus::Found
+    });
+    assert!(found_at.is_some(), "status {:?}", info.route_status);
+    assert!(info.search_margin > MISSILE_SEARCH_WINDOW_MARGIN_CELLS);
+    assert!(info.path.iter().any(|point| point.z.abs() > 30.0), "{:?}", info.path);
 }
