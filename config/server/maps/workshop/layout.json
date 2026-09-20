@@ -1,0 +1,114 @@
+{
+  "map": {
+    "grid_cols": 12,
+    "grid_rows": 8,
+    "fireworks": null,
+    "levels": [
+      {
+        "floors": [
+          {"col": 0, "row": 0, "all": "floor"},
+          {"col": 1, "row": 0, "all": "floor"},
+          {"col": 2, "row": 0, "all": "floor"},
+          {"col": 3, "row": 0, "all": "floor"},
+          {"col": 4, "row": 0, "all": "floor"},
+          {"col": 5, "row": 0, "all": "floor"},
+          {"col": 6, "row": 0, "all": "floor"},
+          {"col": 0, "row": 1, "all": "floor"},
+          {"col": 1, "row": 1, "all": "floor"},
+          {"col": 2, "row": 1, "all": "floor"},
+          {"col": 3, "row": 1, "all": "floor"},
+          {"col": 4, "row": 1, "all": "floor"},
+          {"col": 5, "row": 1, "all": "floor"},
+          {"col": 6, "row": 1, "all": "floor"},
+          {"col": 0, "row": 2, "all": "floor"},
+          {"col": 1, "row": 2, "all": "floor"},
+          {"col": 2, "row": 2, "all": "floor"},
+          {"col": 3, "row": 2, "all": "floor"},
+          {"col": 4, "row": 2, "all": "floor"},
+          {"col": 5, "row": 2, "all": "floor"},
+          {"col": 6, "row": 2, "all": "floor"},
+          {"col": 0, "row": 3, "all": "floor"},
+          {"col": 1, "row": 3, "all": "floor"},
+          {"col": 2, "row": 3, "all": "floor"},
+          {"col": 3, "row": 3, "all": "floor"},
+          {"col": 4, "row": 3, "all": "floor"},
+          {"col": 5, "row": 3, "all": "floor"},
+          {"col": 6, "row": 3, "all": "floor"},
+          {"col": 0, "row": 4, "all": "floor"},
+          {"col": 1, "row": 4, "all": "floor"},
+          {"col": 2, "row": 4, "all": "floor"},
+          {"col": 3, "row": 4, "all": "floor"},
+          {"col": 4, "row": 4, "all": "floor"},
+          {"col": 5, "row": 4, "all": "floor"},
+          {"col": 6, "row": 4, "all": "floor"},
+          {"col": 0, "row": 5, "all": "floor"},
+          {"col": 1, "row": 5, "all": "floor"},
+          {"col": 2, "row": 5, "all": "floor"},
+          {"col": 3, "row": 5, "all": "floor"},
+          {"col": 4, "row": 5, "all": "floor"},
+          {"col": 5, "row": 5, "all": "floor"},
+          {"col": 6, "row": 5, "all": "floor"},
+          {"col": 0, "row": 6, "all": "floor"},
+          {"col": 1, "row": 6, "all": "floor"},
+          {"col": 2, "row": 6, "all": "floor"},
+          {"col": 3, "row": 6, "all": "floor"},
+          {"col": 4, "row": 6, "all": "floor"},
+          {"col": 5, "row": 6, "all": "floor"},
+          {"col": 6, "row": 6, "all": "floor"},
+          {"col": 0, "row": 7, "all": "floor"},
+          {"col": 1, "row": 7, "all": "floor"},
+          {"col": 2, "row": 7, "all": "floor"},
+          {"col": 3, "row": 7, "all": "floor"},
+          {"col": 4, "row": 7, "all": "floor"},
+          {"col": 5, "row": 7, "all": "floor"},
+          {"col": 6, "row": 7, "all": "floor"}
+        ]
+      },
+      {
+        "inaccessible_floors": [
+          {"col": 1, "row": 5, "all": "ceiling"},
+          {"col": 2, "row": 5, "all": "ceiling"},
+          {"col": 1, "row": 6, "all": "ceiling"},
+          {"col": 2, "row": 6, "all": "ceiling"}
+        ]
+      },
+      {
+        "floors": [
+          {"col": 5, "row": 2, "all": "floor"},
+          {"col": 6, "row": 2, "all": "floor"},
+          {"col": 9, "row": 2, "all": "floor"},
+          {"col": 10, "row": 2, "all": "floor"},
+          {"col": 5, "row": 3, "all": "floor"},
+          {"col": 6, "row": 3, "all": "floor"},
+          {"col": 9, "row": 3, "all": "floor"},
+          {"col": 10, "row": 3, "all": "floor"}
+        ],
+        "light_bridges": [
+          {"col": 7, "row": 2, "field": "bridge"},
+          {"col": 8, "row": 2, "field": "bridge"},
+          {"col": 7, "row": 3, "field": "bridge"},
+          {"col": 8, "row": 3, "field": "bridge"}
+        ]
+      }
+    ],
+    "ramps": [
+      {"lower_level": 0, "levels": 2, "cols": [1, 5], "rows": [2, 4], "direction": "E", "shape": "plank", "all": "ramp"}
+    ],
+    "checkpoints": [
+      {"number": 0, "type": "individual", "level": 0, "cols": [0, 1], "rows": [6, 7]}
+    ],
+    "actor_spawn_zones": [
+      {"level": 0, "cols": [3, 5], "rows": [0, 1], "kind": "scuttler", "count": [2], "respawn_secs": 3, "roam_distance": 12},
+      {"level": 0, "cols": [5, 7], "rows": [6, 8], "kind": "bruiser", "count": [1], "respawn_secs": 3, "roam_distance": 12}
+    ],
+    "switches": [
+      {"id": "bridge", "activation": "toggle", "held": "any", "reset_on_player_death": "never"}
+    ],
+    "fields": [
+      {"id": "bridge", "color": "#30d8ff", "switch": "bridge", "initially_on": true}
+    ],
+    "pressure_plates": [
+      {"level": 0, "col": 0, "row": 7, "switch": "bridge"}
+    ]
+  }
+}

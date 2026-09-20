@@ -15,7 +15,6 @@ fn air_home_expands_vertically_and_moves_with_its_spawn_zone() {
         vec![LevelGrid {
             cells: CellGrid::new(1, 1),
             edges: EdgeGrid::new(1, 1),
-            barrier_edges: EdgeGrid::new(1, 1),
         }],
     );
     let zone = ActorSpawnZone {
@@ -64,7 +63,6 @@ fn walls_do_not_change_the_authored_roaming_boundary() {
         vec![LevelGrid {
             cells: CellGrid::new(1, 1),
             edges: EdgeGrid::new(1, 1),
-            barrier_edges: EdgeGrid::new(1, 1),
         }],
     );
     let zone = ActorSpawnZone {
@@ -119,7 +117,6 @@ fn sample_home(range: f32) -> AirHome {
         vec![LevelGrid {
             cells: CellGrid::new(1, 1),
             edges: EdgeGrid::new(1, 1),
-            barrier_edges: EdgeGrid::new(1, 1),
         }],
     );
     let zone = ActorSpawnZone {

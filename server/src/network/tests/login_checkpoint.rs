@@ -49,7 +49,6 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             vec![LevelGrid {
                 cells,
                 edges: EdgeGrid::new(2, 2),
-                barrier_edges: EdgeGrid::new(2, 2),
             }],
         ));
         let start = app.world().resource::<MapLayout>().checkpoints[0].clone();

@@ -6,7 +6,7 @@ use crossbeam_channel::unbounded;
 
 use super::{PendingExplosions, explosions::*};
 use crate::{
-    actors::{ActorCrushed, ActorInfo, ActorMap, actors_removal_system, navigation::NavGraphs},
+    actors::{ActorCrushed, ActorInfo, ActorMap, actors_removal_system},
     characters::characters_health_regeneration_system,
     config::ServerGameplayConfig,
     map::MapConfig,
@@ -43,7 +43,6 @@ fn test_app() -> App {
         .insert_resource(Carriers::default())
         .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
         .init_resource::<MapLayout>()
-        .insert_resource(NavGraphs::new(&MapConfig::for_grid(Vec::new(), geometry(1, 1))))
         .insert_resource(PlayerMap::default())
         .insert_resource(ActorMap::default())
         .insert_resource(Invincibility(false))

@@ -19,7 +19,6 @@ fn spawn_world(columns: i32, max_number: usize) -> (World, Schedule) {
         vec![LevelGrid {
             cells,
             edges: EdgeGrid::new(columns, 1),
-            barrier_edges: EdgeGrid::new(columns, 1),
         }],
         geometry,
     );

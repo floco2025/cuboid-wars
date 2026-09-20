@@ -12,14 +12,12 @@ use common::{
     map::Carriers,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
     protocol::{
-        ActorAnchor, ActorId, ActorMoveIntent, Carrier, CarrierId, MapLayout, MapSettings, Position, ServerTick,
-        SwitchState,
+        ActorAnchor, ActorId, ActorMoveIntent, Carrier, CarrierId, MapLayout, Position, ServerTick, SwitchState,
     },
 };
 
 fn step(
     world: Res<CollisionWorld>,
-    settings: Res<MapSettings>,
     switch_state: Res<SwitchState>,
     carriers: Res<Carriers>,
     actors: Res<ActorMap>,
@@ -33,11 +31,9 @@ fn step(
     plan_actor_moves(
         1.0 / 30.0,
         &world,
-        &settings,
         &switch_state,
         &carriers,
         &actors,
-        &crate::actors::navigation::ActorTerritories::default(),
         &starts,
         &mut query,
         &mut planned,

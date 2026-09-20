@@ -157,7 +157,6 @@ fn checkpoint_fixture() -> (Checkpoint, Floor, MapConfig) {
         vec![LevelGrid {
             cells,
             edges: EdgeGrid::new(2, 2),
-            barrier_edges: EdgeGrid::new(2, 2),
         }],
         geometry,
     );

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 
@@ -11,7 +11,7 @@ use common::{
     },
 };
 
-use super::navigation::{GroundState, NavNode, NavWaypoint, PlannedRoute, WaypointKind, air::FlightState};
+use super::navigation::air::FlightState;
 
 // Whether this tick's movement left the actor inside a carrier's geometry;
 // written by `apply_actor_moves`, read by `actors_removal_system`.
@@ -97,38 +97,6 @@ impl BeamState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ActorRoute {
-    pub waypoints: VecDeque<NavWaypoint>,
-    pub destination: Position,
-    pub destination_node: NavNode,
-}
-
-impl ActorRoute {
-    #[must_use]
-    pub(crate) fn new(planned: PlannedRoute) -> Option<Self> {
-        let destination = planned.waypoints.back()?.position;
-        Some(Self {
-            waypoints: planned.waypoints,
-            destination,
-            destination_node: planned.destination_node,
-        })
-    }
-
-    #[must_use]
-    pub fn next(&self) -> Option<NavWaypoint> {
-        self.waypoints.front().copied()
-    }
-
-    pub(crate) fn traversing_ladder(&self) -> bool {
-        self.next().is_some_and(|next| match next.kind {
-            WaypointKind::Walk => false,
-            WaypointKind::Climb { .. } => self.waypoints.len() > 1,
-            WaypointKind::Mount | WaypointKind::Exit => true,
-        })
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct AwarePlayer {
     pub(crate) id: PlayerId,
@@ -146,15 +114,11 @@ pub struct ActorInfo {
     pub carrier: CarrierId,
     pub anchor: Option<ActorAnchor>,
     pub(crate) flight: Option<FlightState>,
-    pub(crate) ground: GroundState,
     pub(crate) mode: ActorMode,
-    pub(crate) route: Option<ActorRoute>,
     pub(crate) beam: BeamState,
     pub(crate) awareness: Vec<AwarePlayer>,
     pub(crate) decision_timer: f32,
-    pub(crate) airborne_secs: f32,
     pub(crate) watchdog: ProgressWatchdog,
-    pub(crate) evade_replan_remaining_secs: f32,
     // Player who landed the last projectile damage. Read by
     // `actors_removal_system` when the actor's health hits zero, so the
     // `SActorDeath` broadcast can attribute the kill. Chain-explosion
@@ -172,22 +136,13 @@ impl ActorInfo {
             carrier,
             anchor: None,
             flight: None,
-            ground: GroundState::default(),
             mode: ActorMode::Roam,
-            route: None,
             beam: BeamState::Ready,
             awareness: Vec::new(),
             decision_timer: 0.0,
-            airborne_secs: 0.0,
             watchdog: ProgressWatchdog::default(),
-            evade_replan_remaining_secs: 0.0,
             last_damager: None,
         }
-    }
-
-    pub(crate) fn set_route(&mut self, route: Option<ActorRoute>) {
-        self.route = route;
-        self.watchdog.reset();
     }
 }
 
@@ -210,12 +165,7 @@ impl ActorMap {
             if peaceful {
                 info.beam = BeamState::Ready;
                 info.awareness.clear();
-                info.ground.clear();
-                info.mode = ActorMode::Roam;
-                // Finish a ladder traversal before choosing a passive route.
-                if !info.route.as_ref().is_some_and(ActorRoute::traversing_ladder) {
-                    info.set_route(None);
-                }
+                info.mode = ActorMode::ReturnHome;
             }
         }
     }

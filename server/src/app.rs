@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use crate::{
     actors::{
         ActorMap, ActorSpawner, PendingActorSpawns, actors_plugin,
-        navigation::{ActorTerritories, NavGraphs},
+        navigation::{ActorTerritories, surface::SurfaceNavigation},
     },
     characters::characters_plugin,
     combat::{PendingExplosions, combat_plugin},
@@ -126,9 +126,6 @@ fn build_server_app_with_loader(
     let map_items = map_config.available_items(random_items.pool.iter().map(|&(item_type, _)| item_type));
     let mut collision_world = CollisionWorld::from_map_layout(&map_layout);
     let carriers = Carriers::from_layout(&map_layout);
-    let mut nav_graphs = NavGraphs::new(&map_config);
-    nav_graphs.add_grounds(&map_layout);
-    nav_graphs.add_ladder_routes(&map_layout, &map_settings, &server_gameplay_config);
     validate_map_actor_kinds(&server_gameplay_config, &map_config)?;
     validate_map_quests(
         &server_gameplay_config.quests,
@@ -139,6 +136,20 @@ fn build_server_app_with_loader(
     let quest_catalog = QuestCatalog::from_quests(&server_gameplay_config.quests);
     let quest_board = QuestBoard::from_catalog(&quest_catalog, fireworks_switch);
     collision_world.set_locked_pressure_plates(quest_board.locked_switches());
+    let surface_navigation = SurfaceNavigation::build(
+        &map_config,
+        &map_layout,
+        &server_gameplay_config,
+        &collision_world,
+        &map_settings
+            .fields
+            .iter()
+            .enumerate()
+            .filter(|(_, field)| !field.initially_on)
+            .map(|(index, _)| common::protocol::FieldId(index as u16))
+            .collect::<Vec<_>>(),
+        quest_board.locked_switches(),
+    )?;
     let actor_territories = ActorTerritories::new(&map_config, &server_gameplay_config);
     let world_bootstrap = WorldBootstrap {
         network: server_gameplay_config.network,
@@ -209,7 +220,7 @@ fn build_server_app_with_loader(
         .insert_resource(carriers)
         .insert_resource(map_config)
         .insert_resource(map_geometry)
-        .insert_resource(nav_graphs)
+        .insert_resource(surface_navigation)
         .insert_resource(actor_territories)
         .insert_resource(field_table)
         .insert_resource(switch_table)
@@ -302,6 +313,18 @@ mod tests;
 #[cfg(test)]
 #[path = "tests/app_rate.rs"]
 mod rate_tests;
+
+#[cfg(test)]
+#[path = "tests/app_surface.rs"]
+mod surface_tests;
+
+#[cfg(test)]
+#[path = "tests/app_pursuit.rs"]
+mod pursuit_tests;
+
+#[cfg(test)]
+#[path = "tests/app_home.rs"]
+mod home_tests;
 
 #[cfg(test)]
 #[path = "tests/app_fixtures.rs"]

@@ -5125,6 +5125,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "rerecast"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d91bc1e22832298b01bca704eab9d6fe1d1c8c9cf6a1a44554e678b807884360"
+dependencies = [
+ "anyhow",
+ "bevy_reflect",
+ "bitflags 2.13.2",
+ "glam 0.32.1",
+ "slotmap",
+ "thiserror 2.0.20",
+ "tracing",
+]
+
+[[package]]
 name = "robust"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5338,6 +5353,7 @@ dependencies = [
  "rand",
  "renet",
  "renet_netcode",
+ "rerecast",
  "serde",
  "serde_json",
 ]

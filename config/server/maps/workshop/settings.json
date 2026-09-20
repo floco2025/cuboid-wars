@@ -1,0 +1,25 @@
+{
+  "textures": {
+    "floor": { "material": "steelplate1", "portalable": true },
+    "ramp": { "material": "titanium-scuffed", "portalable": true },
+    "ceiling": { "material": "stucco1", "portalable": false }
+  },
+  "geometry": {
+    "grid_cell_size": 3,
+    "level_height": 1.5,
+    "floor_thickness": 0.2,
+    "wall_thickness": 0.3
+  },
+  "grounds": null,
+  "weather": "clear",
+  "random_items": null,
+  "placed_items": null,
+  "quests": [],
+  "movement": {
+    "gravity": 25,
+    "actors": {
+      "scuttler": { "roam_speed": 2, "active_speed": 3 },
+      "bruiser": { "roam_speed": 1.5, "active_speed": 2.5 }
+    }
+  }
+}

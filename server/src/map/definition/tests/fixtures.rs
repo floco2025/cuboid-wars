@@ -10,7 +10,6 @@ pub(super) use common::{
 
 pub(super) use super::super::compile_map;
 pub(super) use crate::{
-    actors::navigation::NavGraph,
     map::MapConfig,
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, map_settings, sizes},
 };
@@ -237,4 +236,40 @@ pub(crate) fn item_def(level: u32, col: i32, row: i32, item_type: &str, field: O
         item_type: item_type.to_owned(),
         field: field.map(str::to_owned),
     }
+}
+
+// Bound exterior terrain to the authored region for compiler/navigation checks.
+pub(crate) fn surface_mesh(
+    layout: &MapLayout,
+    config: &MapConfig,
+    carrier: CarrierId,
+    open: &[common::protocol::FieldId],
+) -> crate::actors::navigation::surface::SurfaceMesh {
+    use crate::actors::{
+        navigation::surface::{SurfaceBounds, SurfaceMesh},
+        test_kinds,
+    };
+    let grid = config.grid(carrier);
+    let geometry = grid.geometry;
+    let world = CollisionWorld::from_map_layout(layout);
+    SurfaceMesh::bake_in(
+        &world.collision_meshes().expect("collision export"),
+        carrier,
+        test_kinds::physics(test_kinds::CONTACT),
+        open,
+        Some(SurfaceBounds {
+            min: Vec3::new(
+                geometry.cell_to_world_x(0) - 2.0,
+                -2.0,
+                geometry.cell_to_world_z(0) - 2.0,
+            ),
+            max: Vec3::new(
+                geometry.cell_to_world_x(geometry.grid_cols) + 2.0,
+                geometry.level_height() * grid.levels.len() as f32 + 2.0,
+                geometry.cell_to_world_z(geometry.grid_rows) + 2.0,
+            ),
+        }),
+        &[],
+    )
+    .expect("surface mesh")
 }

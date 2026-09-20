@@ -1,14 +1,16 @@
 mod beam;
-mod controllers;
 mod flight;
 mod geometry;
+mod home;
 mod perception;
-mod tick;
-mod transitions;
+mod pursuit;
+mod stationary;
+mod surface;
 
 #[cfg(test)]
 mod tests;
 
-pub use tick::actors_behavior_system;
+pub use stationary::stationary_actors_behavior_system;
 
 pub(crate) use flight::flying_actors_behavior_system;
+pub(crate) use surface::surface_actors_behavior_system;

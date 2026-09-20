@@ -1,10 +1,7 @@
 use super::{
-    beam::{BeamContext, find_beam_target, retarget_beam, start_beam},
+    beam::{BeamContext, find_beam_target, retarget_beam, start_beam, tick_beam_state},
     geometry::{attack_position, covered, threat_distance_sq},
-    perception::{decay_awareness, player_states, update_awareness},
-    tick::{
-        AI_DECISION_INTERVAL_SECS, ROUTE_STALL_PROGRESS_DISTANCE, ROUTE_STALL_TIMEOUT_SECS, SHAKE_SECS, tick_beam_state,
-    },
+    perception::{AI_DECISION_INTERVAL_SECS, decay_awareness, player_states, update_awareness},
 };
 use crate::{
     actors::{
@@ -32,6 +29,9 @@ use common::{
 use rand::{Rng, RngExt, rng};
 
 const AIR_WORK_PER_TICK: usize = 2048;
+const ROUTE_STALL_PROGRESS_DISTANCE: f32 = 0.5;
+const ROUTE_STALL_TIMEOUT_SECS: f32 = 1.5;
+const SHAKE_SECS: f32 = 0.6;
 const FLIGHT_REACH: f32 = 0.08;
 const FLIGHT_RETRY_SECS: f32 = 0.5;
 

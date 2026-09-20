@@ -278,7 +278,6 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
                 vec![LevelGrid {
                     cells: CellGrid::new(2, 2),
                     edges: EdgeGrid::new(2, 2),
-                    barrier_edges: EdgeGrid::new(2, 2),
                 }],
                 geometry(2, 2),
             )

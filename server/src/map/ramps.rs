@@ -103,7 +103,7 @@ impl RampSpec {
 
 // Apply ramp flags to a level's cell grid: the slope on the ramp's own level,
 // and the way down to it on every storey it passes or arrives at.
-pub fn apply_to_level_cells(cells: &mut CellGrid, ramps: &[RampSpec], level: u32, geometry: &MapGeometry) {
+pub fn apply_to_level_cells(cells: &mut CellGrid, ramps: &[RampSpec], level: u32) {
     for ramp in ramps {
         if ramp.lower_level < level && level <= ramp.lower_level + ramp.levels {
             let below = u8::try_from(level - ramp.lower_level).unwrap_or(u8::MAX);
@@ -114,19 +114,8 @@ pub fn apply_to_level_cells(cells: &mut CellGrid, ramps: &[RampSpec], level: u32
         if ramp.lower_level != level {
             continue;
         }
-        let surface = ramp.to_ramp(geometry, CarrierId::WORLD);
         for (row, col) in ramp.footprint_cells() {
-            let cell = &mut cells.rows[row as usize][col as usize];
-            cell.has_ramp = true;
-            cell.ramp_levels = surface.levels;
-            cell.ramp_center_y = surface.surface_at(geometry.cell_center_x(col), geometry.cell_center_z(row));
-        }
-        let top = CellSide::from(ramp.direction);
-        for (row, col) in ramp.edge_cells(top) {
-            cells.rows[row as usize][col as usize].ramp_top = Some(top);
-        }
-        for (row, col) in ramp.edge_cells(top.opposite()) {
-            cells.rows[row as usize][col as usize].ramp_base = Some(top.opposite());
+            cells.rows[row as usize][col as usize].has_ramp = true;
         }
     }
 }

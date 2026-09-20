@@ -18,3 +18,4 @@ bevy = { workspace = true, features = ["bevy_core_pipeline"] }
 rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+rerecast = { version = "0.4", default-features = false, features = ["std"] }

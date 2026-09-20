@@ -24,5 +24,9 @@ pub(crate) type ActorMovementQuery<'w, 's> = Query<
         &'static mut ActorLanding,
         &'static ActorCharacter,
     ),
-    (With<ActorMarker>, Without<PlayerMarker>),
+    (
+        With<ActorMarker>,
+        Without<PlayerMarker>,
+        Without<crate::actors::SurfaceAgent>,
+    ),
 >;

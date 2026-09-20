@@ -1,13 +1,33 @@
-use super::{
-    character_move_plan_is_blocked,
-    context::{ActorMoveContext, SelectedActorMove},
-};
+use super::character_move_plan_is_blocked;
 use crate::actors::{ActorInfo, ActorMode};
-use bevy::prelude::Vec3;
-use common::{physics::CharacterMovePlan, protocol::ActorMoveIntent};
+use bevy::prelude::{Entity, Vec3};
+use common::{
+    config::CharacterPhysicsConfig,
+    map::Carriers,
+    physics::{CharacterMovePlan, CharacterMovementResult, CollisionWorld},
+    protocol::{ActorMoveIntent, FieldId, Position},
+};
+
+pub(super) struct FlightMoveContext<'a> {
+    pub(super) entity: Entity,
+    pub(super) pos: &'a Position,
+    pub(super) actor_physics: CharacterPhysicsConfig,
+    pub(super) delta: f32,
+    pub(super) collision_world: &'a CollisionWorld,
+    pub(super) planned_moves: &'a [CharacterMovePlan],
+    pub(super) actor_starts: &'a [(Entity, Position, CharacterPhysicsConfig)],
+    pub(super) open_fields: &'a [FieldId],
+    pub(super) knockback_step: Vec3,
+    pub(super) carriers: &'a Carriers,
+}
+
+pub(super) struct SelectedActorMove {
+    pub(super) intent: ActorMoveIntent,
+    pub(super) step: CharacterMovementResult,
+}
 
 pub(super) fn select_flying_move(
-    context: &ActorMoveContext<'_>,
+    context: &FlightMoveContext<'_>,
     info: &ActorInfo,
     roam_speed: f32,
     active_speed: f32,
@@ -43,14 +63,14 @@ pub(super) fn select_flying_move(
     evaluate(context, Vec3::ZERO).unwrap_or_else(|| flying_step(context, Vec3::ZERO))
 }
 
-fn evaluate(context: &ActorMoveContext<'_>, velocity: Vec3) -> Option<SelectedActorMove> {
+fn evaluate(context: &FlightMoveContext<'_>, velocity: Vec3) -> Option<SelectedActorMove> {
     let selected = flying_step(context, velocity);
     let plan =
         CharacterMovePlan::from_movement_result(context.entity, *context.pos, selected.step, context.actor_physics);
     (!character_move_plan_is_blocked(&plan, context.planned_moves, context.actor_starts)).then_some(selected)
 }
 
-fn flying_step(context: &ActorMoveContext<'_>, velocity: Vec3) -> SelectedActorMove {
+fn flying_step(context: &FlightMoveContext<'_>, velocity: Vec3) -> SelectedActorMove {
     let translation = velocity * context.delta + context.knockback_step;
     SelectedActorMove {
         intent: ActorMoveIntent::Flying {

@@ -53,54 +53,65 @@ fn red_barrier_plate() -> PressurePlateDef {
     }
 }
 
-fn assert_only_plate_barrier_allows_a_route(config: &MapConfig, carrier: CarrierId) {
+fn assert_plate_opens_surface_route(layout: &MapLayout, config: &MapConfig, carrier: CarrierId) {
     let grid = config.grid(carrier);
-    let nav = NavGraph::new(grid);
     let position = |col| Position {
         x: grid.geometry.cell_center_x(col),
-        y: grid.geometry.level_y(0),
+        y: 0.0,
         z: grid.geometry.cell_center_z(0),
     };
+    let kinds = three_kind_table();
+    let red = kinds.index_of("red").expect("red field");
     assert!(
-        nav.engagement_route(&[], &position(0), &position(1), 0.2, 0.2)
-            .is_some(),
-        "the red barrier's controlling plate must allow an actor route"
+        config
+            .pressure_plates
+            .iter()
+            .any(|plate| plate.switch == switch_id(&kinds, "red"))
+    );
+    let closed = surface_mesh(layout, config, carrier, &[]);
+    assert!(
+        closed.route(position(0), position(1), 1.0).is_err(),
+        "a closed barrier blocks the route"
+    );
+    let open = surface_mesh(layout, config, carrier, &[red]);
+    assert!(
+        open.route(position(0), position(1), 1.0).is_ok(),
+        "opening the field connects its surfaces"
     );
     assert!(
-        nav.engagement_route(&[], &position(1), &position(2), 0.2, 0.2)
-            .is_none(),
-        "the blue barrier has no controlling plate and must block actor routes"
+        open.route(position(1), position(2), 1.0).is_err(),
+        "the other field remains closed"
     );
 }
 
 #[test]
-fn a_nested_plate_allows_actor_routes_through_parent_barriers() {
+fn a_nested_plate_controls_the_field_blocking_parent_surface_routes() {
     let mut root = barrier_corridor();
     root.nested_maps.push(nested("switch", 0, [0, 1], [1, 1], 0));
     let mut switch = host(Vec::new());
     switch.pressure_plates.push(red_barrier_plate());
-    let (_, config) = compile_with(&root, &tree(vec![("switch", switch)]), &three_kind_table())
+    let (layout, config) = compile_with(&root, &tree(vec![("switch", switch)]), &three_kind_table())
         .expect("nested plate map failed to compile");
 
-    assert_only_plate_barrier_allows_a_route(&config, CarrierId::WORLD);
+    assert_plate_opens_surface_route(&layout, &config, CarrierId::WORLD);
 }
 
 #[test]
-fn a_parent_plate_allows_actor_routes_through_nested_barriers() {
+fn a_parent_plate_controls_the_field_blocking_nested_surface_routes() {
     let mut root = host(vec![nested("corridor", 0, [0, 1], [1, 1], 0)]);
     root.pressure_plates.push(red_barrier_plate());
-    let (_, config) = compile_with(
+    let (layout, config) = compile_with(
         &root,
         &tree(vec![("corridor", barrier_corridor())]),
         &three_kind_table(),
     )
     .expect("nested barrier map failed to compile");
 
-    assert_only_plate_barrier_allows_a_route(&config, CarrierId(1));
+    assert_plate_opens_surface_route(&layout, &config, CarrierId(1));
 }
 
 #[test]
-fn a_deeply_nested_plate_allows_actor_routes_through_a_siblings_barriers() {
+fn a_deeply_nested_plate_controls_a_siblings_surface_route_field() {
     let root = host(vec![
         nested("corridor", 0, [0, 1], [1, 1], 0),
         nested("middle", 0, [0, 3], [1, 3], 0),
@@ -108,7 +119,7 @@ fn a_deeply_nested_plate_allows_actor_routes_through_a_siblings_barriers() {
     let middle = host(vec![nested("switch", 0, [0, 1], [1, 1], 0)]);
     let mut switch = host(Vec::new());
     switch.pressure_plates.push(red_barrier_plate());
-    let (_, config) = compile_with(
+    let (layout, config) = compile_with(
         &root,
         &tree(vec![
             ("corridor", barrier_corridor()),
@@ -119,7 +130,7 @@ fn a_deeply_nested_plate_allows_actor_routes_through_a_siblings_barriers() {
     )
     .expect("deeply nested plate map failed to compile");
 
-    assert_only_plate_barrier_allows_a_route(&config, CarrierId(1));
+    assert_plate_opens_surface_route(&layout, &config, CarrierId(1));
 }
 
 #[test]
@@ -140,10 +151,6 @@ fn firework_plate_does_not_open_any_barrier_kind() {
     });
 
     let (layout, config) = compile_with(&map_def, &no_nested(), &three_kind_table()).expect("compile");
-    assert!(
-        config.root_grid().levels[0].barrier_edges.vertical[0][1],
-        "a firework plate opens no barrier kind for nav"
-    );
     let fireworks = switch_id(&three_kind_table(), FIREWORKS);
     assert_eq!(config.pressure_plates[0].switch, fireworks);
     assert_eq!(layout.pressure_plates[0].switch, fireworks);

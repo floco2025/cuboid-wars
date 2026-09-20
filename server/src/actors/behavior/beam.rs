@@ -1,4 +1,4 @@
-use super::transitions::BehaviorContext;
+use super::perception::PlayerState;
 use crate::{
     actors::{ActorInfo, ActorMode, BeamState, resources::AwarePlayer},
     config::{ActorBeamAttackConfig, ActorKindServerConfig},
@@ -18,19 +18,6 @@ pub(super) struct BeamContext<'a> {
     pub collision_world: &'a CollisionWorld,
     pub open_fields: &'a [FieldId],
 }
-impl<'a> From<&BehaviorContext<'a>> for BeamContext<'a> {
-    fn from(context: &BehaviorContext<'a>) -> Self {
-        Self {
-            tick: context.tick,
-            world_pos: context.world_pos,
-            kind_config: context.kind_config,
-            player_physics: context.player_physics,
-            collision_world: context.collision_world,
-            open_fields: context.open_fields,
-        }
-    }
-}
-
 pub(super) fn retarget_beam(info: &mut ActorInfo, context: &BeamContext<'_>) {
     let BeamState::Firing { target: current, .. } = info.beam else {
         return;
@@ -105,4 +92,49 @@ fn beam_attack(context: &BeamContext<'_>) -> ActorBeamAttackConfig {
         .attack
         .beam()
         .expect("beam attack config missing from beam controller")
+}
+
+pub(super) fn tick_beam_state(
+    info: &mut ActorInfo,
+    delta: f32,
+    kind_config: &ActorKindServerConfig,
+    players: &[PlayerState],
+) {
+    let mut ended = false;
+    match &mut info.beam {
+        BeamState::Ready => {}
+        BeamState::Cooldown { remaining_secs } => {
+            *remaining_secs = (*remaining_secs - delta).max(0.0);
+            if *remaining_secs <= 0.0 {
+                info.beam = BeamState::Ready;
+            }
+        }
+        BeamState::Firing {
+            target, remaining_secs, ..
+        } => {
+            *remaining_secs -= delta;
+            if let Some(player) = players.iter().find(|player| player.id == *target)
+                && matches!(info.mode, ActorMode::Engage { target: engaged, .. } if engaged == *target)
+            {
+                info.mode = ActorMode::Engage {
+                    target: *target,
+                    target_pos: player.pos,
+                };
+            }
+            ended |= *remaining_secs <= 0.0;
+        }
+    }
+    if ended {
+        let cooldown_secs = kind_config
+            .attack
+            .beam()
+            .expect("beam attack config missing from firing actor")
+            .cooldown_secs;
+        info.beam = BeamState::Cooldown {
+            remaining_secs: cooldown_secs,
+        };
+        // The controller decides what the cooldown looks like (zappers run
+        // for cover, contact-beam kinds keep attacking) on this same tick.
+        info.decision_timer = 0.0;
+    }
 }

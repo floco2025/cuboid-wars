@@ -1,9 +1,9 @@
-use super::{CellSide, FireworksConfig, ZoneVolume};
+use super::{FireworksConfig, ZoneVolume};
 use bevy::prelude::Resource;
 
 use common::{
     map::MapGeometry,
-    protocol::{CarrierId, FieldId, ItemType, MapItems, SwitchId, SwitchState},
+    protocol::{CarrierId, ItemType, MapItems, SwitchId, SwitchState},
 };
 
 // The selected map's fireworks switch and cooldown, `None` when no switch
@@ -11,24 +11,15 @@ use common::{
 #[derive(Resource, Clone, Debug)]
 pub struct MapFireworks(pub Option<FireworksConfig>);
 
-// Cell flags. A light bridge sets only `bridge`, the slab over the cell:
-// actor navigation walks it while switches power it, and item, spawn,
-// and air-graph cells ignore it. A ramp's slope lives on its lower level's
-// grid: `ramp_levels` is the storeys it rises, `ramp_base` and `ramp_top` the
-// cell sides its low and high edges run along. Every storey it passes or
-// arrives at carries `ramp_below`, the storeys down to that grid, 0 for none.
+// Compiled cell flags for spawning and item placement. Surface navigation
+// reads collision geometry and explicit inaccessible-floor exclusions.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Cell {
     pub has_ramp: bool,
-    pub ramp_center_y: f32,
-    pub ramp_levels: u8,
     pub ramp_below: u8,
     pub has_floor: bool,
     pub has_floor_slab: bool,
     pub has_floor_above: bool,
-    pub ramp_base: Option<CellSide>,
-    pub ramp_top: Option<CellSide>,
-    pub bridge: Option<FieldId>,
 }
 
 impl Cell {
@@ -97,14 +88,6 @@ pub struct LevelGrid {
     pub cells: CellGrid,
     // Wall edges: block movement and generate the visible wall geometry.
     pub edges: EdgeGrid,
-    // Barrier edges: block actor pathfinding only. Holds the barriers an actor
-    // can never pass — those that are on with no pressure plate to turn them
-    // off (actors can't carry keys). Pressure-plate barriers are omitted
-    // (treated as open): they seal a room with no alternate route, so assuming
-    // open lets a returning actor path home and physics holds it at the barrier
-    // until someone opens it. No geometry here; barriers render from their own
-    // carrier-local records.
-    pub barrier_edges: EdgeGrid,
 }
 
 pub use map_core::CheckpointResponse;

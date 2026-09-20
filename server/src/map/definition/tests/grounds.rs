@@ -1,7 +1,9 @@
 use super::*;
 use crate::map::definition::{
     compile_map,
-    tests::{cell_def, compile_settings, empty_kind_table, level, map_with_zones, no_nested, switch_table},
+    tests::{
+        cell_def, compile_settings, empty_kind_table, level, map_with_zones, no_nested, surface_mesh, switch_table,
+    },
 };
 use common::{
     physics::CollisionWorld,
@@ -31,7 +33,7 @@ fn grounds_fit_a_small_base_below_an_obby_style_elevated_course() {
         wall_thickness: 0.4,
     };
     settings.grounds = Some(GroundsSettings { level: 0 });
-    let (layout, config) =
+    let (layout, _) =
         compile_map(&map, 30, &settings, &no_nested(), &kinds, &switch_table(&kinds)).expect("small base compiles");
     let grounds = layout.grounds.as_ref().expect("grounds missing");
     for (x, z) in [(-200.2, -34.0), (-187.8, -34.0), (-194.0, -40.2), (-194.0, -27.8)] {
@@ -56,9 +58,24 @@ fn grounds_fit_a_small_base_below_an_obby_style_elevated_course() {
             .is_none()
     );
 
-    let mut graphs = crate::actors::navigation::NavGraphs::new(&config);
-    graphs.add_grounds(&layout);
-    let graph = graphs.get(CarrierId::WORLD);
+    // This case has a huge empty authoring grid; only the base-to-meadow
+    // connection under test belongs in this navigation region.
+    use crate::actors::{
+        navigation::surface::{SurfaceBounds, SurfaceMesh},
+        test_kinds,
+    };
+    let mesh = SurfaceMesh::bake_in(
+        &world.collision_meshes().expect("collision export"),
+        CarrierId::WORLD,
+        test_kinds::physics(test_kinds::CONTACT),
+        &[],
+        Some(SurfaceBounds {
+            min: bevy::math::Vec3::new(-205.0, -2.0, -45.0),
+            max: bevy::math::Vec3::new(-175.0, 4.0, -23.0),
+        }),
+        &[],
+    )
+    .expect("base navigation mesh");
     let pad = common::protocol::Position {
         x: -194.0,
         y: 0.0,
@@ -69,8 +86,8 @@ fn grounds_fit_a_small_base_below_an_obby_style_elevated_course() {
         y: 0.0,
         z: -34.0,
     };
-    assert!(graph.nearest_node_for_position(&meadow).is_some());
-    assert!(graph.engagement_route(&[], &pad, &meadow, 0.15, 0.15).is_some());
+    assert!(mesh.locate(meadow, 1.0).is_some());
+    assert!(mesh.route(pad, meadow, 1.0).is_ok());
 }
 
 #[test]
@@ -100,9 +117,7 @@ fn irregular_bases_compile_walkable_outdoor_gaps_without_filling_enclosed_voids(
     };
     let grounds = layout.grounds.as_ref().expect("grounds");
     let world = CollisionWorld::from_map_layout(&layout);
-    let mut graphs = crate::actors::navigation::NavGraphs::new(&config);
-    graphs.add_grounds(&layout);
-    let graph = graphs.get(CarrierId::WORLD);
+    let mesh = surface_mesh(&layout, &config, CarrierId::WORLD, &[]);
     let start = center(1, 1);
     for (col, row) in [(3, 7), (10, 5)] {
         let point = center(col, row);
@@ -111,11 +126,8 @@ fn irregular_bases_compile_walkable_outdoor_gaps_without_filling_enclosed_voids(
             .ground_surface_below(bevy::math::Vec3::new(point.x, 0.5, point.z), 1.0)
             .expect("ground in the outdoor gap");
         assert!(hit.point.y.abs() < 0.001);
-        let node = graph
-            .nearest_node_for_position(&point)
-            .expect("outdoor navigation cell");
-        assert_eq!((node.col, node.row, node.level), (col, row, 0));
-        assert!(graph.engagement_route(&[], &start, &point, 0.15, 0.15).is_some());
+        assert!(mesh.locate(point, 1.0).is_some(), "outdoor navigation surface");
+        assert!(mesh.route(start, point, 1.0).is_ok());
     }
     let enclosed = center(13, 5);
     assert!(grounds.is_inside_footprint(enclosed.x, enclosed.z));

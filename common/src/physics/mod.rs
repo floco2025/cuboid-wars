@@ -21,4 +21,7 @@ pub use portals::{
     traverse_point, traverse_rotation, traverse_vector, traverse_yaw,
 };
 pub use watchdog::ProgressWatchdog;
-pub use world::{CollisionWorld, LadderVolume, ShapeCastHit, WorldSurfaceHit, carriers_advance_system};
+pub use world::{
+    CollisionMesh, CollisionSource, CollisionWorld, LadderVolume, ShapeCastHit, WorldSurfaceHit,
+    carriers_advance_system,
+};

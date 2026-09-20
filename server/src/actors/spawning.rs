@@ -385,6 +385,9 @@ fn materialize_actor(
     if let Some(movement) = movement {
         commands.entity(entity).insert(movement);
     }
+    if !character.immovable && !character.flies() {
+        commands.entity(entity).insert(crate::actors::SurfaceAgent::default());
+    }
     let mut info = ActorInfo::new(entity, spawn.zone_idx, spawn.kind, spawn.carrier);
     info.flight = character.flies().then(Default::default);
     info.anchor = movement.is_none().then_some(ActorAnchor {

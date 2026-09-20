@@ -105,7 +105,6 @@ fn app(mode: PlayerRespawnMode) -> App {
         vec![LevelGrid {
             cells,
             edges: EdgeGrid::new(GRID_COLS, 1),
-            barrier_edges: EdgeGrid::new(GRID_COLS, 1),
         }],
     );
     app.add_systems(Update, players_checkpoints_system.in_set(ServerSet::Maintenance));

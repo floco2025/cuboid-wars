@@ -89,7 +89,6 @@ fn immovable_actor_holds_long_burst_and_stops_when_player_disconnects() {
         .resource::<ActorMap>()
         .get(&ActorId(1))
         .expect("actor missing");
-    assert!(actor.route.is_none());
     assert_eq!(actor.beam.target(), Some(PlayerId(7)));
     let mut targets = Vec::new();
     while let Ok(message) = receiver.try_recv() {

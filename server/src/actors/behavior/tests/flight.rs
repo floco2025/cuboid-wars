@@ -29,7 +29,6 @@ fn home(physics: CharacterPhysicsConfig, world: &CollisionWorld) -> AirHome {
         vec![LevelGrid {
             cells: CellGrid::new(2, 2),
             edges: EdgeGrid::new(2, 2),
-            barrier_edges: EdgeGrid::new(2, 2),
         }],
     );
     let zone = ActorSpawnZone {

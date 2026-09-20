@@ -3,11 +3,11 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     map::Carriers,
     physics::{CharacterMovePlan, CollisionWorld},
-    protocol::{ActorMarker, MapSettings, PlayerId, PlayerMarker, Position, SwitchState},
+    protocol::{ActorMarker, PlayerId, PlayerMarker, Position, SwitchState},
 };
 
 use crate::{
-    actors::{ActorMap, ActorMovementQuery, apply_actor_moves, navigation::ActorTerritories, plan_actor_moves},
+    actors::{ActorCharacter, ActorMap, ActorMovementQuery, SurfaceAgent, apply_actor_moves, plan_actor_moves},
     players::PlayerMap,
 };
 
@@ -18,13 +18,12 @@ pub fn characters_movement_system(
     time: Res<Time>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
-    map_settings: Res<MapSettings>,
     players: Res<PlayerMap>,
     switch_state: Res<SwitchState>,
     carriers: Res<Carriers>,
     actors: Res<ActorMap>,
-    territories: Res<ActorTerritories>,
     player_query: PlayerMovementQuery,
+    ground_query: Query<(Entity, &Position, &ActorCharacter), With<SurfaceAgent>>,
     mut actor_query: ActorMovementQuery,
 ) {
     let delta = time.delta_secs();
@@ -35,6 +34,11 @@ pub fn characters_movement_system(
             let info = actors.get(id)?;
             Some((entity, *pos, gameplay_config.expect_actor(&info.spawn_kind).physics()))
         })
+        .chain(
+            ground_query
+                .iter()
+                .map(|(entity, pos, character)| (entity, *pos, character.0.physics())),
+        )
         .collect();
 
     planned_moves.extend(player_query.iter().filter_map(|(entity, id, pos)| {
@@ -49,11 +53,9 @@ pub fn characters_movement_system(
     plan_actor_moves(
         delta,
         &collision_world,
-        &map_settings,
         &switch_state,
         &carriers,
         &actors,
-        &territories,
         &actor_starts,
         &mut actor_query,
         &mut planned_moves,

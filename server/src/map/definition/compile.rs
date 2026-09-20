@@ -1,5 +1,3 @@
-use std::{collections::HashSet, iter::once};
-
 use anyhow::{Context, ensure};
 use bevy::math::Vec3;
 
@@ -8,7 +6,7 @@ use crate::{map::MapConfig, schedule::ticks_from_secs};
 use common::{
     config::MapGeometryConfig,
     map::MapGeometry,
-    protocol::{Carrier, CarrierId, FieldDef, FieldTable, LightBridge, MapLayout, MapSettings, SwitchId, SwitchTable},
+    protocol::{Carrier, CarrierId, FieldTable, MapLayout, MapSettings, SwitchId, SwitchTable},
 };
 use map_core::{
     load::LoadedMaps,
@@ -36,18 +34,11 @@ pub(crate) fn compile_map(
             pressure_plates: Vec::new(),
         },
     };
-    let plated_switches: HashSet<&str> = once(root)
-        .chain(nested.values())
-        .flat_map(|map| &map.pressure_plates)
-        .map(|plate| plate.switch.as_str())
-        .collect();
     let scope = CompileScope {
         server_hz,
         sizes: settings.geometry,
         field_table,
-        fields: &settings.fields,
         switch_table,
-        plated_switches,
     };
     compile_tree(root, nested, &scope, CarrierId::WORLD, &mut out)?;
     if let Some(grounds) = &settings.grounds {
@@ -57,9 +48,6 @@ pub(crate) fn compile_map(
         );
         out.layout.grounds = Some(compile_grounds(&out.layout, grounds, settings.geometry));
     }
-    for bridge in &out.layout.light_bridges {
-        mark_bridge_cells(&mut out.config, bridge);
-    }
     // The renderer indexes the material vectors by segment position, so any
     // length divergence is a bug here, not in the client.
     assert_eq!(out.layout.walls.len(), out.layout.wall_materials.len());
@@ -68,62 +56,16 @@ pub(crate) fn compile_map(
     Ok((out.layout, out.config))
 }
 
-// Tags the cells whose centres a bridge slab covers with its id, in its
-// carrier's grid. A slab's padding never reaches a neighbouring centre.
-fn mark_bridge_cells(config: &mut MapConfig, bridge: &LightBridge) {
-    let grid = config
-        .grids
-        .iter_mut()
-        .find(|grid| grid.carrier == bridge.carrier)
-        .expect("bridge names a carrier with no grid");
-    let geometry = grid.geometry;
-    let level = grid
-        .levels
-        .get_mut(usize::from(bridge.level))
-        .expect("bridge level missing from its carrier's grid");
-    let (min_x, max_x, min_z, max_z) = bridge.bounds_xz();
-    for row in geometry.cell_row_containing_z(min_z)..=geometry.cell_row_containing_z(max_z) {
-        for col in geometry.cell_col_containing_x(min_x)..=geometry.cell_col_containing_x(max_x) {
-            if !(min_x..max_x).contains(&geometry.cell_center_x(col))
-                || !(min_z..max_z).contains(&geometry.cell_center_z(row))
-            {
-                continue;
-            }
-            let cell = usize::try_from(row)
-                .ok()
-                .zip(usize::try_from(col).ok())
-                .and_then(|(row, col)| level.cells.rows.get_mut(row)?.get_mut(col));
-            if let Some(cell) = cell {
-                cell.bridge = Some(bridge.field);
-            }
-        }
-    }
-}
-
 pub(super) struct CompileScope<'a> {
     server_hz: u32,
     pub(super) sizes: MapGeometryConfig,
     pub(super) field_table: &'a FieldTable,
     pub(super) switch_table: &'a SwitchTable,
-    pub(super) fields: &'a [FieldDef],
-    // Switches some plate in the tree operates: a field on any other stays as it starts.
-    pub(super) plated_switches: HashSet<&'a str>,
 }
 
 impl CompileScope<'_> {
     pub(super) fn target_switch(&self, switch: Option<&str>) -> anyhow::Result<Option<SwitchId>> {
         switch.map(|switch| self.switch_table.resolve(switch)).transpose()
-    }
-
-    // Whether the field stays on for good: it starts on, and no plate operates its switch.
-    pub(super) fn always_on(&self, field: &str) -> bool {
-        self.fields.iter().find(|def| def.id == field).is_none_or(|def| {
-            def.initially_on
-                && !def
-                    .switch
-                    .as_deref()
-                    .is_some_and(|switch| self.plated_switches.contains(switch))
-        })
     }
 }
 

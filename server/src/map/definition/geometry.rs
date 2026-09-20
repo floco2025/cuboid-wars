@@ -46,14 +46,7 @@ pub(super) fn compile_geometry(
         .collect();
 
     let pressure_plates = pressure_plates(map_def, scope, carrier)?;
-    let level_grids = compile_level_grids(
-        map_def,
-        scope,
-        &regular_floor_masks,
-        &slab_masks,
-        &ramp_specs,
-        &geometry,
-    );
+    let level_grids = compile_level_grids(map_def, &regular_floor_masks, &slab_masks, &ramp_specs);
     let (walls, wall_materials) = compile_walls(&level_grids, &geometry, &assets, carrier);
     let barriers = compile_barriers(map_def, scope, &slab_masks, &geometry, carrier)?;
     let (floors, floor_materials) = compile_floors(&level_grids, &slab_masks, &ramp_specs, &geometry, &assets, carrier);
@@ -146,11 +139,9 @@ fn floor_mask(map_def: &MapDef, level: &LevelDef, include_inaccessible: bool) ->
 
 fn compile_level_grids(
     map_def: &MapDef,
-    scope: &CompileScope,
     regular_floor_masks: &[Mask],
     slab_masks: &[Mask],
     ramp_specs: &[ramps::RampSpec],
-    geometry: &MapGeometry,
 ) -> Vec<LevelGrid> {
     let cols = map_def.grid_cols;
     let rows = map_def.grid_rows;
@@ -161,28 +152,21 @@ fn compile_level_grids(
         .map(|(level_idx, level)| {
             let mut cell_grid = CellGrid::new(cols, rows);
             let mut edge_grid = EdgeGrid::new(cols, rows);
-            let mut barrier_edge_grid = EdgeGrid::new(cols, rows);
             mark_has_floor(&mut cell_grid, &regular_floor_masks[level_idx]);
             mark_has_floor_slab(&mut cell_grid, &slab_masks[level_idx]);
             for wall in &level.walls {
                 set_edge(&mut edge_grid, [wall.c0, wall.r0, wall.c1, wall.r1]);
             }
-            for barrier in &level.barriers {
-                if scope.always_on(&barrier.field) {
-                    set_edge(&mut barrier_edge_grid, [barrier.c0, barrier.r0, barrier.c1, barrier.r1]);
-                }
-            }
             LevelGrid {
                 cells: cell_grid,
                 edges: edge_grid,
-                barrier_edges: barrier_edge_grid,
             }
         })
         .collect();
 
     for (level_idx, level_grid) in level_grids.iter_mut().enumerate() {
         let level_u32 = u32::try_from(level_idx).unwrap_or(u32::MAX);
-        ramps::apply_to_level_cells(&mut level_grid.cells, ramp_specs, level_u32, geometry);
+        ramps::apply_to_level_cells(&mut level_grid.cells, ramp_specs, level_u32);
     }
     for level_idx in 0..level_grids.len().saturating_sub(1) {
         mark_has_floor_above(&mut level_grids[level_idx].cells, &slab_masks[level_idx + 1]);

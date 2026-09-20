@@ -41,7 +41,6 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
         vec![LevelGrid {
             cells,
             edges: EdgeGrid::new(cols, 1),
-            barrier_edges: EdgeGrid::new(cols, 1),
         }],
         crate::test_geometry::geometry(cols, 1),
     );
@@ -395,7 +394,6 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
             vec![LevelGrid {
                 cells: CellGrid::new(1, 1),
                 edges: EdgeGrid::new(1, 1),
-                barrier_edges: EdgeGrid::new(1, 1),
             }],
             crate::test_geometry::geometry(1, 1),
         )

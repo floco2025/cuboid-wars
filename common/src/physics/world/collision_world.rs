@@ -32,7 +32,7 @@ pub struct CollisionWorld {
     pressure_plate_colliders: Vec<(SwitchId, ColliderHandle)>,
     // Each carrier's colliders with their carrier-local poses, in layout
     // order, and the same handles flat, for `set_carrier_poses`.
-    carrier_colliders: Vec<Vec<(ColliderHandle, Pose)>>,
+    pub(super) carrier_colliders: Vec<Vec<(ColliderHandle, Pose)>>,
     pub(super) bounds: WorldBounds,
     // Ladder and eraser volumes as built from the local records, and the
     // same posed into world space by `set_carrier_poses`, which is what

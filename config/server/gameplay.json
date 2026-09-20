@@ -1,7 +1,7 @@
 {
   "network": { "server_hz": 30, "update_hz": 30, "snapshot_hz": 4 },
   "default_map": "hotel",
-  "maps": ["hotel", "obby"],
+  "maps": ["hotel", "obby", "workshop"],
   "player": {
     "movement_collider": { "diameter": 0.6, "height": 1.8 },
     "hitbox": {
@@ -28,7 +28,7 @@
       "immovable": false,
       "locomotion": "ground",
       "vision_range": 60.0,
-      "threat_memory_secs": 1.0,
+      "threat_memory_secs": 5.0,
       "attack": { "type": "contact", "trigger_gap": 0.4 }
     },
     "bruiser": {
@@ -45,7 +45,7 @@
       "immovable": false,
       "locomotion": "ground",
       "vision_range": 60.0,
-      "threat_memory_secs": 1.0,
+      "threat_memory_secs": 5.0,
       "attack": { "type": "contact", "trigger_gap": 0.8 }
     },
     "zapper": {
@@ -62,7 +62,7 @@
       "immovable": false,
       "locomotion": "flying",
       "vision_range": 40.0,
-      "threat_memory_secs": 1.0,
+      "threat_memory_secs": 5.0,
       "attack": {
         "type": "beam",
         "range": 15.0,
@@ -84,7 +84,7 @@
       "immovable": true,
       "locomotion": "ground",
       "vision_range": 40.0,
-      "threat_memory_secs": 1.0,
+      "threat_memory_secs": 5.0,
       "attack": {
         "type": "beam",
         "range": 25.0,

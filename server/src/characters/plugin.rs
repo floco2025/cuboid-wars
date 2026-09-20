@@ -11,6 +11,9 @@ pub fn characters_plugin(app: &mut App) {
         (
             (
                 carriers_advance_system.before(characters_movement_system),
+                crate::actors::surface_actors_movement_system
+                    .after(carriers_advance_system)
+                    .before(characters_movement_system),
                 characters_movement_system,
                 contact_explosions_system.after(characters_movement_system),
                 knockback_decay_system::<With<ActorMarker>>.after(characters_movement_system),

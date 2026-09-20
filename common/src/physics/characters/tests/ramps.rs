@@ -104,3 +104,47 @@ fn capsule_cannot_step_sideways_onto_a_floor_above_step_height() {
     assert!(step.position.x > floor.x2, "climbed a high ledge: {step:?}");
     assert!(step.position.x < pos.x);
 }
+
+#[test]
+fn capsule_keeps_walking_from_level_ground_onto_a_shallow_terrain_slope() {
+    let layout = MapLayout {
+        grounds: Some(crate::map::Grounds::new(
+            [(-3.0, 3.0, -3.0, 3.0)],
+            0.0,
+            crate::map::GroundsSettings { level: 0 },
+        )),
+        ..Default::default()
+    };
+    let world = CollisionWorld::from_map_layout(&layout);
+    let mut physics = player_physics();
+    physics.movement_collider = crate::config::MovementColliderConfig {
+        diameter: 0.8,
+        height: 1.8,
+    };
+    let carriers = Carriers::default();
+    let env = test_environment(&world, &carriers, physics, LadderMode::Disabled);
+    let mut pos = Position {
+        x: 7.148134,
+        y: 0.0000009706552,
+        z: 1.3129995,
+    };
+    let mut vertical_velocity = 0.0;
+    for _ in 0..120 {
+        let result = step_character_movement(
+            CharacterStep {
+                start: pos,
+                vertical_velocity,
+                control_velocity: Vec3::new(1.6342_f32.sin() * 8.0, 0.0, 1.6342_f32.cos() * 8.0),
+                external_displacement: Vec3::ZERO,
+                delta: 1.0 / 30.0,
+            },
+            &env,
+        );
+        pos = result.position;
+        vertical_velocity = result.vertical_velocity;
+        if pos.x > 18.0 {
+            return;
+        }
+    }
+    panic!("stopped on a motor-walkable terrain slope: {pos:?}");
+}

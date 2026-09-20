@@ -321,7 +321,6 @@ fn collected_random_item_is_replaced_in_the_same_tick() {
         vec![LevelGrid {
             cells,
             edges: EdgeGrid::new(2, 1),
-            barrier_edges: EdgeGrid::new(2, 1),
         }],
         geometry,
     );

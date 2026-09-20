@@ -1,8 +1,5 @@
 use bevy::prelude::Entity;
-use common::{
-    map::Carriers,
-    protocol::{ActorId, Position},
-};
+use common::protocol::{ActorId, Position};
 
 use crate::actors::{ActorInfo, ActorMap};
 
@@ -15,27 +12,14 @@ pub(super) struct ActorPlanOrder {
     pub(super) id: ActorId,
 }
 
-// Routes are carrier-local, so each actor is measured in its carrier's
-// frame at the pose its position was resolved at (see `plan_actor_moves`).
-pub(super) fn sorted_actor_plan_order(
-    query: &ActorMovementQuery,
-    actors: &ActorMap,
-    carriers: &Carriers,
-) -> Vec<ActorPlanOrder> {
+pub(super) fn sorted_actor_plan_order(query: &ActorMovementQuery, actors: &ActorMap) -> Vec<ActorPlanOrder> {
     let mut order: Vec<ActorPlanOrder> = query
         .iter()
-        .map(|(entity, id, _, pos, _, _, _, _, _, _, _, character)| {
+        .map(|(entity, id, _, pos, _, _, _, _, _, _, _, _)| {
             let info = actors.get(id);
-            let local_pos = info.map_or(*pos, |info| {
-                if character.0.flies() {
-                    *pos
-                } else {
-                    carriers.previous_pose(info.carrier).inverse_transform_position(pos)
-                }
-            });
             ActorPlanOrder {
                 entity,
-                route_distance: actor_route_distance(&local_pos, info),
+                route_distance: actor_route_distance(pos, info),
                 id: *id,
             }
         })
@@ -68,17 +52,5 @@ pub(super) fn actor_route_distance(pos: &Position, info: Option<&ActorInfo>) -> 
             })
             .sum();
     }
-    let Some(route) = info
-        .and_then(|info| info.route.as_ref())
-        .filter(|route| !route.waypoints.is_empty())
-    else {
-        return f32::INFINITY;
-    };
-    let mut distance = 0.0;
-    let mut previous = *pos;
-    for waypoint in &route.waypoints {
-        distance += previous.distance_sq(&waypoint.position).sqrt();
-        previous = waypoint.position;
-    }
-    distance
+    f32::INFINITY
 }

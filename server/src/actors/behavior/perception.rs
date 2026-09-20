@@ -1,3 +1,5 @@
+pub(super) const AI_DECISION_INTERVAL_SECS: f32 = 0.1;
+
 use bevy::prelude::Vec3;
 use common::{
     config::CharacterPhysicsConfig,
@@ -84,7 +86,6 @@ pub(super) fn update_awareness(
         });
     }
 
-    info.ground.retain_targets(info.awareness.iter().map(|aware| aware.id));
     info.awareness.sort_by(|a, b| {
         actor_pos
             .distance_sq(&a.pos)

@@ -3,7 +3,7 @@ use crate::{
     map::{MapConfig, ZoneVolume},
 };
 use bevy::prelude::{Resource, Vec3};
-use common::{map::CarrierPose, protocol::CarrierId};
+use common::protocol::CarrierId;
 
 #[derive(Clone)]
 pub(crate) struct ActorTerritory {
@@ -14,6 +14,10 @@ pub(crate) struct ActorTerritory {
 }
 
 impl ActorTerritory {
+    pub(crate) fn contains_spawn_position(&self, point: Vec3) -> bool {
+        self.volume.contains(point + Vec3::Y * self.center_height, 0.0)
+    }
+
     pub(crate) fn contains_position(&self, point: Vec3) -> bool {
         self.volume
             .contains(point + Vec3::Y * self.center_height, self.distance)
@@ -21,20 +25,6 @@ impl ActorTerritory {
 
     pub(crate) fn path_contains(&self, from: Vec3, to: Vec3) -> bool {
         self.contains_position(from) && self.contains_position(to)
-    }
-
-    // The walk along the grid's axes from `point` to where the territory
-    // begins, zero inside it.
-    pub(crate) fn distance_outside(&self, point: Vec3) -> f32 {
-        self.volume
-            .axis_distance_outside(point + Vec3::Y * self.center_height, self.distance)
-    }
-
-    pub(crate) fn in_frame(&self, home: CarrierPose, frame: CarrierPose) -> Self {
-        let mut territory = self.clone();
-        territory.volume.min = frame.inverse_transform_point(home.transform_point(self.volume.min));
-        territory.volume.max = frame.inverse_transform_point(home.transform_point(self.volume.max));
-        territory
     }
 }
 

@@ -88,7 +88,6 @@ fn floor_level(cols: i32, rows: i32, floored: &[(i32, i32)]) -> LevelGrid {
     let mut level = LevelGrid {
         cells: CellGrid::new(cols, rows),
         edges: EdgeGrid::new(cols, rows),
-        barrier_edges: EdgeGrid::new(cols, rows),
     };
     for &(col, row) in floored {
         level.cells.rows[row as usize][col as usize].has_floor = true;

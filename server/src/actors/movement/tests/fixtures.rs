@@ -1,35 +1,24 @@
 pub(super) use common::protocol::CarrierId;
-use common::protocol::MapSettings;
 use std::sync::LazyLock;
 
 pub(super) use bevy::prelude::Entity;
 pub(super) use common::{
     config::CharacterPhysicsConfig,
     map::Carriers,
-    math::angle_delta_radians,
     physics::{CharacterMovePlan, CollisionWorld},
-    protocol::{ActorId, ActorMoveIntent, Floor, MapLayout, Position, Wall},
+    protocol::{ActorId, Position},
 };
 
-pub(super) use crate::{
-    actors::{
-        ActorInfo, ActorMode, ActorRoute, BeamState,
-        navigation::{NavNode, NavWaypoint},
-    },
-    test_geometry::{FLOOR_THICKNESS, WALL_HEIGHT, WALL_THICKNESS},
-};
+pub(super) use crate::actors::ActorInfo;
 
 pub(super) use super::super::{
-    context::{ActorMoveContext, blocked_step_made_useful_progress},
+    flight::FlightMoveContext,
     ordering::{ActorPlanOrder, actor_route_distance, sort_actor_plan_order},
-    planning::select_route_move,
-    steering::{ACTOR_TURN_RATE, ActorDesire, desired_move, direction_toward, steer},
 };
 
 pub(crate) const TEST_KIND: &str = crate::actors::test_kinds::BEAM;
 pub(crate) const TEST_DELTA: f32 = 0.1;
 static NO_CARRIERS: LazyLock<Carriers> = LazyLock::new(Carriers::default);
-static TEST_SETTINGS: LazyLock<MapSettings> = LazyLock::new(crate::test_geometry::map_settings);
 
 pub(crate) fn order(entity_bits: u64, route_distance: f32, id: u32) -> ActorPlanOrder {
     ActorPlanOrder {
@@ -43,68 +32,12 @@ pub(crate) fn actor_info() -> ActorInfo {
     ActorInfo::new(test_entity(1), 0, TEST_KIND.into(), CarrierId::WORLD)
 }
 
-pub(crate) fn route(target: Position) -> ActorRoute {
-    ActorRoute {
-        waypoints: [target].map(NavWaypoint::walk).into(),
-        destination: target,
-        destination_node: NavNode {
-            level: 0,
-            row: 0,
-            col: 0,
-        },
-    }
-}
-
 pub(crate) fn actor_physics() -> CharacterPhysicsConfig {
     crate::actors::test_kinds::physics(TEST_KIND)
 }
 
-pub(crate) fn actor_speed() -> f32 {
-    2.0
-}
-
-pub(crate) fn actor_blocker_distance() -> f32 {
-    let physics = actor_physics();
-    (physics.movement_collider.diameter) + actor_speed() * TEST_DELTA * 0.75
-}
-
 pub(crate) fn test_entity(index: u64) -> Entity {
     Entity::from_bits(index)
-}
-
-pub(crate) fn floor() -> Floor {
-    Floor {
-        x1: -4.0,
-        z1: -4.0,
-        x2: 4.0,
-        z2: 4.0,
-        y: 0.0,
-        thickness: FLOOR_THICKNESS,
-        level: 0,
-        carrier: CarrierId::WORLD,
-    }
-}
-
-pub(crate) fn wall() -> Wall {
-    Wall {
-        x1: 0.0,
-        z1: -2.0,
-        x2: 0.0,
-        z2: 2.0,
-        width: WALL_THICKNESS,
-        level: 0,
-        y: 0.0,
-        height: WALL_HEIGHT,
-        carrier: CarrierId::WORLD,
-    }
-}
-
-pub(crate) fn collision_world(walls: &[Wall]) -> CollisionWorld {
-    CollisionWorld::from_map_layout(&MapLayout {
-        walls: walls.to_vec(),
-        floors: vec![floor()],
-        ..Default::default()
-    })
 }
 
 pub(crate) fn context<'a>(
@@ -113,21 +46,17 @@ pub(crate) fn context<'a>(
     collision_world: &'a CollisionWorld,
     planned_moves: &'a [CharacterMovePlan],
     actor_starts: &'a [(Entity, Position, CharacterPhysicsConfig)],
-) -> ActorMoveContext<'a> {
-    ActorMoveContext {
-        can_use_ladders: false,
+) -> FlightMoveContext<'a> {
+    FlightMoveContext {
         entity,
         pos,
-        vertical_velocity: 0.0,
         actor_physics: actor_physics(),
         delta: TEST_DELTA,
         collision_world,
         planned_moves,
         actor_starts,
         open_fields: &[],
-        map_settings: &TEST_SETTINGS,
         knockback_step: bevy::prelude::Vec3::ZERO,
-        carrier_step: bevy::prelude::Vec3::ZERO,
         carriers: &NO_CARRIERS,
     }
 }

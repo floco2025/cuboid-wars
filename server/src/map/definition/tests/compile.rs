@@ -1,11 +1,12 @@
 use super::*;
 use crate::actors::{
-    navigation::{GroundNavigation, NavGraphs},
+    TraversalEnvironment, TraversalExecutor, TraversalStatus,
+    navigation::surface::SurfaceMesh,
     test_kinds::{self, CONTACT, CONTACT_BEAM},
 };
 use common::{
+    config::CharacterPhysicsConfig,
     constants::{CHARACTER_CONTACT_OFFSET, TICK_SECS},
-    physics::{CharacterEnvironment, CharacterStep, LadderMode, step_character_movement},
 };
 
 fn compile_terrain_map(map: &MapDef) -> anyhow::Result<(MapLayout, MapConfig)> {
@@ -50,7 +51,6 @@ fn compiled_ramps_support_actor_routes_and_movement_in_both_directions() {
             };
             assert!((edge - expected).abs() < 0.001, "{direction:?} over {levels}");
 
-            let graphs = NavGraphs::new(&config);
             let carriers = Carriers::from_layout(&layout);
             let world = CollisionWorld::from_map_layout(&layout);
             let bottom = Position {
@@ -65,15 +65,13 @@ fn compiled_ramps_support_actor_routes_and_movement_in_both_directions() {
             };
             for kind in [CONTACT, CONTACT_BEAM] {
                 let physics = test_kinds::physics(kind);
-                let navigation = GroundNavigation {
-                    graphs: &graphs,
-                    carriers: &carriers,
-                    carrier: CarrierId::WORLD,
-                    kind,
-                    world: &world,
+                let navigation = SurfaceMesh::bake(
+                    &world.collision_meshes().expect("collision export"),
+                    CarrierId::WORLD,
                     physics,
-                    open: &[],
-                };
+                    &[],
+                )
+                .expect("ramp mesh");
                 let slope = LEVEL_HEIGHT / (geometry.cell_size() * 2.0);
                 // Half-way up a two-storey ramp a body stands at the height of the storey it passes.
                 let middle = Position {
@@ -84,7 +82,7 @@ fn compiled_ramps_support_actor_routes_and_movement_in_both_directions() {
                     z: f32::midpoint(bottom.z, top.z),
                 };
                 for (start, target) in [(bottom, top), (top, bottom), (middle, top), (middle, bottom)] {
-                    walk_ramp_route(&navigation, start, target);
+                    walk_ramp_route(&navigation, &world, &carriers, physics, start, target);
                 }
             }
         }
@@ -127,56 +125,46 @@ fn a_plank_overhangs_its_cells_like_the_walkway_it_continues_except_along_a_wall
     assert!(close(footprint(RampShape::Solid, false), (0.0, 0.0)));
 }
 
-fn walk_ramp_route(navigation: &GroundNavigation<'_>, start: Position, target: Position) {
+fn walk_ramp_route(
+    mesh: &SurfaceMesh,
+    world: &CollisionWorld,
+    carriers: &Carriers,
+    physics: CharacterPhysicsConfig,
+    start: Position,
+    target: Position,
+) {
     let settings = map_settings();
-    let mut route = navigation
-        .route(
-            start,
-            |pos, _| (pos.distance_sq(&target) < 0.01).then_some(target),
-            |_, _| true,
-            100,
-            None,
-        )
-        .unwrap_or_else(|| panic!("ramp route missing: {start:?} -> {target:?}"));
-    assert!(navigation.join_route(start, &mut route, &|_, _| true));
-    let mut pos = start;
-    let mut vertical_velocity = 0.0;
+    let env = TraversalEnvironment {
+        world,
+        carriers,
+        settings: &settings,
+        open: &[],
+        delta: TICK_SECS,
+    };
+    let route = mesh
+        .route(start, target, 1.0)
+        .unwrap_or_else(|error| panic!("ramp route {start:?} -> {target:?}: {error:?}"));
+    let mut executor = TraversalExecutor::new(start, physics, 3.0, &env);
+    executor.set_route(route);
     for _ in 0..1200 {
-        while route.waypoints.front().is_some_and(|point| point.reached(&pos)) {
-            route.waypoints.pop_front();
-        }
-        let Some(point) = route.waypoints.front() else { break };
+        executor.step(&env);
         assert!(
-            navigation
-                .world
-                .character_ground_route_clear(pos, point.position, navigation.physics, &[]),
-            "ramp route rejected while moving: {pos:?} -> {point:?}"
+            !world.character_penetrates_solid(&executor.movement.position, physics, &[]),
+            "actor penetrates ramp: {executor:?}"
         );
-        let step = step_character_movement(
-            CharacterStep {
-                start: pos,
-                vertical_velocity,
-                control_velocity: point.movement_intent(&pos, 3.0, TICK_SECS).to_horizontal_velocity(),
-                external_displacement: Vec3::ZERO,
-                delta: TICK_SECS,
-            },
-            &CharacterEnvironment {
-                ladder_mode: LadderMode::Disabled,
-                collision_world: navigation.world,
-                gravity: settings.movement.gravity,
-                passable_fields: &[],
-                physics: navigation.physics,
-                ladder_climb_ratio: settings.movement.ladder_climb_ratio,
-                portals: None,
-                carriers: navigation.carriers,
-            },
-        );
-        assert!(!step.crushed, "actor crushed on ramp: {step:?}");
-        pos = step.position;
-        vertical_velocity = step.vertical_velocity;
+        if executor.status == TraversalStatus::Reached {
+            break;
+        }
     }
-    assert!(route.waypoints.is_empty(), "actor stuck on ramp at {pos:?}");
-    assert!(pos.distance_sq(&target) < 0.5, "actor missed ramp landing: {pos:?}");
+    assert_eq!(
+        executor.status,
+        TraversalStatus::Reached,
+        "actor stuck on ramp: {executor:?}"
+    );
+    assert!(
+        executor.movement.position.distance_sq(&target) < 0.5,
+        "actor missed ramp landing: {executor:?}"
+    );
 }
 
 #[test]
@@ -261,41 +249,6 @@ fn a_floor_beside_the_upper_barrier_keeps_the_storeys_apart() {
     let (layout, _) = compile_with(&map_def, &no_nested(), &red_only_kind_table()).expect("compile");
     assert_eq!(layout.barriers.len(), 2);
     assert!(layout.barriers.iter().all(|barrier| barrier.levels == 1));
-}
-
-#[test]
-fn pressure_plate_barrier_is_open_for_pathfinding() {
-    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-    // Vertical edge between cols 0 and 1 → `vertical[0][1]`; kind "red" has a plate.
-    map_def.levels[0].barriers.push(BarrierDef {
-        c0: 1,
-        r0: 0,
-        c1: 1,
-        r1: 1,
-        field: "red".into(),
-    });
-    // Vertical edge between cols 1 and 2 → `vertical[0][2]`; kind "blue" has none.
-    map_def.levels[0].barriers.push(BarrierDef {
-        c0: 2,
-        r0: 0,
-        c1: 2,
-        r1: 1,
-        field: "blue".into(),
-    });
-    map_def.pressure_plates.push(PressurePlateDef {
-        level: 0,
-        col: 0,
-        row: 0,
-        switch: "red".into(),
-    });
-
-    let (_, config) = compile_with(&map_def, &no_nested(), &three_kind_table()).expect("compile");
-    let barrier_edges = &config.root_grid().levels[0].barrier_edges;
-    assert!(
-        !barrier_edges.vertical[0][1],
-        "pressure-plate (red) barrier must be treated as open for nav"
-    );
-    assert!(barrier_edges.vertical[0][2], "non-plate (blue) barrier must block nav");
 }
 
 #[test]
@@ -454,13 +407,6 @@ fn compile_merges_light_bridge_cells_into_one_rectangle() {
     assert!((max_x - (geometry.cell_to_world_x(3) + pad)).abs() < 1e-4);
     assert!((min_z - (geometry.cell_to_world_z(0) - pad)).abs() < 1e-4);
     assert!((max_z - (geometry.cell_to_world_z(2) + pad)).abs() < 1e-4);
-    let cells = &config.root_grid().levels[0].cells.rows;
-    for (row, cells) in cells.iter().enumerate() {
-        for (col, cell) in cells.iter().enumerate() {
-            let covered = (1..3).contains(&col) && (0..2).contains(&row);
-            assert_eq!(cell.bridge, covered.then_some(bridge.field), "cell ({col}, {row})");
-        }
-    }
 }
 
 #[test]

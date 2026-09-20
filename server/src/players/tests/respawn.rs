@@ -40,7 +40,6 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
         vec![LevelGrid {
             cells,
             edges: EdgeGrid::new(6, 1),
-            barrier_edges: EdgeGrid::new(6, 1),
         }],
         geometry,
     );

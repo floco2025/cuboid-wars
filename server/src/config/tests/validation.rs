@@ -43,7 +43,6 @@ fn immovable_zones_are_not_limited_by_floor_capacity() {
         vec![LevelGrid {
             cells,
             edges: EdgeGrid::new(4, 1),
-            barrier_edges: EdgeGrid::new(4, 1),
         }],
     ));
     map.actor_spawn_zones.push(ActorSpawnZone {
