@@ -129,34 +129,6 @@ fn ordinary_surface_actor_pursues_under_an_authored_plank_and_respawns() {
 }
 
 #[test]
-fn workshop_loads_through_the_normal_map_registry_and_spawner() {
-    let options = ServerAppOptions {
-        map: Some("workshop".into()),
-        god: true,
-        peace: true,
-        initial_spawn: None,
-        checkpoint: None,
-        logging: false,
-        network: NetworkOverrides::default(),
-    };
-    let mut app = build_server_app(options, None, None).expect("workshop launch");
-    let (client, _receiver) = connect(&mut app);
-    client
-        .send(ClientMessage::Login(CLogin {
-            name: "Observer".into(),
-        }))
-        .expect("login");
-    app.update();
-    let actors = app.world().resource::<ActorMap>();
-    assert!(actors.iter().next().is_some());
-    assert!(
-        actors
-            .values()
-            .all(|info| app.world().get::<SurfaceAgent>(info.entity).is_some())
-    );
-}
-
-#[test]
 fn hotel_and_obby_run_surface_actors_through_normal_switches_and_replication() {
     use std::time::Instant;
 

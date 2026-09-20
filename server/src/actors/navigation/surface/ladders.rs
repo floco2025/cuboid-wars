@@ -2,10 +2,11 @@ use bevy::math::Vec3;
 use common::{
     config::CharacterPhysicsConfig,
     constants::{LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, LADDER_VOLUME_DEPTH},
-    protocol::{Ladder, Position},
+    physics::CollisionMesh,
+    protocol::{FieldId, Ladder, Position},
 };
 
-use super::{ROUTE_SEARCH_VISITS, SurfaceLocation, SurfaceMesh, TraversalAction};
+use super::{SurfaceLocation, SurfaceMesh, TraversalAction};
 
 #[derive(Clone)]
 pub(super) struct SurfaceLink {
@@ -15,7 +16,13 @@ pub(super) struct SurfaceLink {
 }
 
 impl SurfaceMesh {
-    pub(super) fn add_ladders(&mut self, ladders: &[Ladder], physics: CharacterPhysicsConfig) {
+    pub(super) fn add_ladders(
+        &mut self,
+        ladders: &[Ladder],
+        physics: CharacterPhysicsConfig,
+        geometry: &[CollisionMesh],
+        open: &[FieldId],
+    ) {
         let standoff = physics.movement_collider.radius() + LADDER_STANDOFF_CLEARANCE;
         if standoff >= LADDER_VOLUME_DEPTH {
             return;
@@ -57,10 +64,23 @@ impl SurfaceMesh {
                     if landings.iter().any(|old| old.polygon == landing.polygon) {
                         continue;
                     }
-                    // Only the front is a ladder. A landing behind its foot serves where a
-                    // body walks straight through the rail plane to the mount, which a wall
-                    // standing in that plane prevents.
-                    if !top && side < 0.0 && !self.walks_straight(landing, rail.with_y(height)) {
+                    // The ladder can support a mount over an edge, but a wall
+                    // between the rear landing and front mount must still block it.
+                    if !top
+                        && side < 0.0
+                        && geometry
+                            .iter()
+                            .filter(|mesh| {
+                                mesh.carrier == self.carrier && mesh.field.is_none_or(|field| !open.contains(&field))
+                            })
+                            .any(|mesh| {
+                                !mesh.character_path_clear(
+                                    landing.position,
+                                    rail.with_y(landing.position.y).into(),
+                                    physics,
+                                )
+                            })
+                    {
                         continue;
                     }
                     landings.push(landing);
@@ -109,13 +129,6 @@ impl SurfaceMesh {
             }
         }
         self.update_components();
-    }
-
-    fn walks_straight(&self, from: SurfaceLocation, to: Vec3) -> bool {
-        self.locate(to.into(), 0.3).is_some_and(|to| {
-            let mut visits = ROUTE_SEARCH_VISITS;
-            self.direct_walk(from, to, &mut visits) == Ok(true)
-        })
     }
 }
 

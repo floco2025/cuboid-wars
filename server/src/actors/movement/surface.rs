@@ -104,6 +104,8 @@ impl RoutePlanner<'_> {
                 > GOAL_TOLERANCE.powi(2);
         let retry = agent.retry_secs <= 0.0 && (agent.failure.is_some() || interrupted || short);
         if !(stale || moved || retry) {
+            // A deferred retry whose cause cleared by itself requests nothing more.
+            agent.pending = false;
             return;
         }
         if self.budget == 0 {

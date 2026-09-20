@@ -143,7 +143,7 @@ impl SurfaceNavigation {
                         key.carrier, physics.movement_collider.diameter, physics.movement_collider.height
                     )
                 })?;
-                mesh.add_ladders(&layout.ladders, physics);
+                mesh.add_ladders(&layout.ladders, physics, &geometry, &fields);
                 meshes.insert(
                     key,
                     BakedSurface {

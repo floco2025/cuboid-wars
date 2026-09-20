@@ -1,5 +1,6 @@
 use common::protocol::{CarrierId, Position};
 
+// In the parent's frame, so a moving parent never leaves a dock stale.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CarrierDock {
     pub parent: CarrierId,

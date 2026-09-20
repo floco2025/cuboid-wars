@@ -1,7 +1,7 @@
 {
   "network": { "server_hz": 30, "update_hz": 30, "snapshot_hz": 4 },
   "default_map": "hotel",
-  "maps": ["hotel", "obby", "workshop"],
+  "maps": ["hotel", "obby"],
   "player": {
     "movement_collider": { "diameter": 0.6, "height": 1.8 },
     "hitbox": {

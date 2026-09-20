@@ -77,6 +77,6 @@ fn bake(job: &BakeRequest) -> Result<SurfaceMesh> {
         Some(job.bounds),
         &job.excluded,
     )?;
-    mesh.add_ladders(&job.ladders, job.physics);
+    mesh.add_ladders(&job.ladders, job.physics, &job.geometry, &job.open);
     Ok(mesh)
 }

@@ -6,11 +6,25 @@ use crate::actors::{
 use common::{
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{CarrierId, Floor, MapLayout},
+    protocol::{Barrier, CarrierId, Floor, MapLayout},
 };
 
 #[test]
 fn surface_routes_climb_and_descend_a_ladder_with_the_real_motor() {
+    assert_ladder_traversal(false, None);
+}
+
+#[test]
+fn rear_landings_mount_over_a_floor_edge_in_both_directions() {
+    assert_ladder_traversal(true, None);
+}
+
+#[test]
+fn a_rear_ladder_mount_opens_when_its_barrier_is_disabled() {
+    assert_ladder_traversal(true, Some(FieldId(0)));
+}
+
+fn assert_ladder_traversal(lower_behind: bool, barrier: Option<FieldId>) {
     let config = fixtures::config();
     let physics = config.expect_actor("scuttler").character.physics();
     let floor = |x1, x2, y| Floor {
@@ -24,7 +38,30 @@ fn surface_routes_climb_and_descend_a_ladder_with_the_real_motor() {
         carrier: CarrierId::WORLD,
     };
     let layout = MapLayout {
-        floors: vec![floor(0.0, 5.0, 0.0), floor(-5.0, 0.0, 3.0)],
+        floors: vec![
+            if lower_behind {
+                floor(-5.0, 0.0, 0.0)
+            } else {
+                floor(0.0, 5.0, 0.0)
+            },
+            floor(-5.0, 0.0, 3.0),
+        ],
+        barriers: barrier
+            .into_iter()
+            .map(|field| Barrier {
+                x1: -0.15,
+                x2: -0.15,
+                z1: -3.0,
+                z2: 3.0,
+                width: 0.3,
+                y: 0.0,
+                height: 2.8,
+                level: 0,
+                levels: 2,
+                field,
+                carrier: CarrierId::WORLD,
+            })
+            .collect(),
         ladders: vec![Ladder {
             x1: 0.0,
             x2: 0.0,
@@ -41,15 +78,15 @@ fn surface_routes_climb_and_descend_a_ladder_with_the_real_motor() {
         ..Default::default()
     };
     let world = CollisionWorld::from_map_layout(&layout);
-    let mut mesh = SurfaceMesh::bake(
-        &world.collision_meshes().expect("geometry"),
-        CarrierId::WORLD,
-        physics,
-        &[],
-    )
-    .expect("mesh");
-    mesh.add_ladders(&layout.ladders, physics);
-    let lower = Position { x: 2.0, y: 0.0, z: 0.0 };
+    let geometry = world.collision_meshes().expect("geometry");
+    let open: Vec<_> = barrier.into_iter().collect();
+    let mut mesh = SurfaceMesh::bake(&geometry, CarrierId::WORLD, physics, &open).expect("mesh");
+    mesh.add_ladders(&layout.ladders, physics, &geometry, &open);
+    let lower = Position {
+        x: if lower_behind { -2.0 } else { 2.0 },
+        y: 0.0,
+        z: 0.0,
+    };
     let upper = Position {
         x: -2.0,
         y: 3.0,
@@ -59,12 +96,22 @@ fn surface_routes_climb_and_descend_a_ladder_with_the_real_motor() {
         mesh.route(lower, upper, 0.7).expect_err("body cannot climb").clone(),
         RouteFailure::Disconnected
     );
+    if barrier.is_some() {
+        let mut closed = SurfaceMesh::bake(&geometry, CarrierId::WORLD, physics, &[]).expect("closed mesh");
+        closed.add_ladders(&layout.ladders, physics, &geometry, &[]);
+        assert_eq!(
+            closed
+                .route_for(lower, upper, 0.7, 4096, true)
+                .expect_err("enabled barrier blocks the mount"),
+            RouteFailure::Disconnected,
+        );
+    }
     let carriers = Carriers::default();
     let env = TraversalEnvironment {
         world: &world,
         carriers: &carriers,
         settings: &config.settings,
-        open: &[],
+        open: &open,
         delta: 1.0 / 30.0,
     };
     for (start, goal) in [(lower, upper), (upper, lower)] {
@@ -81,7 +128,7 @@ fn surface_routes_climb_and_descend_a_ladder_with_the_real_motor() {
         for _ in 0..600 {
             executor.step(&env);
             climbed |= matches!(executor.movement.support, common::physics::CharacterSupport::Ladder);
-            assert!(!world.character_penetrates_solid(&executor.movement.position, physics, &[]));
+            assert!(!world.character_penetrates_solid(&executor.movement.position, physics, &open));
             if executor.status == TraversalStatus::Reached {
                 break;
             }
@@ -145,7 +192,12 @@ fn a_wall_in_the_rail_plane_keeps_the_room_behind_it_off_the_ladder() {
         &[],
     )
     .expect("mesh");
-    mesh.add_ladders(&layout.ladders, physics);
+    mesh.add_ladders(
+        &layout.ladders,
+        physics,
+        &world.collision_meshes().expect("geometry"),
+        &[],
+    );
     let upper = Position {
         x: -2.0,
         y: 3.0,
