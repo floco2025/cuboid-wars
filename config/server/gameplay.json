@@ -61,7 +61,7 @@
       "can_use_ladders": false,
       "immovable": false,
       "locomotion": "flying",
-      "vision_range": 40.0,
+      "vision_range": 60.0,
       "threat_memory_secs": 5.0,
       "attack": {
         "type": "beam",
