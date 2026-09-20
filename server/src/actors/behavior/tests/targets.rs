@@ -7,6 +7,8 @@ fn occluded_player_keeps_last_seen_state_without_refresh() {
     let player = PlayerState {
         id: PlayerId(7),
         pos: fixture.pos(3, 2),
+        carrier: CarrierId::WORLD,
+        carrier_pos: fixture.pos(3, 2),
         support: CharacterSupport::Ground,
     };
     let mut info = info(CONTACT);
@@ -41,6 +43,7 @@ fn occluded_player_keeps_last_seen_state_without_refresh() {
     });
     let moved_player = PlayerState {
         pos: fixture.pos(4, 2),
+        carrier_pos: fixture.pos(4, 2),
         support: CharacterSupport::Ladder,
         ..player
     };
@@ -97,6 +100,8 @@ fn beam_actor_sees_a_player_through_a_barrier_but_waits_for_a_clear_attack() {
         &[PlayerState {
             id: PlayerId(7),
             pos: target,
+            carrier: CarrierId::WORLD,
+            carrier_pos: target,
             support: CharacterSupport::Ground,
         }],
         &fixture.collision_world,

@@ -57,6 +57,8 @@ fn aware(pos: Position) -> AwarePlayer {
     AwarePlayer {
         id: PlayerId(1),
         pos,
+        carrier: CarrierId::WORLD,
+        carrier_pos: pos,
         visible: true,
         support: CharacterSupport::Airborne,
         forget_remaining_secs: 1.0,

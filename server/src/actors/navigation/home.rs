@@ -55,3 +55,16 @@ impl ActorTerritories {
             .expect("actor spawn zone missing from territories")
     }
 }
+
+// The Halton sequence's digit reversal: low-discrepancy sample fractions for
+// spreading probes through a home volume.
+pub(crate) fn radical_inverse(mut index: usize, base: usize) -> f32 {
+    let mut value = 0.0;
+    let mut fraction = 1.0 / base as f32;
+    while index > 0 {
+        value += (index % base) as f32 * fraction;
+        index /= base;
+        fraction /= base as f32;
+    }
+    value
+}

@@ -1,3 +1,5 @@
+use std::f32::consts::TAU;
+
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
@@ -11,14 +13,14 @@ use common::{
 use super::{
     beam::{BeamContext, find_beam_target, retarget_beam, start_beam, tick_beam_state},
     geometry::{covered, threat_distance_sq},
-    home::{return_goal, sample_fraction},
+    home::return_goal,
     perception::{AI_DECISION_INTERVAL_SECS, decay_awareness, player_states, update_awareness},
     pursuit::pursuit_surface,
 };
 use crate::{
     actors::{
-        ActorCharacter, ActorMap, ActorMode, SurfaceAgent, SurfaceGoal,
-        navigation::{ActorTerritories, surface::SurfaceNavigation},
+        ActorCharacter, ActorMap, ActorMode, BeamState, SurfaceAgent, SurfaceGoal, TraversalExecutor,
+        navigation::{ActorTerritories, radical_inverse, surface::SurfaceNavigation},
     },
     config::{ActorAttackConfig, ServerGameplayConfig},
     network::broadcast_to_all,
@@ -90,13 +92,7 @@ pub(crate) fn surface_actors_behavior_system(
             continue;
         }
         agent.decision_secs = AI_DECISION_INTERVAL_SECS;
-        if agent.executor.as_ref().is_some_and(|executor| {
-            executor.actions.front().is_some_and(|action| action.committed())
-                && !matches!(
-                    executor.status,
-                    crate::actors::TraversalStatus::Blocked | crate::actors::TraversalStatus::LostSupport
-                )
-        }) {
+        if agent.executor.as_ref().is_some_and(TraversalExecutor::committed) {
             continue;
         }
         let pose = carriers.pose(info.carrier);
@@ -110,8 +106,8 @@ pub(crate) fn surface_actors_behavior_system(
                 agent.goal = None;
                 continue;
             }
-            let beam_cooling = matches!(kind.attack, ActorAttackConfig::Beam(_))
-                && matches!(info.beam, crate::actors::BeamState::Cooldown { .. });
+            let beam_cooling =
+                matches!(kind.attack, ActorAttackConfig::Beam(_)) && matches!(info.beam, BeamState::Cooldown { .. });
             let mut pending = None;
             let mut airborne = None;
             let reachable = if beam_cooling {
@@ -121,8 +117,8 @@ pub(crate) fn surface_actors_behavior_system(
                     if target.support == CharacterSupport::Airborne {
                         airborne.get_or_insert(*target);
                     }
-                    let carrier = players.get(&target.id)?.life.movement.carrier;
-                    let goal = pursuit_surface(target, carrier, &collision, &carriers, &switches.open_fields)?;
+                    let goal = pursuit_surface(target, &collision, &carriers, &switches.open_fields)?;
+                    let goal = navigation.pursuit_goal(goal, character.0.physics());
                     let goal = navigation.approach_goal(
                         from,
                         goal,
@@ -182,7 +178,7 @@ pub(crate) fn surface_actors_behavior_system(
                 if let (Some(mesh), Some(start)) = (mesh, start) {
                     for radius in [4.0, 10.0] {
                         for step in 0..12 {
-                            let angle = step as f32 * std::f32::consts::TAU / 12.0;
+                            let angle = step as f32 * TAU / 12.0;
                             let sample = Vec3::from(start.position) + Vec3::new(angle.sin(), 0.0, angle.cos()) * radius;
                             let Some(candidate) = mesh.locate(sample.into(), 1.5) else {
                                 continue;
@@ -265,9 +261,9 @@ pub(crate) fn surface_actors_behavior_system(
                 agent.roam_index = agent.roam_index.wrapping_add(1);
                 let index = agent.roam_index.wrapping_add(id.0 as usize * 17);
                 let fraction = Vec3::new(
-                    sample_fraction(index, 2),
-                    sample_fraction(index, 5),
-                    sample_fraction(index, 3),
+                    radical_inverse(index, 2),
+                    radical_inverse(index, 5),
+                    radical_inverse(index, 3),
                 );
                 let min = home.volume.min - Vec3::splat(home.distance);
                 let max = home.volume.max + Vec3::splat(home.distance);

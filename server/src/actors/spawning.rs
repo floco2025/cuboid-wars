@@ -5,7 +5,7 @@ use std::f32::consts::TAU;
 use crate::{
     actors::{
         ActorCharacter, ActorCrushed, ActorInfo, ActorLanding, ActorMap, ActorSpawner, PendingActorSpawn,
-        PendingActorSpawns,
+        PendingActorSpawns, SurfaceAgent,
     },
     characters::{generate_flying_spawn_position, generate_ground_actor_spawn_position},
     config::{ActorRespawnScope, ServerGameplayConfig},
@@ -386,7 +386,7 @@ fn materialize_actor(
         commands.entity(entity).insert(movement);
     }
     if !character.immovable && !character.flies() {
-        commands.entity(entity).insert(crate::actors::SurfaceAgent::default());
+        commands.entity(entity).insert(SurfaceAgent::default());
     }
     let mut info = ActorInfo::new(entity, spawn.zone_idx, spawn.kind, spawn.carrier);
     info.flight = character.flies().then(Default::default);

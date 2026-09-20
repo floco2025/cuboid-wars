@@ -66,8 +66,12 @@ impl CollisionWorld {
                     Some(ColliderKind::Wall) => CollisionSource::Wall(index),
                     Some(ColliderKind::Floor) => CollisionSource::Floor(index),
                     Some(ColliderKind::Ramp) => CollisionSource::Ramp(index),
-                    Some(ColliderKind::Barrier) => CollisionSource::Barrier(field.expect("barrier field")),
-                    Some(ColliderKind::Bridge) => CollisionSource::Bridge(field.expect("bridge field")),
+                    Some(ColliderKind::Barrier) => {
+                        CollisionSource::Barrier(field.expect("field missing from barrier collider"))
+                    }
+                    Some(ColliderKind::Bridge) => {
+                        CollisionSource::Bridge(field.expect("field missing from bridge collider"))
+                    }
                     Some(ColliderKind::Grounds) => CollisionSource::Grounds,
                     Some(ColliderKind::Decoration) => CollisionSource::Decoration,
                     Some(ColliderKind::PressurePlate) => CollisionSource::PressurePlate,

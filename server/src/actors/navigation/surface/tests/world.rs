@@ -52,6 +52,12 @@ fn authored_surfaces_keep_headroom_permissions_and_rebuild_only_for_relevant_cha
         .expect("unrelated field");
     assert_eq!(navigation.mesh(CarrierId::WORLD, small).expect("same mesh").1, before);
     navigation.refresh(&world, &[FieldId(0)], &[]).expect("bridge off");
+    navigation
+        .mesh(CarrierId::WORLD, small)
+        .expect("previous mesh serves during the rebake")
+        .0
+        .route(start, goal, 0.7)
+        .expect("previous mesh");
     settle(&mut navigation, &world, &[FieldId(0)]);
     let (mesh, after) = navigation.mesh(CarrierId::WORLD, small).expect("updated mesh");
     assert_ne!(before, after);
@@ -73,6 +79,10 @@ fn authored_surfaces_keep_headroom_permissions_and_rebuild_only_for_relevant_cha
     navigation
         .refresh(&world, &[], &[])
         .expect("bridge changed while baking");
+    assert!(
+        navigation.meshes.values().all(|entry| !entry.dirty),
+        "returning to the state a mesh was baked for queued another bake"
+    );
     settle(&mut navigation, &world, &[]);
     navigation
         .mesh(CarrierId::WORLD, small)

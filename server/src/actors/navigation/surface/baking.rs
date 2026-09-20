@@ -1,6 +1,9 @@
-use std::sync::Arc;
+use std::{
+    panic::{AssertUnwindSafe, catch_unwind},
+    sync::Arc,
+};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use common::{
     config::CharacterPhysicsConfig,
     physics::CollisionMesh,
@@ -33,18 +36,10 @@ impl BakeWorker {
             .name("surface-baking".into())
             .spawn(move || {
                 while let Ok(job) = jobs.recv() {
-                    let result = SurfaceMesh::bake_in(
-                        &job.geometry,
-                        job.carrier,
-                        job.physics,
-                        &job.open,
-                        Some(job.bounds),
-                        &job.excluded,
-                    )
-                    .map(|mut mesh| {
-                        mesh.add_ladders(&job.ladders, job.physics);
-                        mesh
-                    });
+                    // A panic on degenerate geometry is one failed bake; the
+                    // worker has to outlive it to serve the next request.
+                    let result = catch_unwind(AssertUnwindSafe(|| bake(&job)))
+                        .unwrap_or_else(|_| Err(anyhow!("navigation bake panicked")));
                     if results.send(result).is_err() {
                         break;
                     }
@@ -58,11 +53,30 @@ impl BakeWorker {
         self.input.try_send(request).context("scheduling navigation bake")
     }
 
-    pub fn poll(&self) -> Result<Option<Result<SurfaceMesh>>> {
+    pub fn poll(&self) -> BakeStatus {
         match self.output.try_recv() {
-            Ok(mesh) => Ok(Some(mesh)),
-            Err(TryRecvError::Empty) => Ok(None),
-            Err(TryRecvError::Disconnected) => anyhow::bail!("navigation bake worker stopped"),
+            Ok(mesh) => BakeStatus::Finished(Box::new(mesh)),
+            Err(TryRecvError::Empty) => BakeStatus::Running,
+            Err(TryRecvError::Disconnected) => BakeStatus::Stopped,
         }
     }
+}
+
+pub(super) enum BakeStatus {
+    Running,
+    Finished(Box<Result<SurfaceMesh>>),
+    Stopped,
+}
+
+fn bake(job: &BakeRequest) -> Result<SurfaceMesh> {
+    let mut mesh = SurfaceMesh::bake_in(
+        &job.geometry,
+        job.carrier,
+        job.physics,
+        &job.open,
+        Some(job.bounds),
+        &job.excluded,
+    )?;
+    mesh.add_ladders(&job.ladders, job.physics);
+    Ok(mesh)
 }

@@ -238,6 +238,5 @@ impl Switches {
 }
 
 pub(crate) fn switch_state_sync_system(switches: Res<Switches>, mut state: ResMut<SwitchState>) {
-    // Navigation's bridge sync reacts to changes, so equal states must not wake it.
-    state.set_if_neq(switches.state());
+    *state = switches.state();
 }

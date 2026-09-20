@@ -3,7 +3,7 @@ use common::{physics::carriers_advance_system, protocol::ActorMarker};
 
 use super::contact_explosions::contact_explosions_system;
 use super::*;
-use crate::schedule::ServerSet;
+use crate::{actors::surface_actors_movement_system, schedule::ServerSet};
 
 pub fn characters_plugin(app: &mut App) {
     app.add_systems(
@@ -11,7 +11,7 @@ pub fn characters_plugin(app: &mut App) {
         (
             (
                 carriers_advance_system.before(characters_movement_system),
-                crate::actors::surface_actors_movement_system
+                surface_actors_movement_system
                     .after(carriers_advance_system)
                     .before(characters_movement_system),
                 characters_movement_system,

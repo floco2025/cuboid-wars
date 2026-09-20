@@ -79,12 +79,16 @@ impl TraversalExecutor {
         self.stalled_secs = 0.0;
     }
 
-    pub fn step(&mut self, env: &TraversalEnvironment) {
-        self.step_with_external(env, Vec3::ZERO);
+    // A ladder, a boarding, or a ride runs to its end through ordinary goal
+    // changes; only a failed one is open to replanning.
+    pub(crate) fn committed(&self) -> bool {
+        self.actions.front().is_some_and(|action| action.committed())
+            && !matches!(self.status, TraversalStatus::Blocked | TraversalStatus::LostSupport)
     }
 
-    pub fn step_with_external(&mut self, env: &TraversalEnvironment, external_displacement: Vec3) {
-        self.step_with_avoidance(env, external_displacement, Vec3::ZERO, false);
+    #[cfg(test)]
+    pub fn step(&mut self, env: &TraversalEnvironment) {
+        self.step_with_avoidance(env, Vec3::ZERO, Vec3::ZERO, false);
     }
 
     pub(crate) fn step_with_avoidance(
@@ -231,7 +235,7 @@ impl TraversalExecutor {
                 // Keep turning toward safe ground even when the current
                 // heading would step off a ledge.
                 intent = ActorMoveIntent::Moving {
-                    direction: movement.direction().expect("walking direction"),
+                    direction: movement.direction().expect("direction missing from walking intent"),
                     speed: 0.0,
                 };
             } else {
@@ -285,18 +289,13 @@ fn slope_clearance(physics: CharacterPhysicsConfig) -> f32 {
 
 fn supported_at(env: &TraversalEnvironment, point: Vec3, physics: CharacterPhysicsConfig) -> bool {
     let rise = CHARACTER_STEP_HEIGHT + 0.05;
-    std::iter::once(CarrierId::WORLD)
-        .chain(env.carriers.carried_ids())
-        .any(|carrier| {
-            env.world
-                .support_surface_on_carrier(
-                    point + Vec3::Y * rise,
-                    rise + CHARACTER_GROUND_SNAP_DISTANCE + slope_clearance(physics),
-                    carrier,
-                    env.open,
-                )
-                .is_some_and(|hit| hit.normal.y >= CHARACTER_MAX_SLOPE.cos())
-        })
+    env.world
+        .support_surface(
+            point + Vec3::Y * rise,
+            rise + CHARACTER_GROUND_SNAP_DISTANCE + slope_clearance(physics),
+            env.open,
+        )
+        .is_some_and(|hit| hit.normal.y >= CHARACTER_MAX_SLOPE.cos())
 }
 
 fn at_dock(carriers: &Carriers, carrier: CarrierId, dock: CarrierDock) -> bool {

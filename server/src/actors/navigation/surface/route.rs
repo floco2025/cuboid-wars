@@ -7,9 +7,8 @@ use common::protocol::Position;
 
 use super::{SurfaceLocation, SurfaceMesh, TraversalAction};
 
-#[cfg(test)]
-#[path = "tests/route.rs"]
-mod tests;
+// The most search, visibility, and funnel visits one route may spend.
+pub(crate) const ROUTE_SEARCH_VISITS: usize = 4096;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RouteFailure {
@@ -60,15 +59,17 @@ impl Ord for Frontier {
 }
 
 impl SurfaceMesh {
+    #[cfg(test)]
     pub fn route(
         &self,
         start: Position,
         goal: Position,
         projection_distance: f32,
     ) -> Result<SurfaceRoute, RouteFailure> {
-        self.route_for(start, goal, projection_distance, 4096, false)
+        self.route_for(start, goal, projection_distance, ROUTE_SEARCH_VISITS, false)
     }
 
+    #[cfg(test)]
     pub fn route_with_limit(
         &self,
         start: Position,
@@ -114,7 +115,7 @@ impl SurfaceMesh {
         let mut costs = vec![f32::INFINITY; self.polygon_count()];
         let mut parents = vec![None; self.polygon_count()];
         costs[start.polygon] = 0.0;
-        let end_center = self.candidate(end.polygon).expect("goal polygon");
+        let end_center = self.center(end.polygon);
         let mut queue = BinaryHeap::from([Frontier {
             polygon: start.polygon,
             cost: 0.0,
@@ -128,7 +129,7 @@ impl SurfaceMesh {
             if polygon == end.polygon {
                 break;
             }
-            let center = self.candidate(polygon).expect("route polygon");
+            let center = self.center(polygon);
             let mut visit = |next: usize, transition: Transition, distance: f32| {
                 let next_cost = cost + distance;
                 if next_cost >= costs[next] {
@@ -136,12 +137,7 @@ impl SurfaceMesh {
                 }
                 costs[next] = next_cost;
                 parents[next] = Some((polygon, transition));
-                let estimate = next_cost
-                    + self
-                        .candidate(next)
-                        .expect("neighbor polygon")
-                        .distance_sq(&end_center)
-                        .sqrt();
+                let estimate = next_cost + self.center(next).distance_sq(&end_center).sqrt();
                 queue.push(Frontier {
                     polygon: next,
                     cost: next_cost,
@@ -153,7 +149,7 @@ impl SurfaceMesh {
                     visit(
                         next,
                         Transition::Walk(edge),
-                        center.distance_sq(&self.candidate(next).expect("neighbor")).sqrt(),
+                        center.distance_sq(&self.center(next)).sqrt(),
                     );
                 }
             }
@@ -161,11 +157,7 @@ impl SurfaceMesh {
                 for (index, link) in self.links[polygon].iter().enumerate() {
                     let distance = center.distance_sq(&link.from.position).sqrt()
                         + link.from.position.distance_sq(&link.to.position).sqrt()
-                        + link
-                            .to
-                            .position
-                            .distance_sq(&self.candidate(link.to.polygon).expect("ladder exit"))
-                            .sqrt();
+                        + link.to.position.distance_sq(&self.center(link.to.polygon)).sqrt();
                     visit(link.to.polygon, Transition::Ladder(index), distance);
                 }
             }
@@ -176,7 +168,7 @@ impl SurfaceMesh {
         let mut segments = Vec::new();
         let mut cursor = end.polygon;
         while cursor != start.polygon {
-            let (previous, transition) = parents[cursor].expect("route parent missing");
+            let (previous, transition) = parents[cursor].expect("parent missing from a reached route polygon");
             segments.push((previous, transition));
             cursor = previous;
         }
@@ -237,3 +229,7 @@ impl SurfaceMesh {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "tests/route.rs"]
+mod tests;

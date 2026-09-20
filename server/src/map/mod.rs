@@ -36,5 +36,6 @@ pub use resources::{
     ActorSpawnZone, CarrierGrid, Cell, CellGrid, CheckpointResponse, EdgeGrid, LevelGrid, MapConfig, MapFireworks,
     PlacedItem, PressurePlateRuntime,
 };
+pub(crate) use switches::Switches;
 pub use volume::ZoneVolume;
 pub use weather::{WeatherState, weather_system};

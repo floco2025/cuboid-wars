@@ -5,7 +5,7 @@ use common::{
     protocol::{Ladder, Position},
 };
 
-use super::{SurfaceLocation, SurfaceMesh, TraversalAction};
+use super::{ROUTE_SEARCH_VISITS, SurfaceLocation, SurfaceMesh, TraversalAction};
 
 #[derive(Clone)]
 pub(super) struct SurfaceLink {
@@ -13,10 +13,6 @@ pub(super) struct SurfaceLink {
     pub to: SurfaceLocation,
     pub actions: Vec<TraversalAction>,
 }
-
-#[cfg(test)]
-#[path = "tests/ladders.rs"]
-mod tests;
 
 impl SurfaceMesh {
     pub(super) fn add_ladders(&mut self, ladders: &[Ladder], physics: CharacterPhysicsConfig) {
@@ -33,7 +29,7 @@ impl SurfaceMesh {
             let middle = Vec3::new((ladder.x1 + ladder.x2) / 2.0, ladder.y, (ladder.z1 + ladder.z2) / 2.0);
             let rail = middle + normal * (LADDER_RAIL_INSET + standoff);
             let mut landings: Vec<SurfaceLocation> = Vec::new();
-            for height in [ladder.y, ladder.y + ladder.height] {
+            for (top, height) in [(false, ladder.y), (true, ladder.y + ladder.height)] {
                 for side in [-1.0, 1.0] {
                     let probe = (middle + normal * side * (physics.movement_collider.radius() + 0.4)).with_y(height);
                     let landing = self
@@ -55,11 +51,19 @@ impl SurfaceMesh {
                                 .distance_squared(probe)
                                 .total_cmp(&Vec3::from(b.position).distance_squared(probe))
                         });
-                    if let Some(landing) = landing
-                        && !landings.iter().any(|old| old.polygon == landing.polygon)
-                    {
-                        landings.push(landing);
+                    let Some(landing) = landing else {
+                        continue;
+                    };
+                    if landings.iter().any(|old| old.polygon == landing.polygon) {
+                        continue;
                     }
+                    // Only the front is a ladder. A landing behind its foot serves where a
+                    // body walks straight through the rail plane to the mount, which a wall
+                    // standing in that plane prevents.
+                    if !top && side < 0.0 && !self.walks_straight(landing, rail.with_y(height)) {
+                        continue;
+                    }
+                    landings.push(landing);
                 }
             }
             for &from in &landings {
@@ -106,4 +110,15 @@ impl SurfaceMesh {
         }
         self.update_components();
     }
+
+    fn walks_straight(&self, from: SurfaceLocation, to: Vec3) -> bool {
+        self.locate(to.into(), 0.3).is_some_and(|to| {
+            let mut visits = ROUTE_SEARCH_VISITS;
+            self.direct_walk(from, to, &mut visits) == Ok(true)
+        })
+    }
 }
+
+#[cfg(test)]
+#[path = "tests/ladders.rs"]
+mod tests;

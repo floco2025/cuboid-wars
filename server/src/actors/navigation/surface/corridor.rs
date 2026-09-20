@@ -60,7 +60,7 @@ impl SurfaceMesh {
         let point = |index| SurfaceLocation {
             carrier: self.carrier,
             polygon,
-            position: self.project(polygon, vertices[index]).expect("portal height").into(),
+            position: self.project(polygon, vertices[index]).unwrap_or(vertices[index]).into(),
         };
         let a = point(edge);
         let b = point((edge + 1) % vertices.len());
@@ -88,12 +88,12 @@ impl SurfaceMesh {
         let points = corners.unwrap_or_else(|| {
             portals
                 .iter()
-                .map(|&[left, right]| SurfaceLocation {
-                    position: self
-                        .project(left.polygon, Vec3::from(left.position).midpoint(right.position.into()))
-                        .expect("portal midpoint")
-                        .into(),
-                    ..left
+                .map(|&[left, right]| {
+                    let midpoint = Vec3::from(left.position).midpoint(right.position.into());
+                    SurfaceLocation {
+                        position: self.project(left.polygon, midpoint).unwrap_or(midpoint).into(),
+                        ..left
+                    }
                 })
                 .chain(std::iter::once(goal))
                 .collect()

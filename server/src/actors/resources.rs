@@ -101,6 +101,10 @@ impl BeamState {
 pub(crate) struct AwarePlayer {
     pub(crate) id: PlayerId,
     pub(crate) pos: Position,
+    // Where the player stood when last seen, in that carrier's frame, so a
+    // remembered sighting rides with its platform.
+    pub(crate) carrier: CarrierId,
+    pub(crate) carrier_pos: Position,
     pub(crate) support: CharacterSupport,
     pub(crate) visible: bool,
     pub(crate) forget_remaining_secs: f32,

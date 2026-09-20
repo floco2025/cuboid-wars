@@ -110,6 +110,8 @@ pub(crate) fn aware(
     crate::actors::resources::AwarePlayer {
         id: PlayerId(id),
         pos,
+        carrier: CarrierId::WORLD,
+        carrier_pos: pos,
         support,
         visible,
         forget_remaining_secs: 10.0,

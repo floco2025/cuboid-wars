@@ -6,7 +6,7 @@ use common::{
 
 use crate::actors::{
     SurfaceGoal,
-    navigation::{ActorTerritory, surface::SurfaceNavigation},
+    navigation::{ActorTerritory, radical_inverse, surface::SurfaceNavigation},
 };
 
 pub(super) fn return_goal(
@@ -28,9 +28,9 @@ pub(super) fn return_goal(
         } else {
             *sample_index = sample_index.wrapping_add(1);
             Vec3::new(
-                sample_fraction(*sample_index, 2),
-                sample_fraction(*sample_index, 5),
-                sample_fraction(*sample_index, 3),
+                radical_inverse(*sample_index, 2),
+                radical_inverse(*sample_index, 5),
+                radical_inverse(*sample_index, 3),
             )
         };
         // A zone describes a volume, whose center may be between storeys.
@@ -71,15 +71,4 @@ pub(super) fn return_goal(
         }
     }
     None
-}
-
-pub(super) fn sample_fraction(mut index: usize, base: usize) -> f32 {
-    let mut value = 0.0;
-    let mut scale = 1.0;
-    while index > 0 {
-        scale /= base as f32;
-        value += (index % base) as f32 * scale;
-        index /= base;
-    }
-    value
 }

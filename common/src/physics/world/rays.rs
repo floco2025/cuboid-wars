@@ -23,6 +23,10 @@ pub struct WorldSurfaceHit {
 }
 
 impl CollisionWorld {
+    pub fn support_surface(&self, origin: Vec3, max_distance: f32, passable: &[FieldId]) -> Option<WorldSurfaceHit> {
+        self.support_surface_where(origin, max_distance, None, passable)
+    }
+
     pub fn support_surface_on_carrier(
         &self,
         origin: Vec3,
@@ -30,12 +34,23 @@ impl CollisionWorld {
         carrier: CarrierId,
         passable: &[FieldId],
     ) -> Option<WorldSurfaceHit> {
+        self.support_surface_where(origin, max_distance, Some(carrier), passable)
+    }
+
+    fn support_surface_where(
+        &self,
+        origin: Vec3,
+        max_distance: f32,
+        carrier: Option<CarrierId>,
+        passable: &[FieldId],
+    ) -> Option<WorldSurfaceHit> {
         if !origin.is_finite() || !max_distance.is_finite() || max_distance <= 0.0 {
             return None;
         }
         let ray = Ray::new(to_rapier(origin), to_rapier(Vec3::NEG_Y));
         let allow = |_: ColliderHandle, collider: &Collider| {
-            ColliderKind::carrier_from_user_data(collider.user_data) == carrier && field_blocks(collider, passable)
+            carrier.is_none_or(|carrier| ColliderKind::carrier_from_user_data(collider.user_data) == carrier)
+                && field_blocks(collider, passable)
         };
         let mut filter = query_filter(character_collision_groups());
         filter.predicate = Some(&allow);
@@ -46,7 +61,7 @@ impl CollisionWorld {
         (normal.y > 0.1).then_some(WorldSurfaceHit {
             point: origin + Vec3::NEG_Y * hit.time_of_impact,
             normal,
-            carrier,
+            carrier: self.carrier_of(collider),
             collider,
         })
     }

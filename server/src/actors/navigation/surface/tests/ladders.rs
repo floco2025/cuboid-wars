@@ -94,3 +94,78 @@ fn surface_routes_climb_and_descend_a_ladder_with_the_real_motor() {
         );
     }
 }
+
+#[test]
+fn a_wall_in_the_rail_plane_keeps_the_room_behind_it_off_the_ladder() {
+    let config = fixtures::config();
+    let physics = config.expect_actor("scuttler").character.physics();
+    let floor = |x1, x2, y| Floor {
+        x1,
+        x2,
+        z1: -3.0,
+        z2: 3.0,
+        y,
+        thickness: 0.2,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    };
+    let layout = MapLayout {
+        floors: vec![floor(-5.0, 5.0, 0.0), floor(-5.0, 0.0, 3.0)],
+        walls: vec![common::protocol::Wall {
+            x1: -0.15,
+            z1: -3.0,
+            x2: -0.15,
+            z2: 3.0,
+            width: 0.3,
+            y: 0.0,
+            height: 2.8,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        ladders: vec![Ladder {
+            x1: 0.0,
+            x2: 0.0,
+            z1: -0.6,
+            z2: 0.6,
+            nx: 1.0,
+            nz: 0.0,
+            y: 0.0,
+            height: 3.0,
+            level: 0,
+            levels: 2,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    };
+    let world = CollisionWorld::from_map_layout(&layout);
+    let mut mesh = SurfaceMesh::bake(
+        &world.collision_meshes().expect("geometry"),
+        CarrierId::WORLD,
+        physics,
+        &[],
+    )
+    .expect("mesh");
+    mesh.add_ladders(&layout.ladders, physics);
+    let upper = Position {
+        x: -2.0,
+        y: 3.0,
+        z: 0.0,
+    };
+    mesh.route_for(Position { x: 2.0, y: 0.0, z: 0.0 }, upper, 0.7, 4096, true)
+        .expect("front of the ladder");
+    assert_eq!(
+        mesh.route_for(
+            Position {
+                x: -2.0,
+                y: 0.0,
+                z: 0.0
+            },
+            upper,
+            0.7,
+            4096,
+            true
+        )
+        .expect_err("walled-off room reached the ladder"),
+        RouteFailure::Disconnected
+    );
+}

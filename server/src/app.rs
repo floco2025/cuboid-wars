@@ -12,7 +12,7 @@ use crate::{
     combat::{PendingExplosions, combat_plugin},
     config::{FallDamageConfigs, GameplayCatalog, ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
-    map::{GeneratedMap, MapFireworks, WeatherState, generate_map, map_plugin},
+    map::{GeneratedMap, MapFireworks, Switches, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
     network::{ClientLinks, Listener, LocalLink, network_plugin, register_local},
     players::{Invincibility, LoginStart, PlayerMap, checkpoint_numbered, players_plugin},
@@ -28,8 +28,7 @@ use common::{
     map::Carriers,
     physics::CollisionWorld,
     protocol::{
-        MapBootstrap, MapSettings, MissileAirGrid, Position, ServerTick, SwitchState, WorldBootstrap,
-        server_tick_advance_system,
+        MapBootstrap, MapSettings, MissileAirGrid, Position, ServerTick, WorldBootstrap, server_tick_advance_system,
     },
 };
 
@@ -136,18 +135,20 @@ fn build_server_app_with_loader(
     let quest_catalog = QuestCatalog::from_quests(&server_gameplay_config.quests);
     let quest_board = QuestBoard::from_catalog(&quest_catalog, fireworks_switch);
     collision_world.set_locked_pressure_plates(quest_board.locked_switches());
+    let switches = Switches::new(
+        &map_settings,
+        &switch_table,
+        &map_layout,
+        fireworks.as_ref(),
+        server_gameplay_config.network.server_hz,
+    );
+    let switch_state = switches.state();
     let surface_navigation = SurfaceNavigation::build(
         &map_config,
         &map_layout,
         &server_gameplay_config,
         &collision_world,
-        &map_settings
-            .fields
-            .iter()
-            .enumerate()
-            .filter(|(_, field)| !field.initially_on)
-            .map(|(index, _)| common::protocol::FieldId(index as u16))
-            .collect::<Vec<_>>(),
+        &switch_state.open_fields,
         quest_board.locked_switches(),
     )?;
     let actor_territories = ActorTerritories::new(&map_config, &server_gameplay_config);
@@ -247,7 +248,8 @@ fn build_server_app_with_loader(
         .insert_resource(MissileMap::default())
         .insert_resource(PortalMap::default())
         .insert_resource(portal_assignments)
-        .insert_resource(SwitchState::default());
+        .insert_resource(switches)
+        .insert_resource(switch_state);
 
     configure_server_schedule(&mut app);
     app.add_systems(Update, server_tick_advance_system.in_set(ServerSet::Prepare));

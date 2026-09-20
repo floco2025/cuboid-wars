@@ -1,11 +1,14 @@
+use std::f32::consts::SQRT_2;
+
 use super::{
-    SurfaceBounds, SurfaceMesh, SurfaceNavigation,
+    SurfaceBounds, SurfaceLocation, SurfaceMesh, SurfaceNavigation,
     world::{BakedSurface, MeshKey, SurfaceRegion, fields_in},
 };
 use crate::actors::SurfaceGoal;
 use bevy::prelude::*;
 use common::{
     config::CharacterPhysicsConfig,
+    map::Carriers,
     physics::CollisionWorld,
     protocol::{CarrierId, FieldId, Position},
 };
@@ -18,6 +21,10 @@ fn window_size(physics: CharacterPhysicsConfig) -> f32 {
     128.0_f32.min(SurfaceMesh::voxel_size(physics).0 * 1800.0)
 }
 const WINDOW_LIMIT: usize = 32;
+// Ticks a window goes unused before it may be evicted. Its users touch it
+// once per decision, several ticks apart, so a shorter idle time would evict
+// windows that actors are walking on.
+const WINDOW_IDLE_TICKS: u64 = 60;
 
 impl SurfaceBounds {
     fn clearance(self, point: Position) -> f32 {
@@ -58,7 +65,7 @@ impl SurfaceNavigation {
         to: SurfaceGoal,
         physics: CharacterPhysicsConfig,
         ladders: bool,
-    ) -> Option<&SurfaceMesh> {
+    ) -> Option<(&SurfaceMesh, SurfaceLocation, SurfaceLocation)> {
         if from.carrier != to.carrier {
             return None;
         }
@@ -69,7 +76,27 @@ impl SurfaceNavigation {
                 let mesh = entry.mesh.as_ref()?;
                 let start = mesh.locate(from.position, 1.0)?;
                 let goal = mesh.locate(to.position, 0.7)?;
-                mesh.connected(start, goal, ladders).then_some(mesh)
+                mesh.connected(start, goal, ladders).then_some((mesh, start, goal))
+            })
+    }
+
+    // A body's mesh stops its radius short of every wall, so a target in a
+    // corner stands up to √2 radii from the nearest point the body can
+    // occupy. Pursue that point: a contact or a beam reaches from there.
+    pub(crate) fn pursuit_goal(&self, target: SurfaceGoal, physics: CharacterPhysicsConfig) -> SurfaceGoal {
+        let reach = physics.movement_collider.radius() * SQRT_2;
+        self.meshes
+            .iter()
+            .filter(|(key, _)| key.matches(target.carrier, physics))
+            .filter_map(|(_, entry)| entry.mesh.as_ref()?.locate(target.position, reach))
+            .min_by(|a, b| {
+                a.position
+                    .distance_sq(&target.position)
+                    .total_cmp(&b.position.distance_sq(&target.position))
+            })
+            .map_or(target, |nearest| SurfaceGoal {
+                carrier: target.carrier,
+                position: nearest.position,
             })
     }
 
@@ -172,7 +199,7 @@ impl SurfaceNavigation {
                 .iter()
                 .filter(|(key, entry)| {
                     key.window.is_some()
-                        && entry.last_used + 2 < self.clock
+                        && entry.last_used + WINDOW_IDLE_TICKS < self.clock
                         && self.running.is_none_or(|(running, _)| running != **key)
                 })
                 .min_by_key(|(_, entry)| entry.last_used)
@@ -188,6 +215,7 @@ impl SurfaceNavigation {
                 physics,
                 region: SurfaceRegion { bounds, excluded },
                 mesh: None,
+                baked: None,
                 revision: 1,
                 open,
                 dirty: true,
@@ -206,7 +234,7 @@ impl SurfaceNavigation {
         physics: CharacterPhysicsConfig,
         ladders: bool,
         world: &CollisionWorld,
-        carriers: &common::map::Carriers,
+        carriers: &Carriers,
         open: &[FieldId],
     ) -> SurfaceGoal {
         let authored_coverage = self.mesh(from.carrier, physics).is_some_and(|(mesh, _)| {
@@ -266,3 +294,7 @@ impl SurfaceNavigation {
             })
     }
 }
+
+#[cfg(test)]
+#[path = "tests/regions.rs"]
+mod tests;

@@ -48,6 +48,7 @@ impl SurfaceMesh {
         (cell_size, cell_height)
     }
 
+    #[cfg(test)]
     pub fn bake(
         geometry: &[CollisionMesh],
         carrier: CarrierId,
@@ -245,10 +246,9 @@ impl SurfaceMesh {
             .iter()
             .enumerate()
             .map(|(index, polygon)| {
-                result
-                    .project(index, polygon.iter().copied().sum::<Vec3>() / polygon.len() as f32)
-                    .expect("polygon center height")
-                    .into()
+                // A polygon the detail mesh left without triangles keeps its flat center.
+                let center = polygon.iter().copied().sum::<Vec3>() / polygon.len() as f32;
+                result.project(index, center).unwrap_or(center).into()
             })
             .collect();
         for (index, polygon) in result.polygons.iter().enumerate() {
@@ -267,6 +267,11 @@ impl SurfaceMesh {
         self.polygons.len()
     }
 
+    pub(super) fn center(&self, polygon: usize) -> Position {
+        self.centers[polygon]
+    }
+
+    #[cfg(test)]
     pub(crate) fn candidate(&self, index: usize) -> Option<Position> {
         self.centers.get(index % self.centers.len().max(1)).copied()
     }
@@ -329,10 +334,6 @@ fn lookup_cell(coordinate: f32) -> i32 {
     (coordinate / LOOKUP_CELL_SIZE).floor() as i32
 }
 
-#[cfg(test)]
-#[path = "tests/terrain.rs"]
-mod terrain_tests;
-
 pub(super) fn closest_on_polygon(vertices: &[Vec3], point: Vec3) -> Option<Vec3> {
     let &origin = vertices.first()?;
     for pair in vertices[1..].windows(2) {
@@ -361,3 +362,7 @@ pub(super) fn closest_on_polygon(vertices: &[Vec3], point: Vec3) -> Option<Vec3>
         })
         .min_by(|a, b| a.distance_squared(point).total_cmp(&b.distance_squared(point)))
 }
+
+#[cfg(test)]
+#[path = "tests/mesh.rs"]
+mod tests;

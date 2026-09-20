@@ -2,6 +2,8 @@
 
 ## Fixes
 
+- **Player movement result consistency:** `client/src/players/movement/planning.rs` records the proposed motor step's support, carrier, grounding, and outcomes before `application.rs` can reject its horizontal motion against another character; airborne momentum also finishes against the proposed result. Resolve character blocking before committing one complete movement result. Reproduce and cover ledge, ramp, and moving-support contacts; the mismatch is identified by code inspection, not a confirmed playtest symptom. Keep local movement client-owned.
+
 - **Navigation search exhaustion:** a connected route whose A* search itself exceeds the per-query budget can still fail repeatedly, including some long Hotel detours. Continue these searches across ticks while preserving the shared work cap. Exhausting optional smoothing now retains the route already found.
 
 - **Stuck forward movement:** the player sometimes keeps walking after W is released, during ordinary play with no focus change. `input_movement_system` rebuilds the intent from `ButtonInput<KeyCode>` every frame and nothing else moves a grounded body, so a key release is lost before it reaches `ButtonInput`. Capture a session with `WAYLAND_DEBUG=client` and check whether `wl_keyboard.key` delivered the release (key 17, state 0): if not, the loss is below the game (key remapper, keyboard, or compositor); if so, trace winit and Bevy next.
@@ -9,6 +11,10 @@
 - **Plank ramps:** grass grows through the low end of a plank standing on terrain or the exterior grounds.
 
 ## Enhancements
+
+- **Client missile search budgets:** `client/src/missiles/air_graph.rs` runs synchronous, unbudgeted BFS through authored air grids, with collision sweeps during expansion; guidance periodically repeats the search. Measure worst-case search time and collision queries with multiple missiles and unreachable targets, then introduce a shared work budget, resumable searches, and explicit pending/found/unreachable outcomes while retaining safe steering or a usable route. Extend obstacle routing to bounded 3D regions beyond authored grids. Missiles need airspace routing rather than the ground navmesh.
+
+- **Grass rebuild scheduling:** initial grass chunks build asynchronously, but `client/src/map/grass/burn.rs` rebuilds affected meshes synchronously and the initial completion system installs every ready mesh in one frame. Profile explosions and rapid streaming; move burn rebuilds to bounded background work, coalesce changes per chunk, reject stale results using revisions, and budget mesh installation. Reuse physical ramp/floor clearance when building grass exclusions to address the plank-ramp overlap fix above.
 
 - **Dependency upgrades:** Recheck the `encase` family held at 0.12.1 in `Cargo.lock` once [Bevy's syn compatibility issue](https://github.com/bevyengine/bevy/issues/25844) is resolved; 0.12.2 fails to compile with Bevy 0.19.1. Renet's `crypto-common` dependency also pins `generic-array` to 0.14.7.
 

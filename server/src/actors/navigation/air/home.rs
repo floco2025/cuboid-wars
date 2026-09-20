@@ -13,7 +13,7 @@ use common::{
 use rand::{Rng, RngExt};
 
 use crate::{
-    actors::navigation::ActorTerritory,
+    actors::navigation::{ActorTerritory, radical_inverse},
     map::{ActorSpawnZone, CarrierGrid},
 };
 
@@ -168,17 +168,6 @@ impl AirHome {
             (!world.character_overlaps_solid(&point, physics, &self.open)).then_some(point)
         })
     }
-}
-
-fn radical_inverse(mut index: usize, base: usize) -> f32 {
-    let mut value = 0.0;
-    let mut fraction = 1.0 / base as f32;
-    while index > 0 {
-        value += (index % base) as f32 * fraction;
-        index /= base;
-        fraction /= base as f32;
-    }
-    value
 }
 
 #[cfg(test)]

@@ -52,7 +52,7 @@ pub(super) fn join_holes(contours: &mut ContourSet) -> Result<()> {
             best.is_some(),
             "navigation contour hole has no visible boundary connection"
         );
-        let (_, outer_index, a, b) = best.expect("validated contour connection");
+        let (_, outer_index, a, b) = best.expect("connection missing from validated contour hole");
         let hole = std::mem::take(&mut contours.contours[hole_index].vertices);
         let outer = &mut contours.contours[outer_index].vertices;
         let mut merged = Vec::with_capacity(outer.len() + hole.len() + 2);

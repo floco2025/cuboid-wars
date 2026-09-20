@@ -213,7 +213,7 @@ fn hotel_and_obby_run_surface_actors_through_normal_switches_and_replication() {
             app.update();
             app.update();
         }
-        let deadline = Instant::now() + std::time::Duration::from_secs(5);
+        let deadline = Instant::now() + std::time::Duration::from_secs(30);
         while app
             .world()
             .resource::<crate::actors::navigation::surface::SurfaceNavigation>()

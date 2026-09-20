@@ -15,10 +15,6 @@ pub(super) struct DockLink {
     dock: CarrierDock,
 }
 
-#[cfg(test)]
-#[path = "tests/transfers.rs"]
-mod tests;
-
 pub(super) fn dock_links(
     navigation: &SurfaceNavigation,
     physics: CharacterPhysicsConfig,
@@ -38,14 +34,16 @@ pub(super) fn dock_links(
             let pose = CarrierPose::from_translation(dock.into());
             let mut candidates = Vec::new();
             for (polygon, vertices) in mesh.polygons.iter().enumerate() {
-                let center = Vec3::from(mesh.candidate(polygon).expect("platform polygon"));
+                let center = Vec3::from(mesh.center(polygon));
                 for (edge, next) in mesh.neighbors[polygon].iter().enumerate() {
                     if next.is_some() {
                         continue;
                     }
-                    let boundary = mesh
-                        .project(polygon, vertices[edge].midpoint(vertices[(edge + 1) % vertices.len()]))
-                        .expect("platform boundary height");
+                    let Some(boundary) =
+                        mesh.project(polygon, vertices[edge].midpoint(vertices[(edge + 1) % vertices.len()]))
+                    else {
+                        continue;
+                    };
                     let Some(shore) = parent.locate(pose.transform_point(boundary).into(), reach) else {
                         continue;
                     };
@@ -53,7 +51,10 @@ pub(super) fn dock_links(
                         continue;
                     }
                     let inward = (center - boundary).normalize_or_zero() * physics.movement_collider.radius().min(0.4);
-                    let aboard = mesh.locate((boundary + inward).into(), 0.1).expect("platform interior");
+                    // A strip narrower than the inward step has no standing point here.
+                    let Some(aboard) = mesh.locate((boundary + inward).into(), 0.1) else {
+                        continue;
+                    };
                     if parent.locate(pose.transform_position(&aboard.position), 0.15).is_some() {
                         continue;
                     }
@@ -169,7 +170,7 @@ fn itinerary(
     let mut legs = Vec::new();
     let mut cursor = 1;
     while cursor != 0 {
-        let (previous, leg) = parents[cursor].expect("transfer route parent");
+        let (previous, leg) = parents[cursor].expect("parent missing from a reached transfer node");
         legs.push((previous, cursor, leg));
         cursor = previous;
     }
@@ -252,3 +253,7 @@ pub(super) fn route(
     }
     Ok(route)
 }
+
+#[cfg(test)]
+#[path = "tests/transfers.rs"]
+mod tests;

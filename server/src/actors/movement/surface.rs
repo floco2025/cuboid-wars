@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use bevy::prelude::*;
 use common::{
     config::{ActorMovementConfig, CharacterPhysicsConfig},
@@ -6,11 +8,18 @@ use common::{
     protocol::{ActorId, ActorMoveIntent, CarrierId, FaceYaw, MapSettings, Position, ServerTick, SwitchState},
 };
 
-use super::traversal::{TraversalEnvironment, TraversalExecutor, TraversalStatus};
+use super::traversal::{TraversalAction, TraversalEnvironment, TraversalExecutor, TraversalStatus};
 use crate::actors::{
     ActorCharacter, ActorCrushed, ActorLanding, ActorMap, ActorMode,
-    navigation::surface::{RouteFailure, SurfaceNavigation},
+    navigation::surface::{ROUTE_SEARCH_VISITS, RouteFailure, SurfaceNavigation},
 };
+
+// Search, visibility, and funnel visits the ground actors share each tick;
+// `ROUTE_SEARCH_VISITS` is the most one route may spend of them.
+const TICK_SEARCH_VISITS: usize = 8192;
+const ROUTE_RETRY_SECS: f32 = 0.5;
+// How far a goal moves, or an idle actor stands from it, before a new route.
+const GOAL_TOLERANCE: f32 = 0.5;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct SurfaceGoal {
@@ -30,6 +39,9 @@ pub struct SurfaceAgent {
     route_goal: Option<SurfaceGoal>,
     retry_secs: f32,
     pending: bool,
+    // The ladder this actor was admitted to last tick. The rotating order
+    // would otherwise hand a ladder back and forth between two approaches.
+    ladder_claim: Option<usize>,
 }
 
 impl SurfaceAgent {
@@ -39,6 +51,102 @@ impl SurfaceAgent {
             .is_some_and(|e| e.status == TraversalStatus::Reached)
             && self.failure.is_none()
             && !self.pending
+    }
+}
+
+struct RoutePlanner<'a> {
+    navigation: &'a SurfaceNavigation,
+    carriers: &'a Carriers,
+    budget: usize,
+}
+
+impl RoutePlanner<'_> {
+    fn update(
+        &mut self,
+        agent: &mut SurfaceAgent,
+        executor: &mut TraversalExecutor,
+        carrier: CarrierId,
+        position: Position,
+        physics: CharacterPhysicsConfig,
+        ladders: bool,
+    ) {
+        let Some(goal) = agent.goal else {
+            executor.actions.clear();
+            agent.route_goal = None;
+            agent.failure = None;
+            agent.pending = false;
+            return;
+        };
+        // The carriers already advanced to this tick while the actor still
+        // stands where the previous pose left it.
+        let start = SurfaceGoal {
+            carrier,
+            position: self
+                .carriers
+                .previous_pose(carrier)
+                .inverse_transform_position(&position),
+        };
+        if self.navigation.mesh_at(start, physics).is_none() {
+            executor.actions.clear();
+            agent.pending = self.navigation.rebuilding();
+            agent.failure = (!agent.pending).then_some(RouteFailure::NavigationUnavailable);
+            agent.route_revision = None;
+            return;
+        }
+        let revision = Some((carrier, self.navigation.revision()));
+        let stale = agent.route_revision != revision;
+        let moved = agent.route_goal.is_none_or(|old| {
+            old.carrier != goal.carrier || old.position.distance_sq(&goal.position) > GOAL_TOLERANCE.powi(2)
+        });
+        let interrupted = matches!(executor.status, TraversalStatus::Blocked | TraversalStatus::LostSupport);
+        let short = executor.actions.is_empty()
+            && position.distance_sq(&self.carriers.pose(goal.carrier).transform_position(&goal.position))
+                > GOAL_TOLERANCE.powi(2);
+        let retry = agent.retry_secs <= 0.0 && (agent.failure.is_some() || interrupted || short);
+        if !(stale || moved || retry) {
+            return;
+        }
+        if self.budget == 0 {
+            // The route in hand serves until this actor's turn comes: the
+            // motor's support checks guard what a newer mesh would change.
+            agent.pending = true;
+            return;
+        }
+        agent.pending = false;
+        agent.retry_secs = ROUTE_RETRY_SECS;
+        let limit = self.budget.min(ROUTE_SEARCH_VISITS);
+        match self.navigation.route(start, goal, physics, ladders, limit) {
+            Ok(route) => {
+                self.budget -= route.expanded;
+                executor.set_route(route);
+                agent.failure = None;
+            }
+            Err(RouteFailure::NavigationUnavailable) => {
+                agent.pending = true;
+                agent.failure = None;
+                if stale {
+                    executor.actions.clear();
+                }
+                return;
+            }
+            // The tick's leftover budget cut this search short, not the
+            // route's own limit: it is deferred to the next tick, not failed.
+            Err(RouteFailure::SearchLimit) if limit < ROUTE_SEARCH_VISITS => {
+                self.budget = 0;
+                agent.pending = true;
+                agent.retry_secs = 0.0;
+                return;
+            }
+            Err(reason) => {
+                if reason == RouteFailure::SearchLimit {
+                    self.budget -= limit;
+                }
+                executor.actions.clear();
+                agent.failure = Some(reason);
+            }
+        }
+        agent.route_revision = revision;
+        agent.route_goal = Some(goal);
     }
 }
 
@@ -81,7 +189,8 @@ pub(crate) fn surface_actors_movement_system(
         .iter()
         .map(|(id, character, _, _, position, _, support, ..)| (*id, *position, character.0.physics(), *support))
         .collect();
-    let mut occupancy = std::collections::BTreeMap::new();
+    // Whoever is on a ladder holds it, then whoever was admitted last tick.
+    let mut occupancy = BTreeMap::new();
     for (id, _, _, agent, _, _, support, ..) in &query {
         if *support == CharacterSupport::Ladder
             && let Some(ladder) = agent
@@ -93,13 +202,22 @@ pub(crate) fn surface_actors_movement_system(
             occupancy.entry(ladder).or_insert(*id);
         }
     }
+    for (id, _, _, agent, ..) in &query {
+        if let Some(ladder) = agent.ladder_claim {
+            occupancy.entry(ladder).or_insert(*id);
+        }
+    }
     let mut ordered: Vec<_> = query.iter_mut().collect();
     ordered.sort_by_key(|(id, ..)| id.0);
     if !ordered.is_empty() {
         let rotation = tick.0 as usize % ordered.len();
         ordered.rotate_left(rotation);
     }
-    let mut budget = 8192;
+    let mut planner = RoutePlanner {
+        navigation: &navigation,
+        carriers: &carriers,
+        budget: TICK_SEARCH_VISITS,
+    };
     for (
         id,
         character,
@@ -134,118 +252,24 @@ pub(crate) fn surface_actors_movement_system(
         executor.speed = speed;
         executor.facing = facing.0;
         agent.retry_secs = (agent.retry_secs - delta).max(0.0);
-        let committed = executor.actions.front().is_some_and(|action| action.committed())
-            && !matches!(executor.status, TraversalStatus::Blocked | TraversalStatus::LostSupport);
+        let committed = executor.committed();
         if !committed {
-            if let Some(goal) = agent.goal {
-                if navigation
-                    .mesh_at(
-                        SurfaceGoal {
-                            carrier: info.carrier,
-                            position: carriers
-                                .previous_pose(info.carrier)
-                                .inverse_transform_position(&position),
-                        },
-                        physics,
-                    )
-                    .is_some()
-                {
-                    let revision = navigation.revision();
-                    let changed = agent.route_revision != Some((info.carrier, revision))
-                        || agent.route_goal.is_none_or(|old| {
-                            old.carrier != goal.carrier || old.position.distance_sq(&goal.position) > 0.25
-                        });
-                    let interrupted =
-                        matches!(executor.status, TraversalStatus::Blocked | TraversalStatus::LostSupport);
-                    if changed
-                        || (agent.retry_secs <= 0.0
-                            && (agent.failure.is_some()
-                                || interrupted
-                                || (executor.actions.is_empty()
-                                    && position
-                                        .distance_sq(&carriers.pose(goal.carrier).transform_position(&goal.position))
-                                        > 0.25)))
-                    {
-                        if budget == 0 {
-                            agent.pending = true;
-                            if agent.route_revision != Some((info.carrier, revision)) {
-                                executor.actions.clear();
-                            }
-                        } else {
-                            agent.pending = false;
-                            agent.retry_secs = 0.5;
-                            let start = carriers
-                                .previous_pose(info.carrier)
-                                .inverse_transform_position(&position);
-                            let limit = budget.min(4096);
-                            let route = navigation.route(
-                                SurfaceGoal {
-                                    carrier: info.carrier,
-                                    position: start,
-                                },
-                                goal,
-                                physics,
-                                character.0.can_use_ladders,
-                                limit,
-                            );
-                            budget -= match &route {
-                                Ok(route) => route.expanded,
-                                Err(RouteFailure::NavigationUnavailable) => 0,
-                                Err(_) => limit,
-                            };
-                            if !matches!(route, Err(RouteFailure::NavigationUnavailable)) {
-                                agent.route_revision = Some((info.carrier, revision));
-                                agent.route_goal = Some(goal);
-                            }
-                            match route {
-                                Ok(route) => {
-                                    executor.set_route(route);
-                                    agent.failure = None;
-                                }
-                                Err(RouteFailure::NavigationUnavailable) => {
-                                    agent.pending = true;
-                                    agent.failure = None;
-                                    if agent.route_revision != Some((info.carrier, revision)) {
-                                        executor.actions.clear();
-                                    }
-                                }
-                                Err(reason) => {
-                                    executor.actions.clear();
-                                    agent.failure = Some(reason);
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    executor.actions.clear();
-                    agent.pending = navigation.rebuilding();
-                    agent.failure = (!agent.pending).then_some(RouteFailure::NavigationUnavailable);
-                    agent.route_revision = None;
-                }
-            } else {
-                executor.actions.clear();
-                agent.route_goal = None;
-                agent.failure = None;
-                agent.pending = false;
-            }
+            planner.update(
+                &mut agent,
+                &mut executor,
+                info.carrier,
+                *position,
+                physics,
+                character.0.can_use_ladders,
+            );
         }
-        let ladder = executor.actions.front().and_then(|action| action.ladder()).or_else(|| {
-            executor.actions.iter().find_map(|action| {
-                let super::traversal::TraversalAction::MountLadder {
-                    carrier,
-                    ladder,
-                    target,
-                } = *action
-                else {
-                    return None;
-                };
-                let mount = carriers.pose(carrier).transform_position(&target);
-                (position.horizontal_distance_sq(&mount) < (physics.movement_collider.diameter + 1.0).powi(2)
-                    && (position.y - mount.y).abs() < 0.5)
-                    .then_some(ladder)
-            })
-        });
+        let ladder = executor
+            .actions
+            .front()
+            .and_then(|action| action.ladder())
+            .or_else(|| approached_ladder(&executor, &carriers, *position, physics));
         let waiting = ladder.is_some_and(|ladder| *occupancy.entry(ladder).or_insert(*id) != *id);
+        agent.ladder_claim = ladder.filter(|_| !waiting);
         let avoidance = if *support == CharacterSupport::Ground && !committed {
             crowd_velocity(*id, *position, physics, &neighbors).clamp_length_max(speed * 0.5)
         } else {
@@ -274,6 +298,29 @@ pub(crate) fn surface_actors_movement_system(
             .map_or(movement.carrier, |hit| hit.carrier);
         agent.executor = Some(executor);
     }
+}
+
+// A ladder the route mounts next, once the actor is close enough to contend for it.
+fn approached_ladder(
+    executor: &TraversalExecutor,
+    carriers: &Carriers,
+    position: Position,
+    physics: CharacterPhysicsConfig,
+) -> Option<usize> {
+    executor.actions.iter().find_map(|action| {
+        let TraversalAction::MountLadder {
+            carrier,
+            ladder,
+            target,
+        } = *action
+        else {
+            return None;
+        };
+        let mount = carriers.pose(carrier).transform_position(&target);
+        (position.horizontal_distance_sq(&mount) < (physics.movement_collider.diameter + 1.0).powi(2)
+            && (position.y - mount.y).abs() < 0.5)
+            .then_some(ladder)
+    })
 }
 
 fn crowd_velocity(
@@ -306,3 +353,7 @@ fn crowd_velocity(
     }
     velocity
 }
+
+#[cfg(test)]
+#[path = "tests/surface.rs"]
+mod tests;

@@ -4,7 +4,7 @@ use bevy::prelude::Vec3;
 use common::{
     config::CharacterPhysicsConfig,
     physics::{CharacterSupport, CollisionWorld},
-    protocol::{PlayerId, Position},
+    protocol::{CarrierId, PlayerId, Position},
 };
 
 use crate::{
@@ -16,6 +16,8 @@ use crate::{
 pub(super) struct PlayerState {
     pub(super) id: PlayerId,
     pub(super) pos: Position,
+    pub(super) carrier: CarrierId,
+    pub(super) carrier_pos: Position,
     pub(super) support: CharacterSupport,
 }
 
@@ -32,6 +34,8 @@ pub(super) fn player_states<'a>(
                 .map(|info| PlayerState {
                     id: *id,
                     pos: *pos,
+                    carrier: info.life.movement.carrier,
+                    carrier_pos: info.life.movement.pos,
                     support: info.life.movement.support,
                 })
         })
@@ -64,6 +68,8 @@ pub(super) fn update_awareness(
         aware.visible = player_visible(actor_eye, range_sq, player, player_physics, collision_world);
         if aware.visible {
             aware.pos = player.pos;
+            aware.carrier = player.carrier;
+            aware.carrier_pos = player.carrier_pos;
             aware.support = player.support;
             aware.forget_remaining_secs = forget_secs;
         }
@@ -80,6 +86,8 @@ pub(super) fn update_awareness(
         info.awareness.push(AwarePlayer {
             id: player.id,
             pos: player.pos,
+            carrier: player.carrier,
+            carrier_pos: player.carrier_pos,
             support: player.support,
             visible: true,
             forget_remaining_secs: forget_secs,

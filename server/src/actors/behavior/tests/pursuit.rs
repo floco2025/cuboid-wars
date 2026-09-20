@@ -64,7 +64,7 @@ fn airborne_pursuit_uses_the_highest_enabled_surface_in_its_current_carrier_fram
         });
         let airborne = aware(1, position, CharacterSupport::Airborne, true);
         for (open, y) in [(vec![], 2.0), (vec![field], 0.0)] {
-            let goal = pursuit_surface(&airborne, CarrierId::WORLD, &world, &carriers, &open).expect("surface below");
+            let goal = pursuit_surface(&airborne, &world, &carriers, &open).expect("surface below");
             assert_eq!(goal.carrier, carried);
             assert!(
                 goal.position.distance_sq(&Position { x: 0.5, y, z: 0.5 }) < 1e-6,
@@ -80,13 +80,11 @@ fn airborne_pursuit_uses_the_highest_enabled_surface_in_its_current_carrier_fram
             CharacterSupport::Airborne,
             true,
         );
-        let goal =
-            pursuit_surface(&below_bridge, CarrierId::WORLD, &world, &carriers, &[]).expect("floor below bridge");
+        let goal = pursuit_surface(&below_bridge, &world, &carriers, &[]).expect("floor below bridge");
         assert_eq!(goal.carrier, carried);
         assert!(goal.position.y.abs() < 1e-4);
         let supported = aware(1, position, CharacterSupport::Ground, true);
-        let goal =
-            pursuit_surface(&supported, CarrierId::WORLD, &world, &carriers, &[]).expect("reported supported position");
+        let goal = pursuit_surface(&supported, &world, &carriers, &[]).expect("reported supported position");
         assert_eq!(
             goal.position, position,
             "supported targets must not be projected through floors"

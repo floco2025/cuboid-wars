@@ -11,6 +11,7 @@ mod world;
 
 pub use actions::{CarrierDock, TraversalAction};
 pub use mesh::{SurfaceBounds, SurfaceLocation, SurfaceMesh};
+pub(crate) use route::ROUTE_SEARCH_VISITS;
 pub use route::{RouteFailure, SurfaceRoute};
 pub(crate) use world::{SurfaceNavigation, surface_navigation_sync_system};
 

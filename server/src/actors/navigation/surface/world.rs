@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use bevy::prelude::*;
 use common::{
     config::CharacterPhysicsConfig,
@@ -10,10 +10,11 @@ use common::{
 
 use super::{
     RouteFailure, SurfaceBounds, SurfaceMesh, SurfaceRoute,
-    baking::{BakeRequest, BakeWorker},
+    baking::{BakeRequest, BakeStatus, BakeWorker},
     transfers::{self, DockLink},
 };
 use crate::{
+    actors::SurfaceGoal,
     config::ServerGameplayConfig,
     map::{CarrierGrid, MapConfig},
     quests::QuestBoard,
@@ -46,7 +47,13 @@ pub(super) struct SurfaceRegion {
 pub(super) struct BakedSurface {
     pub(super) physics: CharacterPhysicsConfig,
     pub(super) region: SurfaceRegion,
+    // A changed field leaves this mesh in service until its replacement
+    // arrives: a rebake takes seconds, and the motor's support and collision
+    // checks cover what the old mesh no longer describes.
     pub(super) mesh: Option<SurfaceMesh>,
+    // The field state `mesh` was baked for; `None` once the geometry changed
+    // under it. Returning to this state needs no bake.
+    pub(super) baked: Option<Vec<FieldId>>,
     pub(super) revision: u64,
     pub(super) open: Vec<FieldId>,
     pub(super) dirty: bool,
@@ -131,7 +138,8 @@ impl SurfaceNavigation {
                 )
                 .with_context(|| {
                     format!(
-                        "baking navigation on carrier {} for diameter {} height {}",
+                        "baking navigation on carrier {} for diameter {} height {}, over its grid extended by its \
+                         largest roam_distance ({roam} m)",
                         key.carrier, physics.movement_collider.diameter, physics.movement_collider.height
                     )
                 })?;
@@ -142,6 +150,7 @@ impl SurfaceNavigation {
                         physics,
                         region,
                         mesh: Some(mesh),
+                        baked: Some(fields.clone()),
                         revision: 1,
                         open: fields,
                         dirty: false,
@@ -156,7 +165,7 @@ impl SurfaceNavigation {
             locked_plates: locked.to_vec(),
             open_fields: open.to_vec(),
             ladders: Arc::new(layout.ladders.clone()),
-            worker: Some(BakeWorker::new()?),
+            worker: None,
             running: None,
             motions: layout.carriers.clone(),
             connections: BTreeMap::new(),
@@ -181,6 +190,7 @@ impl SurfaceNavigation {
         self.revision
     }
 
+    // Docks join base meshes only, so a streamed window leaves them alone.
     fn refresh_connections(&mut self) {
         let profiles: BTreeMap<_, _> = self
             .meshes
@@ -191,13 +201,12 @@ impl SurfaceNavigation {
             .into_iter()
             .map(|(key, physics)| (key, transfers::dock_links(self, physics, &self.motions)))
             .collect();
-        self.revision += 1;
     }
 
     pub(crate) fn can_route(
         &self,
-        from: crate::actors::SurfaceGoal,
-        to: crate::actors::SurfaceGoal,
+        from: SurfaceGoal,
+        to: SurfaceGoal,
         physics: CharacterPhysicsConfig,
         ladders: bool,
     ) -> bool {
@@ -214,15 +223,13 @@ impl SurfaceNavigation {
 
     pub(crate) fn route(
         &self,
-        from: crate::actors::SurfaceGoal,
-        to: crate::actors::SurfaceGoal,
+        from: SurfaceGoal,
+        to: SurfaceGoal,
         physics: CharacterPhysicsConfig,
         ladders: bool,
         limit: usize,
     ) -> Result<SurfaceRoute, RouteFailure> {
-        if let Some(mesh) = self.walking_mesh(from, to, physics, ladders) {
-            let start = mesh.locate(from.position, 1.0).expect("route start");
-            let goal = mesh.locate(to.position, 0.7).expect("route goal");
+        if let Some((mesh, start, goal)) = self.walking_mesh(from, to, physics, ladders) {
             return mesh.route_for(start.position, goal.position, 0.1, limit, ladders);
         }
         let key = MeshKey::new(from.carrier, physics);
@@ -244,40 +251,59 @@ impl SurfaceNavigation {
             return Ok(());
         }
         self.clock += 1;
-        if self.open_fields != open {
+        let fields_changed = self.open_fields != open;
+        if fields_changed {
             self.open_fields = open.to_vec();
         }
         let geometry_changed = self.locked_plates != locked;
-        let mut topology_changed = geometry_changed;
         if geometry_changed {
             self.geometry = Arc::new(world.collision_meshes()?);
             self.locked_plates = locked.to_vec();
         }
-        for (key, entry) in &mut self.meshes {
-            let fields = fields_in(&self.geometry, CarrierId(key.carrier), open, entry.region.bounds);
-            if !geometry_changed && entry.open == fields {
-                continue;
+        if fields_changed || geometry_changed {
+            for (key, entry) in &mut self.meshes {
+                let fields = fields_in(&self.geometry, CarrierId(key.carrier), open, entry.region.bounds);
+                if geometry_changed {
+                    entry.baked = None;
+                } else if entry.open == fields {
+                    continue;
+                }
+                entry.open = fields;
+                entry.revision += 1;
+                entry.dirty = entry.baked.as_ref() != Some(&entry.open);
             }
-            entry.open = fields;
-            entry.revision += 1;
-            entry.mesh = None;
-            entry.dirty = true;
-            topology_changed = true;
         }
-        let worker = self.worker.as_ref().expect("surface bake worker");
-        if let Some((key, revision)) = self.running
-            && let Some(result) = worker.poll()?
-        {
-            self.running = None;
-            let entry = self.meshes.get_mut(&key).expect("baking profile");
-            if entry.revision == revision {
-                topology_changed = true;
-                match result {
-                    Ok(mesh) => entry.mesh = Some(mesh),
-                    Err(error) => error!(
-                        "surface navigation rebuild failed on carrier {}: {error:#}",
-                        key.carrier
-                    ),
+        if let Some((key, revision)) = self.running {
+            let finished = match self.worker.as_ref().map(BakeWorker::poll) {
+                Some(BakeStatus::Running) => None,
+                Some(BakeStatus::Finished(result)) => Some(*result),
+                Some(BakeStatus::Stopped) | None => {
+                    self.worker = None;
+                    Some(Err(anyhow!("navigation bake worker stopped")))
+                }
+            };
+            if let Some(result) = finished {
+                self.running = None;
+                // A bake superseded while it ran describes a state that no longer holds.
+                if let Some(entry) = self.meshes.get_mut(&key).filter(|entry| entry.revision == revision) {
+                    match result {
+                        Ok(mesh) => {
+                            entry.mesh = Some(mesh);
+                            entry.baked = Some(entry.open.clone());
+                        }
+                        Err(error) => {
+                            entry.mesh = None;
+                            entry.baked = None;
+                            error!(
+                                "surface navigation rebuild failed on carrier {}: {error:#}",
+                                key.carrier
+                            );
+                        }
+                    }
+                    if key.window.is_none() {
+                        self.refresh_connections();
+                    }
+                    self.revision += 1;
                 }
             }
         }
@@ -288,6 +314,10 @@ impl SurfaceNavigation {
                 .filter(|(_, entry)| entry.dirty)
                 .min_by_key(|(key, entry)| (key.window.is_some(), entry.last_used))
         {
+            let worker = match self.worker.take() {
+                Some(worker) => worker,
+                None => BakeWorker::new()?,
+            };
             worker.start(BakeRequest {
                 geometry: Arc::clone(&self.geometry),
                 ladders: Arc::clone(&self.ladders),
@@ -297,11 +327,9 @@ impl SurfaceNavigation {
                 excluded: entry.region.excluded.clone(),
                 open: entry.open.clone(),
             })?;
+            self.worker = Some(worker);
             entry.dirty = false;
             self.running = Some((*key, entry.revision));
-        }
-        if topology_changed {
-            self.refresh_connections();
         }
         Ok(())
     }
@@ -380,6 +408,7 @@ pub(crate) fn surface_navigation_sync_system(
     if let Err(error) = navigation.refresh(&world, &switches.open_fields, quests.locked_switches()) {
         for entry in navigation.meshes.values_mut() {
             entry.mesh = None;
+            entry.baked = None;
             entry.revision += 1;
         }
         error!("surface navigation refresh failed: {error:#}");
