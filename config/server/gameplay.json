@@ -65,9 +65,9 @@
       "threat_memory_secs": 5.0,
       "attack": {
         "type": "beam",
-        "range": 15.0,
+        "range": 20.0,
         "duration_secs": 2.0,
-        "cooldown_secs": 6.0
+        "cooldown_secs": 4.0
       }
     },
     "turret": {
@@ -226,11 +226,11 @@
           "death_blast": { "radius": 15.0, "max_damage": 550.0 }
         },
         "zapper": {
-          "beam_dps": 50.0,
+          "beam_dps": 70.0,
           "death_blast": { "radius": 6.0, "max_damage": 75.0 }
         },
         "turret": {
-          "beam_dps": 30.0,
+          "beam_dps": 40.0,
           "death_blast": { "radius": 6.0, "max_damage": 75.0 }
         }
       }

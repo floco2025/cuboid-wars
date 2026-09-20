@@ -22,8 +22,8 @@
       {"level": 1, "cols": [1, 4], "rows": [26, 29], "kind": "bruiser", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "roam_distance": 20.0},
       {"level": 1, "cols": [26, 29], "rows": [26, 29], "kind": "bruiser", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "roam_distance": 20.0},
       {"level": 2, "cols": [13, 17], "rows": [12, 13], "kind": "zapper", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 2.0},
-      {"level": 2, "cols": [12, 13], "rows": [13, 17], "kind": "zapper", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 2.0},
-      {"level": 2, "cols": [17, 18], "rows": [13, 17], "kind": "zapper", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 2.0},
+      {"level": 2, "cols": [12, 13], "rows": [13, 17], "kind": "zapper", "count": [2], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 2.0},
+      {"level": 2, "cols": [17, 18], "rows": [13, 17], "kind": "zapper", "count": [2], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 2.0},
       {"level": 2, "cols": [13, 17], "rows": [17, 18], "kind": "zapper", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 2.0}
     ],
     "checkpoints": [
