@@ -2,6 +2,48 @@ use super::*;
 use crate::actors::navigation::surface::fixtures;
 
 #[test]
+fn exterior_terrain_with_notched_region_boundaries_can_be_routed() {
+    use common::{
+        map::{Grounds, GroundsSettings},
+        physics::CollisionWorld,
+        protocol::MapLayout,
+    };
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        grounds: Some(Grounds::new(
+            [(-51.0, 51.0, -51.0, 51.0)],
+            4.4,
+            GroundsSettings { level: 1 },
+        )),
+        ..Default::default()
+    });
+    let geometry = world.collision_meshes().expect("terrain collision geometry");
+    let mut physics = fixtures::config().expect_actor("bruiser").character.physics();
+    physics.movement_collider.diameter = 1.6422;
+    physics.movement_collider.height = 1.6675;
+    let mesh = SurfaceMesh::bake_in(
+        &geometry,
+        CarrierId::WORLD,
+        physics,
+        &[],
+        Some(SurfaceBounds {
+            min: Vec3::new(-256.0, -100.0, -96.0),
+            max: Vec3::new(-128.0, 100.0, 32.0),
+        }),
+        &[],
+    )
+    .expect("bake the region needed by the return journey");
+    let support = |x, z| {
+        world
+            .support_surface_on_carrier(Vec3::new(x, 100.0, z), 200.0, CarrierId::WORLD, &[])
+            .expect("terrain support")
+            .point
+            .into()
+    };
+    mesh.route(support(-193.0, -22.0), support(-145.0, -26.0), 1.0)
+        .expect("cross the terrain region toward home");
+}
+
+#[test]
 fn rolling_ground_keeps_its_interior_height_when_polygons_are_simplified() {
     // The perimeter is level; the middle rises three metres. A polygon's
     // boundary alone cannot describe the walkable surface inside it.

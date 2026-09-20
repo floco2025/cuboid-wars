@@ -175,13 +175,12 @@ impl SurfaceMesh {
         compact.erode_walkable_area(config.walkable_radius);
         compact.build_distance_field();
         compact.build_regions(0, config.min_region_area, config.merge_region_area)?;
-        let mut contours = compact.build_contours(
+        let contours = compact.build_contours(
             config.max_simplification_error,
             config.max_edge_len,
             config.contour_flags,
         );
-        super::contours::join_holes(&mut contours)?;
-        let mesh = contours.into_polygon_mesh(config.max_vertices_per_polygon)?;
+        let mesh = super::contours::polygon_mesh(contours, config.max_vertices_per_polygon)?;
         // Polygon boundaries describe connectivity, but their planes erase
         // interior hills and valleys. Keep the heightfield's detail so an
         // actor standing on real terrain can still locate and follow a route.

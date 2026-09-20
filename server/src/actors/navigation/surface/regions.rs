@@ -33,6 +33,24 @@ impl SurfaceBounds {
             .min(point.z - self.min.z)
             .min(self.max.z - point.z)
     }
+
+    fn entry_distance(self, from: Position, to: Position) -> Option<f32> {
+        if self.clearance(from) >= 2.0 || self.clearance(to) < 2.0 {
+            return None;
+        }
+        let mut fraction = 0.0_f32;
+        for (start, end, min, max) in [
+            (from.x, to.x, self.min.x + 2.0, self.max.x - 2.0),
+            (from.z, to.z, self.min.z + 2.0, self.max.z - 2.0),
+        ] {
+            if start < min {
+                fraction = fraction.max((min - start) / (end - start));
+            } else if start > max {
+                fraction = fraction.max((max - start) / (end - start));
+            }
+        }
+        Some(fraction * from.horizontal_distance_sq(&to).sqrt())
+    }
 }
 
 impl MeshKey {
@@ -248,7 +266,17 @@ impl SurfaceNavigation {
         // can exhaust the budget on detailed terrain and stall a return home.
         let offset = Vec3::from(to.position) - Vec3::from(from.position);
         let distance = offset.with_y(0.0).length();
-        let leg = window_size(physics) * 3.0 / 8.0;
+        let mut leg = window_size(physics) * 3.0 / 8.0;
+        // Enter the destination's preloaded coverage before routing through
+        // its interior. A terrain leg projected inside a building can select
+        // its roof and force a needless detour instead of the route home.
+        if let Some(distance) = self
+            .meshes
+            .get(&MeshKey::new(to.carrier, physics))
+            .and_then(|entry| entry.region.bounds.entry_distance(from.position, to.position))
+        {
+            leg = leg.min(distance);
+        }
         if distance <= leg {
             return to;
         }

@@ -1,12 +1,69 @@
 use anyhow::{Result, ensure};
 use bevy::math::U16Vec3;
-use rerecast::ContourSet;
+use rerecast::{ContourSet, PolygonNavmesh, RegionVertexId};
 
 type Vertex = (U16Vec3, u32);
 
+pub(super) fn polygon_mesh(contours: ContourSet, max_vertices: u16) -> Result<PolygonNavmesh> {
+    match triangulate(contours.clone(), max_vertices) {
+        Ok(mesh) => Ok(mesh),
+        Err(error) => {
+            // Shared-region edges can cross the simplified obstacle outline,
+            // even at zero simplification error. Fall back once to the exact
+            // voxel contours, keeping shared boundaries identical on both sides.
+            let mut contours = contours;
+            if contours.contours.iter().any(|contour| contour.raw_vertices.len() < 3) {
+                return Err(error);
+            }
+            for contour in &mut contours.contours {
+                let raw = &contour.raw_vertices;
+                contour.vertices = raw
+                    .iter()
+                    .enumerate()
+                    .map(|(index, &(point, flags))| {
+                        // Raw metadata names the incoming edge; polygons need the outgoing edge.
+                        let next = raw[(index + 1) % raw.len()].1;
+                        let edge = next & (RegionVertexId::REGION_MASK | RegionVertexId::AREA_BORDER);
+                        (point, (edge | (flags & RegionVertexId::BORDER_VERTEX)).bits())
+                    })
+                    .collect();
+                remove_collinear(&mut contour.vertices);
+            }
+            triangulate(contours, max_vertices)
+        }
+    }
+}
+
+fn triangulate(mut contours: ContourSet, max_vertices: u16) -> Result<PolygonNavmesh> {
+    join_holes(&mut contours)?;
+    Ok(contours.into_polygon_mesh(max_vertices)?)
+}
+
+fn remove_collinear(vertices: &mut Vec<Vertex>) {
+    let reduced: Vec<_> = vertices
+        .iter()
+        .enumerate()
+        .filter_map(|(index, &(b, flags))| {
+            let (a, before) = vertices[(index + vertices.len() - 1) % vertices.len()];
+            let c = vertices[(index + 1) % vertices.len()].0;
+            let redundant = before == flags
+                && flags & RegionVertexId::BORDER_VERTEX.bits() == 0
+                && cross(a, b, c) == 0
+                && b.x >= a.x.min(c.x)
+                && b.x <= a.x.max(c.x)
+                && b.z >= a.z.min(c.z)
+                && b.z <= a.z.max(c.z);
+            (!redundant).then_some((b, flags))
+        })
+        .collect();
+    if reduced.len() >= 3 {
+        *vertices = reduced;
+    }
+}
+
 // rerecast 0.4 emits interior rings separately, but its polygon triangulator
 // expects each region's holes to have been joined to the outer contour.
-pub(super) fn join_holes(contours: &mut ContourSet) -> Result<()> {
+fn join_holes(contours: &mut ContourSet) -> Result<()> {
     let holes: Vec<_> = contours
         .contours
         .iter()
