@@ -10,6 +10,7 @@ use common::{
     protocol::{FieldId, MapSettings, Position},
 };
 
+#[derive(Clone, Copy)]
 pub(crate) struct PlayerMovementStep<'a> {
     pub start: Position,
     pub vertical_velocity: f32,
@@ -19,8 +20,7 @@ pub(crate) struct PlayerMovementStep<'a> {
     pub held_keys: &'a [FieldId],
     // Barriers switches hold open (`SwitchState`).
     pub open_fields: &'a [FieldId],
-    pub knockback: &'a KnockbackVelocity,
-    pub airborne_momentum: &'a mut AirborneMomentum,
+    pub external_displacement: Vec3,
     pub collision_world: &'a CollisionWorld,
     pub map_settings: &'a MapSettings,
     pub gameplay_config: &'a GameplayConfig,
@@ -31,13 +31,12 @@ pub(crate) struct PlayerMovementStep<'a> {
 #[must_use]
 pub(crate) fn step_player_movement(step: PlayerMovementStep<'_>) -> CharacterMovementResult {
     let passable_fields = passable_fields(step.held_keys, step.open_fields);
-    let external_displacement = momentum_displacement(Some(step.knockback), Some(&*step.airborne_momentum), step.delta);
-    let movement = step_character_movement(
+    step_character_movement(
         CharacterStep {
             start: step.start,
             vertical_velocity: step.vertical_velocity,
             control_velocity: step.control_velocity,
-            external_displacement,
+            external_displacement: step.external_displacement,
             delta: step.delta,
         },
         &CharacterEnvironment {
@@ -50,9 +49,7 @@ pub(crate) fn step_player_movement(step: PlayerMovementStep<'_>) -> CharacterMov
             portals: Some(step.portal_set),
             carriers: step.carriers,
         },
-    );
-    step.airborne_momentum.finish_step(&movement);
-    movement
+    )
 }
 
 #[must_use]

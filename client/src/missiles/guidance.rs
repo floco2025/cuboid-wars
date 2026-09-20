@@ -1,5 +1,6 @@
 use super::{
     AirGraph, MissileFlight,
+    search::{AirSearch, RouteStatus, SearchBudget, SearchProgress},
     steering::{
         closest_point_on_segment, lead_point, pick_clear_direction, steer_clear, sweep_clear, target_velocity_estimate,
         terminal_approach, travel_clear, weave_direction,
@@ -42,6 +43,7 @@ pub fn guide_missile(
     velocity: Vec3,
     speed: f32,
     delta: f32,
+    budget: &mut SearchBudget,
 ) -> Vec3 {
     info.lifetime_timer -= delta;
     if info.lifetime_timer <= 0.0 {
@@ -63,6 +65,7 @@ pub fn guide_missile(
             velocity,
             speed,
             delta,
+            budget,
         );
         if let Some(closest) = proximity_detonation(
             world,
@@ -76,6 +79,9 @@ pub fn guide_missile(
         }
     } else {
         info.target = None;
+        info.search = None;
+        info.path.clear();
+        info.route_status = RouteStatus::Idle;
     }
     if info
         .watchdog
@@ -113,6 +119,7 @@ fn guided_velocity(
     velocity: Vec3,
     speed: f32,
     delta: f32,
+    budget: &mut SearchBudget,
 ) -> Vec3 {
     let target_velocity = target_velocity_estimate(info.last_target_center, target, delta);
     info.last_target_center = Some(target);
@@ -128,6 +135,8 @@ fn guided_velocity(
     .is_some()
     {
         info.path.clear();
+        info.search = None;
+        info.route_status = RouteStatus::Idle;
         info.path_target = None;
         info.path_retry_timer = 0.0;
         let aim = if sweep_clear(world, open_fields, origin, aim - origin, MISSILE_RADIUS) {
@@ -152,6 +161,7 @@ fn guided_velocity(
         MISSILE_RADIUS,
         config.proximity_fuse_distance,
         delta,
+        budget,
     ) {
         direction
     } else {
@@ -182,7 +192,7 @@ fn homing_objective(info: &mut MissileFlight, config: &MissilesConfig, origin: V
 }
 
 // No line of sight: route through the 3D airspace graph. `None` when the
-// graph has no route (sealed target, off-graph edge case).
+// search is pending or its local airspace has no usable route.
 #[expect(
     clippy::too_many_arguments,
     reason = "route following reads world, graph, and per-missile state"
@@ -198,37 +208,61 @@ fn route_objective(
     radius: f32,
     fuse_distance: f32,
     delta: f32,
+    budget: &mut SearchBudget,
 ) -> Option<Vec3> {
     info.path_retry_timer -= delta;
     let moved_threshold = MISSILE_PATH_TARGET_MOVED_CELLS * air_graph.cell_size();
     let target_moved = info
         .path_target
         .is_some_and(|prev| prev.distance_squared(target_center) > moved_threshold * moved_threshold);
-    if target_moved
-        || info.path_retry_timer <= 0.0
-        || !route_clear(
-            &info.path,
+    let changed_fields = info.search.as_ref().is_some_and(|search| search.open != open_fields);
+    if target_moved || changed_fields {
+        info.search = None;
+    }
+    let blocked = !route_clear(
+        &info.path,
+        origin,
+        target_center,
+        collision_world,
+        open_fields,
+        radius,
+        fuse_distance,
+    );
+    if blocked {
+        info.path.clear();
+    }
+    if info.search.is_none() && (target_moved || changed_fields || info.path_retry_timer <= 0.0 || blocked) {
+        info.search = Some(AirSearch::new(
+            air_graph,
+            carriers,
+            open_fields,
             origin,
             target_center,
-            collision_world,
-            open_fields,
             radius,
             fuse_distance,
-        )
-    {
-        info.path = air_graph
-            .path(
-                carriers,
-                collision_world,
-                open_fields,
-                origin,
-                target_center,
-                radius,
-                fuse_distance,
-            )
-            .unwrap_or_default();
+        ));
         info.path_target = Some(target_center);
-        info.path_retry_timer = MISSILE_PATH_RETRY_SECS;
+        info.route_status = RouteStatus::Pending;
+    }
+    if let Some(search) = &mut info.search {
+        search.target = target_center;
+        match search.advance(air_graph, carriers, collision_world, budget) {
+            SearchProgress::Pending => info.route_status = RouteStatus::Pending,
+            SearchProgress::Found(path) => {
+                info.path = path;
+                info.search = None;
+                info.route_status = RouteStatus::Found;
+                info.path_retry_timer = MISSILE_PATH_RETRY_SECS;
+            }
+            progress => {
+                info.search = None;
+                info.route_status = match progress {
+                    SearchProgress::Limited => RouteStatus::Limited,
+                    _ => RouteStatus::Unreachable,
+                };
+                info.path_retry_timer = MISSILE_PATH_RETRY_SECS;
+            }
+        }
     }
     let found_route = !info.path.is_empty();
     advance_waypoints(&mut info.path, origin, collision_world, open_fields, radius);
@@ -295,7 +329,7 @@ fn route_clear(
     fuse_distance: f32,
 ) -> bool {
     let mut previous = origin;
-    path.iter().all(|point| {
+    path.iter().take(4).all(|point| {
         let clear = sweep_clear(world, open_fields, previous, *point - previous, radius);
         previous = *point;
         clear
@@ -314,6 +348,7 @@ fn advance_waypoints(
     // Near a corner is not past it: skip only waypoints with a clear shortcut.
     if let Some(index) = path
         .iter()
+        .take(8)
         .rposition(|point| sweep_clear(world, open_fields, origin, *point - origin, radius))
     {
         path.drain(..index);

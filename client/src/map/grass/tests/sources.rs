@@ -1,9 +1,6 @@
-use super::super::{
-    fixtures,
-    material::GrassMaterials,
-    streaming::{GrassChunkBuild, grass_streaming_system},
-};
+use super::super::{fixtures, material::GrassMaterials, streaming::grass_streaming_system};
 use super::*;
+use crate::map::grass::jobs::GrassChunkBuild;
 use crate::{cameras::MainCameraMarker, config::ClientSettings, map::DebugColorMode};
 use common::map::GroundsSettings;
 

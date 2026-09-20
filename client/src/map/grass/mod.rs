@@ -1,4 +1,6 @@
 mod burn;
+mod clearance;
+mod jobs;
 mod material;
 mod mesh;
 mod patch;
@@ -14,10 +16,11 @@ pub(in crate::map) mod fixtures;
 
 pub(crate) use burn::GrassBurn;
 pub use burn::grass_burn_system;
+pub(crate) use jobs::GrassChunkBuild;
+pub use jobs::{grass_chunk_build_system, grass_chunk_finish_system};
 pub(crate) use material::GrassMaterials;
 pub use material::setup_grass_materials_system;
 pub(in crate::map) use patch::GrassPatch;
 pub(in crate::map) use sources::{ChunkEntry, ChunkKey, ChunkKind, GrassChunkSource};
 pub use sources::{GrassSources, grass_sources_reset_system};
-pub(crate) use streaming::GrassChunkBuild;
-pub use streaming::{GrassChunkMarker, GrassChunks, grass_chunk_finish_system, grass_streaming_system};
+pub use streaming::{GrassChunkMarker, GrassChunks, grass_streaming_system};

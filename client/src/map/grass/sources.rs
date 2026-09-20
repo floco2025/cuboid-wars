@@ -1,4 +1,4 @@
-use super::{patch::GrassPatch, streaming::GrassChunks};
+use super::{clearance::GrassClearance, patch::GrassPatch, streaming::GrassChunks};
 use crate::{
     constants::GRASS_CHUNK_SIZE,
     map::{DebugColors, MapLevel},
@@ -49,6 +49,7 @@ pub(super) struct GroundsGrass {
 
 #[derive(Resource, Default)]
 pub struct GrassSources {
+    pub(super) clearance: BTreeMap<CarrierId, Arc<GrassClearance>>,
     pub(super) entries: BTreeMap<ChunkKey, ChunkEntry>,
     pub(super) grounds: Option<GroundsGrass>,
 }
@@ -143,6 +144,13 @@ pub fn grass_sources_reset_system(
     });
     sources.entries.clear();
     if layout.is_changed() {
+        sources.clearance = std::iter::once(CarrierId::WORLD)
+            .chain(layout.floors.iter().map(|f| f.carrier))
+            .chain(layout.ramps.iter().map(|r| r.carrier))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .map(|carrier| (carrier, Arc::new(GrassClearance::new(&layout, carrier))))
+            .collect();
         sources.grounds = layout.grounds.clone().map(|grounds| GroundsGrass {
             level: grounds.settings.level,
             grounds,

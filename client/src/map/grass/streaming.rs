@@ -1,20 +1,19 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use bevy::{
     camera::{
         primitives::{Aabb, MeshAabb},
         visibility::VisibilityRange,
     },
-    light::NotShadowCaster,
     prelude::*,
-    tasks::{AsyncComputeTaskPool, Task, block_on, poll_once},
 };
 use common::map::{Carriers, Grounds};
 use rand::RngExt;
 
 use super::{
     burn::GrassBurn,
-    material::GrassMaterials,
+    clearance::GrassClearance,
+    jobs::GrassChunkBuild,
     mesh::{AABB_BASE_PAD, GrassLod, WIND_SWAY_FACTOR, grass_patch_mesh, grass_scatter_mesh},
     patch::GrassPatch,
     sources::{ChunkKey, ChunkKind, GrassChunkSource, GrassSources, grounds_cell_center},
@@ -31,19 +30,12 @@ use crate::{
 #[derive(Component)]
 pub struct GrassChunkMarker;
 
-// A chunk whose mesh is still being built on the compute pool: a near chunk
-// is tens of thousands of blades, milliseconds the frame cannot spare while
-// a sprint streams several in. The visual joins the entity with the mesh,
-// so a burn sees the chunk added once it has blades to burn.
-#[derive(Component)]
-pub struct GrassChunkBuild {
-    visual: GrassChunkVisual,
-    task: Task<Option<Mesh>>,
-}
-
 // Everything a chunk's mesh is rebuilt from, so a burn can regenerate it.
 #[derive(Component, Clone)]
 pub struct GrassChunkVisual {
+    pub(super) revision: u64,
+    pub(super) burns: Vec<GrassBurn>,
+    pub(super) clearance: Arc<GrassClearance>,
     pub(super) patches: Vec<GrassPatch>,
     pub(super) source: GrassChunkSource,
     pub(super) lod: GrassLod,
@@ -76,7 +68,7 @@ impl GrassLod {
         }
     }
 
-    fn visibility_range(self) -> VisibilityRange {
+    pub(super) fn visibility_range(self) -> VisibilityRange {
         let range = match self {
             Self::Near => GRASS_NEAR_RANGE,
             Self::Mid => GRASS_MID_RANGE,
@@ -182,14 +174,15 @@ pub fn grass_streaming_system(
             }
         };
         let visual = GrassChunkVisual {
+            revision: 0,
+            burns: Vec::new(),
+            clearance: sources.clearance.get(&entry.carrier).cloned().unwrap_or_default(),
             patches: entry.patches.clone(),
             source: entry.source.clone(),
             lod,
             origin: entry.origin,
             green: settings.grass.base_color(),
         };
-        // Burns in effect reach a new chunk through `grass_burn_system`,
-        // which rebuilds every chunk it sees added.
         let mut chunk = commands.spawn((
             GrassChunkMarker,
             Transform::from_translation(entry.origin),
@@ -201,50 +194,19 @@ pub fn grass_streaming_system(
         if let Some(level) = entry.level {
             chunk.insert(level);
         }
-        let build = visual.clone();
-        chunk.insert(GrassChunkBuild {
-            visual,
-            task: AsyncComputeTaskPool::get().spawn(async move { grass_chunk_mesh(&build, &[]) }),
-        });
+        chunk.insert((visual, GrassChunkBuild::default()));
         let entity = chunk.id();
         chunks.spawned.insert((key, lod), entity);
     }
 }
 
-// Gives every chunk whose build has finished its mesh.
-pub fn grass_chunk_finish_system(
-    mut commands: Commands,
-    materials: Res<GrassMaterials>,
-    mut builds: Query<(Entity, &mut GrassChunkBuild)>,
-    mut meshes: ResMut<Assets<Mesh>>,
-) {
-    let material = materials.grass.clone();
-    for (entity, mut build) in &mut builds {
-        let Some(mesh) = block_on(poll_once(&mut build.task)) else {
-            continue;
-        };
-        let mut chunk = commands.entity(entity);
-        chunk.remove::<GrassChunkBuild>();
-        if let Some(mesh) = mesh {
-            let bounds = padded_grass_bounds(&mesh);
-            chunk.insert((
-                Mesh3d(meshes.add(mesh)),
-                MeshMaterial3d(material.clone()),
-                NotShadowCaster,
-                bounds,
-                build.visual.lod.visibility_range(),
-            ));
-        }
-        chunk.insert(build.visual.clone());
-    }
-}
-
 pub(super) fn grass_chunk_mesh(visual: &GrassChunkVisual, burns: &[GrassBurn]) -> Option<Mesh> {
+    let clearance = visual.clearance.for_patches(&visual.patches);
     let mesh = match &visual.source {
         GrassChunkSource::Patches { footprint } => {
             let mut merged: Option<Mesh> = None;
             for &patch in &visual.patches {
-                let mesh = grass_patch_mesh(patch, footprint, visual.lod, visual.green, burns);
+                let mesh = grass_patch_mesh(patch, footprint, visual.lod, visual.green, burns, &clearance);
                 if mesh.count_vertices() == 0 {
                     continue;
                 }
@@ -258,7 +220,7 @@ pub(super) fn grass_chunk_mesh(visual: &GrassChunkVisual, burns: &[GrassBurn]) -
             merged?
         }
         GrassChunkSource::Grounds { grounds, cell } => {
-            let mesh = grounds_chunk_mesh(grounds, *cell, visual.lod, visual.green, burns);
+            let mesh = grounds_chunk_mesh(grounds, *cell, visual.lod, visual.green, burns, &clearance);
             (mesh.count_vertices() > 0).then_some(mesh)?
         }
     };
@@ -266,7 +228,14 @@ pub(super) fn grass_chunk_mesh(visual: &GrassChunkVisual, burns: &[GrassBurn]) -
 }
 
 // Blades over the exterior ground, leaving the rocks' footprints bare.
-fn grounds_chunk_mesh(grounds: &Grounds, cell: IVec2, lod: GrassLod, green: Color, burns: &[GrassBurn]) -> Mesh {
+fn grounds_chunk_mesh(
+    grounds: &Grounds,
+    cell: IVec2,
+    lod: GrassLod,
+    green: Color,
+    burns: &[GrassBurn],
+    clearance: &GrassClearance,
+) -> Mesh {
     let seed = (cell.x as u64).wrapping_mul(0x9E3779B97F4A7C15) ^ (cell.y as u64).wrapping_mul(0xC2B2AE3D27D4EB4F);
     let min = cell.as_vec2() * GRASS_CHUNK_SIZE;
     let rocks: Vec<(Vec2, f32)> = grounds
@@ -294,7 +263,7 @@ fn grounds_chunk_mesh(grounds: &Grounds, cell: IVec2, lod: GrassLod, green: Colo
                     .all(|(center, radius)| center.distance_squared(Vec2::new(x, z)) > radius * radius);
             clear.then(|| Vec3::new(x, grounds.height(x, z), z))
         },
-        |_, _| true,
+        |left, right| clearance.allows((left + right) * 0.5),
     )
 }
 

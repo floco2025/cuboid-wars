@@ -252,8 +252,6 @@ fn carrier_motion_and_knockback_do_not_drive_footsteps() {
     };
     motion.record_step(start, &walking, Vec3::X * 3.0, Vec3::X * 0.1, 0.1);
     assert!((motion.velocity.x - 3.0).abs() < 1e-5);
-    motion.block_horizontal();
-    assert_eq!(motion.velocity, Vec3::ZERO);
 }
 
 #[test]

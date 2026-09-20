@@ -5,6 +5,7 @@ use common::protocol::{CarrierId, Floor};
 
 use super::{
     burn::{BURN_VERTICAL_TOLERANCE, GrassBurn, grass_burn_system},
+    fixtures, jobs,
     mesh::{BLADE_HEIGHT_MAX, GrassLod, MID_SWAY_WEIGHT, VERTICES_PER_BLADE, WIND_SWAY_FACTOR, grass_patch_mesh},
     patch::GrassPatch,
     sources::GrassChunkSource,
@@ -50,7 +51,7 @@ fn patch_floor(patch: GrassPatch) -> Floor {
 }
 
 fn patch_mesh(patch: GrassPatch, lod: GrassLod, burns: &[GrassBurn]) -> Mesh {
-    grass_patch_mesh(patch, &[patch_floor(patch)], lod, test_green(), burns)
+    grass_patch_mesh(patch, &[patch_floor(patch)], lod, test_green(), burns, &default())
 }
 
 fn test_green() -> Color {
@@ -108,6 +109,7 @@ fn configured_green_changes_the_blade_colors() {
         GrassLod::Near,
         Color::srgb_u8(0x10, 0x80, 0x20),
         &[],
+        &default(),
     );
     let blue = grass_patch_mesh(
         patch,
@@ -115,6 +117,7 @@ fn configured_green_changes_the_blade_colors() {
         GrassLod::Near,
         Color::srgb_u8(0x10, 0x20, 0x80),
         &[],
+        &default(),
     );
     assert_eq!(positions(&green), positions(&blue));
     assert_ne!(colors(&green), colors(&blue));
@@ -240,6 +243,9 @@ fn removing_burn_restores_original_chunk_mesh() {
     );
     let footprint: Arc<[Floor]> = vec![patch_floor(patch)].into();
     let visual = GrassChunkVisual {
+        revision: 0,
+        burns: Vec::new(),
+        clearance: default(),
         patches: vec![patch],
         source: GrassChunkSource::Patches { footprint },
         lod: GrassLod::Near,
@@ -249,12 +255,17 @@ fn removing_burn_restores_original_chunk_mesh() {
     let baseline = grass_chunk_mesh(&visual, &[]).expect("grass expected");
     let expected_positions = positions(&baseline).to_vec();
 
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins)
-        .insert_resource(Assets::<Mesh>::default())
-        .add_systems(Update, grass_burn_system);
-    let mesh_handle = app.world_mut().resource_mut::<Assets<Mesh>>().add(baseline);
-    app.world_mut().spawn((visual, Mesh3d(mesh_handle.clone())));
+    let mut app = fixtures::app();
+    app.insert_resource(Assets::<Mesh>::default()).add_systems(
+        Update,
+        (
+            grass_burn_system,
+            jobs::grass_chunk_finish_system,
+            jobs::grass_chunk_build_system,
+        )
+            .chain(),
+    );
+    let chunk = app.world_mut().spawn((visual, jobs::GrassChunkBuild::default())).id();
     let burn_entity = app
         .world_mut()
         .spawn(GrassBurn::new(
@@ -270,7 +281,8 @@ fn removing_burn_restores_original_chunk_mesh() {
             ClipRegion::default(),
         ))
         .id();
-    app.update();
+    settle(&mut app);
+    let mesh_handle = app.world().get::<Mesh3d>(chunk).expect("burned initial mesh").0.clone();
     assert_ne!(
         positions(
             app.world()
@@ -281,7 +293,7 @@ fn removing_burn_restores_original_chunk_mesh() {
         expected_positions
     );
     app.world_mut().entity_mut(burn_entity).despawn();
-    app.update();
+    settle(&mut app);
     assert_eq!(
         positions(
             app.world()
@@ -340,4 +352,21 @@ fn padded_chunk_bounds_contain_full_sway() {
         assert!(swayed_min.cmpge(aabb.min().into()).all());
         assert!(swayed_max.cmple(aabb.max().into()).all());
     }
+}
+
+fn settle(app: &mut App) {
+    for _ in 0..1000 {
+        app.update();
+        if app
+            .world_mut()
+            .query::<&jobs::GrassChunkBuild>()
+            .iter(app.world())
+            .next()
+            .is_none()
+        {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    panic!("grass builds did not settle");
 }

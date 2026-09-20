@@ -1,4 +1,5 @@
 use super::*;
+use crate::missiles::steering::sweep_clear;
 use crate::{
     constants::MISSILE_RADIUS,
     test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
@@ -40,6 +41,17 @@ fn floor(x1: f32, z1: f32, x2: f32, z2: f32, y: f32) -> Floor {
         level: 1,
         carrier: CarrierId::WORLD,
     }
+}
+
+fn sealed(mut layout: MapLayout) -> MapLayout {
+    layout.walls.extend([
+        wall(-3.5, -2.0, 3.5, -2.0),
+        wall(-3.5, 2.0, 3.5, 2.0),
+        wall(-3.5, -2.0, -3.5, 2.0),
+        wall(3.5, -2.0, 3.5, 2.0),
+    ]);
+    layout.floors.push(floor(-3.5, -2.0, 3.5, 2.0, 0.0));
+    layout
 }
 
 fn world(layout: &MapLayout) -> CollisionWorld {
@@ -86,11 +98,11 @@ fn air_path_reaches_fuse_range_of_a_target_beside_a_wall() {
 #[test]
 fn fuse_range_does_not_make_a_route_through_cover() {
     let graph = map(2, 1, 2);
-    let world = world(&MapLayout {
+    let world = world(&sealed(MapLayout {
         walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
         floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
         ..default()
-    });
+    }));
     let from = Vec3::new(-0.5, 1.0, 0.0);
     let target = Vec3::new(WALL_THICKNESS / 2.0 + 0.26, 1.0, 0.0);
     assert!(from.distance(target) < 1.0);
@@ -119,7 +131,7 @@ fn air_path_descends_through_a_floor_opening() {
 }
 
 #[test]
-fn air_path_crests_over_an_open_topped_wall() {
+fn air_path_avoids_an_open_wall() {
     let graph = map(2, 1, 1);
     let layout = MapLayout {
         walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
@@ -130,19 +142,19 @@ fn air_path_crests_over_an_open_topped_wall() {
     let to = Vec3::new(1.7, 1.0, 0.0);
     let path = graph
         .path(&Carriers::default(), &world, &[], from, to, MISSILE_RADIUS, 1.0)
-        .expect("route over wall missing");
+        .expect("route around wall missing");
     assert_clear_path(&world, from, to, &path);
-    assert!(path.iter().any(|point| point.y > WALL_HEIGHT));
+    assert!(path.len() > 1);
 }
 
 #[test]
 fn air_path_fails_when_fully_roofed() {
     let graph = map(2, 1, 2);
-    let layout = MapLayout {
+    let layout = sealed(MapLayout {
         walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
         floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
         ..default()
-    };
+    });
     let world = world(&layout);
     assert!(
         graph
@@ -228,11 +240,11 @@ fn routes_into_a_shifted_room_keep_clear_of_its_walls_floor_and_roof() {
 #[test]
 fn a_gap_narrower_than_the_missile_diameter_is_not_a_route() {
     let graph = map(2, 1, 1);
-    let layout = MapLayout {
+    let layout = sealed(MapLayout {
         walls: vec![wall(0.0, -2.0, 0.0, -0.2), wall(0.0, 0.2, 0.0, 2.0)],
         floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
         ..default()
-    };
+    });
     let world = world(&layout);
     let from = Vec3::new(-1.7, 1.0, 0.0);
     let to = Vec3::new(1.7, 1.0, 0.0);
@@ -251,7 +263,7 @@ fn a_gap_narrower_than_the_missile_diameter_is_not_a_route() {
 #[test]
 fn opened_barriers_allow_a_route_without_stale_grid_flags() {
     let graph = map(2, 1, 1);
-    let layout = MapLayout {
+    let layout = sealed(MapLayout {
         barriers: vec![Barrier {
             x1: 0.0,
             z1: -2.0,
@@ -267,7 +279,7 @@ fn opened_barriers_allow_a_route_without_stale_grid_flags() {
         }],
         floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
         ..default()
-    };
+    });
     let world = CollisionWorld::from_map_layout(&layout);
     let from = Vec3::new(-0.5, 1.0, 0.0);
     let to = Vec3::new(0.3, 1.0, 0.0);

@@ -49,11 +49,6 @@ impl PlayerAnimationMotion {
         let speed = travelled.dot(direction).clamp(0.0, control_velocity.length());
         self.velocity = (direction * speed).with_y(step.vertical_velocity);
     }
-
-    pub fn block_horizontal(&mut self) {
-        self.velocity.x = 0.0;
-        self.velocity.z = 0.0;
-    }
 }
 
 // Indices match the named clip order exported by player.py.

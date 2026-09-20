@@ -46,10 +46,19 @@ pub fn characters_movement_system(
     actors_query: Query<(Entity, &ActorId, &Position), (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
     let delta = time.delta_secs();
-    let mut planned_moves = Vec::new();
-
-    plan_player_moves(
-        &mut commands,
+    let blockers: Vec<_> = actors_query
+        .iter()
+        .filter_map(|(entity, id, pos)| {
+            let info = actors.get(id)?;
+            Some(CharacterMovePlan::stationary(
+                entity,
+                *pos,
+                0.0,
+                gameplay_config.expect_actor(&info.kind).physics(),
+            ))
+        })
+        .collect();
+    let planned_moves = plan_player_moves(
         delta,
         &collision_world,
         &map_settings,
@@ -60,17 +69,8 @@ pub fn characters_movement_system(
         &carriers,
         local.is_dead,
         &mut players_query,
-        &mut planned_moves,
+        &blockers,
     );
-    planned_moves.extend(actors_query.iter().filter_map(|(entity, id, pos)| {
-        let info = actors.get(id)?;
-        Some(CharacterMovePlan::stationary(
-            entity,
-            *pos,
-            0.0,
-            gameplay_config.expect_actor(&info.kind).physics(),
-        ))
-    }));
     apply_player_moves(
         &mut commands,
         delta,

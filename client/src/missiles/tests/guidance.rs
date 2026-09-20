@@ -112,7 +112,8 @@ fn a_wall_moving_across_a_cached_route_triggers_an_immediate_replan() {
             target,
             MISSILE_RADIUS,
             1.0,
-            TICK_SECS
+            TICK_SECS,
+            &mut SearchBudget::new(1024),
         )
         .is_some()
     );
@@ -147,7 +148,8 @@ fn failed_routes_obey_the_retry_timer() {
             target,
             MISSILE_RADIUS,
             1.0,
-            TICK_SECS
+            TICK_SECS,
+            &mut SearchBudget::new(1024),
         )
         .is_none()
     );
@@ -182,6 +184,7 @@ fn lead_pursuit_does_not_aim_through_a_wall_beside_a_visible_target() {
         Vec3::Z * 16.0,
         16.0,
         TICK_SECS,
+        &mut SearchBudget::new(1024),
     );
     assert!(velocity.abs_diff_eq(Vec3::Z * 16.0, 1e-4));
 }
@@ -275,6 +278,7 @@ fn missiles_reach_an_exposed_target_too_close_to_a_wall_for_their_radius() {
             velocity,
             16.0,
             TICK_SECS,
+            &mut SearchBudget::new(1024),
         );
         if let Some(closest) = proximity_detonation(
             &world,
@@ -377,6 +381,7 @@ fn missiles_reach_targets_inside_a_moving_room_without_clipping_its_shell() {
                     velocity,
                     16.0,
                     TICK_SECS,
+                    &mut SearchBudget::new(1024),
                 );
                 if let Some(closest) = proximity_detonation(
                     &world,
@@ -453,10 +458,48 @@ fn a_route_whose_waypoints_went_unreachable_retries_on_the_next_tick() {
             target,
             MISSILE_RADIUS,
             1.0,
-            TICK_SECS
+            TICK_SECS,
+            &mut SearchBudget::new(1024),
         )
         .is_none()
     );
     assert!(info.path.is_empty());
     assert_eq!(info.path_retry_timer, 0.0);
+}
+
+#[test]
+fn pending_replans_keep_a_usable_route_and_refresh_field_state() {
+    let graph = map(4, 4, 2);
+    let carriers = Carriers::default();
+    let world = world(&MapLayout {
+        walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
+        ..default()
+    });
+    let origin = Vec3::new(-3.0, 1.0, 0.0);
+    let target = Vec3::new(3.0, 1.0, 0.0);
+    let mut info = info();
+    info.path = graph
+        .path(&carriers, &world, &[], origin, target, MISSILE_RADIUS, 1.0)
+        .expect("usable route");
+    for open in [vec![], vec![FieldId(2)]] {
+        let mut budget = SearchBudget::new(0);
+        let direction = route_objective(
+            &mut info,
+            &graph,
+            &carriers,
+            &world,
+            &open,
+            origin,
+            target,
+            MISSILE_RADIUS,
+            1.0,
+            TICK_SECS,
+            &mut budget,
+        )
+        .expect("follow retained route while search waits");
+        assert!(sweep_clear(&world, &open, origin, direction, MISSILE_RADIUS));
+        assert_eq!(info.route_status, RouteStatus::Pending);
+        assert_eq!(info.search.as_ref().expect("pending search").open, open);
+        assert_eq!(budget.used, 0);
+    }
 }

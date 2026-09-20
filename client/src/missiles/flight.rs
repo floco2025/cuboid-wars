@@ -5,6 +5,8 @@ use common::{
 };
 use std::collections::VecDeque;
 
+use super::search::{AirSearch, RouteStatus};
+
 pub struct MissileFlight {
     pub shooter: PlayerId,
     // `None` once the target dies/despawns — the missile flies straight on.
@@ -14,6 +16,8 @@ pub struct MissileFlight {
     pub path: VecDeque<Vec3>,
     pub path_target: Option<Vec3>,
     pub path_retry_timer: f32,
+    pub(crate) search: Option<AirSearch>,
+    pub(crate) route_status: RouteStatus,
     // Committed local-dodge direction, used only when the air graph has no
     // route; flown for a short window so the pick doesn't dither.
     pub avoid_dir: Option<Vec3>,
@@ -41,6 +45,8 @@ impl MissileFlight {
             path: VecDeque::new(),
             path_target: None,
             path_retry_timer: 0.0,
+            search: None,
+            route_status: RouteStatus::Idle,
             avoid_dir: None,
             avoid_timer: 0.0,
             last_target_center: None,

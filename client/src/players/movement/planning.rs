@@ -3,19 +3,27 @@ use common::{
     config::GameplayConfig,
     map::Carriers,
     physics::{
-        AirborneMomentum, CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, PortalSet,
-        player_control_velocity,
+        AirborneMomentum, CharacterMovePlan, CharacterMovementResult, CharacterVerticalVelocity, CollisionWorld,
+        KnockbackVelocity, PortalSet, character_move_plans_intersect, player_control_velocity,
     },
     protocol::{
         ActorMarker, FieldId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind, SwitchState,
     },
 };
 
-use super::{PlayerMovementStep, momentum_displacement, outcomes::LocalMovementStep, step_player_movement};
+use super::{PlayerMovementStep, momentum_displacement, step_player_movement};
 use crate::players::{BumpFeedbackState, LocalPlayerMarker, PlayerAnimationMotion, PlayerMap};
 
+pub(crate) struct PlayerMove {
+    pub entity: Entity,
+    pub start: Position,
+    pub result: CharacterMovementResult,
+    pub control_velocity: Vec3,
+    pub external_displacement: Vec3,
+    pub hits_character: bool,
+}
+
 pub(crate) fn plan_player_moves(
-    commands: &mut Commands,
     delta: f32,
     collision_world: &CollisionWorld,
     map_settings: &MapSettings,
@@ -26,33 +34,26 @@ pub(crate) fn plan_player_moves(
     carriers: &Carriers,
     local_dead: bool,
     query: &mut PlayerMovementQuery,
-    planned_moves: &mut Vec<CharacterMovePlan>,
-) {
+    actors: &[CharacterMovePlan],
+) -> Vec<PlayerMove> {
+    if local_dead {
+        return Vec::new();
+    }
     let player_physics = gameplay_config.player.physics();
-    for (
-        entity,
-        player_id,
-        client_pos,
-        move_intent,
-        motion,
-        _,
-        knockback,
-        mut airborne_momentum,
-        mut animation_motion,
-        is_local,
-    ) in query
+    let mut blockers = actors.to_vec();
+    blockers.extend(
+        query
+            .iter()
+            .filter(|(.., is_local)| !is_local)
+            .map(|(entity, _, position, _, motion, ..)| {
+                CharacterMovePlan::stationary(entity, *position, motion.0, player_physics)
+            }),
+    );
+    let mut moves = Vec::new();
+    for (entity, player_id, client_pos, move_intent, motion, _, knockback, airborne_momentum, _, is_local) in
+        query.iter()
     {
         if !is_local {
-            planned_moves.push(CharacterMovePlan::stationary(
-                entity,
-                *client_pos,
-                motion.0,
-                player_physics,
-            ));
-            continue;
-        }
-        // A dead body stays where death left it; nothing collides with it.
-        if local_dead {
             continue;
         }
         let info = players.get(player_id);
@@ -61,15 +62,15 @@ pub(crate) fn plan_player_moves(
         let movement_disabled = info.is_some_and(|i| i.stunned);
         let held_keys: &[FieldId] = info.map_or(&[], |i| i.held_keys.as_slice());
 
-        let control_velocity = player_control_velocity(
+        let mut control_velocity = player_control_velocity(
             *move_intent,
             &map_settings.movement,
             has_speed_power_up,
             movement_disabled,
         );
 
-        let external_displacement = momentum_displacement(Some(knockback), Some(&*airborne_momentum), delta);
-        let step = step_player_movement(PlayerMovementStep {
+        let mut external_displacement = momentum_displacement(Some(knockback), Some(airborne_momentum), delta);
+        let request = PlayerMovementStep {
             start: *client_pos,
             vertical_velocity: motion.0,
             control_velocity,
@@ -77,32 +78,46 @@ pub(crate) fn plan_player_moves(
             has_low_gravity,
             held_keys,
             open_fields: &switch_state.open_fields,
-            knockback,
-            airborne_momentum: &mut airborne_momentum,
+            external_displacement,
             collision_world,
             map_settings,
             gameplay_config,
             portal_set,
             carriers,
-        });
-        commands.entity(entity).insert((
-            step.grounding,
-            LocalMovementStep {
-                start: *client_pos,
-                crushed: step.crushed,
-                impact_speed: step.impact_speed,
-                carrier: step.carrier,
-                support: step.support,
-            },
-        ));
-        animation_motion.record_step(*client_pos, &step, control_velocity, external_displacement, delta);
-        planned_moves.push(CharacterMovePlan::from_movement_result(
+        };
+        let mut result = step_player_movement(request);
+        let candidate = CharacterMovePlan::from_movement_result(entity, *client_pos, result, player_physics);
+        let hits_character = overlapping_character(&candidate, &blockers).is_some();
+        if hits_character {
+            // Recompute at the accepted horizontal request: vertical support,
+            // landings and carrier motion must describe the position we apply.
+            control_velocity = Vec3::ZERO;
+            external_displacement *= Vec3::Y;
+            result = step_player_movement(PlayerMovementStep {
+                control_velocity,
+                external_displacement,
+                ..request
+            });
+        }
+        moves.push(PlayerMove {
             entity,
-            *client_pos,
-            step,
-            player_physics,
-        ));
+            start: *client_pos,
+            result,
+            control_velocity,
+            external_displacement,
+            hits_character,
+        });
     }
+    moves
+}
+
+fn overlapping_character<'a>(
+    candidate: &CharacterMovePlan,
+    blockers: &'a [CharacterMovePlan],
+) -> Option<&'a CharacterMovePlan> {
+    blockers
+        .iter()
+        .find(|other| other.entity != candidate.entity && character_move_plans_intersect(candidate, other))
 }
 
 pub(crate) type PlayerMovementQuery<'w, 's> = Query<

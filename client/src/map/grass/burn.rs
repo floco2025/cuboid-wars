@@ -1,8 +1,4 @@
-use super::{
-    mesh::BLADE_MAX_OVERHANG,
-    patch::GrassPatch,
-    streaming::{GrassChunkVisual, grass_chunk_mesh},
-};
+use super::{jobs::GrassChunkBuild, mesh::BLADE_MAX_OVERHANG, patch::GrassPatch, streaming::GrassChunkVisual};
 use crate::{
     constants::EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR,
     vfx::{ClipRegion, ScorchOutline},
@@ -92,12 +88,21 @@ impl GrassBurn {
 }
 
 pub fn grass_burn_system(
+    mut commands: Commands,
     mut previous_burns: Local<HashMap<Entity, GrassBurn>>,
     burns: Query<(Entity, &GrassBurn)>,
-    chunks: Query<(Ref<GrassChunkVisual>, &Mesh3d)>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    mut chunks: Query<(Entity, &mut GrassChunkVisual, Has<GrassChunkBuild>)>,
 ) {
-    let current_burns: HashMap<Entity, GrassBurn> = burns.iter().map(|(entity, burn)| (entity, burn.clone())).collect();
+    // Quantize the slow fade so a fresh revision does not invalidate every
+    // background build on a fast-rendering client.
+    let current_burns: HashMap<Entity, GrassBurn> = burns
+        .iter()
+        .map(|(entity, burn)| {
+            let mut burn = burn.clone();
+            burn.intensity = (burn.intensity * 16.0).round() / 16.0;
+            (entity, burn)
+        })
+        .collect();
     let mut dirty_footprints = Vec::new();
 
     for (entity, burn) in &current_burns {
@@ -113,7 +118,9 @@ pub fn grass_burn_system(
         }
     }
 
-    for (visual, mesh_handle) in &chunks {
+    let mut ordered_burns: Vec<_> = current_burns.iter().collect();
+    ordered_burns.sort_by_key(|(entity, _)| **entity);
+    for (entity, mut visual, building) in &mut chunks {
         let dirty = dirty_footprints
             .iter()
             .any(|burn| visual.patches.iter().any(|patch| burn.intersects_patch(*patch)));
@@ -121,8 +128,9 @@ pub fn grass_burn_system(
             continue;
         }
 
-        let affecting_burns: Vec<GrassBurn> = current_burns
-            .values()
+        let affecting_burns: Vec<GrassBurn> = ordered_burns
+            .iter()
+            .map(|(_, burn)| *burn)
             .filter(|burn| visual.patches.iter().any(|patch| burn.intersects_patch(*patch)))
             .cloned()
             .collect();
@@ -130,12 +138,12 @@ pub fn grass_burn_system(
             continue;
         }
 
-        // Inserted rather than edited in place: a chunk mesh lives only in
-        // the render world once uploaded, so there is nothing to edit.
-        if let Some(rebuilt) = grass_chunk_mesh(&visual, &affecting_burns) {
-            meshes
-                .insert(mesh_handle.id(), rebuilt)
-                .expect("grass chunk mesh handle is no longer valid");
+        if visual.burns != affecting_burns {
+            visual.burns = affecting_burns;
+            visual.revision += 1;
+            if !building {
+                commands.entity(entity).insert(GrassChunkBuild::default());
+            }
         }
     }
 

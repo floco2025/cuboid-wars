@@ -1,4 +1,7 @@
-use super::{MissileMarker, missile_blast_hits};
+use super::{
+    MissileMarker, missile_blast_hits,
+    search::{SearchBudget, TICK_SEARCH_QUERIES},
+};
 use crate::{
     actors::ActorMap,
     audio::play_explosion_sound,
@@ -77,6 +80,7 @@ pub fn missiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     mut cadence: Local<Option<UpdateCadence>>,
+    mut search_priority: Local<usize>,
     mut params: MissileMovementParams,
     mut presentation: MissileBlastPresentation,
 ) {
@@ -114,7 +118,13 @@ pub fn missiles_movement_system(
             ))
         }))
         .collect();
-    for (entity, id, mut pos, mut previous, mut velocity, mut owned) in &mut params.query {
+    let mut ordered: Vec<_> = params.query.iter_mut().collect();
+    ordered.sort_by_key(|(_, id, ..)| id.0);
+    let rotation = *search_priority % ordered.len();
+    ordered.rotate_left(rotation);
+    *search_priority = search_priority.wrapping_add(1);
+    let mut search_budget = SearchBudget::new(TICK_SEARCH_QUERIES);
+    for (entity, id, mut pos, mut previous, mut velocity, mut owned) in ordered {
         if !params.missiles.contains_key(id) {
             continue;
         }
@@ -143,6 +153,7 @@ pub fn missiles_movement_system(
             velocity.0,
             params.settings.movement.missile_speed,
             delta,
+            &mut search_budget,
         );
         if !flight.armed {
             flight.armed = !bodies.iter().any(|(target, body, yaw, physics)| {

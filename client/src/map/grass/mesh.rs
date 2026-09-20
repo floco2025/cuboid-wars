@@ -1,4 +1,4 @@
-use super::{burn::GrassBurn, patch::GrassPatch};
+use super::{burn::GrassBurn, clearance::GrassClearance, patch::GrassPatch};
 use crate::{
     constants::{
         EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR,
@@ -95,6 +95,7 @@ pub(super) fn grass_patch_mesh(
     lod: GrassLod,
     green: Color,
     burns: &[GrassBurn],
+    clearance: &GrassClearance,
 ) -> Mesh {
     let candidate_count = lod.tuft_count(patch.area());
     grass_scatter_mesh(
@@ -110,7 +111,11 @@ pub(super) fn grass_patch_mesh(
                 rng.random_range(patch.z1..=patch.z2),
             ))
         },
-        |left, right| base_is_on_terrain(left, footprint, patch) && base_is_on_terrain(right, footprint, patch),
+        |left, right| {
+            base_is_on_terrain(left, footprint, patch)
+                && base_is_on_terrain(right, footprint, patch)
+                && clearance.allows((left + right) * 0.5)
+        },
     )
 }
 
