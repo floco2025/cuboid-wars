@@ -81,6 +81,8 @@ impl GrassLod {
     }
 }
 
+// Chunks exist only within their fade range of the camera: a whole map's
+// blades built at once cost gigabytes of vertices.
 pub fn grass_streaming_system(
     mut commands: Commands,
     mut chunks: ResMut<GrassChunks>,
