@@ -333,5 +333,9 @@ mod home_tests;
 mod roaming_tests;
 
 #[cfg(test)]
+#[path = "tests/app_actor_collisions.rs"]
+mod actor_collision_tests;
+
+#[cfg(test)]
 #[path = "tests/app_fixtures.rs"]
 pub(crate) mod fixtures;

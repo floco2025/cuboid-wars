@@ -3,6 +3,117 @@ use crate::actors::navigation::surface::{RouteFailure, SurfaceMesh, fixtures};
 use common::protocol::FieldId;
 
 #[test]
+fn actor_blocking_rejects_a_swept_impulse_and_preserves_the_full_carried_landing() {
+    use bevy::prelude::Entity;
+    use common::{
+        physics::{CharacterMovePlan, character_move_plans_intersect},
+        protocol::{Carrier, CarrierMotion, Floor, MapLayout, SwitchState},
+    };
+
+    let config = fixtures::config();
+    let physics = config.expect_actor("scuttler").character.physics();
+    let carrier = CarrierId(1);
+    let layout = MapLayout {
+        carriers: vec![Carrier {
+            initially_on: true,
+            motion: CarrierMotion::Cycle,
+            parent: CarrierId::WORLD,
+            level: 0,
+            levels: 1,
+            from: Position::default(),
+            to: Position {
+                x: 30.0,
+                y: 3.0,
+                z: 0.0,
+            },
+            travel_ticks: 30,
+            pause_ticks: 0,
+            phase_ticks: 0,
+            switch: None,
+        }],
+        floors: vec![Floor {
+            x1: -6.0,
+            x2: 6.0,
+            z1: -3.0,
+            z2: 3.0,
+            y: 0.0,
+            thickness: 0.2,
+            level: 0,
+            carrier,
+        }],
+        ..Default::default()
+    };
+    let mut world = CollisionWorld::from_map_layout(&layout);
+    let mut carriers = Carriers::from_layout(&layout);
+    world.set_carrier_poses(&carriers);
+    let start = Position {
+        x: -2.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    let mut actor = TraversalExecutor::new(
+        start,
+        physics,
+        2.0,
+        &TraversalEnvironment {
+            world: &world,
+            carriers: &carriers,
+            settings: &config.settings,
+            open: &[],
+            delta: 1.0 / 30.0,
+        },
+    );
+    actor.movement.position = start;
+    actor.movement.vertical_velocity = -3.0;
+    carriers.advance(1, &SwitchState::default());
+    world.set_carrier_poses(&carriers);
+    let env = TraversalEnvironment {
+        world: &world,
+        carriers: &carriers,
+        settings: &config.settings,
+        open: &[],
+        delta: 1.0 / 30.0,
+    };
+    let expected = step_actor_movement(ActorMovementStep {
+        start,
+        vertical_velocity: -3.0,
+        intent: ActorMoveIntent::Idle,
+        external_displacement: Vec3::ZERO,
+        delta: env.delta,
+        can_use_ladders: false,
+        physics,
+        open_fields: &[],
+        collision_world: &world,
+        map_settings: &config.settings,
+        carriers: &carriers,
+    });
+    let other = CharacterMovePlan::from_target(
+        Entity::from_bits(2),
+        Position::default(),
+        carriers.pose(carrier).transform_position(&Position::default()),
+        0.0,
+        physics,
+        false,
+    );
+    let blocks = |movement: &CharacterMovementResult| {
+        let plan = CharacterMovePlan::from_movement_result(Entity::from_bits(1), start, *movement, physics);
+        character_move_plans_intersect(&plan, &other).then_some(Vec3::from(other.start) - Vec3::from(start))
+    };
+    let mut unblocked = actor.clone();
+    unblocked.step_with_avoidance(&env, Vec3::X * 5.0, Vec3::ZERO, false, None, |_| None);
+    assert!(
+        unblocked.movement.position.x > other.target.x + physics.movement_collider.diameter,
+        "the impulse crosses the body and ends clear"
+    );
+    actor.step_with_avoidance(&env, Vec3::X * 5.0, Vec3::ZERO, false, None, blocks);
+    assert_eq!(actor.movement, expected);
+    assert_eq!(actor.movement.support, CharacterSupport::Ground);
+    assert_eq!(actor.movement.carrier, carrier);
+    assert!(actor.movement.impact_speed > 0.0);
+    assert!(actor.movement.position.x > start.x, "carrier motion is retained");
+}
+
+#[test]
 fn roaming_rejects_crowd_steering_out_of_a_moving_home_but_keeps_physics() {
     use crate::map::ZoneVolume;
     use common::protocol::{Carrier, CarrierMotion, Floor, MapLayout, SwitchState};
@@ -90,7 +201,7 @@ fn roaming_rejects_crowd_steering_out_of_a_moving_home_but_keeps_physics() {
         delta: 1.0 / 30.0,
     };
     let mut unrestricted = actor.clone();
-    unrestricted.step_with_avoidance(&env, Vec3::ZERO, Vec3::X, false, None);
+    unrestricted.step_with_avoidance(&env, Vec3::ZERO, Vec3::X, false, None, |_| None);
     assert!(
         !home.contains_position(
             carriers
@@ -100,7 +211,7 @@ fn roaming_rejects_crowd_steering_out_of_a_moving_home_but_keeps_physics() {
     );
 
     let mut confined = actor.clone();
-    confined.step_with_avoidance(&env, Vec3::ZERO, Vec3::X, false, Some(&home));
+    confined.step_with_avoidance(&env, Vec3::ZERO, Vec3::X, false, Some(&home), |_| None);
     assert_eq!(confined.status, TraversalStatus::OutsideTerritory);
     assert_eq!(
         confined.intent.direction(),
@@ -133,7 +244,7 @@ fn roaming_rejects_crowd_steering_out_of_a_moving_home_but_keeps_physics() {
         map_settings: &config.settings,
         carriers: &carriers,
     });
-    actor.step_with_avoidance(&env, impulse, Vec3::ZERO, false, Some(&home));
+    actor.step_with_avoidance(&env, impulse, Vec3::ZERO, false, Some(&home), |_| None);
     assert_eq!(
         actor.movement, expected,
         "physical displacement is not clamped at the territory boundary"

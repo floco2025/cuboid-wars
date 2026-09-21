@@ -47,6 +47,7 @@ pub struct TraversalExecutor {
     pub physics: CharacterPhysicsConfig,
     pub speed: f32,
     pub(crate) facing: f32,
+    pub(crate) start: Position,
     stalled_secs: f32,
 }
 
@@ -73,6 +74,7 @@ impl TraversalExecutor {
             physics,
             speed,
             facing: 0.0,
+            start: position,
             stalled_secs: 0.0,
         }
     }
@@ -95,9 +97,10 @@ impl TraversalExecutor {
 
     #[cfg(test)]
     pub fn step(&mut self, env: &TraversalEnvironment) {
-        self.step_with_avoidance(env, Vec3::ZERO, Vec3::ZERO, false, None);
+        self.step_with_avoidance(env, Vec3::ZERO, Vec3::ZERO, false, None, |_| None);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn step_with_avoidance(
         &mut self,
         env: &TraversalEnvironment,
@@ -105,8 +108,11 @@ impl TraversalExecutor {
         avoidance: Vec3,
         waiting: bool,
         home: Option<&ActorTerritory>,
+        blocking_actor: impl Fn(&CharacterMovementResult) -> Option<Vec3>,
     ) {
         let start = self.movement.position;
+        self.start = start;
+        let previous_facing = self.facing;
         let mut target = None;
         let mut ladder_intent = None;
         let mut mounting = false;
@@ -256,10 +262,7 @@ impl TraversalExecutor {
             self.status = TraversalStatus::Waiting;
         }
         self.intent = intent;
-        if let Some(direction) = intent.direction() {
-            self.facing = direction;
-        }
-        let step = |intent: ActorMoveIntent| {
+        let step = |intent: ActorMoveIntent, external_displacement: Vec3| {
             step_actor_movement(ActorMovementStep {
                 start,
                 vertical_velocity: self.movement.vertical_velocity,
@@ -274,7 +277,7 @@ impl TraversalExecutor {
                 carriers: env.carriers,
             })
         };
-        let mut movement = step(intent);
+        let mut movement = step(intent, external_displacement);
         if home.is_some_and(|home| {
             !home.contains_position(
                 env.carriers
@@ -285,13 +288,67 @@ impl TraversalExecutor {
             // Steering can leave a valid route's territory. Rerun the complete
             // motor without voluntary travel, retaining gravity, impulses and
             // carrier motion; clamping the result would corrupt its support.
-            self.intent = match intent {
-                ActorMoveIntent::Moving { direction, .. } => ActorMoveIntent::Moving { direction, speed: 0.0 },
-                _ => intent.holding_ladder(),
-            };
-            movement = step(self.intent);
+            self.intent = stopped_intent(intent);
+            movement = step(self.intent, external_displacement);
             self.actions.clear();
             self.status = TraversalStatus::OutsideTerritory;
+        }
+        let mut blocker = blocking_actor(&movement);
+        // A pivot has no sweep. Probe the intended travel too, or turning
+        // back toward the route every tick cancels the turn around a body.
+        if blocker.is_none() && walking && self.status == TraversalStatus::Moving && self.intent.speed() == Some(0.0) {
+            let offset = Vec3::from(target.expect("walking target")) - Vec3::from(start);
+            let probe = step(
+                ActorMoveIntent::Moving {
+                    direction: offset.x.atan2(offset.z),
+                    speed: self.speed.min(offset.length() / env.delta),
+                },
+                external_displacement,
+            );
+            blocker = blocking_actor(&probe);
+        }
+        if let Some(offset) = blocker {
+            let mut sidestep = None;
+            if walking && self.status == TraversalStatus::Moving && self.movement.support == CharacterSupport::Ground {
+                let target = target.expect("walking target");
+                let toward = offset.with_y(0.0).try_normalize().unwrap_or(Vec3::X);
+                let tangent = Vec3::new(toward.z, 0.0, -toward.x) - toward * 0.25;
+                let intent = super::steering::steer(
+                    ActorMoveIntent::Moving {
+                        direction: tangent.x.atan2(tangent.z),
+                        speed: self.speed,
+                    },
+                    previous_facing,
+                    start.horizontal_distance_sq(&target).sqrt(),
+                    env.delta,
+                );
+                self.intent = intent;
+                let next = Vec3::from(start) + intent.to_horizontal_velocity() * env.delta;
+                if supported_at(env, next, self.physics) {
+                    let alternative = step(intent, external_displacement);
+                    if blocking_actor(&alternative).is_none()
+                        && home.is_none_or(|home| {
+                            home.contains_position(
+                                env.carriers
+                                    .pose(home.carrier)
+                                    .inverse_transform_point(alternative.position.into()),
+                            )
+                        })
+                    {
+                        sidestep = Some(alternative);
+                    }
+                }
+            }
+            // Soft separation cannot stop crossing paths or blast impulses.
+            // Retry the motor without horizontal travel so gravity, support,
+            // landing and carrier state all describe the accepted position.
+            movement = sidestep.unwrap_or_else(|| {
+                self.intent = stopped_intent(self.intent);
+                step(self.intent, external_displacement * Vec3::Y)
+            });
+        }
+        if let Some(direction) = self.intent.direction() {
+            self.facing = direction;
         }
         self.movement = movement;
         if self.movement.crushed {
@@ -307,6 +364,13 @@ impl TraversalExecutor {
         } else {
             self.stalled_secs = 0.0;
         }
+    }
+}
+
+fn stopped_intent(intent: ActorMoveIntent) -> ActorMoveIntent {
+    match intent {
+        ActorMoveIntent::Moving { direction, .. } => ActorMoveIntent::Moving { direction, speed: 0.0 },
+        _ => intent.holding_ladder(),
     }
 }
 

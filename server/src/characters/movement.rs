@@ -23,7 +23,7 @@ pub fn characters_movement_system(
     carriers: Res<Carriers>,
     actors: Res<ActorMap>,
     player_query: PlayerMovementQuery,
-    ground_query: Query<(Entity, &Position, &ActorCharacter), With<SurfaceAgent>>,
+    ground_query: Query<(Entity, &Position, &ActorCharacter, &SurfaceAgent)>,
     mut actor_query: ActorMovementQuery,
 ) {
     let delta = time.delta_secs();
@@ -37,7 +37,7 @@ pub fn characters_movement_system(
         .chain(
             ground_query
                 .iter()
-                .map(|(entity, pos, character)| (entity, *pos, character.0.physics())),
+                .map(|(entity, pos, character, _)| (entity, *pos, character.0.physics())),
         )
         .collect();
 
@@ -49,6 +49,10 @@ pub fn characters_movement_system(
             info.life.movement.vertical_velocity,
             gameplay_config.player.physics(),
         ))
+    }));
+    planned_moves.extend(ground_query.iter().map(|(entity, position, character, agent)| {
+        let start = agent.executor.as_ref().map_or(*position, |executor| executor.start);
+        CharacterMovePlan::from_target(entity, start, *position, 0.0, character.0.physics(), false)
     }));
     plan_actor_moves(
         delta,

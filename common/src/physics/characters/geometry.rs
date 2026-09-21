@@ -1,8 +1,8 @@
 use bevy_math::Vec3;
 use rapier3d::{
     parry::{
-        query::{ShapeCastOptions, cast_shapes, intersection_test},
-        shape::{Capsule, Cuboid},
+        query::details::distance_segment_segment,
+        shape::{Capsule, Cuboid, Segment},
     },
     prelude::{Pose, Vector},
 };
@@ -49,31 +49,19 @@ pub fn character_paths_intersect(
     end2: &Position,
     physics2: CharacterPhysicsConfig,
 ) -> bool {
-    let shape1 = character_movement_shape(physics1);
-    let shape2 = character_movement_shape(physics2);
-    let velocity1 = to_rapier(Vec3::from(*end1) - Vec3::from(*start1));
-    let velocity2 = to_rapier(Vec3::from(*end2) - Vec3::from(*start2));
-    if character_positions_intersect(start1, physics1, start2, physics2) {
-        return true;
-    }
-
-    let options = ShapeCastOptions {
-        max_time_of_impact: 1.0,
-        // Near-touching bodies can report a zero-time hit even while separating.
-        stop_at_penetration: false,
-        ..ShapeCastOptions::default()
-    };
-
-    cast_shapes(
-        &character_movement_pose(start1, physics1),
-        velocity1,
-        &shape1,
-        &character_movement_pose(start2, physics2),
-        velocity2,
-        &shape2,
-        options,
-    )
-    .is_ok_and(|hit| hit.is_some())
+    // Upright capsules reduce to a relative path against one vertical capsule.
+    // The generic convex cast can miss unequal capsules moving almost
+    // horizontally; segment distance also catches crossings with clear ends.
+    let first = physics1.movement_collider;
+    let second = physics2.movement_collider;
+    let center_offset = Vec3::Y * ((second.height - first.height) * 0.5);
+    let relative = Segment::new(
+        to_rapier(Vec3::from(*start2) - Vec3::from(*start1) + center_offset),
+        to_rapier(Vec3::from(*end2) - Vec3::from(*end1) + center_offset),
+    );
+    let half_length = first.segment_half_height() + second.segment_half_height();
+    let axis = Segment::new(-Vector::Y * half_length, Vector::Y * half_length);
+    distance_segment_segment(&Pose::IDENTITY, &relative, &axis) <= first.radius() + second.radius()
 }
 
 pub fn character_axis_separation(
@@ -100,15 +88,8 @@ pub fn character_positions_intersect(
     pos2: &Position,
     physics2: CharacterPhysicsConfig,
 ) -> bool {
-    let shape1 = character_movement_shape(physics1);
-    let shape2 = character_movement_shape(physics2);
-    intersection_test(
-        &character_movement_pose(pos1, physics1),
-        &shape1,
-        &character_movement_pose(pos2, physics2),
-        &shape2,
-    )
-    .is_ok_and(|overlaps| overlaps)
+    let radius = physics1.movement_collider.radius() + physics2.movement_collider.radius();
+    character_axis_separation(pos1, physics1, pos2, physics2).length_squared() <= radius * radius
 }
 
 #[cfg(test)]
