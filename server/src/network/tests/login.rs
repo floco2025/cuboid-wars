@@ -77,7 +77,7 @@ fn init_message_round_trips_complete_bootstrap() {
             },
             gameplay: config.gameplay_bootstrap(),
             map: MapBootstrap {
-                missile_air_grids: Vec::new(),
+                grids: Vec::new(),
                 layout: MapLayout::default(),
                 settings: MapSettings {
                     fields: vec![

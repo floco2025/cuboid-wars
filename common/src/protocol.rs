@@ -400,11 +400,14 @@ pub struct MapBootstrap {
     pub layout: MapLayout,
     pub settings: MapSettings,
     pub items: MapItems,
-    pub missile_air_grids: Vec<MissileAirGrid>,
+    pub grids: Vec<CarrierGrid>,
 }
 
+// Every carrier's authored grid, the world first: its cell footprint and
+// storey count. Missile air routing and the fireworks show size themselves
+// on these.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct MissileAirGrid {
+pub struct CarrierGrid {
     pub carrier: CarrierId,
     pub cols: i32,
     pub rows: i32,

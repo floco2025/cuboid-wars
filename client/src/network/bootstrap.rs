@@ -14,6 +14,7 @@ use crate::{
     characters::MaxHealth,
     config::{AssetSet, ClientSettings},
     fields::build_field_assets,
+    map::MapDimensions,
     missiles::AirGraph,
     players::MyPlayerId,
     projectiles::ProjectileAssets,
@@ -106,12 +107,17 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
             .map(|(kind, actor)| (kind.clone(), actor.death_blast_radius))
             .collect(),
     };
-    let air_graph = AirGraph::new(&message.world.map.missile_air_grids, map_settings.geometry);
+    let air_graph = AirGraph::new(&message.world.map.grids, map_settings.geometry);
     let mut collision_world = CollisionWorld::from_map_layout(&message.world.map.layout);
     collision_world.set_locked_pressure_plates(&message.locked_switches);
     let carriers = Carriers::from_layout(&message.world.map.layout);
     let carrier_entities = spawn_carrier_entities(app.world_mut(), &message.world.map.layout, &carriers);
     let carrier_storeys = CarrierStoreys::from_layout(&message.world.map.layout);
+    let map_dimensions = MapDimensions::from_grids(
+        &message.world.map.layout,
+        &message.world.map.grids,
+        map_settings.geometry,
+    );
 
     debug!("received Init: my_id=player#{}", message.player.id.0);
     app.insert_resource(message.world.network)
@@ -131,6 +137,7 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
         .insert_resource(carriers)
         .insert_resource(carrier_entities)
         .insert_resource(carrier_storeys)
+        .insert_resource(map_dimensions)
         .insert_resource(blast_radii)
         .insert_resource(max_health)
         .insert_resource(KeyFields(message.world.map.items.key_fields()))

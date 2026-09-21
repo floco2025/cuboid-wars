@@ -8,13 +8,14 @@ use crate::{
     carriers::CarrierEntities,
     config::{AssetSet, ClientSettings},
     constants::LASER_EMISSIVE,
+    map::MapDimensions,
     missiles::{MissileAssets, missile_rotation, spawn_missile_meshes},
     players::MyPlayerId,
     projectiles::{ProjectileAssets, spawn_ember_projectile},
     vfx::{BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, spawn_missile_explosion},
 };
 use common::{
-    config::{GameplayConfig, MapGeometryConfig},
+    config::GameplayConfig,
     map::Carriers,
     physics::CollisionWorld,
     protocol::{MapLayout, Position},
@@ -25,26 +26,30 @@ use common::{
 // ============================================================================
 // The whole ~33 s choreography is derived up front from the broadcast seed,
 // so every client plays an identical show. All randomness is resolved at
-// build time; playback is deterministic.
+// build time; playback is deterministic. The show is sized by the map: each
+// fraction below is of the map's size, the larger of its planar radius and
+// its height, so a wide map spreads the show and a tall one lifts it.
 
-const ROCKET_SPEED: f32 = 22.0;
+// Every rocket flies this long whatever the map, keeping the show's rhythm;
+// the fuse is the exact flight time, so the pop lands on the aimed point.
+const ROCKET_FLIGHT_SECS: f32 = 4.5;
 const STAR_SPEED: f32 = 10.0;
 const STAR_FUSE_SECS: f32 = 0.55;
-// Launch ring sits outside the map footprint and below the ground floor.
-const RING_MARGIN: f32 = 8.0;
-const ORIGIN_DEPTH_Y: f32 = -8.0;
-// Pops happen this far above the tallest floor level (plus up to
-// SKY_JITTER more), so blasts are pure sky decoration.
-const SKY_CLEARANCE: f32 = 12.0;
-const SKY_JITTER: f32 = 8.0;
+// Launch ring outside the footprint, starting below the ground floor.
+const RING_MARGIN: f32 = 0.15;
+const ORIGIN_DEPTH: f32 = 0.1;
+// Pops happen above the tallest storey by the clearance plus up to the
+// jitter, so blasts are pure sky decoration, spread over this fraction of
+// the footprint.
+const SKY_CLEARANCE: f32 = 0.35;
+const SKY_JITTER: f32 = 0.25;
+const SKY_SPREAD: f32 = 0.6;
 const EMBERS_PER_POP: usize = 14;
 // Sky lasers: beams long enough to read as infinite, pivoting on ring
 // points and sweeping across the sky.
 const BEAM_LENGTH: f32 = 1200.0;
 const BEAM_RADIUS: f32 = 0.12;
 const BEAM_FADE_SECS: f32 = 0.6;
-// Half-extent fallback when the show starts before the map arrived.
-const FALLBACK_HALF_EXTENT: f32 = 40.0;
 
 enum FireworkAction {
     Launch { pos: Vec3, velocity: Vec3, fuse_secs: f32 },
@@ -80,12 +85,12 @@ impl FireworkShow {
     // The fireworks switch spaces its shows by `FIREWORK_SHOW_SECS` plus the
     // map's cooldown, so only `/firework` can arrive mid-show; the show that
     // is still playing wins over its seed.
-    pub fn start(&mut self, seed: u64, map_layout: Option<&MapLayout>, geometry: MapGeometryConfig) {
+    pub fn start(&mut self, seed: u64, map: MapDimensions) {
         if !self.events.is_empty() {
             return;
         }
         self.elapsed = 0.0;
-        self.events = build_show(seed, map_layout, geometry);
+        self.events = build_show(seed, map);
     }
 }
 
@@ -109,54 +114,35 @@ pub struct FireworkLaser {
 // Choreography
 // ============================================================================
 
+// The map's footprint is centred on the world origin, so the field is too.
 struct ShowField {
-    center: Vec3,
     half_x: f32,
     half_z: f32,
-    sky_base: f32,
     ring_radius: f32,
+    origin_y: f32,
+    sky_base: f32,
+    sky_jitter: f32,
 }
 
-fn show_field(map_layout: Option<&MapLayout>, geometry: MapGeometryConfig) -> ShowField {
-    let (min_x, max_x, min_z, max_z, max_level) = map_layout
-        .filter(|layout| !layout.floors.is_empty())
-        .map(|layout| {
-            let mut min_x = f32::INFINITY;
-            let mut max_x = f32::NEG_INFINITY;
-            let mut min_z = f32::INFINITY;
-            let mut max_z = f32::NEG_INFINITY;
-            let mut max_level = 0u8;
-            // Carried floors are in their carrier's frame; the field is the map's.
-            for floor in layout.floors.iter().filter(|floor| floor.carrier.is_world()) {
-                let (x1, x2, z1, z2) = (floor.x1, floor.x2, floor.z1, floor.z2);
-                min_x = min_x.min(x1.min(x2));
-                max_x = max_x.max(x1.max(x2));
-                min_z = min_z.min(z1.min(z2));
-                max_z = max_z.max(z1.max(z2));
-                max_level = max_level.max(floor.level);
-            }
-            (min_x, max_x, min_z, max_z, max_level)
-        })
-        .unwrap_or((
-            -FALLBACK_HALF_EXTENT,
-            FALLBACK_HALF_EXTENT,
-            -FALLBACK_HALF_EXTENT,
-            FALLBACK_HALF_EXTENT,
-            5,
-        ));
-    let half_x = (max_x - min_x) / 2.0;
-    let half_z = (max_z - min_z) / 2.0;
-    ShowField {
-        center: Vec3::new((min_x + max_x) / 2.0, 0.0, (min_z + max_z) / 2.0),
-        half_x,
-        half_z,
-        sky_base: geometry.level_y(max_level + 1) + SKY_CLEARANCE,
-        ring_radius: half_x.hypot(half_z) + RING_MARGIN,
+impl ShowField {
+    fn new(map: MapDimensions) -> Self {
+        let half_x = map.width / 2.0;
+        let half_z = map.depth / 2.0;
+        let radius = half_x.hypot(half_z);
+        let size = radius.max(map.height);
+        Self {
+            half_x,
+            half_z,
+            ring_radius: radius + RING_MARGIN * size,
+            origin_y: -ORIGIN_DEPTH * size,
+            sky_base: map.height + SKY_CLEARANCE * size,
+            sky_jitter: SKY_JITTER * size,
+        }
     }
 }
 
-fn build_show(seed: u64, map_layout: Option<&MapLayout>, geometry: MapGeometryConfig) -> VecDeque<FireworkEvent> {
-    let field = show_field(map_layout, geometry);
+fn build_show(seed: u64, map: MapDimensions) -> VecDeque<FireworkEvent> {
+    let field = ShowField::new(map);
     let mut rng = StdRng::seed_from_u64(seed);
     let mut events: Vec<FireworkEvent> = Vec::new();
 
@@ -200,35 +186,30 @@ fn build_show(seed: u64, map_layout: Option<&MapLayout>, geometry: MapGeometryCo
 }
 
 // One rocket: launch from a random ring point outside/below the map, aimed
-// at a random sky point over the field; the fuse is the exact flight time,
-// so the pop lands on the aimed point. Optional star burst and laser spokes
-// are scheduled at that precomputed pop.
+// at a random sky point over the field, popping on the aimed point. An
+// optional star burst is scheduled at that precomputed pop.
 fn rocket(events: &mut Vec<FireworkEvent>, rng: &mut StdRng, field: &ShowField, at_secs: f32, stars: bool) {
     let ring_angle = rng.random_range(0.0..TAU);
-    let origin = field.center
-        + Vec3::new(
-            ring_angle.cos() * field.ring_radius,
-            ORIGIN_DEPTH_Y,
-            ring_angle.sin() * field.ring_radius,
-        );
-    let sky = field.center
-        + Vec3::new(
-            rng.random_range(-0.6..0.6) * field.half_x,
-            field.sky_base + rng.random_range(0.0..SKY_JITTER),
-            rng.random_range(-0.6..0.6) * field.half_z,
-        );
-    let flight = sky - origin;
-    let fuse_secs = flight.length() / ROCKET_SPEED;
+    let origin = Vec3::new(
+        ring_angle.cos() * field.ring_radius,
+        field.origin_y,
+        ring_angle.sin() * field.ring_radius,
+    );
+    let sky = Vec3::new(
+        rng.random_range(-SKY_SPREAD..SKY_SPREAD) * field.half_x,
+        field.sky_base + rng.random_range(0.0..field.sky_jitter),
+        rng.random_range(-SKY_SPREAD..SKY_SPREAD) * field.half_z,
+    );
     events.push(FireworkEvent {
         at_secs,
         action: FireworkAction::Launch {
             pos: origin,
-            velocity: flight.normalize() * ROCKET_SPEED,
-            fuse_secs,
+            velocity: (sky - origin) / ROCKET_FLIGHT_SECS,
+            fuse_secs: ROCKET_FLIGHT_SECS,
         },
     });
 
-    let pop_at = at_secs + fuse_secs;
+    let pop_at = at_secs + ROCKET_FLIGHT_SECS;
     if stars {
         for _ in 0..7 {
             let dir = Sphere::new(1.0).sample_boundary(rng);
@@ -262,16 +243,15 @@ fn rocket(events: &mut Vec<FireworkEvent>, rng: &mut StdRng, field: &ShowField, 
 // well above the horizon, rotating around vertical like a searchlight.
 fn beam(rng: &mut StdRng, field: &ShowField, duration_secs: f32, sweep_rate: std::ops::Range<f32>) -> LaserBeamSpec {
     let ring_angle = rng.random_range(0.0..TAU);
-    let pivot = field.center
-        + Vec3::new(
-            ring_angle.cos() * field.ring_radius,
-            0.0,
-            ring_angle.sin() * field.ring_radius,
-        );
+    let pivot = Vec3::new(
+        ring_angle.cos() * field.ring_radius,
+        0.0,
+        ring_angle.sin() * field.ring_radius,
+    );
     // Tilt from vertical: 25°..65° — always aimed over the field, never flat
     // into buildings.
     let tilt: f32 = rng.random_range(0.44..1.13);
-    let toward = (field.center - pivot).normalize_or_zero();
+    let toward = -pivot.normalize_or_zero();
     let start_dir = (Vec3::Y * tilt.cos() + toward * tilt.sin()).normalize();
     let rate = rng.random_range(sweep_rate);
     LaserBeamSpec {

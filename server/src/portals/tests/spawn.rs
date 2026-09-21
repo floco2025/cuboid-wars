@@ -61,7 +61,7 @@ impl Fixture {
             celestial: config.cycles.celestial,
             gameplay: config.gameplay_bootstrap(),
             map: MapBootstrap {
-                missile_air_grids: Vec::new(),
+                grids: Vec::new(),
                 layout,
                 settings: settings.clone(),
                 items: MapItems(Vec::new()),

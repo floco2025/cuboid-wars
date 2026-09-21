@@ -101,7 +101,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             celestial,
             gameplay,
             map: MapBootstrap {
-                missile_air_grids: Vec::new(),
+                grids: Vec::new(),
                 layout: layout.clone(),
                 settings: settings.clone(),
                 items: MapItems(Vec::new()),

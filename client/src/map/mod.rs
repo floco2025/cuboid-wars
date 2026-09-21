@@ -21,7 +21,7 @@ pub use rendering::{
     added_map_level_visibility_system, map_level_focus_visibility_system, map_spawn_geometry_system,
     map_wall_light_emissive_system, update_focused_map_level_system,
 };
-pub use resources::{DebugColorMode, DebugColors, FocusedMapLevel, LevelFocusEnabled};
+pub use resources::{DebugColorMode, DebugColors, FocusedMapLevel, LevelFocusEnabled, MapDimensions};
 pub use spawn::{
     GroundMarker, LadderMarker, MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker,
     batch_floor, batch_ramp, batch_wall, spawn_ladder_from_layout, spawn_wall_light_from_layout, tiled_cuboid,

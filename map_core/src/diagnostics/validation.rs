@@ -170,7 +170,7 @@ pub fn validate_map(data: &Value, context: &Value) -> Vec<Issue> {
     if levels.is_empty() {
         errors.add("at least one level is required");
     }
-    // Bootstrap's MissileAirGrid stores the count, not the highest index, in a u8.
+    // Bootstrap's CarrierGrid stores the count, not the highest index, in a u8.
     if levels.len() > 255 {
         errors.add(format!("at most 255 levels are supported (found {})", levels.len()));
     }

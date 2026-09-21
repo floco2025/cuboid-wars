@@ -1,35 +1,12 @@
 use super::*;
-use crate::test_fixtures::{LEVEL_HEIGHT, sizes};
-use common::{
-    constants::FIREWORK_SHOW_SECS,
-    protocol::{CarrierId, Floor},
-};
+use crate::test_fixtures::LEVEL_HEIGHT;
+use common::constants::FIREWORK_SHOW_SECS;
 
-fn layout() -> MapLayout {
-    MapLayout {
-        floors: vec![
-            Floor {
-                x1: -20.0,
-                z1: -15.0,
-                x2: 20.0,
-                z2: 15.0,
-                y: 0.0,
-                thickness: 0.4,
-                level: 0,
-                carrier: CarrierId::WORLD,
-            },
-            Floor {
-                x1: -5.0,
-                z1: -5.0,
-                x2: 5.0,
-                z2: 5.0,
-                y: 3.0 * LEVEL_HEIGHT,
-                thickness: 0.4,
-                level: 3,
-                carrier: CarrierId::WORLD,
-            },
-        ],
-        ..Default::default()
+fn map() -> MapDimensions {
+    MapDimensions {
+        width: 40.0,
+        depth: 30.0,
+        height: 4.0 * LEVEL_HEIGHT,
     }
 }
 
@@ -45,16 +22,15 @@ fn positions(events: &VecDeque<FireworkEvent>) -> Vec<(f32, Vec3)> {
 
 #[test]
 fn same_seed_builds_the_identical_show() {
-    let layout = layout();
-    let a = build_show(42, Some(&layout), sizes());
-    let b = build_show(42, Some(&layout), sizes());
+    let a = build_show(42, map());
+    let b = build_show(42, map());
     assert_eq!(positions(&a), positions(&b), "cross-client sync relies on determinism");
     assert!(!a.is_empty());
 }
 
 #[test]
 fn events_are_time_sorted() {
-    let show = build_show(7, Some(&layout()), sizes());
+    let show = build_show(7, map());
     let times: Vec<f32> = show.iter().map(|event| event.at_secs).collect();
     let mut sorted = times.clone();
     sorted.sort_by(f32::total_cmp);
@@ -62,34 +38,29 @@ fn events_are_time_sorted() {
 }
 
 #[test]
-fn rockets_launch_outside_and_below_and_pop_safely_high() {
-    let layout = layout();
-    let field = show_field(Some(&layout), sizes());
-    let show = build_show(123, Some(&layout), sizes());
-    for event in &show {
+fn rockets_launch_outside_and_below_and_pop_above_the_map() {
+    let map = map();
+    let half = (map.width / 2.0).max(map.depth / 2.0);
+    let planar = |pos: Vec3| pos.xz().length();
+    for event in &build_show(123, map) {
         match &event.action {
             // Ground launches (fuse > star fuse) start outside the
             // footprint and below the ground floor; star second stages
             // start at sky height instead.
             FireworkAction::Launch { pos, fuse_secs, .. } if *fuse_secs > STAR_FUSE_SECS => {
                 assert!(pos.y < 0.0, "launch origin above ground: {pos}");
-                let planar = Vec3::new(pos.x - field.center.x, 0.0, pos.z - field.center.z).length();
-                assert!(
-                    planar > field.half_x.max(field.half_z),
-                    "launch origin inside footprint: {pos}"
-                );
+                assert!(planar(*pos) > half, "launch origin inside footprint: {pos}");
             }
             FireworkAction::Launch { pos, .. } | FireworkAction::Embers { pos, .. } => {
                 assert!(
-                    pos.y >= field.sky_base,
-                    "sky event below safe height: {pos} (base {})",
-                    field.sky_base
+                    pos.y > map.height,
+                    "sky event below the map top: {pos} (top {})",
+                    map.height
                 );
             }
             FireworkAction::LaserBeams { beams } => {
                 for beam in beams {
-                    let planar = Vec3::new(beam.pivot.x - field.center.x, 0.0, beam.pivot.z - field.center.z).length();
-                    assert!(planar > field.half_x.max(field.half_z), "beam pivot inside footprint");
+                    assert!(planar(beam.pivot) > half, "beam pivot inside footprint");
                     assert!(beam.start_dir.y > 0.4, "beam not aimed skyward: {}", beam.start_dir);
                 }
             }
@@ -98,14 +69,36 @@ fn rockets_launch_outside_and_below_and_pop_safely_high() {
 }
 
 #[test]
+fn a_larger_map_gets_a_wider_and_higher_show() {
+    let small = ShowField::new(map());
+    let wide = ShowField::new(MapDimensions {
+        width: 80.0,
+        depth: 60.0,
+        height: 4.0 * LEVEL_HEIGHT,
+    });
+    let tall = ShowField::new(MapDimensions {
+        width: 40.0,
+        depth: 30.0,
+        height: 12.0 * LEVEL_HEIGHT,
+    });
+
+    assert!(wide.ring_radius > small.ring_radius);
+    assert!(wide.sky_base > small.sky_base);
+    assert!(
+        tall.sky_base - 12.0 * LEVEL_HEIGHT > small.sky_base - 4.0 * LEVEL_HEIGHT,
+        "a tall map lifts the sky beyond its extra storeys"
+    );
+}
+
+#[test]
 fn a_running_show_ignores_a_new_seed() {
     let mut show = FireworkShow::default();
-    show.start(1, None, sizes());
+    show.start(1, map());
     show.elapsed = 5.0;
     show.events.pop_front();
     let remaining = show.events.len();
 
-    show.start(2, None, sizes());
+    show.start(2, map());
 
     assert_eq!(show.events.len(), remaining);
     assert_eq!(show.elapsed, 5.0);
@@ -114,11 +107,11 @@ fn a_running_show_ignores_a_new_seed() {
 #[test]
 fn a_finished_show_starts_again() {
     let mut show = FireworkShow::default();
-    show.start(1, None, sizes());
+    show.start(1, map());
     show.elapsed = 40.0;
     show.events.clear();
 
-    show.start(2, None, sizes());
+    show.start(2, map());
 
     assert!(!show.events.is_empty());
     assert_eq!(show.elapsed, 0.0);
@@ -126,23 +119,15 @@ fn a_finished_show_starts_again() {
 
 #[test]
 fn every_cue_of_a_show_lies_within_the_shared_show_length() {
-    // A field far larger than any shipped map, since rocket flight time
-    // grows with it and the finale's pops are the last cues.
-    let wide = MapLayout {
-        floors: vec![Floor {
-            x1: -150.0,
-            z1: -150.0,
-            x2: 150.0,
-            z2: 150.0,
-            y: 0.0,
-            thickness: 0.4,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
-        ..Default::default()
+    // A map far larger than any shipped one: the finale's pops are the last
+    // cues, and they must not run past the show length on any map.
+    let vast = MapDimensions {
+        width: 600.0,
+        depth: 600.0,
+        height: 40.0 * LEVEL_HEIGHT,
     };
     for seed in [0, 1, 7, 42, 1234, u64::MAX] {
-        let events = build_show(seed, Some(&wide), sizes());
+        let events = build_show(seed, vast);
         let last = events.iter().map(|event| event.at_secs).fold(0.0_f32, f32::max);
         assert!(
             last <= FIREWORK_SHOW_SECS,

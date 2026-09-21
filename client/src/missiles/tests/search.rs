@@ -3,12 +3,12 @@ use crate::{
     constants::{MISSILE_SEARCH_TICK_QUERIES, MISSILE_SEARCH_WINDOW_MARGIN_CELLS},
     test_fixtures,
 };
-use common::protocol::{CarrierId, MapLayout, MissileAirGrid, Wall};
+use common::protocol::{CarrierGrid, CarrierId, MapLayout, Wall};
 
 #[test]
 fn searches_resume_within_a_shared_budget_outside_authored_bounds() {
     let graph = AirGraph::new(
-        &[MissileAirGrid {
+        &[CarrierGrid {
             carrier: CarrierId::WORLD,
             cols: 2,
             rows: 2,
@@ -89,7 +89,7 @@ fn measure_sealed_searches(outside: bool) {
     use common::protocol::Floor;
     use std::time::Instant;
     let graph = AirGraph::new(
-        &[MissileAirGrid {
+        &[CarrierGrid {
             carrier: CarrierId::WORLD,
             cols: 12,
             rows: 12,

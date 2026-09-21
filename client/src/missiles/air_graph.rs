@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use common::{
     config::MapGeometryConfig,
     map::{Carriers, MapGeometry},
-    protocol::{CarrierId, MissileAirGrid},
+    protocol::{CarrierGrid, CarrierId},
 };
 
 #[cfg(test)]
@@ -41,7 +41,7 @@ pub struct AirGraph {
 
 impl AirGraph {
     #[must_use]
-    pub fn new(grids: &[MissileAirGrid], sizes: MapGeometryConfig) -> Self {
+    pub fn new(grids: &[CarrierGrid], sizes: MapGeometryConfig) -> Self {
         Self {
             grids: grids
                 .iter()

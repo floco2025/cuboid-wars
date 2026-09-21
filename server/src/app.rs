@@ -28,7 +28,7 @@ use common::{
     map::Carriers,
     physics::CollisionWorld,
     protocol::{
-        MapBootstrap, MapSettings, MissileAirGrid, Position, ServerTick, WorldBootstrap, server_tick_advance_system,
+        CarrierGrid, MapBootstrap, MapSettings, Position, ServerTick, WorldBootstrap, server_tick_advance_system,
     },
 };
 
@@ -160,10 +160,10 @@ fn build_server_app_with_loader(
             layout: map_layout.clone(),
             settings: map_settings.clone(),
             items: map_items.clone(),
-            missile_air_grids: map_config
+            grids: map_config
                 .grids
                 .iter()
-                .map(|grid| MissileAirGrid {
+                .map(|grid| CarrierGrid {
                     carrier: grid.carrier,
                     cols: grid.geometry.grid_cols,
                     rows: grid.geometry.grid_rows,

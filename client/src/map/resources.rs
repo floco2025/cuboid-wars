@@ -1,4 +1,9 @@
 use bevy::prelude::*;
+use common::{
+    config::MapGeometryConfig,
+    map::MapGeometry,
+    protocol::{CarrierGrid, MapLayout},
+};
 
 // Level focus toggle (R key). When enabled, hides walls/floors at other levels
 // and ramps that don't connect to the local player's level. Useful for
@@ -35,3 +40,43 @@ impl DebugColorMode {
         }
     }
 }
+
+// The map's authored volume in metres: the root grid's footprint, centred
+// on the world origin, and the height of the tallest storey any carrier
+// reaches at either end of its motion, from y = 0.
+#[derive(Resource, Clone, Copy, Debug, PartialEq)]
+pub struct MapDimensions {
+    pub width: f32,
+    pub depth: f32,
+    pub height: f32,
+}
+
+impl MapDimensions {
+    #[must_use]
+    pub fn from_grids(layout: &MapLayout, grids: &[CarrierGrid], sizes: MapGeometryConfig) -> Self {
+        let root = grids
+            .iter()
+            .find(|grid| grid.carrier.is_world())
+            .expect("world grid missing from the map bootstrap");
+        let geometry = MapGeometry::new(root.cols, root.rows, sizes);
+        let storeys = grids
+            .iter()
+            .map(|grid| {
+                layout
+                    .carrier_base_level(grid.carrier)
+                    .saturating_add(layout.carrier_motion_levels(grid.carrier))
+                    .saturating_add(grid.levels)
+            })
+            .max()
+            .unwrap_or(0);
+        Self {
+            width: geometry.width(),
+            depth: geometry.depth(),
+            height: sizes.level_y(storeys),
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "tests/resources.rs"]
+mod tests;
