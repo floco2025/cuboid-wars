@@ -3,7 +3,7 @@ use std::fs;
 use anyhow::Result;
 use bevy::prelude::App;
 use rand::random;
-use serde_json::json;
+use serde_json::{Value, json};
 
 use crossbeam_channel::{Receiver, Sender, unbounded};
 
@@ -41,27 +41,35 @@ pub(crate) fn server_app_with_listener(overrides: NetworkOverrides, listener: Op
 }
 
 pub(crate) fn server_app_with_options(options: ServerAppOptions, listener: Option<Listener>) -> Result<App> {
+    server_app_with_map(options, listener, floor_map())
+}
+
+// A 2×2 floor with the start checkpoint and one more; tests extend it.
+pub(crate) fn floor_map() -> Value {
+    json!({
+        "fireworks": null,
+        "grid_cols": 2, "grid_rows": 2,
+        "levels": [{"floors": [
+            {"col": 0, "row": 0, "all": "basement-floor"},
+            {"col": 1, "row": 0, "all": "basement-floor"},
+            {"col": 0, "row": 1, "all": "basement-floor"},
+            {"col": 1, "row": 1, "all": "basement-floor"}
+        ]}],
+        "checkpoints": [
+            {"level": 0, "cols": [0, 1], "rows": [0, 2], "type": "individual", "number": 0},
+            {"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual", "number": 1}
+        ]
+    })
+}
+
+pub(crate) fn server_app_with_map(options: ServerAppOptions, listener: Option<Listener>, map: Value) -> Result<App> {
     let mut config = server_config();
     config.random_items = None;
-    build_server_app_with_loader(config, options, listener, None, |name, hz, settings| {
+    build_server_app_with_loader(config, options, listener, None, move |name, hz, settings| {
         let directory = std::env::temp_dir().join(format!("cuboid_app_{}", random::<u64>()));
         fs::create_dir(&directory)?;
         let path = directory.join("layout.json");
-        let source = json!({"map": {
-            "fireworks": null,
-            "grid_cols": 2, "grid_rows": 2,
-            "levels": [{"floors": [
-                {"col": 0, "row": 0, "all": "basement-floor"},
-                {"col": 1, "row": 0, "all": "basement-floor"},
-                {"col": 0, "row": 1, "all": "basement-floor"},
-                {"col": 1, "row": 1, "all": "basement-floor"}
-            ]}],
-            "checkpoints": [
-                {"level": 0, "cols": [0, 1], "rows": [0, 2], "type": "individual", "number": 0},
-                {"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual", "number": 1}
-            ]
-        }});
-        fs::write(&path, source.to_string())?;
+        fs::write(&path, json!({"map": map}).to_string())?;
         let generated = generate_map_at(&path, name, hz, settings);
         fs::remove_dir_all(directory)?;
         generated

@@ -19,8 +19,7 @@ use crate::{
 use common::{
     celestial::{CelestialClockAnchor, CelestialCycleSettings, LocalTime},
     protocol::{
-        FieldId, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope, SPlayerStatus,
-        ServerMessage,
+        Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope, SPlayerStatus, ServerMessage,
     },
 };
 
@@ -224,38 +223,43 @@ pub(super) fn run_admin_command(
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };
-            let mut added = 0usize;
-            for index in 0..admin.field_table.len() {
-                if let Ok(kind) = u16::try_from(index)
-                    && info.add_key(FieldId(kind))
-                {
-                    added += 1;
-                }
-            }
+            let added = admin
+                .map_items
+                .key_fields()
+                .into_iter()
+                .filter(|&kind| info.add_key(kind))
+                .count();
             let status = info.status(sender);
             broadcast_to_all(players, ServerMessage::PlayerStatus(status));
             Private(format!("gave {added} key(s)"))
         }
-        AdminCommand::GiveKey(color) => match admin.field_table.index_of(&color) {
-            Some(kind) => {
-                let Some(info) = players.get_mut(&sender) else {
-                    return Private("sender not found".to_owned());
-                };
-                if !info.add_key(kind) {
-                    return Private(format!("already holding the {color} key"));
-                }
-                let status = SPlayerStatus {
-                    collected: Some(ItemType::Key(kind)),
-                    ..info.status(sender)
-                };
-                broadcast_to_all(players, ServerMessage::PlayerStatus(status));
-                Private(format!("gave the {color} key"))
+        AdminCommand::GiveKey(color) => {
+            let kind = admin
+                .field_table
+                .index_of(&color)
+                .filter(|&kind| admin.map_items.contains(ItemType::Key(kind)));
+            let Some(kind) = kind else {
+                let colors: Vec<_> = admin
+                    .map_items
+                    .key_fields()
+                    .into_iter()
+                    .filter_map(|kind| admin.field_table.id(kind))
+                    .collect();
+                return Private(format!("no {color:?} key on this map (keys: {})", colors.join(", ")));
+            };
+            let Some(info) = players.get_mut(&sender) else {
+                return Private("sender not found".to_owned());
+            };
+            if !info.add_key(kind) {
+                return Private(format!("already holding the {color} key"));
             }
-            None => Private(format!(
-                "unknown key color {color:?} (colors: {})",
-                admin.field_table.ids().join(", ")
-            )),
-        },
+            let status = SPlayerStatus {
+                collected: Some(ItemType::Key(kind)),
+                ..info.status(sender)
+            };
+            broadcast_to_all(players, ServerMessage::PlayerStatus(status));
+            Private(format!("gave the {color} key"))
+        }
         AdminCommand::GivePowerups => {
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());

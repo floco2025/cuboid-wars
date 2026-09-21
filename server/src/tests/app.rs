@@ -1,11 +1,11 @@
-use super::fixtures::{connect, server_app, server_app_with_options};
+use super::fixtures::{connect, floor_map, server_app, server_app_with_map, server_app_with_options};
 use super::*;
 use crate::players::PlayerCheckpoint;
 use common::{
     config::GameplayConfig,
     constants::{TICK_DURATION, TICK_SECS},
     protocol::{
-        CAdmin, CLogin, CMove, ClientMessage, Health, ItemType, MapLayout, PlayerGeneration, PlayerId,
+        CAdmin, CLogin, CMove, ClientMessage, FieldId, Health, ItemType, MapLayout, PlayerGeneration, PlayerId,
         PlayerMoveIntent, PlayerMovementState, Position, ServerMessage,
     },
 };
@@ -437,6 +437,59 @@ fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
         assert_eq!(status.missiles, max);
         assert_eq!(player.life.missiles, max);
     }
+}
+
+#[test]
+fn give_keys_hands_out_only_the_keys_placed_on_the_map() {
+    let mut map = floor_map();
+    map["fields"] = serde_json::json!([
+        {"id": "lobby", "color": "#ff0000"},
+        {"id": "vault", "color": "#0000ff"}
+    ]);
+    map["items"] = serde_json::json!([{"level": 0, "col": 0, "row": 0, "type": "key", "field": "vault"}]);
+    let options = ServerAppOptions {
+        map: None,
+        god: false,
+        peace: false,
+        initial_spawn: None,
+        checkpoint: None,
+        network: NetworkOverrides::default(),
+        logging: false,
+    };
+    let mut app = server_app_with_map(options, None, map).expect("server app failed to initialize");
+    let id = PlayerId(1);
+    let (client, receiver) = connect(&mut app);
+    client
+        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
+        .expect("login failed");
+    app.update();
+    while receiver.try_recv().is_ok() {}
+
+    let held_keys = |app: &App| {
+        app.world()
+            .resource::<PlayerMap>()
+            .get(&id)
+            .expect("logged-in player missing")
+            .life
+            .held_keys
+            .clone()
+    };
+    let vault = FieldId(1);
+    for (command, expected_reply) in [
+        ("/give key lobby", "no \"lobby\" key on this map (keys: vault)"),
+        ("/give keys", "gave 1 key(s)"),
+        ("/give keys", "gave 0 key(s)"),
+    ] {
+        client
+            .send(ClientMessage::Admin(CAdmin {
+                command: command.into(),
+            }))
+            .expect("admin command delivery failed");
+        app.update();
+        let replies = feed_texts(&receiver);
+        assert_eq!(replies, [expected_reply.to_owned()], "reply to {command}");
+    }
+    assert_eq!(held_keys(&app), [vault]);
 }
 
 #[test]

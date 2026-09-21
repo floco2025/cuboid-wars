@@ -13,7 +13,7 @@ use crate::{
 };
 use common::{
     celestial::CelestialClockAnchor,
-    protocol::{CAdmin, FieldTable, PlayerId, ServerTick},
+    protocol::{CAdmin, FieldTable, MapItems, PlayerId, ServerTick},
 };
 
 fn admin_authorized(_info: &PlayerInfo) -> bool {
@@ -31,6 +31,7 @@ pub struct AdminContext<'w> {
     pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
     pub power_ups: Res<'w, PowerUpsConfig>,
     pub field_table: Res<'w, FieldTable>,
+    pub map_items: Res<'w, MapItems>,
     pub quest_catalog: Res<'w, QuestCatalog>,
     pub server_tick: Res<'w, ServerTick>,
 }
