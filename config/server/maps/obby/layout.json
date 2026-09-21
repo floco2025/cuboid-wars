@@ -75,6 +75,8 @@
       {"level": 9, "col": 4, "row": 17, "type": "portal_gun"},
       {"level": 9, "col": 2, "row": 18, "type": "health_potion"},
       {"level": 9, "col": 3, "row": 18, "type": "health_potion"},
+      {"level": 9, "col": 39, "row": 18, "type": "multi_shot"},
+      {"level": 9, "col": 40, "row": 18, "type": "multi_shot"},
       {"level": 10, "col": 12, "row": 8, "type": "low_gravity"},
       {"level": 10, "col": 13, "row": 8, "type": "low_gravity"},
       {"level": 10, "col": 12, "row": 9, "type": "low_gravity"},
@@ -1762,13 +1764,11 @@
         "actor_spawn_zones": [],
         "checkpoints": [],
         "pressure_plates": [
-          {"level": 2, "col": 3, "row": 0, "switch": "shuttle"},
-          {"level": 2, "col": 3, "row": 3, "switch": "shuttle"}
+          {"level": 2, "col": 3, "row": 1, "switch": "shuttle"},
+          {"level": 2, "col": 3, "row": 2, "switch": "shuttle"}
         ],
         "items": [
-          {"level": 0, "col": 2, "row": 2, "type": "key", "field": "on shuttle"},
-          {"level": 2, "col": 3, "row": 1, "type": "multi_shot"},
-          {"level": 2, "col": 3, "row": 2, "type": "multi_shot"}
+          {"level": 0, "col": 2, "row": 2, "type": "key", "field": "on shuttle"}
         ],
         "levels": [
           {
