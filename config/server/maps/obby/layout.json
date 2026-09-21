@@ -9,7 +9,7 @@
       {"id": "trap", "color": "#30d8ff", "switch": "bridge", "initially_on": false}
     ],
     "fireworks": {"switch": "firework", "cooldown_secs": 0.0},
-    "grid_cols": 48,
+    "grid_cols": 46,
     "grid_rows": 24,
     "actor_spawn_zones": [
       {"level": 4, "cols": [21, 23], "rows": [8, 10], "kind": "turret", "count": [4], "respawn_secs": 30, "beam_in_secs": 0.5, "switch": "turrets", "initially_on": false, "until_checkpoint": 4, "on_checkpoint": "destroy"},
