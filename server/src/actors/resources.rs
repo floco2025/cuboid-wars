@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use common::{
     config::ActorGameplayConfig,
     map::Carriers,
-    physics::{CharacterSupport, CharacterVerticalVelocity, ProgressWatchdog},
+    physics::{CharacterMovePlan, CharacterSupport, CharacterVerticalVelocity, ProgressWatchdog},
     protocol::{
         ActorAnchor, ActorBeam, ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, Health, PlayerId, Position,
     },
@@ -23,6 +23,12 @@ pub struct ActorCrushed(pub bool);
 // `actors_fall_damage_system`.
 #[derive(Component, Default)]
 pub struct ActorLanding(pub f32);
+
+// This tick's accepted ground actor moves; written by
+// `surface_actors_movement_system`, read by `characters_movement_system`,
+// whose flying plans sweep against them.
+#[derive(Resource, Default)]
+pub struct SurfaceActorMoves(pub Vec<CharacterMovePlan>);
 
 // The kind's body and abilities, resolved once at materialization so
 // movement never looks the kind up by name per tick.

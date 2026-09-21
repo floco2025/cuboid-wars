@@ -12,7 +12,9 @@ use super::{
 use crate::{players::players_respawn_system, schedule::ServerSet};
 
 pub fn actors_plugin(app: &mut App) {
-    app.init_resource::<AirHomes>().init_resource::<SurfaceNavigation>();
+    app.init_resource::<AirHomes>()
+        .init_resource::<SurfaceNavigation>()
+        .init_resource::<SurfaceActorMoves>();
     app.add_systems(
         Update,
         (

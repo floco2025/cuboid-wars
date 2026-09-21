@@ -4,16 +4,21 @@ use bevy::prelude::*;
 use common::{
     config::{ActorMovementConfig, CharacterPhysicsConfig},
     map::Carriers,
-    physics::{CharacterMovePlan, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
+    physics::{
+        CharacterMovePlan, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
+        character_positions_intersect,
+    },
     protocol::{ActorId, ActorMoveIntent, CarrierId, FaceYaw, MapSettings, Position, ServerTick, SwitchState},
 };
 
 use super::{
+    ActorMovementStep, blocking_character_move_plan,
     roaming::route_stays_home,
-    traversal::{TraversalAction, TraversalEnvironment, TraversalExecutor, TraversalStatus},
+    step_actor_movement,
+    traversal::{BodyBlocker, TraversalAction, TraversalEnvironment, TraversalExecutor, TraversalStatus},
 };
 use crate::actors::{
-    ActorCharacter, ActorCrushed, ActorLanding, ActorMap, ActorMode,
+    ActorCharacter, ActorCrushed, ActorLanding, ActorMap, ActorMode, SurfaceActorMoves,
     navigation::{
         ActorTerritories, ActorTerritory,
         surface::{ROUTE_SEARCH_VISITS, RouteFailure, SurfaceNavigation},
@@ -26,6 +31,9 @@ const TICK_SEARCH_VISITS: usize = 8192;
 const ROUTE_RETRY_SECS: f32 = 0.5;
 // How far a goal moves, or an idle actor stands from it, before a new route.
 const GOAL_TOLERANCE: f32 = 0.5;
+// The least time two movers in a standoff ignore each other's bodies: enough
+// to turn back onto the route and into the overlap that then holds the pass.
+const STANDOFF_PASS_SECS: f32 = 1.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct SurfaceGoal {
@@ -49,6 +57,9 @@ pub struct SurfaceAgent {
     // The ladder this actor was admitted to last tick. The rotating order
     // would otherwise hand a ladder back and forth between two approaches.
     ladder_claim: Option<usize>,
+    // The mover this actor walks through to end a standoff, and the seconds
+    // before the pass may end.
+    passing: Option<(Entity, f32)>,
 }
 
 impl SurfaceAgent {
@@ -180,6 +191,7 @@ pub(crate) fn surface_actors_movement_system(
     navigation: Res<SurfaceNavigation>,
     territories: Res<ActorTerritories>,
     mut actors: ResMut<ActorMap>,
+    mut moves: ResMut<SurfaceActorMoves>,
     other_query: Query<(Entity, &ActorId, &Position, &ActorCharacter), Without<SurfaceAgent>>,
     mut query: Query<(
         Entity,
@@ -199,6 +211,7 @@ pub(crate) fn surface_actors_movement_system(
 ) {
     let delta = time.delta_secs();
     if delta <= 0.0 {
+        moves.0.clear();
         return;
     }
     let env = TraversalEnvironment {
@@ -218,14 +231,23 @@ pub(crate) fn surface_actors_movement_system(
     let mut body_moves: Vec<_> = query
         .iter()
         .map(
-            |(entity, _, character, _, _, position, velocity, _, intent, _, _, _, knockback)| {
+            |(entity, id, character, _, _, position, velocity, support, intent, _, _, _, knockback)| {
                 let physics = character.0.physics();
+                let lift = knockback.map_or(Vec3::ZERO, |v| v.step(delta) * Vec3::Y);
+                // Nothing but its own walk moves a body at rest on the world.
+                if *support == CharacterSupport::Ground
+                    && velocity.0 == 0.0
+                    && lift == Vec3::ZERO
+                    && actors.get(id).is_some_and(|info| info.carrier == CarrierId::WORLD)
+                {
+                    return CharacterMovePlan::stationary(entity, *position, 0.0, physics);
+                }
                 let intent = intent.holding_ladder();
-                let movement = super::step_actor_movement(super::ActorMovementStep {
+                let movement = step_actor_movement(ActorMovementStep {
                     start: *position,
                     vertical_velocity: velocity.0,
                     intent,
-                    external_displacement: knockback.map_or(Vec3::ZERO, |v| v.step(delta) * Vec3::Y),
+                    external_displacement: lift,
                     delta,
                     can_use_ladders: intent.uses_ladders(),
                     physics,
@@ -237,13 +259,18 @@ pub(crate) fn surface_actors_movement_system(
                 CharacterMovePlan::from_movement_result(entity, *position, movement, physics)
             },
         )
-        .chain(other_query.iter().map(|(entity, id, position, character)| {
-            let target = actors
-                .get(id)
-                .and_then(|info| info.anchor)
-                .map_or(*position, |anchor| anchor.world_position(&carriers));
-            CharacterMovePlan::from_target(entity, *position, target, 0.0, character.0.physics(), false)
-        }))
+        .collect();
+    let movers = body_moves.len();
+    body_moves.extend(other_query.iter().map(|(entity, id, position, character)| {
+        let target = actors
+            .get(id)
+            .and_then(|info| info.anchor)
+            .map_or(*position, |anchor| anchor.world_position(&carriers));
+        CharacterMovePlan::from_target(entity, *position, target, 0.0, character.0.physics(), false)
+    }));
+    let standoffs: Vec<_> = query
+        .iter()
+        .filter_map(|(entity, _, _, _, agent, ..)| Some((entity, agent.executor.as_ref()?.standoff()?)))
         .collect();
     // Whoever is on a ladder holds it, then whoever was admitted last tick.
     let mut occupancy = BTreeMap::new();
@@ -334,6 +361,16 @@ pub(crate) fn surface_actors_movement_system(
         } else {
             Vec3::ZERO
         };
+        // Two movers that block each other without progress would stand off
+        // for good in a passage too narrow for both: they walk through each
+        // other instead. A body that is not stuck on this actor keeps its
+        // place, so a queue behind it still waits.
+        if let Some(other) = executor.standoff()
+            && standoffs.contains(&(other, entity))
+        {
+            agent.passing = Some((other, STANDOFF_PASS_SECS));
+        }
+        let passing = agent.passing.map(|(other, _)| other);
         executor.step_with_avoidance(
             &env,
             knockback.map_or(Vec3::ZERO, |v| v.step(delta)),
@@ -342,20 +379,41 @@ pub(crate) fn surface_actors_movement_system(
             home,
             |movement| {
                 let candidate = CharacterMovePlan::from_movement_result(entity, *position, *movement, physics);
-                super::blocking_character_move_plan(&candidate, &body_moves)
-                    .map(|other| Vec3::from(other.start) - Vec3::from(*position))
+                let others = body_moves.iter().filter(|other| Some(other.entity) != passing);
+                blocking_character_move_plan(&candidate, others).map(|other| BodyBlocker {
+                    entity: other.entity,
+                    offset: Vec3::from(other.start) - Vec3::from(*position),
+                })
             },
         );
-        if executor.status == TraversalStatus::OutsideTerritory {
-            agent.failure = Some(RouteFailure::OutsideTerritory);
-            agent.decision_secs = 0.0;
+        match executor.status {
+            TraversalStatus::OutsideTerritory => {
+                agent.failure = Some(RouteFailure::OutsideTerritory);
+                agent.decision_secs = 0.0;
+            }
+            // The mesh knows no bodies, so a replan returns the same route:
+            // the goal decision has to change it or accept the wait.
+            TraversalStatus::Blocked
+                if executor.blocked_by.is_some() && agent.failure != Some(RouteFailure::BodyBlocked) =>
+            {
+                agent.failure = Some(RouteFailure::BodyBlocked);
+                agent.decision_secs = 0.0;
+            }
+            _ => {}
         }
         let movement = executor.movement;
+        let plan = CharacterMovePlan::from_movement_result(entity, *position, movement, physics);
+        if let Some((other, secs)) = agent.passing {
+            let secs = secs - delta;
+            let overlapping = body_moves.iter().any(|body| {
+                body.entity == other && character_positions_intersect(&plan.target, physics, &body.target, body.physics)
+            });
+            agent.passing = (secs > 0.0 || overlapping).then_some((other, secs));
+        }
         *body_moves
             .iter_mut()
-            .find(|plan| plan.entity == entity)
-            .expect("surface body plan") =
-            CharacterMovePlan::from_movement_result(entity, *position, movement, physics);
+            .find(|body| body.entity == entity)
+            .expect("surface actor missing from body plans") = plan;
         // Player bodies do not block these moves: current moving ground kinds
         // detonate on contact in contact_explosions_system later this tick.
         // Overlap in peaceful mode is accepted; revisit if a moving ground
@@ -376,6 +434,8 @@ pub(crate) fn surface_actors_movement_system(
             .map_or(movement.carrier, |hit| hit.carrier);
         agent.executor = Some(executor);
     }
+    body_moves.truncate(movers);
+    moves.0 = body_moves;
 }
 
 // A ladder the route mounts next, once the actor is close enough to contend for it.

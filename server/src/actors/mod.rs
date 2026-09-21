@@ -20,7 +20,7 @@ pub use plugin::actors_plugin;
 pub use removal::actors_removal_system;
 pub use resources::{
     ActorCharacter, ActorCrushed, ActorInfo, ActorLanding, ActorMap, ActorMotionQuery, ActorSpawner, ActorStateQuery,
-    PendingActorSpawn, PendingActorSpawns,
+    PendingActorSpawn, PendingActorSpawns, SurfaceActorMoves,
 };
 pub(crate) use resources::{ActorMode, BeamState};
 pub use spawning::{actors_pending_spawn_system, actors_respawn_system, pending_actor_spawns_active};

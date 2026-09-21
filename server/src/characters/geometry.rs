@@ -1,4 +1,4 @@
-use common::{config::CharacterPhysicsConfig, protocol::Position};
+use common::{config::CharacterPhysicsConfig, physics::character_axis_separation, protocol::Position};
 
 // Gap between two capsule surfaces; negative while they overlap.
 #[must_use]
@@ -8,12 +8,9 @@ pub(crate) fn character_surface_distance(
     b: Position,
     b_physics: CharacterPhysicsConfig,
 ) -> f32 {
-    let ac = a_physics.movement_collider;
-    let bc = b_physics.movement_collider;
-    let vertical_gap = ((a.y + ac.radius()) - (b.y + bc.height - bc.radius()))
-        .max((b.y + bc.radius()) - (a.y + ac.height - ac.radius()))
-        .max(0.0);
-    (a.horizontal_distance_sq(&b) + vertical_gap * vertical_gap).sqrt() - ac.radius() - bc.radius()
+    character_axis_separation(&a, a_physics, &b, b_physics).length()
+        - a_physics.movement_collider.radius()
+        - b_physics.movement_collider.radius()
 }
 
 #[must_use]

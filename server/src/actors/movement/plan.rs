@@ -8,10 +8,10 @@ use common::{
 #[must_use]
 pub(crate) fn blocking_character_move_plan<'a>(
     candidate: &CharacterMovePlan,
-    planned_moves: &'a [CharacterMovePlan],
+    planned_moves: impl IntoIterator<Item = &'a CharacterMovePlan>,
 ) -> Option<&'a CharacterMovePlan> {
     planned_moves
-        .iter()
+        .into_iter()
         .find(|other| character_move_plan_blocks(candidate, other))
 }
 

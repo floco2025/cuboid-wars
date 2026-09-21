@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use bevy::math::Vec3;
+use bevy::prelude::{Entity, Vec3};
 use common::{
     config::CharacterPhysicsConfig,
     constants::{CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT},
@@ -9,6 +9,7 @@ use common::{
     protocol::{ActorMoveIntent, CarrierId, FieldId, MapSettings, Position},
 };
 
+use super::steering::steer;
 pub use crate::actors::navigation::surface::TraversalAction;
 use crate::actors::navigation::{
     ActorTerritory,
@@ -18,6 +19,15 @@ use crate::actors::{ActorMovementStep, step_actor_movement};
 
 const ARRIVAL_DISTANCE: f32 = 0.15;
 const STALL_SECONDS: f32 = 2.0;
+// How long two movers block each other without progress before the caller
+// lets them pass; shorter than a stall, so a standoff ends before its routes fail.
+const STANDOFF_SECONDS: f32 = 1.0;
+// How far past its own body a walker going around another still treats that
+// body as in its way.
+const SIDESTEP_LOOKAHEAD: f32 = 1.0;
+// The approach that counts as progress. A blocked walker re-approaches its
+// blocker in whole steps, so a finer measure keeps finding new records.
+const PROGRESS_DISTANCE: f32 = 0.05;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TraversalStatus {
@@ -28,6 +38,13 @@ pub enum TraversalStatus {
     LostSupport,
     OutsideTerritory,
     Crushed,
+}
+
+// The body that rejected a move and where it stands from the mover.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct BodyBlocker {
+    pub entity: Entity,
+    pub offset: Vec3,
 }
 
 pub struct TraversalEnvironment<'a> {
@@ -47,7 +64,12 @@ pub struct TraversalExecutor {
     pub physics: CharacterPhysicsConfig,
     pub speed: f32,
     pub(crate) facing: f32,
-    pub(crate) start: Position,
+    pub(crate) blocked_by: Option<Entity>,
+    // The hand a blocked walker turns to, kept while the blockage lasts so an
+    // opening on the other side cannot turn it back.
+    sidestep_hand: Option<f32>,
+    // The action being timed and the closest the actor has come to its target.
+    progress: Option<(TraversalAction, f32)>,
     stalled_secs: f32,
 }
 
@@ -74,7 +96,9 @@ impl TraversalExecutor {
             physics,
             speed,
             facing: 0.0,
-            start: position,
+            blocked_by: None,
+            sidestep_hand: None,
+            progress: None,
             stalled_secs: 0.0,
         }
     }
@@ -95,12 +119,16 @@ impl TraversalExecutor {
             )
     }
 
+    // The body this actor has made no progress against for a standoff's length.
+    pub(crate) fn standoff(&self) -> Option<Entity> {
+        self.blocked_by.filter(|_| self.stalled_secs >= STANDOFF_SECONDS)
+    }
+
     #[cfg(test)]
     pub fn step(&mut self, env: &TraversalEnvironment) {
         self.step_with_avoidance(env, Vec3::ZERO, Vec3::ZERO, false, None, |_| None);
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn step_with_avoidance(
         &mut self,
         env: &TraversalEnvironment,
@@ -108,12 +136,11 @@ impl TraversalExecutor {
         avoidance: Vec3,
         waiting: bool,
         home: Option<&ActorTerritory>,
-        blocking_actor: impl Fn(&CharacterMovementResult) -> Option<Vec3>,
+        blocking_actor: impl Fn(&CharacterMovementResult) -> Option<BodyBlocker>,
     ) {
         let start = self.movement.position;
-        self.start = start;
-        let previous_facing = self.facing;
         let mut target = None;
+        let mut climb_target = None;
         let mut ladder_intent = None;
         let mut mounting = false;
         let mut exiting = false;
@@ -155,6 +182,7 @@ impl TraversalExecutor {
                         self.actions.pop_front();
                         continue;
                     }
+                    climb_target = Some(destination);
                     let sign = if ascending { -1.0 } else { 1.0 };
                     ladder_intent = Some(ActorMoveIntent::Climbing {
                         direction: (normal[0] * sign).atan2(normal[1] * sign),
@@ -240,7 +268,7 @@ impl TraversalExecutor {
                 }
             }
             if walking {
-                movement = super::steering::steer(movement, self.facing, distance, env.delta);
+                movement = steer(movement, self.facing, distance, env.delta);
             }
             let next = Vec3::from(start) + movement.to_horizontal_velocity() * env.delta;
             let supported = supported_at(env, next, self.physics);
@@ -277,14 +305,13 @@ impl TraversalExecutor {
                 carriers: env.carriers,
             })
         };
+        let inside_home = |position: Position| {
+            home.is_none_or(|home| {
+                home.contains_position(env.carriers.pose(home.carrier).inverse_transform_point(position.into()))
+            })
+        };
         let mut movement = step(intent, external_displacement);
-        if home.is_some_and(|home| {
-            !home.contains_position(
-                env.carriers
-                    .pose(home.carrier)
-                    .inverse_transform_point(movement.position.into()),
-            )
-        }) {
+        if !inside_home(movement.position) {
             // Steering can leave a valid route's territory. Rerun the complete
             // motor without voluntary travel, retaining gravity, impulses and
             // carrier motion; clamping the result would corrupt its support.
@@ -294,58 +321,87 @@ impl TraversalExecutor {
             self.status = TraversalStatus::OutsideTerritory;
         }
         let mut blocker = blocking_actor(&movement);
-        // A pivot has no sweep. Probe the intended travel too, or turning
-        // back toward the route every tick cancels the turn around a body.
-        if blocker.is_none() && walking && self.status == TraversalStatus::Moving && self.intent.speed() == Some(0.0) {
-            let offset = Vec3::from(target.expect("walking target")) - Vec3::from(start);
-            let probe = step(
-                ActorMoveIntent::Moving {
-                    direction: offset.x.atan2(offset.z),
-                    speed: self.speed.min(offset.length() / env.delta),
-                },
-                external_displacement,
-            );
-            blocker = blocking_actor(&probe);
+        // A pivot has no sweep, so it probes one tick of its intended travel.
+        // A walker already going around a body looks further: a single step
+        // reads as clear the moment it backs off, and the turn around the
+        // body would start over on the next approach.
+        if blocker.is_none()
+            && walking
+            && self.status == TraversalStatus::Moving
+            && (self.intent.speed() == Some(0.0) || self.sidestep_hand.is_some())
+        {
+            let reach = if self.sidestep_hand.is_some() {
+                self.physics.movement_collider.diameter + SIDESTEP_LOOKAHEAD
+            } else {
+                self.speed * env.delta
+            };
+            let offset = Vec3::from(target.expect("target missing from walking action")) - Vec3::from(start);
+            blocker = blocking_actor(&CharacterMovementResult {
+                position: (Vec3::from(start) + offset.clamp_length_max(reach)).into(),
+                ..movement
+            });
         }
-        if let Some(offset) = blocker {
+        self.blocked_by = blocker.map(|blocker| blocker.entity);
+        if let Some(blocker) = blocker {
             let mut sidestep = None;
+            let mut turning = None;
             if walking && self.status == TraversalStatus::Moving && self.movement.support == CharacterSupport::Ground {
-                let target = target.expect("walking target");
-                let toward = offset.with_y(0.0).try_normalize().unwrap_or(Vec3::X);
-                let tangent = Vec3::new(toward.z, 0.0, -toward.x) - toward * 0.25;
-                let intent = super::steering::steer(
-                    ActorMoveIntent::Moving {
-                        direction: tangent.x.atan2(tangent.z),
-                        speed: self.speed,
-                    },
-                    previous_facing,
-                    start.horizontal_distance_sq(&target).sqrt(),
-                    env.delta,
-                );
-                self.intent = intent;
-                let next = Vec3::from(start) + intent.to_horizontal_velocity() * env.delta;
-                if supported_at(env, next, self.physics) {
+                let target = target.expect("target missing from walking action");
+                let distance = start.horizontal_distance_sq(&target).sqrt();
+                let toward = blocker.offset.with_y(0.0).try_normalize().unwrap_or(Vec3::X);
+                let preferred = self.sidestep_hand.unwrap_or(1.0);
+                for hand in [preferred, -preferred] {
+                    let tangent = Vec3::new(toward.z, 0.0, -toward.x) * hand - toward * 0.25;
+                    let intent = steer(
+                        ActorMoveIntent::Moving {
+                            direction: tangent.x.atan2(tangent.z),
+                            speed: self.speed,
+                        },
+                        self.facing,
+                        distance,
+                        env.delta,
+                    );
+                    turning.get_or_insert(intent);
+                    let travel = intent.to_horizontal_velocity() * env.delta;
+                    if !supported_at(env, Vec3::from(start) + travel, self.physics) {
+                        continue;
+                    }
                     let alternative = step(intent, external_displacement);
-                    if blocking_actor(&alternative).is_none()
-                        && home.is_none_or(|home| {
-                            home.contains_position(
-                                env.carriers
-                                    .pose(home.carrier)
-                                    .inverse_transform_point(alternative.position.into()),
-                            )
-                        })
-                    {
+                    let carried = env.carriers.displacement(alternative.carrier);
+                    let travelled = (Vec3::from(alternative.position) - Vec3::from(start) - carried).with_y(0.0);
+                    // A wall that swallows the sidestep leaves only its
+                    // back-off, which would repeat forever: turn the other way.
+                    if travelled.length_squared() < (travel * 0.5).length_squared() {
+                        continue;
+                    }
+                    // Only the ground chooses the hand. A body in the way of
+                    // this turn clears as the actor keeps turning; trying the
+                    // other hand then would swing it back and forth.
+                    self.sidestep_hand = Some(hand);
+                    turning = Some(intent);
+                    if blocking_actor(&alternative).is_none() && inside_home(alternative.position) {
                         sidestep = Some(alternative);
                     }
+                    break;
                 }
             }
-            // Soft separation cannot stop crossing paths or blast impulses.
-            // Retry the motor without horizontal travel so gravity, support,
-            // landing and carrier state all describe the accepted position.
-            movement = sidestep.unwrap_or_else(|| {
+            self.intent = turning.unwrap_or(self.intent);
+            if let Some(alternative) = sidestep {
+                movement = alternative;
+            } else {
+                // Soft separation cannot stop crossing paths or blast impulses.
+                // Retry the motor without voluntary travel, and without the
+                // impulse too when that alone still collides, so gravity,
+                // support, landing and carrier state all describe the
+                // accepted position.
                 self.intent = stopped_intent(self.intent);
-                step(self.intent, external_displacement * Vec3::Y)
-            });
+                movement = step(self.intent, external_displacement);
+                if blocking_actor(&movement).is_some() {
+                    movement = step(self.intent, external_displacement * Vec3::Y);
+                }
+            }
+        } else {
+            self.sidestep_hand = None;
         }
         if let Some(direction) = self.intent.direction() {
             self.facing = direction;
@@ -354,14 +410,27 @@ impl TraversalExecutor {
         if self.movement.crushed {
             self.status = TraversalStatus::Crushed;
         }
-        if self.status == TraversalStatus::Moving {
-            let carried = env.carriers.displacement(self.movement.carrier);
-            let progressed = (Vec3::from(self.movement.position) - Vec3::from(start) - carried).length_squared() > 1e-6;
-            self.stalled_secs = if progressed { 0.0 } else { self.stalled_secs + env.delta };
+        // Progress is a new closest approach to the action's target: a blocked
+        // walker's sidesteps and back-offs travel without getting anywhere.
+        if self.status == TraversalStatus::Moving
+            && let (Some(action), Some(destination)) = (self.actions.front().copied(), target.or(climb_target))
+        {
+            let remaining = self.movement.position.distance_sq(&destination).sqrt();
+            let closest = self
+                .progress
+                .filter(|(timed, _)| *timed == action)
+                .map_or(f32::INFINITY, |(_, closest)| closest);
+            if remaining + PROGRESS_DISTANCE < closest {
+                self.progress = Some((action, remaining));
+                self.stalled_secs = 0.0;
+            } else {
+                self.stalled_secs += env.delta;
+            }
             if self.stalled_secs >= STALL_SECONDS {
                 self.status = TraversalStatus::Blocked;
             }
         } else {
+            self.progress = None;
             self.stalled_secs = 0.0;
         }
     }

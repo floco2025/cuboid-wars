@@ -17,6 +17,7 @@ pub enum RouteFailure {
     Disconnected,
     DifferentCarrier,
     OutsideTerritory,
+    BodyBlocked,
     NavigationUnavailable,
     SearchLimit,
 }

@@ -1,6 +1,6 @@
 use crate::config::fixtures;
 use crate::{
-    actors::ActorMap,
+    actors::{ActorMap, SurfaceActorMoves},
     characters::characters_movement_system,
     network::collect_player_moves,
     players::{PlayerInfo, PlayerMap, PlayerStateQuery, apply_player_movement_system, queue_player_movement},
@@ -29,6 +29,7 @@ fn movement_app(layout: MapLayout) -> (App, Entity) {
         .init_resource::<PortalSet>()
         .init_resource::<PlayerMap>()
         .init_resource::<ActorMap>()
+        .init_resource::<SurfaceActorMoves>()
         .init_resource::<crate::actors::navigation::ActorTerritories>()
         .init_resource::<SwitchState>()
         .init_resource::<ServerTick>()

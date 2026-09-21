@@ -7,7 +7,7 @@ use common::{
 };
 
 use crate::{
-    actors::{ActorCharacter, ActorMap, ActorMovementQuery, SurfaceAgent, apply_actor_moves, plan_actor_moves},
+    actors::{ActorMap, ActorMovementQuery, SurfaceActorMoves, apply_actor_moves, plan_actor_moves},
     players::PlayerMap,
 };
 
@@ -23,7 +23,7 @@ pub fn characters_movement_system(
     carriers: Res<Carriers>,
     actors: Res<ActorMap>,
     player_query: PlayerMovementQuery,
-    ground_query: Query<(Entity, &Position, &ActorCharacter, &SurfaceAgent)>,
+    ground_moves: Res<SurfaceActorMoves>,
     mut actor_query: ActorMovementQuery,
 ) {
     let delta = time.delta_secs();
@@ -34,11 +34,6 @@ pub fn characters_movement_system(
             let info = actors.get(id)?;
             Some((entity, *pos, gameplay_config.expect_actor(&info.spawn_kind).physics()))
         })
-        .chain(
-            ground_query
-                .iter()
-                .map(|(entity, pos, character, _)| (entity, *pos, character.0.physics())),
-        )
         .collect();
 
     planned_moves.extend(player_query.iter().filter_map(|(entity, id, pos)| {
@@ -50,10 +45,7 @@ pub fn characters_movement_system(
             gameplay_config.player.physics(),
         ))
     }));
-    planned_moves.extend(ground_query.iter().map(|(entity, position, character, agent)| {
-        let start = agent.executor.as_ref().map_or(*position, |executor| executor.start);
-        CharacterMovePlan::from_target(entity, start, *position, 0.0, character.0.physics(), false)
-    }));
+    planned_moves.extend(ground_moves.0.iter().copied());
     plan_actor_moves(
         delta,
         &collision_world,

@@ -9,7 +9,7 @@ use crate::map::{ActorSpawnZone, CarrierGrid, MapConfig, zone_cells};
 use common::{
     config::{ActorGameplayConfig, CharacterPhysicsConfig},
     map::{Carriers, MapGeometry},
-    physics::{CollisionWorld, character_paths_intersect},
+    physics::{CollisionWorld, character_positions_intersect},
     protocol::{CarrierId, Checkpoint, FieldId, Position},
 };
 
@@ -226,7 +226,7 @@ fn character_position_intersects_character(
     other: &Position,
     character_physics: CharacterPhysicsConfig,
 ) -> bool {
-    character_paths_intersect(pos, pos, character_physics, other, other, character_physics)
+    character_positions_intersect(pos, character_physics, other, character_physics)
 }
 
 #[cfg(test)]
@@ -270,7 +270,7 @@ pub(crate) fn generate_flying_spawn_position(
         (!world.character_overlaps_solid(&pos, physics, open)
             && !occupied
                 .iter()
-                .any(|(other, body)| character_paths_intersect(&pos, &pos, physics, other, other, *body)))
+                .any(|(other, body)| character_positions_intersect(&pos, physics, other, *body)))
         .then_some(pos)
     })
 }
