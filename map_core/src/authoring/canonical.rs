@@ -139,7 +139,14 @@ pub fn canonicalize_map(v: &Value) -> Value {
         let level = i(item, "level");
         let col = i(item, "col");
         let row = i(item, "row");
-        if level >= 0 && (level as usize) < count && cell_error(&b, level, col, row, false).is_none() {
+        if level >= 0
+            && (level as usize) < count
+            && col >= 0
+            && col < cols
+            && row >= 0
+            && row < rows
+            && cell_error(&b, level, col, row, false).is_none()
+        {
             items.insert((level, row, col), item.clone());
         }
     }

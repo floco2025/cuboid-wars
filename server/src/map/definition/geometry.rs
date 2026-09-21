@@ -383,7 +383,7 @@ fn actor_spawn_zones(
         .collect()
 }
 
-// Items require an accessible regular or terrain floor outside a ramp.
+// Items need no floor under them, only a cell outside every ramp footprint.
 fn placed_items(
     map_def: &MapDef,
     field_table: &FieldTable,
@@ -404,8 +404,8 @@ fn placed_items(
             };
             let cell = level_grids[item.level as usize].cells.rows[item.row as usize][item.col as usize];
             anyhow::ensure!(
-                cell.is_flat_floor(),
-                "items[{idx}] ({}) at level {} col {} row {} needs a floor cell without a ramp",
+                !cell.in_ramp_footprint(),
+                "items[{idx}] ({}) at level {} col {} row {} is inside a ramp footprint",
                 item.item_type,
                 item.level,
                 item.col,

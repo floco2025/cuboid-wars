@@ -10,7 +10,6 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    constants::PRESSURE_PLATE_HEIGHT,
     map::Carriers,
     protocol::{
         FieldId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, PowerUpKind, SGoldCollected,
@@ -19,9 +18,6 @@ use common::{
 };
 
 const ITEM_COLLECTION_RADIUS: f32 = 1.0;
-const ITEM_PICKUP_FLOOR_EPSILON: f32 = 0.1;
-// A pressure plate lifts whoever stands on it above the item on its cell.
-const ITEM_PICKUP_MAX_LIFT: f32 = ITEM_PICKUP_FLOOR_EPSILON + PRESSURE_PLATE_HEIGHT;
 
 pub fn item_collection_system(
     mut commands: Commands,
@@ -51,6 +47,7 @@ pub fn item_collection_system(
         })
         .collect();
 
+    let player_physics = gameplay_config.player.physics();
     let mut status_broadcasts = Vec::new();
     let mut feed_events = Vec::new();
 
@@ -64,8 +61,7 @@ pub fn item_collection_system(
             }
             let entity = player_info.entity()?;
             let character_pos = character_positions.get(entity).ok()?;
-            if !(-ITEM_PICKUP_FLOOR_EPSILON..=ITEM_PICKUP_MAX_LIFT).contains(&(character_pos.y - item_pos.y))
-                || !character_overlaps_item(character_pos, &item_pos, ITEM_COLLECTION_RADIUS)
+            if !character_overlaps_item(character_pos, player_physics, &item_pos, ITEM_COLLECTION_RADIUS)
                 || !pickup_has_effect(
                     item_type,
                     player_info,

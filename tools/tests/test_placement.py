@@ -8,7 +8,7 @@ from PySide6.QtCore import QPointF
 from editor_fixtures import EditorHost, faces, floor, furnished_map, qt_app
 from map_editor.document import MapDocument
 from map_editor.editing import place_plate
-from map_editor.normalization import empty_level, empty_map
+from map_editor.normalization import canonicalize_map, empty_level, empty_map
 from map_editor.transforms import insert_level_data
 from map_editor.validation import validate_map
 
@@ -50,6 +50,21 @@ class PlacementTests(unittest.TestCase):
         host.add_barrier_line((0, 0), (1, 0), "vault")
         self.assertEqual(host.statuses, ["Unknown field 'vault'"])
         self.assertEqual(len(host.map_data["levels"][0]["barriers"]), 2)
+
+    def test_an_item_needs_no_floor_but_stays_off_a_ramp(self) -> None:
+        data = empty_map(3, 3)
+        data["checkpoints"] = []
+        data["levels"].append(empty_level(1))
+        data["ramps"] = [{"lower_level": 0, "cols": [0, 2], "rows": [1, 2], "direction": "E", **faces()}]
+        host = EditorHost(data, [])
+
+        host.add_item(2, 0, "gold", None)
+
+        self.assertEqual(host.map_data["items"], [{"level": 0, "col": 2, "row": 0, "type": "gold"}])
+        self.assertEqual(validate_map(host.map_data, []), [])
+        self.assertEqual(canonicalize_map(host.map_data)["items"], host.map_data["items"])
+        host.add_item(1, 1, "gold", None)
+        self.assertEqual(host.statuses, ["Item not placed: cell [1, 1] is inside a ramp footprint."])
 
     def test_placing_on_an_occupied_cell_flashes_instead_of_removing(self) -> None:
         host = EditorHost(furnished_map(), ["bridge_1"])

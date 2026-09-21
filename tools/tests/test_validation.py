@@ -124,13 +124,13 @@ class ValidationTests(unittest.TestCase):
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["levels"][0]["walls"] = [{"c0": 0, "r0": 0, "c1": 2, "r1": 0, **faces()}]
-        data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
+        data["items"] = [{"level": 0, "col": 2, "row": 1, "type": "gold"}]
         data["ladders"] = [{"lower_level": 0, "col": 0, "row": 0, "side": "N", "levels": 1}]
 
         errors = validate_map(data, [])
 
         self.assertTrue(any("is not one grid edge" in error for error in errors))
-        self.assertTrue(any("has no regular floor" in error for error in errors))
+        self.assertTrue(any("items[0] [2, 1] is outside the grid" in error for error in errors))
         self.assertTrue(any("but the map has 1 level(s)" in error for error in errors))
 
     def test_an_authored_side_that_is_no_side_survives_loading_and_is_reported(self) -> None:

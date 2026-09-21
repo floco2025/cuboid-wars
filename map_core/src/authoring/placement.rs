@@ -11,27 +11,16 @@ pub fn cell_error(data: &Value, level: i64, col: i64, row: i64, plate: bool) -> 
     let Some(level_data) = list(data, "levels").get(level as usize) else {
         return Some(format!("invalid level {level}"));
     };
-    if plate && geometry::cells_on_level(list(data, "ramps"), level).contains(&[col as i32, row as i32]) {
+    if geometry::cells_on_level(list(data, "ramps"), level).contains(&[col as i32, row as i32]) {
         return Some(format!("[{col}, {row}] is inside a ramp footprint"));
     }
-    let names = if plate {
-        &["floors", "inaccessible_floors", "terrain"][..]
-    } else {
-        &["floors", "terrain"][..]
-    };
-    if !names
-        .iter()
-        .flat_map(|n| list(level_data, n))
-        .any(|v| i(v, "col") == col && i(v, "row") == row)
-    {
-        return Some(format!(
-            "[{col}, {row}] has no {}floor",
-            if plate { "" } else { "regular " }
-        ));
-    }
-    geometry::cells_on_level(list(data, "ramps"), level)
-        .contains(&[col as i32, row as i32])
-        .then(|| format!("[{col}, {row}] is inside a ramp footprint"))
+    // An item may hang in the air; a plate needs a slab to sit on.
+    (plate
+        && !["floors", "inaccessible_floors", "terrain"]
+            .iter()
+            .flat_map(|n| list(level_data, n))
+            .any(|v| i(v, "col") == col && i(v, "row") == row))
+    .then(|| format!("[{col}, {row}] has no floor"))
 }
 pub fn light_error(data: &Value, level: i64, col: i64, row: i64, side: &str) -> Option<String> {
     let level_data = &data["levels"][level as usize];

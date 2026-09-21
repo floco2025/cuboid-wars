@@ -603,15 +603,37 @@ fn item_on_another_floor_is_not_collected() {
     let mut app = test_app();
     let id = PlayerId(1);
     let (_, _rx) = spawn_player(&mut app, id, Position::default());
-    let above = Position { x: 0.0, y: 0.2, z: 0.0 };
-    let item = spawn_item(&mut app, 1, ItemType::Gold, above, random(0.0));
+    let above = spawn_item(
+        &mut app,
+        1,
+        ItemType::Gold,
+        Position { y: 4.0, ..default() },
+        random(0.0),
+    );
+    let below = spawn_item(
+        &mut app,
+        2,
+        ItemType::Gold,
+        Position { y: -4.0, ..default() },
+        random(0.0),
+    );
 
     app.update();
 
-    assert!(
-        app.world().resource::<ItemMap>().get(&item).is_some(),
-        "vertical epsilon keeps cross-floor pickups out"
-    );
+    let items = app.world().resource::<ItemMap>();
+    assert!(items.get(&above).is_some() && items.get(&below).is_some());
+}
+
+#[test]
+fn airborne_player_collects_the_item_it_passes_through() {
+    let mut app = test_app();
+    let mid_jump = Position { y: 1.0, ..default() };
+    let (_, _rx) = spawn_player(&mut app, PlayerId(1), mid_jump);
+    let item = spawn_item(&mut app, 1, ItemType::Gold, Position::default(), random(0.0));
+
+    app.update();
+
+    assert!(app.world().resource::<ItemMap>().get(&item).is_none());
 }
 
 #[test]

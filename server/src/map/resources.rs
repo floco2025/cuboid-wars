@@ -28,7 +28,7 @@ impl Cell {
     // floor underfoot.
     #[must_use]
     pub fn is_spawnable(&self) -> bool {
-        if self.has_ramp || self.ramp_below > 0 {
+        if self.in_ramp_footprint() {
             return false;
         }
         if self.has_floor_slab && !self.has_floor {
@@ -40,7 +40,13 @@ impl Cell {
     // Standable floor with no slope in it or arriving into it.
     #[must_use]
     pub fn is_flat_floor(&self) -> bool {
-        self.has_floor && !self.has_ramp && self.ramp_below == 0
+        self.has_floor && !self.in_ramp_footprint()
+    }
+
+    // A slope on its own level, or arriving from a level below.
+    #[must_use]
+    pub fn in_ramp_footprint(&self) -> bool {
+        self.has_ramp || self.ramp_below > 0
     }
 }
 

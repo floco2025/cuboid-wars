@@ -11,7 +11,7 @@ use crate::{
     missiles::{MissileAssets, spawn_missile_pickup_visual},
 };
 use common::{
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
+    constants::{ITEM_HOVER_HEIGHT, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
     protocol::*,
 };
 
@@ -171,7 +171,7 @@ pub fn spawn_item(
     };
     entity
         .insert((
-            Transform::from_xyz(position.x, position.y + ITEM_HEIGHT_ABOVE_FLOOR, position.z)
+            Transform::from_xyz(position.x, position.y + ITEM_HOVER_HEIGHT, position.z)
                 .with_rotation(Quat::from_rotation_y(spin_phase) * base),
             YSpinBase(base),
         ))

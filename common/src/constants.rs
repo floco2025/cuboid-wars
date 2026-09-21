@@ -27,6 +27,10 @@ pub const WALL_LIGHT_HEIGHT_FRACTION: f32 = 0.625;
 pub const PRESSURE_PLATE_SIDE_CELLS: f32 = 0.5;
 pub const PRESSURE_PLATE_HEIGHT: f32 = 0.11;
 
+// Items hover this far above their position, the floor plane of their level:
+// the client draws them there and the server collects them there.
+pub const ITEM_HOVER_HEIGHT: f32 = 1.25;
+
 // Ladders. Freestanding climbable elements anchored on grid edges. One-sided:
 // the rail side (front) climbs and fences; the back is passed through. No
 // Rapier collider — the character step queries the derived volumes directly.

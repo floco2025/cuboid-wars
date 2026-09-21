@@ -2,7 +2,10 @@ use bevy::prelude::*;
 use std::f32::consts::TAU;
 
 use crate::{constants::*, items::ItemAnimTimer};
-use common::protocol::{ItemMarker, Position};
+use common::{
+    constants::ITEM_HOVER_HEIGHT,
+    protocol::{ItemMarker, Position},
+};
 
 // ============================================================================
 // Items Animation System
@@ -18,7 +21,7 @@ pub fn items_animation_system(
     for (position, mut transform, mut timer) in &mut query {
         timer.0 += delta * ITEM_ANIMATION_SPEED;
         let offset = (timer.0 * TAU).sin() * ITEM_ANIMATION_HEIGHT;
-        transform.translation.y = position.y + ITEM_HEIGHT_ABOVE_FLOOR + offset;
+        transform.translation.y = position.y + ITEM_HOVER_HEIGHT + offset;
     }
 }
 

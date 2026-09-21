@@ -350,7 +350,6 @@ pub const ITEM_COIN_FACE_METALLIC: f32 = 0.7;
 pub const ITEM_COIN_FACE_ROUGHNESS: f32 = 0.4;
 pub const ITEM_KEY_SIZE: f32 = 0.8;
 pub const ITEM_KEY_DEPTH: f32 = 0.1;
-pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.25;
 pub const ITEM_ANIMATION_HEIGHT: f32 = 0.2; // bob amplitude (m); peak-to-peak swing is 2×
 pub const ITEM_ANIMATION_SPEED: f32 = 0.8;
 pub const ITEM_SPIN_HZ: f32 = 0.4;

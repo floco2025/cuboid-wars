@@ -568,12 +568,11 @@ fn terrain_may_not_duplicate_an_inaccessible_floor() {
 }
 
 #[test]
-fn compile_rejects_item_on_floorless_cell() {
+fn compile_accepts_item_on_floorless_cell() {
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
     map_def.items.push(item_def(0, 2, 2, "gold", None));
-    let err =
-        compile_with(&map_def, &no_nested(), &empty_kind_table()).expect_err("item on a floorless cell must fail");
-    assert!(err.to_string().contains("floor"));
+    let (_, config) = compile_with(&map_def, &no_nested(), &empty_kind_table()).expect("compile");
+    assert_eq!((config.placed_items[0].col, config.placed_items[0].row), (2, 2));
 }
 
 #[test]

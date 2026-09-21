@@ -69,7 +69,7 @@ class DocumentTests(unittest.TestCase):
         data = empty_map(8, 8)
         data["levels"][0]["lights"] = [{"col": 2, "row": 2, "side": "invalid"}]
         data["ladders"] = [{"col": 3, "row": 3, "lower_level": 0, "levels": 0, "side": "invalid"}]
-        data["items"] = [{"col": 7, "row": 7, "level": 0, "type": "gold"}]
+        data["items"] = [{"col": 8, "row": 7, "level": 0, "type": "gold"}]
         data["actor_spawn_zones"] = [
             {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "unknown", "count": [-2], "respawn_secs": 90}
         ]
@@ -103,7 +103,7 @@ class DocumentTests(unittest.TestCase):
         self.load_damaged_map()
         self.doc.apply_change("Paint", paint_floors(self.doc.map_data, 0, (4, 4, 5, 5), DEFAULT_ALIAS))
         self.assertEqual(len(self.doc.map_data["items"]), 1)
-        moved = resize_map_offset(self.doc.map_data, 10, 10, 2, 2)
+        moved = resize_map_offset(self.doc.map_data, 12, 12, 2, 2)
         self.doc.apply_change("Resize", moved)
         self.assertEqual(self.doc.map_data["levels"][0]["lights"][0]["col"], 4)
         self.doc.apply_change("Insert", insert_level_data(self.doc.map_data, 0))
