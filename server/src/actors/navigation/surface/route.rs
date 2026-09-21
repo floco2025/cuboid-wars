@@ -16,6 +16,7 @@ pub enum RouteFailure {
     GoalOutsideMesh,
     Disconnected,
     DifferentCarrier,
+    OutsideTerritory,
     NavigationUnavailable,
     SearchLimit,
 }

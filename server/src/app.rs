@@ -329,5 +329,9 @@ mod pursuit_tests;
 mod home_tests;
 
 #[cfg(test)]
+#[path = "tests/app_roaming.rs"]
+mod roaming_tests;
+
+#[cfg(test)]
 #[path = "tests/app_fixtures.rs"]
 pub(crate) mod fixtures;

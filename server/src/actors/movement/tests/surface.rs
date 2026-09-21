@@ -36,20 +36,20 @@ fn a_search_cut_short_by_the_ticks_leftover_budget_is_deferred_and_keeps_its_rou
         carriers: &carriers,
         budget: TICK_SEARCH_VISITS,
     };
-    planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false);
+    planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false, None);
     assert!(agent.failure.is_none() && !agent.pending, "{:?}", agent.failure);
     let route = executor.actions.clone();
     assert!(!route.is_empty());
 
     agent.goal = Some(goal(6.0));
     planner.budget = 1;
-    planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false);
+    planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false, None);
     assert!(agent.pending && agent.failure.is_none(), "{:?}", agent.failure);
     assert_eq!(executor.actions, route);
     assert_eq!(planner.budget, 0);
 
     planner.budget = TICK_SEARCH_VISITS;
-    planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false);
+    planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false, None);
     assert!(!agent.pending && agent.failure.is_none(), "{:?}", agent.failure);
     assert_ne!(executor.actions, route);
 }
@@ -90,14 +90,14 @@ fn a_deferred_retry_stops_pending_once_its_cause_clears() {
                 carriers: &carriers,
                 budget: TICK_SEARCH_VISITS,
             };
-            planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false);
+            planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false, None);
             assert!(!agent.pending && !executor.actions.is_empty());
             let route = executor.actions.clone();
 
             executor.status = status;
             agent.retry_secs = 0.0;
             planner.budget = budget;
-            planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false);
+            planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false, None);
             assert!(agent.pending && agent.failure.is_none(), "a retry waits for its turn");
             assert_eq!(executor.actions, route);
 
@@ -105,12 +105,28 @@ fn a_deferred_retry_stops_pending_once_its_cause_clears() {
             executor.step(&env);
             assert_eq!(executor.status, TraversalStatus::Moving);
             let position = executor.movement.position;
-            planner.update(&mut agent, &mut executor, CarrierId::WORLD, position, physics, false);
+            planner.update(
+                &mut agent,
+                &mut executor,
+                CarrierId::WORLD,
+                position,
+                physics,
+                false,
+                None,
+            );
             assert!(!agent.pending, "nothing is requested once the route moves again");
             for _ in 0..1800 {
                 planner.budget = TICK_SEARCH_VISITS;
                 let position = executor.movement.position;
-                planner.update(&mut agent, &mut executor, CarrierId::WORLD, position, physics, false);
+                planner.update(
+                    &mut agent,
+                    &mut executor,
+                    CarrierId::WORLD,
+                    position,
+                    physics,
+                    false,
+                    None,
+                );
                 executor.step(&env);
                 if executor.status == TraversalStatus::Reached {
                     break;

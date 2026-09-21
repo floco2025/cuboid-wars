@@ -10,7 +10,10 @@ use common::{
 };
 
 pub use crate::actors::navigation::surface::TraversalAction;
-use crate::actors::navigation::surface::{CarrierDock, SurfaceRoute};
+use crate::actors::navigation::{
+    ActorTerritory,
+    surface::{CarrierDock, SurfaceRoute},
+};
 use crate::actors::{ActorMovementStep, step_actor_movement};
 
 const ARRIVAL_DISTANCE: f32 = 0.15;
@@ -23,6 +26,7 @@ pub enum TraversalStatus {
     Reached,
     Blocked,
     LostSupport,
+    OutsideTerritory,
     Crushed,
 }
 
@@ -83,12 +87,15 @@ impl TraversalExecutor {
     // changes; only a failed one is open to replanning.
     pub(crate) fn committed(&self) -> bool {
         self.actions.front().is_some_and(|action| action.committed())
-            && !matches!(self.status, TraversalStatus::Blocked | TraversalStatus::LostSupport)
+            && !matches!(
+                self.status,
+                TraversalStatus::Blocked | TraversalStatus::LostSupport | TraversalStatus::OutsideTerritory
+            )
     }
 
     #[cfg(test)]
     pub fn step(&mut self, env: &TraversalEnvironment) {
-        self.step_with_avoidance(env, Vec3::ZERO, Vec3::ZERO, false);
+        self.step_with_avoidance(env, Vec3::ZERO, Vec3::ZERO, false, None);
     }
 
     pub(crate) fn step_with_avoidance(
@@ -97,6 +104,7 @@ impl TraversalExecutor {
         external_displacement: Vec3,
         avoidance: Vec3,
         waiting: bool,
+        home: Option<&ActorTerritory>,
     ) {
         let start = self.movement.position;
         let mut target = None;
@@ -251,19 +259,41 @@ impl TraversalExecutor {
         if let Some(direction) = intent.direction() {
             self.facing = direction;
         }
-        self.movement = step_actor_movement(ActorMovementStep {
-            start,
-            vertical_velocity: self.movement.vertical_velocity,
-            intent,
-            external_displacement,
-            delta: env.delta,
-            can_use_ladders: intent.uses_ladders(),
-            physics: self.physics,
-            open_fields: env.open,
-            collision_world: env.world,
-            map_settings: env.settings,
-            carriers: env.carriers,
-        });
+        let step = |intent: ActorMoveIntent| {
+            step_actor_movement(ActorMovementStep {
+                start,
+                vertical_velocity: self.movement.vertical_velocity,
+                intent,
+                external_displacement,
+                delta: env.delta,
+                can_use_ladders: intent.uses_ladders(),
+                physics: self.physics,
+                open_fields: env.open,
+                collision_world: env.world,
+                map_settings: env.settings,
+                carriers: env.carriers,
+            })
+        };
+        let mut movement = step(intent);
+        if home.is_some_and(|home| {
+            !home.contains_position(
+                env.carriers
+                    .pose(home.carrier)
+                    .inverse_transform_point(movement.position.into()),
+            )
+        }) {
+            // Steering can leave a valid route's territory. Rerun the complete
+            // motor without voluntary travel, retaining gravity, impulses and
+            // carrier motion; clamping the result would corrupt its support.
+            self.intent = match intent {
+                ActorMoveIntent::Moving { direction, .. } => ActorMoveIntent::Moving { direction, speed: 0.0 },
+                _ => intent.holding_ladder(),
+            };
+            movement = step(self.intent);
+            self.actions.clear();
+            self.status = TraversalStatus::OutsideTerritory;
+        }
+        self.movement = movement;
         if self.movement.crushed {
             self.status = TraversalStatus::Crushed;
         }

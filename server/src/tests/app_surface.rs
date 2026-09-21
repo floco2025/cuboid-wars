@@ -365,7 +365,7 @@ fn ordinary_surface_actors_take_turns_on_a_ladder_in_opposite_directions() {
             ],
             "ladders":[{"lower_level":0,"col":1,"row":1,"side":"E","levels":2}],
             "checkpoints":[{"level":0,"cols":[3,4],"rows":[2,3],"number":0,"type":"individual"}],
-            "actor_spawn_zones":[{"level":0,"cols":[2,3],"rows":[1,2],"kind":"scuttler","count":[2],"respawn_secs":null}]
+            "actor_spawn_zones":[{"level":0,"levels":3,"cols":[1,3],"rows":[1,2],"kind":"scuttler","count":[2],"respawn_secs":null}]
         }}),hz,settings)
     }).expect("ladder app");
     let (client, _receiver) = connect(&mut app);

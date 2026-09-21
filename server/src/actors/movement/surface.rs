@@ -8,10 +8,16 @@ use common::{
     protocol::{ActorId, ActorMoveIntent, CarrierId, FaceYaw, MapSettings, Position, ServerTick, SwitchState},
 };
 
-use super::traversal::{TraversalAction, TraversalEnvironment, TraversalExecutor, TraversalStatus};
+use super::{
+    roaming::route_stays_home,
+    traversal::{TraversalAction, TraversalEnvironment, TraversalExecutor, TraversalStatus},
+};
 use crate::actors::{
     ActorCharacter, ActorCrushed, ActorLanding, ActorMap, ActorMode,
-    navigation::surface::{ROUTE_SEARCH_VISITS, RouteFailure, SurfaceNavigation},
+    navigation::{
+        ActorTerritories, ActorTerritory,
+        surface::{ROUTE_SEARCH_VISITS, RouteFailure, SurfaceNavigation},
+    },
 };
 
 // Search, visibility, and funnel visits the ground actors share each tick;
@@ -37,6 +43,7 @@ pub struct SurfaceAgent {
     pub(crate) roam_index: usize,
     pub(crate) route_revision: Option<(CarrierId, u64)>,
     route_goal: Option<SurfaceGoal>,
+    route_roaming: bool,
     retry_secs: f32,
     pending: bool,
     // The ladder this actor was admitted to last tick. The rotating order
@@ -69,6 +76,7 @@ impl RoutePlanner<'_> {
         position: Position,
         physics: CharacterPhysicsConfig,
         ladders: bool,
+        home: Option<&ActorTerritory>,
     ) {
         let Some(goal) = agent.goal else {
             executor.actions.clear();
@@ -94,7 +102,11 @@ impl RoutePlanner<'_> {
             return;
         }
         let revision = Some((carrier, self.navigation.revision()));
-        let stale = agent.route_revision != revision;
+        let policy_changed = agent.route_roaming != home.is_some();
+        if policy_changed && home.is_some() {
+            executor.actions.clear();
+        }
+        let stale = agent.route_revision != revision || policy_changed;
         let moved = agent.route_goal.is_none_or(|old| {
             old.carrier != goal.carrier || old.position.distance_sq(&goal.position) > GOAL_TOLERANCE.powi(2)
         });
@@ -120,8 +132,13 @@ impl RoutePlanner<'_> {
         match self.navigation.route(start, goal, physics, ladders, limit) {
             Ok(route) => {
                 self.budget -= route.expanded;
-                executor.set_route(route);
-                agent.failure = None;
+                if home.is_some_and(|home| !route_stays_home(&route, start, home, self.carriers)) {
+                    executor.actions.clear();
+                    agent.failure = Some(RouteFailure::OutsideTerritory);
+                } else {
+                    executor.set_route(route);
+                    agent.failure = None;
+                }
             }
             Err(RouteFailure::NavigationUnavailable) => {
                 agent.pending = true;
@@ -149,6 +166,7 @@ impl RoutePlanner<'_> {
         }
         agent.route_revision = revision;
         agent.route_goal = Some(goal);
+        agent.route_roaming = home.is_some();
     }
 }
 
@@ -160,6 +178,7 @@ pub(crate) fn surface_actors_movement_system(
     settings: Res<MapSettings>,
     switches: Res<SwitchState>,
     navigation: Res<SurfaceNavigation>,
+    territories: Res<ActorTerritories>,
     mut actors: ResMut<ActorMap>,
     mut query: Query<(
         &ActorId,
@@ -239,6 +258,7 @@ pub(crate) fn surface_actors_movement_system(
             continue;
         };
         let physics = character.0.physics();
+        let home = matches!(info.mode, ActorMode::Roam).then(|| territories.get(info.spawn_zone_index));
         let speed = if matches!(info.mode, ActorMode::Engage { .. } | ActorMode::Evade { .. }) {
             speeds.active_speed
         } else {
@@ -263,6 +283,7 @@ pub(crate) fn surface_actors_movement_system(
                 *position,
                 physics,
                 character.0.can_use_ladders,
+                home,
             );
         }
         let ladder = executor
@@ -282,8 +303,17 @@ pub(crate) fn surface_actors_movement_system(
             knockback.map_or(Vec3::ZERO, |v| v.step(delta)),
             avoidance,
             waiting,
+            home,
         );
+        if executor.status == TraversalStatus::OutsideTerritory {
+            agent.failure = Some(RouteFailure::OutsideTerritory);
+            agent.decision_secs = 0.0;
+        }
         let movement = executor.movement;
+        // Player bodies do not block these moves: current moving ground kinds
+        // detonate on contact in contact_explosions_system later this tick.
+        // Overlap in peaceful mode is accepted; revisit if a moving ground
+        // kind without a contact attack is introduced.
         *position = movement.position;
         velocity.0 = movement.vertical_velocity;
         *support = movement.support;

@@ -4,6 +4,7 @@ mod ordering;
 mod plan;
 mod planning;
 mod query;
+mod roaming;
 mod steering;
 mod step;
 mod surface;
