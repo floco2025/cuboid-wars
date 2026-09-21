@@ -13,7 +13,7 @@
     "grid_rows": 24,
     "actor_spawn_zones": [
       {"level": 4, "cols": [21, 23], "rows": [8, 10], "kind": "turret", "count": [4], "respawn_secs": 30, "beam_in_secs": 0.5, "switch": "turrets", "initially_on": false, "until_checkpoint": 4, "on_checkpoint": "destroy"},
-      {"level": 9, "cols": [39, 41], "rows": [13, 15], "kind": "scuttler", "count": [6], "respawn_secs": 4.0, "beam_in_secs": 3.0, "switch": "bridge", "initially_on": false, "until_checkpoint": 2, "on_checkpoint": "destroy"},
+      {"level": 9, "cols": [39, 41], "rows": [13, 15], "kind": "scuttler", "count": [6], "respawn_secs": 5.5, "beam_in_secs": 1.5, "switch": "bridge", "initially_on": false, "until_checkpoint": 2, "on_checkpoint": "destroy"},
       {"level": 9, "cols": [8, 32], "rows": [19, 23], "kind": "zapper", "count": [20, 30, 35], "respawn_secs": 30.0, "beam_in_secs": 1.0, "levels": 3, "roam_distance": 4.0, "switch": "shuttle", "initially_on": false, "until_checkpoint": 3, "on_checkpoint": "destroy"}
     ],
     "checkpoints": [
