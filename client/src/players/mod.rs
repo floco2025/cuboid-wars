@@ -20,10 +20,13 @@ pub use effects::{
     local_player_camera_shake_system, local_player_cuboid_shake_system, local_player_portal_blend_system,
 };
 pub(crate) use footsteps::footsteps_plugin;
-pub use movement::{LocalMovementReports, report_player_movement_system};
+pub use movement::{
+    LocalMovementReports, LocalMovementStep, PlayerMotionBundle, PlayerMove, PlayerMovementStep, collect_move_outcomes,
+    momentum_displacement, plan_player_move, player_movement_state, report_player_movement_system,
+};
 pub(crate) use movement::{
-    LocalMovementStep, PlayerMotionBundle, PlayerMovementQuery, apply_player_moves, interpolate_remote_players_system,
-    plan_player_moves, report_move_outcomes_system,
+    PlayerMovementQuery, apply_player_moves, interpolate_remote_players_system, plan_player_moves,
+    report_move_outcomes_system,
 };
 pub use resources::{LocalPlayerInfo, MyPlayerId, PlayerInfo, PlayerMap};
 pub use spawn::{LocalPlayerMarker, PlayerSpawnContext, eye_position, spawn_player};

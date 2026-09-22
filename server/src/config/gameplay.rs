@@ -48,17 +48,7 @@ impl GameplayCatalog {
     // The defaults are checked first with their own file named, so an error
     // that survives to a map is that map's own.
     fn load_from_path(path: &Path) -> Result<Self> {
-        let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-        let mut source: Value =
-            serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
-        let file: GameplayFile =
-            serde_json::from_value(source.clone()).with_context(|| format!("failed to parse {}", path.display()))?;
-        validate_map_registry(file.maps.iter().map(String::as_str), &file.default_map)
-            .with_context(|| format!("invalid map registry in {}", path.display()))?;
-        file.tuning()
-            .validate(&format!("{}: ", path.display()))
-            .with_context(|| format!("invalid configuration loaded from {}", path.display()))?;
-        strip_registry(&mut source);
+        let (file, source) = load_defaults(path)?;
         let directory = path.parent().context("gameplay configuration directory missing")?;
         let mut maps = HashMap::new();
         for name in file.maps {
@@ -90,6 +80,21 @@ impl GameplayCatalog {
         };
         Ok(config.clone())
     }
+}
+
+fn load_defaults(path: &Path) -> Result<(GameplayFile, Value)> {
+    let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let mut source: Value =
+        serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
+    let file: GameplayFile =
+        serde_json::from_value(source.clone()).with_context(|| format!("failed to parse {}", path.display()))?;
+    validate_map_registry(file.maps.iter().map(String::as_str), &file.default_map)
+        .with_context(|| format!("invalid map registry in {}", path.display()))?;
+    file.tuning()
+        .validate(&format!("{}: ", path.display()))
+        .with_context(|| format!("invalid configuration loaded from {}", path.display()))?;
+    strip_registry(&mut source);
+    Ok((file, source))
 }
 
 // Leaves the defaults a map may override.
@@ -243,6 +248,17 @@ pub struct ServerGameplayConfig {
 }
 
 impl ServerGameplayConfig {
+    pub(crate) fn load_from_files(gameplay: &Path, settings: &Path) -> Result<Self> {
+        let (_, defaults) = load_defaults(gameplay)?;
+        let text = fs::read_to_string(settings).with_context(|| format!("failed to read {}", settings.display()))?;
+        let overrides =
+            serde_json::from_str(&text).with_context(|| format!("failed to parse {}", settings.display()))?;
+        let config = Self::from_override("experiment", &defaults, &overrides)
+            .with_context(|| format!("failed to parse {}", settings.display()))?;
+        config.validate(&format!("{}: ", settings.display()))?;
+        Ok(config)
+    }
+
     // Builds a map's configuration from the defaults (`gameplay.json` without
     // its registry keys) and the map's `settings.json`.
     pub(crate) fn from_override(map_name: &str, defaults: &Value, map: &Value) -> Result<Self> {

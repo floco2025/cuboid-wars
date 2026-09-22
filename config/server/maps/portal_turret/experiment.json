@@ -1,0 +1,24 @@
+{
+  "gameplay": "../../gameplay.json",
+  "settings": "settings.json",
+  "layout": "layout.json",
+  "spawn": [-10, 0, 2],
+  "actions": [
+    { "action": "advance", "ticks": 6 },
+    { "action": "aim", "target": [6, 1, 2] },
+    { "action": "fire" },
+    { "action": "advance", "ticks": 30 },
+    { "action": "reset" },
+    { "action": "advance", "ticks": 6 },
+    { "action": "aim", "target": [-10, 1.62, -8] },
+    { "action": "portal", "end": "a" },
+    { "action": "advance", "ticks": 4 },
+    { "action": "aim", "target": [6, 1.62, 7.8] },
+    { "action": "portal", "end": "b" },
+    { "action": "advance", "ticks": 4 },
+    { "action": "aim", "target": [-10, 1.62, -8] },
+    { "action": "fire" },
+    { "action": "advance", "ticks": 30 },
+    { "action": "inspect" }
+  ]
+}

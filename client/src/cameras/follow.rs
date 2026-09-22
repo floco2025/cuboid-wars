@@ -31,6 +31,8 @@ pub fn local_player_camera_sync_system(
     switch_state: Res<SwitchState>,
     mut third: ResMut<FollowCamera>,
     time: Res<Time>,
+    real_time: Res<Time<Real>>,
+    playback: Option<Res<crate::network::PlaybackMode>>,
 ) {
     let Some((current_pos, prev_pos)) = local_player_query.iter().next() else {
         return;
@@ -86,7 +88,11 @@ pub fn local_player_camera_sync_system(
                 rotation,
                 config,
                 radius,
-                time.delta_secs(),
+                if playback.is_some() {
+                    real_time.delta_secs()
+                } else {
+                    time.delta_secs()
+                },
                 &mut third,
             );
         } else {

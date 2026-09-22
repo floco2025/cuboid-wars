@@ -16,4 +16,4 @@ pub use resources::{PortalInfo, PortalMap};
 pub use spawn::{PortalAssets, spawn_portal};
 pub(crate) use transform_sync::portal_surfaces_transform_sync_system;
 pub use transit::portal_transit_system;
-pub use view::apply_portal_view;
+pub use view::{apply_portal_view, portal_view_transition};

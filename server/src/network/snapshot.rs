@@ -79,48 +79,72 @@ pub(super) fn network_broadcast_actor_moves_system(
     }
 }
 
+#[derive(SystemParam)]
+pub(super) struct SnapshotSource<'w, 's> {
+    tick: Res<'w, ServerTick>,
+    players: Res<'w, PlayerMap>,
+    actors: Res<'w, ActorMap>,
+    pending_spawns: Res<'w, PendingActorSpawns>,
+    items: Res<'w, ItemMap>,
+    switch_state: Res<'w, SwitchState>,
+    conditions: WorldConditions<'w>,
+    player_data: PlayerStateQuery<'w, 's>,
+    actor_data: ActorStateQuery<'w, 's>,
+    actor_motions: ActorMotionQuery<'w, 's>,
+    item_positions: Query<'w, 's, &'static Position, With<ItemMarker>>,
+    missiles: Res<'w, MissileMap>,
+}
+
+impl SnapshotSource<'_, '_> {
+    fn capture(&self) -> SSnapshot {
+        let (quests, locked_switches) = self
+            .conditions
+            .quests
+            .snapshot_fields(&self.conditions.quest_catalog, &self.players);
+        SSnapshot {
+            tick: self.tick.0,
+            players: snapshot_active_players(&self.players, &self.player_data, &self.conditions.portal_assignments),
+            actors: snapshot_actors(
+                &self.actors,
+                &self.actor_data,
+                &self.actor_motions,
+                &self.conditions.carriers,
+            ),
+            actors_peaceful: self.actors.peaceful,
+            spawning_actors: snapshot_spawning_actors(&self.pending_spawns),
+            items: collect_items(&self.items, &self.item_positions),
+            missiles: snapshot_missiles(&self.missiles),
+            switch_state: (*self.switch_state).clone(),
+            quests,
+            shared_checkpoint: self.players.shared_checkpoint.number,
+            locked_switches,
+            cloud_cover: self.conditions.weather.cloud_cover(),
+            raining: self.conditions.weather.is_raining(),
+            celestial_clock: *self.conditions.celestial_clock,
+            portals: self.conditions.portals.snapshot_portals(),
+        }
+    }
+}
+
 pub(super) fn network_broadcast_snapshot_system(
     network: Res<NetworkConfig>,
     mut cadence: Local<Option<UpdateCadence>>,
-    tick: Res<ServerTick>,
-    players: Res<PlayerMap>,
-    actors: Res<ActorMap>,
-    pending_spawns: Res<PendingActorSpawns>,
-    items: Res<ItemMap>,
-    switch_state: Res<SwitchState>,
-    conditions: WorldConditions,
-    player_data: PlayerStateQuery,
-    actor_data: ActorStateQuery,
-    actor_motions: ActorMotionQuery,
-    item_positions: Query<&Position, With<ItemMarker>>,
-    missiles: Res<MissileMap>,
+    source: SnapshotSource,
 ) {
-    if !broadcast_due(&mut cadence, || network.snapshot_cadence(), &players) {
-        return;
+    if broadcast_due(&mut cadence, || network.snapshot_cadence(), &source.players) {
+        broadcast_to_all(&source.players, ServerMessage::Snapshot(source.capture()));
     }
+}
 
-    let all_players = snapshot_active_players(&players, &player_data, &conditions.portal_assignments);
-    let all_actors = snapshot_actors(&actors, &actor_data, &actor_motions, &conditions.carriers);
-    let all_items = collect_items(&items, &item_positions);
-    let all_missiles = snapshot_missiles(&missiles);
+/// Observe a completed server tick without advancing it or changing network cadence.
+/// The experiment viewer uses the same state projection as normal clients.
+pub fn capture_snapshot(world: &mut World) -> SSnapshot {
+    use bevy::ecs::system::RunSystemOnce;
+    world
+        .run_system_once(capture_snapshot_system)
+        .expect("snapshot resources installed")
+}
 
-    let (quests, locked_switches) = conditions.quests.snapshot_fields(&conditions.quest_catalog, &players);
-    let msg = ServerMessage::Snapshot(SSnapshot {
-        tick: tick.0,
-        players: all_players,
-        actors: all_actors,
-        actors_peaceful: actors.peaceful,
-        spawning_actors: snapshot_spawning_actors(&pending_spawns),
-        items: all_items,
-        missiles: all_missiles,
-        switch_state: (*switch_state).clone(),
-        quests,
-        shared_checkpoint: players.shared_checkpoint.number,
-        locked_switches,
-        cloud_cover: conditions.weather.cloud_cover(),
-        raining: conditions.weather.is_raining(),
-        celestial_clock: *conditions.celestial_clock,
-        portals: conditions.portals.snapshot_portals(),
-    });
-    broadcast_to_all(&players, msg);
+fn capture_snapshot_system(source: SnapshotSource) -> SSnapshot {
+    source.capture()
 }

@@ -14,7 +14,7 @@ use common::{
 use super::{PlayerMovementStep, momentum_displacement, step_player_movement};
 use crate::players::{BumpFeedbackState, LocalPlayerMarker, PlayerAnimationMotion, PlayerMap};
 
-pub(crate) struct PlayerMove {
+pub struct PlayerMove {
     pub entity: Entity,
     pub start: Position,
     pub result: CharacterMovementResult,
@@ -62,14 +62,14 @@ pub(crate) fn plan_player_moves(
         let movement_disabled = info.is_some_and(|i| i.stunned);
         let held_keys: &[FieldId] = info.map_or(&[], |i| i.held_keys.as_slice());
 
-        let mut control_velocity = player_control_velocity(
+        let control_velocity = player_control_velocity(
             *move_intent,
             &map_settings.movement,
             has_speed_power_up,
             movement_disabled,
         );
 
-        let mut external_displacement = momentum_displacement(Some(knockback), Some(airborne_momentum), delta);
+        let external_displacement = momentum_displacement(Some(knockback), Some(airborne_momentum), delta);
         let request = PlayerMovementStep {
             start: *client_pos,
             vertical_velocity: motion.0,
@@ -85,30 +85,41 @@ pub(crate) fn plan_player_moves(
             portal_set,
             carriers,
         };
-        let mut result = step_player_movement(request);
-        let candidate = CharacterMovePlan::from_movement_result(entity, *client_pos, result, player_physics);
-        let hits_character = overlapping_character(&candidate, &blockers).is_some();
-        if hits_character {
-            // Recompute at the accepted horizontal request: vertical support,
-            // landings and carrier motion must describe the position we apply.
-            control_velocity = Vec3::ZERO;
-            external_displacement *= Vec3::Y;
-            result = step_player_movement(PlayerMovementStep {
-                control_velocity,
-                external_displacement,
-                ..request
-            });
-        }
-        moves.push(PlayerMove {
-            entity,
-            start: *client_pos,
-            result,
-            control_velocity,
-            external_displacement,
-            hits_character,
-        });
+        moves.push(plan_player_move(entity, request, &blockers));
     }
     moves
+}
+
+// Both rendered and headless owners retry a body-blocked move with vertical
+// travel only, so support and landing outcomes describe the accepted position.
+pub fn plan_player_move(entity: Entity, request: PlayerMovementStep<'_>, blockers: &[CharacterMovePlan]) -> PlayerMove {
+    let mut result = step_player_movement(request);
+    let candidate = CharacterMovePlan::from_movement_result(
+        entity,
+        request.start,
+        result,
+        request.gameplay_config.player.physics(),
+    );
+    let hits_character = overlapping_character(&candidate, blockers).is_some();
+    let mut control_velocity = request.control_velocity;
+    let mut external_displacement = request.external_displacement;
+    if hits_character {
+        control_velocity = Vec3::ZERO;
+        external_displacement *= Vec3::Y;
+        result = step_player_movement(PlayerMovementStep {
+            control_velocity,
+            external_displacement,
+            ..request
+        });
+    }
+    PlayerMove {
+        entity,
+        start: request.start,
+        result,
+        control_velocity,
+        external_displacement,
+        hits_character,
+    }
 }
 
 fn overlapping_character<'a>(

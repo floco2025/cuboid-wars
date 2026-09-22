@@ -19,6 +19,9 @@ pub fn hud_plugin(app: &mut App) {
         (console_input_system, console_send_system)
             .chain()
             .in_set(ClientSet::Console)
+            // Playback reserves Enter for stepping; settings-menu Escape
+            // handling shares this set and must remain active.
+            .run_if(crate::network::live_gameplay)
             .run_if(menu_closed),
     );
     app.add_systems(
@@ -52,3 +55,7 @@ pub fn hud_plugin(app: &mut App) {
             .in_set(ClientSet::Hud),
     );
 }
+
+#[cfg(test)]
+#[path = "tests/plugin.rs"]
+mod tests;

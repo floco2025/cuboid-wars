@@ -16,6 +16,11 @@ bevy.workspace = true
 crossbeam-channel.workspace = true
 mimalloc = "0.1"
 whoami = "2"
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [workspace]
 members = ["common", "server", "client", "map_core", "map_core_py"]
@@ -34,6 +39,7 @@ renet = "2"
 renet_netcode = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tempfile = "3"
 
 [profile.release.package.map_core_py]
 # Rust's debuginfo stripping misaligns Mach-O libraries on macOS 27 (rust-lang/rust#157750).

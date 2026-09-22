@@ -722,3 +722,38 @@ fn wheel_zooms_across_the_first_person_threshold_and_menu_scroll_does_not_zoom()
     app.update();
     assert_eq!(app.world().resource::<FollowCamera>().distance, 0.0);
 }
+
+#[test]
+fn playback_mouse_look_does_not_change_scripted_movement_facing_or_jump() {
+    let (mut app, player, _) = input_app();
+    app.insert_resource(crate::network::PlaybackMode);
+    app.world_mut().entity_mut(player).insert((
+        PlayerMoveIntent::Running { direction: 1.0 },
+        FaceYaw(1.0),
+        CharacterVerticalVelocity(4.0),
+    ));
+    let previous_yaw = app.world().resource::<LocalPlayerInfo>().stored_yaw;
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyW);
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::Space);
+    app.world_mut().write_message(MouseMotion {
+        delta: Vec2::new(100.0, 20.0),
+    });
+    app.update();
+    assert_ne!(app.world().resource::<LocalPlayerInfo>().stored_yaw, previous_yaw);
+    assert_eq!(
+        *app.world().get::<PlayerMoveIntent>(player).expect("intent"),
+        PlayerMoveIntent::Running { direction: 1.0 }
+    );
+    assert_eq!(app.world().get::<FaceYaw>(player).expect("facing").0, 1.0);
+    assert_eq!(
+        app.world()
+            .get::<CharacterVerticalVelocity>(player)
+            .expect("vertical velocity")
+            .0,
+        4.0
+    );
+}

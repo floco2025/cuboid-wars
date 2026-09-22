@@ -46,7 +46,8 @@ pub fn local_simulation_plugin(app: &mut App) {
             projectiles_movement_system,
             missiles_movement_system,
         )
-            .chain(),
+            .chain()
+            .run_if(crate::network::live_gameplay),
     );
 }
 
@@ -58,8 +59,10 @@ pub fn character_sync_plugin(app: &mut App) {
         Update,
         (
             character_models_attach_system,
-            interpolate_remote_players_system,
-            (interpolate_remote_missiles_system, remote_missile_impacts_system).chain(),
+            interpolate_remote_players_system.run_if(crate::network::live_gameplay),
+            (interpolate_remote_missiles_system, remote_missile_impacts_system)
+                .chain()
+                .run_if(crate::network::live_gameplay),
             players_transform_sync_system
                 .after(local_player_cuboid_shake_system)
                 .after(interpolate_remote_players_system),

@@ -1,10 +1,9 @@
-use super::{ProjectileMotion, SurfaceBounce, projectile_character_hit};
+use super::{ProjectileMotion, SurfaceBounce, motion::FieldImpact, projectile_character_hit};
 use crate::{characters::BallCharacterHit, constants::PROJECTILE_IMPACT_MIN_BOUNCE_SPEED};
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    physics::CollisionWorld,
-    protocol::{ActorId, ActorMarker, FaceYaw, FieldId, HitTarget, PlayerGeneration, PlayerId, PlayerMarker, Position},
+    protocol::{ActorId, ActorMarker, FaceYaw, HitTarget, PlayerGeneration, PlayerId, PlayerMarker, Position},
 };
 
 use super::audio::{
@@ -90,14 +89,10 @@ pub(super) fn present_character_impact(
     asset_set: &AssetSet,
     sparks: &mut ParticleCloud,
     settings: &ClientSettings,
-    proj_entity: Entity,
-    proj_motion: &ProjectileMotion,
-    proj_pos: &Position,
-    delta: f32,
+    impact: Vec3,
+    velocity: Vec3,
     target_hit: ProjectileTargetHit,
 ) {
-    let hit = target_hit.hit();
-    let impact = Vec3::from(*proj_pos) + proj_motion.velocity * delta * hit.time_of_impact;
     if let ProjectileTargetHit::Player { is_local_player, .. } = target_hit {
         play_spatial_sound_with(
             commands,
@@ -117,46 +112,36 @@ pub(super) fn present_character_impact(
         }
     }
 
-    let outward = -proj_motion.velocity.normalize_or_zero();
+    let outward = -velocity.normalize_or_zero();
     spawn_impact_sparks(
         sparks,
         impact,
         outward,
         outward,
-        proj_motion.velocity.length(),
+        velocity.length(),
         ImpactKind::Character,
     );
-    commands.entity(proj_entity).despawn();
 }
 
-pub(super) fn handle_field_collisions(
+pub(super) fn present_field_impact(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
     sparks: &mut ParticleCloud,
     settings: &ClientSettings,
     field_assets: &FieldAssets,
-    proj_entity: Entity,
-    proj_motion: &ProjectileMotion,
-    proj_pos: &Position,
-    delta: f32,
-    collision_world: &CollisionWorld,
-    open_fields: &[FieldId],
-) -> bool {
-    let Some(impact) = proj_motion.terminate_at_field(proj_pos, delta, collision_world, open_fields) else {
-        return false;
-    };
+    impact: FieldImpact,
+    speed: f32,
+) {
     play_barrier_impact_sound(commands, asset_server, asset_set, &settings.audio, impact.point);
     spawn_impact_sparks(
         sparks,
         impact.point,
         impact.normal,
         impact.normal,
-        proj_motion.velocity.length(),
+        speed,
         ImpactKind::Barrier(field_assets.base_color(impact.field)),
     );
-    commands.entity(proj_entity).despawn();
-    true
 }
 
 pub(super) fn present_world_bounce(
@@ -165,7 +150,7 @@ pub(super) fn present_world_bounce(
     asset_set: &AssetSet,
     sparks: &mut ParticleCloud,
     settings: &ClientSettings,
-    proj_motion: &ProjectileMotion,
+    velocity: Vec3,
     bounce: SurfaceBounce,
     speed_before: f32,
     current_time: f32,
@@ -190,7 +175,7 @@ pub(super) fn present_world_bounce(
             sparks,
             bounce.contact,
             bounce.normal,
-            proj_motion.velocity.normalize_or_zero(),
+            velocity.normalize_or_zero(),
             speed_before,
             ImpactKind::World,
         );

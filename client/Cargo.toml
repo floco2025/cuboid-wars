@@ -20,6 +20,6 @@ rapier3d.workspace = true
 rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tempfile = "3"
+tempfile.workspace = true
 raw-window-handle = "0.6"
 bevy_mod_mipmap_generator = "0.2"

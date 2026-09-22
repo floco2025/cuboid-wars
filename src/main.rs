@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, process, time::Duration};
+use std::{net::SocketAddr, path::PathBuf, process, time::Duration};
 
 use anyhow::Result;
 use bevy::app::AppExit;
@@ -18,6 +18,7 @@ use server::{
 
 use crate::host::spawn_embedded_server;
 
+mod experiment;
 mod host;
 
 // glibc keeps freed load-time allocations resident: it raises its mmap
@@ -33,8 +34,16 @@ const DEFAULT_ADDRESS: &str = "127.0.0.1:8080";
 // server that listens to nobody.
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Cuboid Wars", long_about = None)]
-#[command(group = ArgGroup::new("mode").args(["host", "join", "serve"]))]
+#[command(group = ArgGroup::new("mode").args(["host", "join", "serve", "experiment", "play_experiment"]))]
 struct Cli {
+    /// Run a headless encounter script and write its JSON report to stdout.
+    #[arg(long, value_name = "FILE", conflicts_with_all = ["WindowArgs", "WorldArgs", "ImpairmentArgs"])]
+    experiment: Option<PathBuf>,
+
+    /// Step through an experiment's scripted actions in a game window.
+    #[arg(long, value_name = "FILE", conflicts_with_all = ["WorldArgs", "ImpairmentArgs"])]
+    play_experiment: Option<PathBuf>,
+
     /// Play and let others join at this address.
     #[arg(long, value_name = "ADDRESS", num_args = 0..=1, default_missing_value = DEFAULT_ADDRESS)]
     host: Option<SocketAddr>,
@@ -274,6 +283,12 @@ fn parse_finite_csv<const N: usize>(value: &str, expected: &str) -> Result<[f32;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Some(path) = cli.experiment {
+        return experiment::run_file(&path);
+    }
+    if let Some(path) = cli.play_experiment {
+        return experiment::play_file(&path, &cli.window);
+    }
     if let Some(bind) = cli.serve {
         let listener = listen(bind)?;
         let app = build_server_app(cli.world.server_options(), Some(listener), None)?;

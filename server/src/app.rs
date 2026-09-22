@@ -1,4 +1,4 @@
-use std::{thread, time::Instant};
+use std::{path::Path, thread, time::Instant};
 
 use anyhow::{Error, Result};
 use bevy::prelude::*;
@@ -82,6 +82,24 @@ pub fn build_server_app(
         listener,
         local,
         generate_map,
+    )
+}
+
+// Experimental maps use the ordinary loader and server schedule without
+// registering unfinished layouts in the playable map catalog.
+pub fn build_server_app_from_files(
+    options: ServerAppOptions,
+    gameplay: &Path,
+    settings: &Path,
+    layout: &Path,
+    local: LocalLink,
+) -> Result<App> {
+    build_server_app_with_loader(
+        ServerGameplayConfig::load_from_files(gameplay, settings)?,
+        options,
+        None,
+        Some(local),
+        |name, hz, settings| crate::map::generation::generate_map_at(layout, name, hz, settings),
     )
 }
 

@@ -59,6 +59,7 @@ type LocalPlayerInputQuery<'w, 's> = Query<
 // vertical velocity once, retaining it if this frame has no fixed step.
 pub fn input_movement_system(
     keyboard: Res<ButtonInput<KeyCode>>,
+    playback: Option<Res<crate::network::PlaybackMode>>,
     camera_input: CameraMovementInput,
     my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
@@ -80,8 +81,10 @@ pub fn input_movement_system(
     }
 
     if camera_input.state.released || camera_input.console.open || camera_input.menu.open {
-        for (_, mut input, _, _, _) in local_player_query.iter_mut() {
-            *input = PlayerMoveIntent::Idle;
+        if playback.is_none() {
+            for (_, mut input, _, _, _) in local_player_query.iter_mut() {
+                *input = PlayerMoveIntent::Idle;
+            }
         }
         return;
     }
@@ -94,6 +97,9 @@ pub fn input_movement_system(
         mouse_sensitivity,
         client_settings.preferences.invert_y,
     );
+    if playback.is_some() {
+        return;
+    }
     let face_yaw = current_yaw + PI;
     // Death disables movement and jump just like stunned (and overrides it).
     let movement_disabled = local_player_info.is_dead || local_player_stunned(my_player_id.0, &players);

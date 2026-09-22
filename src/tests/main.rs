@@ -50,6 +50,66 @@ fn modes_are_mutually_exclusive() {
 }
 
 #[test]
+fn experiment_mode_accepts_only_its_script() {
+    assert_eq!(
+        parse(&["--experiment", "trial.json"]).expect("experiment").experiment,
+        Some(PathBuf::from("trial.json"))
+    );
+    for arguments in [
+        &["--host"][..],
+        &["--join"],
+        &["--serve"],
+        &["--map", "obby"],
+        &["--god"],
+        &["--peace"],
+        &["--name", "Reviewer"],
+        &["--windowed"],
+        &["--spawn", "0,0,0"],
+        &["--server-hz", "60"],
+        &["--lag-ms", "10"],
+    ] {
+        assert!(
+            parse(&[&["--experiment", "trial.json"][..], arguments].concat()).is_err(),
+            "{arguments:?}"
+        );
+    }
+}
+
+#[test]
+fn playing_an_experiment_accepts_window_options_and_rejects_other_world_sources() {
+    let cli = parse(&[
+        "--play-experiment",
+        "trial.json",
+        "--windowed",
+        "--look",
+        "90,-20",
+        "--name",
+        "Player",
+    ])
+    .expect("interactive experiment rejected");
+    assert_eq!(cli.play_experiment, Some(PathBuf::from("trial.json")));
+    assert!(cli.window.windowed);
+    for args in [
+        &["--experiment", "other.json"][..],
+        &["--host"],
+        &["--join"],
+        &["--serve"],
+        &["--map", "obby"],
+        &["--spawn", "0,0,0"],
+        &["--god"],
+        &["--server-hz", "60"],
+        &["--lag-ms", "10"],
+    ] {
+        assert_eq!(
+            parse(&[&["--play-experiment", "trial.json"][..], args].concat())
+                .expect_err("conflicting source accepted")
+                .kind(),
+            ErrorKind::ArgumentConflict
+        );
+    }
+}
+
+#[test]
 fn window_options_need_a_window_and_world_options_a_server() {
     for args in [
         &["--serve", "--name", "Alex"][..],

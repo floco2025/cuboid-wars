@@ -21,7 +21,9 @@ pub fn input_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            input_weapon_select_system.after(ClientSet::Network),
+            input_weapon_select_system
+                .after(ClientSet::Network)
+                .run_if(crate::network::live_gameplay),
             // The fullscreen shortcut works with the settings menu open, only
             // the console (which the F key types into) stands it down.
             input_fullscreen_toggle_system.run_if(console_closed),
@@ -34,6 +36,7 @@ pub fn input_plugin(app: &mut App) {
         (input_shooting_system, input_missile_system, input_portal_system)
             .in_set(ClientSet::Camera)
             .after(lock_on_system)
+            .run_if(crate::network::live_gameplay)
             .run_if(gameplay_input_active),
     );
 }

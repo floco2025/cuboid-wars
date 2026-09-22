@@ -44,6 +44,7 @@ fn app() -> (App, Entity, f32) {
         .insert_resource(world(false))
         .init_resource::<MapLayout>()
         .init_resource::<Time>()
+        .init_resource::<Time<Real>>()
         .init_resource::<Time<Fixed>>()
         .init_resource::<CameraViewMode>()
         .init_resource::<FollowCamera>()
@@ -231,4 +232,24 @@ fn debug_view_orbits_the_character_centre_through_geometry() {
     let pose = app.world().get::<Transform>(camera).expect("camera transform missing");
     assert!((pose.translation.distance(centre) - 12.0).abs() < 1e-4);
     assert!(app.world().resource::<CameraViewMode>().is_debug());
+}
+
+#[test]
+fn playback_camera_recovers_from_obstruction_while_simulation_time_is_frozen() {
+    let (mut app, camera, eye_height) = app();
+    app.insert_resource(crate::network::PlaybackMode);
+    app.world_mut().resource_mut::<Time>().advance_by(Duration::ZERO);
+    app.world_mut()
+        .resource_mut::<Time<Real>>()
+        .advance_by(Duration::from_secs_f32(1.0 / 60.0));
+    app.world_mut().resource_mut::<FollowCamera>().distance = 3.0;
+    app.insert_resource(world(true));
+    app.update();
+    assert_view(&app, camera, eye_height, true);
+    app.insert_resource(world(false));
+    for _ in 0..30 {
+        app.update();
+    }
+    assert_view(&app, camera, eye_height, false);
+    assert_eq!(app.world().resource::<Time>().delta(), Duration::ZERO);
 }

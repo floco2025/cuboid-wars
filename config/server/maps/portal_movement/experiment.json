@@ -1,0 +1,17 @@
+{
+  "gameplay": "../../gameplay.json",
+  "settings": "settings.json",
+  "layout": "layout.json",
+  "spawn": [-10.0, 13.2, -6],
+  "actions": [
+    { "action": "move", "direction": [1, 0], "ticks": 7, "run": true },
+    { "action": "aim", "target": [-6, 0, -6] },
+    { "action": "portal", "end": "a" },
+    { "action": "advance", "ticks": 4 },
+    { "action": "aim", "target": [-0.2, 10.4, -6] },
+    { "action": "portal", "end": "b" },
+    { "action": "move", "direction": [1, 0], "ticks": 10 },
+    { "action": "advance", "ticks": 65 },
+    { "action": "check", "min": [-20, 4.3, -8], "max": [-12, 4.6, -4] }
+  ]
+}

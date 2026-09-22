@@ -1,0 +1,44 @@
+{
+  "map": {
+    "fireworks": null,
+    "grid_cols": 10,
+    "grid_rows": 10,
+    "checkpoints": [
+      {
+        "level": 3,
+        "cols": [2, 3],
+        "rows": [3, 4],
+        "type": "individual",
+        "number": 0
+      },
+      {
+        "level": 1,
+        "cols": [0, 2],
+        "rows": [3, 4],
+        "type": "individual",
+        "number": 1
+      }
+    ],
+    "levels": [
+      {
+        "name": "Fall entrance",
+        "floors": [{ "col": 3, "row": 3, "all": "portal" }]
+      },
+      {
+        "name": "Landing",
+        "floors": [
+          { "col": 0, "row": 3, "all": "solid" },
+          { "col": 1, "row": 3, "all": "solid" }
+        ]
+      },
+      {
+        "name": "Launch exit",
+        "walls": [{ "c0": 5, "r0": 3, "c1": 5, "r1": 4, "all": "portal" }]
+      },
+      {
+        "name": "Start ledge",
+        "floors": [{ "col": 2, "row": 3, "all": "solid" }]
+      }
+    ]
+  }
+}

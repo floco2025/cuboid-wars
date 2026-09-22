@@ -1,11 +1,13 @@
 use bevy::prelude::*;
 use common::{
-    config::{GameplayConfig, NetworkConfig, UpdateCadence},
+    config::{CharacterPhysicsConfig, GameplayConfig, NetworkConfig, UpdateCadence},
     constants::CHARACTER_FALL_DEATH_Y,
     map::Carriers,
     physics::{CharacterSupport, CollisionWorld},
     protocol::{CMoveOutcome, CarrierId, ClientMessage, MoveOutcome, Position},
 };
+
+use super::LocalMovementReports;
 
 use crate::{
     network::ClientToServerChannel,
@@ -15,11 +17,11 @@ use crate::{
 // What the motor decided this tick, for the systems that report it.
 #[derive(Component)]
 pub struct LocalMovementStep {
-    pub(crate) start: Position,
-    pub(crate) crushed: bool,
-    pub(crate) impact_speed: f32,
-    pub(crate) carrier: CarrierId,
-    pub(crate) support: CharacterSupport,
+    pub start: Position,
+    pub crushed: bool,
+    pub impact_speed: f32,
+    pub carrier: CarrierId,
+    pub support: CharacterSupport,
 }
 
 pub(crate) fn report_move_outcomes_system(
@@ -38,25 +40,44 @@ pub(crate) fn report_move_outcomes_system(
     let Ok((pos, step)) = query.single() else {
         return;
     };
-    let reports = &mut local.reports;
-    let generation = reports.generation;
+    for event in collect_move_outcomes(
+        pos,
+        step,
+        gameplay.player.physics(),
+        &collision,
+        &carriers,
+        &mut local.reports,
+        &mut eraser_cadence,
+        &network,
+    ) {
+        to_server.send(ClientMessage::MoveOutcome(CMoveOutcome {
+            generation: local.reports.generation,
+            event,
+        }));
+    }
+}
+
+pub fn collect_move_outcomes(
+    pos: &Position,
+    step: &LocalMovementStep,
+    physics: CharacterPhysicsConfig,
+    collision: &CollisionWorld,
+    carriers: &Carriers,
+    reports: &mut LocalMovementReports,
+    eraser_cadence: &mut Option<UpdateCadence>,
+    network: &NetworkConfig,
+) -> Vec<MoveOutcome> {
+    let mut outcomes = Vec::new();
     let crossing = reports.crossing_entrance.as_ref();
     let sweep_end = crossing.copied().unwrap_or(*pos);
-    let physics = gameplay.player.physics();
     let touching = collision
-        .character_eraser_contacts(pos, pos, physics, Some(&carriers))
+        .character_eraser_contacts(pos, pos, physics, Some(carriers))
         .next()
         .is_some();
     let swept = collision
-        .character_eraser_contacts(&step.start, &sweep_end, physics, Some(&carriers))
+        .character_eraser_contacts(&step.start, &sweep_end, physics, Some(carriers))
         .next()
         .is_some();
-    let send = |outcome| {
-        to_server.send(ClientMessage::MoveOutcome(CMoveOutcome {
-            generation,
-            event: outcome,
-        }))
-    };
     // A pickup update can arrive after contact, so the client inventory cannot
     // gate erasure: standing in a field keeps reporting, at the movement
     // cadence, and entry restarts that cadence so it is reported at once.
@@ -66,21 +87,22 @@ pub(crate) fn report_move_outcomes_system(
         *eraser_cadence = None;
     }
     if erase_due {
-        send(MoveOutcome::EraseEquipment);
+        outcomes.push(MoveOutcome::EraseEquipment);
     }
     if crossing.is_none() && step.impact_speed > 0.0 {
-        send(MoveOutcome::Landed {
+        outcomes.push(MoveOutcome::Landed {
             pos: *pos,
             impact_speed: step.impact_speed,
         });
     }
     if crossing.is_none() && step.crushed {
-        send(MoveOutcome::Crushed { pos: *pos });
+        outcomes.push(MoveOutcome::Crushed { pos: *pos });
     }
     if pos.y < CHARACTER_FALL_DEATH_Y && !reports.void_reported {
         reports.void_reported = true;
-        send(MoveOutcome::FellOutOfWorld);
+        outcomes.push(MoveOutcome::FellOutOfWorld);
     }
+    outcomes
 }
 
 #[cfg(test)]

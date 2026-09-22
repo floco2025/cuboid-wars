@@ -10,7 +10,8 @@ mod resources;
 mod visual_turn;
 
 pub use animation::{AnimationToPlay, character_animation_system};
-pub(crate) use ball_hits::{BallCharacterHit, ball_character_hit, ball_overlaps_character};
+pub use ball_hits::BallCharacterHit;
+pub(crate) use ball_hits::{ball_character_hit, ball_overlaps_character};
 pub use components::PreviousTickPosition;
 pub(crate) use inspection::refresh_grounding_debug_system;
 pub use inspection::{character_bounds_sync_system, grounding_debug_system, spawn_character_bounds};

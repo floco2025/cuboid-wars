@@ -13,8 +13,8 @@ use common::{config::GameplayConfig, physics::CollisionWorld, protocol::*};
 
 #[derive(Resource)]
 pub struct ProjectileAssets {
-    mesh: Handle<Mesh>,
-    material: Handle<StandardMaterial>,
+    pub(crate) mesh: Handle<Mesh>,
+    pub(crate) material: Handle<StandardMaterial>,
 }
 
 impl ProjectileAssets {

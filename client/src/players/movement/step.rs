@@ -11,7 +11,7 @@ use common::{
 };
 
 #[derive(Clone, Copy)]
-pub(crate) struct PlayerMovementStep<'a> {
+pub struct PlayerMovementStep<'a> {
     pub start: Position,
     pub vertical_velocity: f32,
     pub control_velocity: Vec3,
@@ -29,7 +29,7 @@ pub(crate) struct PlayerMovementStep<'a> {
 }
 
 #[must_use]
-pub(crate) fn step_player_movement(step: PlayerMovementStep<'_>) -> CharacterMovementResult {
+pub fn step_player_movement(step: PlayerMovementStep<'_>) -> CharacterMovementResult {
     let passable_fields = passable_fields(step.held_keys, step.open_fields);
     step_character_movement(
         CharacterStep {
@@ -53,7 +53,7 @@ pub(crate) fn step_player_movement(step: PlayerMovementStep<'_>) -> CharacterMov
 }
 
 #[must_use]
-pub(crate) fn momentum_displacement(
+pub fn momentum_displacement(
     knockback: Option<&KnockbackVelocity>,
     momentum: Option<&AirborneMomentum>,
     delta: f32,

@@ -1,0 +1,104 @@
+{
+  "map": {
+    "fireworks": null,
+    "grid_cols": 8,
+    "grid_rows": 8,
+    "checkpoints": [
+      {
+        "level": 0,
+        "cols": [1, 2],
+        "rows": [4, 5],
+        "type": "individual",
+        "number": 0
+      }
+    ],
+    "actor_spawn_zones": [
+      {
+        "level": 0,
+        "cols": [5, 6],
+        "rows": [4, 5],
+        "kind": "turret",
+        "count": [1],
+        "respawn_secs": null,
+        "beam_in_secs": 0.1
+      }
+    ],
+    "levels": [
+      {
+        "name": "Chamber",
+        "floors": [
+          { "col": 0, "row": 0, "all": "solid" },
+          { "col": 1, "row": 0, "all": "solid" },
+          { "col": 2, "row": 0, "all": "solid" },
+          { "col": 3, "row": 0, "all": "solid" },
+          { "col": 4, "row": 0, "all": "solid" },
+          { "col": 5, "row": 0, "all": "solid" },
+          { "col": 6, "row": 0, "all": "solid" },
+          { "col": 7, "row": 0, "all": "solid" },
+          { "col": 0, "row": 1, "all": "solid" },
+          { "col": 1, "row": 1, "all": "solid" },
+          { "col": 2, "row": 1, "all": "solid" },
+          { "col": 3, "row": 1, "all": "solid" },
+          { "col": 4, "row": 1, "all": "solid" },
+          { "col": 5, "row": 1, "all": "solid" },
+          { "col": 6, "row": 1, "all": "solid" },
+          { "col": 7, "row": 1, "all": "solid" },
+          { "col": 0, "row": 2, "all": "solid" },
+          { "col": 1, "row": 2, "all": "solid" },
+          { "col": 2, "row": 2, "all": "solid" },
+          { "col": 3, "row": 2, "all": "solid" },
+          { "col": 4, "row": 2, "all": "solid" },
+          { "col": 5, "row": 2, "all": "solid" },
+          { "col": 6, "row": 2, "all": "solid" },
+          { "col": 7, "row": 2, "all": "solid" },
+          { "col": 0, "row": 3, "all": "solid" },
+          { "col": 1, "row": 3, "all": "solid" },
+          { "col": 2, "row": 3, "all": "solid" },
+          { "col": 3, "row": 3, "all": "solid" },
+          { "col": 4, "row": 3, "all": "solid" },
+          { "col": 5, "row": 3, "all": "solid" },
+          { "col": 6, "row": 3, "all": "solid" },
+          { "col": 7, "row": 3, "all": "solid" },
+          { "col": 0, "row": 4, "all": "solid" },
+          { "col": 1, "row": 4, "all": "solid" },
+          { "col": 2, "row": 4, "all": "solid" },
+          { "col": 3, "row": 4, "all": "solid" },
+          { "col": 4, "row": 4, "all": "solid" },
+          { "col": 5, "row": 4, "all": "solid" },
+          { "col": 6, "row": 4, "all": "solid" },
+          { "col": 7, "row": 4, "all": "solid" },
+          { "col": 0, "row": 5, "all": "solid" },
+          { "col": 1, "row": 5, "all": "solid" },
+          { "col": 2, "row": 5, "all": "solid" },
+          { "col": 3, "row": 5, "all": "solid" },
+          { "col": 4, "row": 5, "all": "solid" },
+          { "col": 5, "row": 5, "all": "solid" },
+          { "col": 6, "row": 5, "all": "solid" },
+          { "col": 7, "row": 5, "all": "solid" },
+          { "col": 0, "row": 6, "all": "solid" },
+          { "col": 1, "row": 6, "all": "solid" },
+          { "col": 2, "row": 6, "all": "solid" },
+          { "col": 3, "row": 6, "all": "solid" },
+          { "col": 4, "row": 6, "all": "solid" },
+          { "col": 5, "row": 6, "all": "solid" },
+          { "col": 6, "row": 6, "all": "solid" },
+          { "col": 7, "row": 6, "all": "solid" },
+          { "col": 0, "row": 7, "all": "solid" },
+          { "col": 1, "row": 7, "all": "solid" },
+          { "col": 2, "row": 7, "all": "solid" },
+          { "col": 3, "row": 7, "all": "solid" },
+          { "col": 4, "row": 7, "all": "solid" },
+          { "col": 5, "row": 7, "all": "solid" },
+          { "col": 6, "row": 7, "all": "solid" },
+          { "col": 7, "row": 7, "all": "solid" }
+        ],
+        "walls": [
+          { "c0": 4, "r0": 3, "c1": 4, "r1": 4, "all": "solid" },
+          { "c0": 4, "r0": 4, "c1": 4, "r1": 5, "all": "solid" },
+          { "c0": 1, "r0": 2, "c1": 2, "r1": 2, "all": "portal" },
+          { "c0": 5, "r0": 6, "c1": 6, "r1": 6, "all": "portal" }
+        ]
+      }
+    ]
+  }
+}

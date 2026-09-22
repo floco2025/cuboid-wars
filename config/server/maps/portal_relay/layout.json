@@ -1,0 +1,162 @@
+{
+  "map": {
+    "grid_cols": 32,
+    "grid_rows": 32,
+    "fireworks": { "switch": "finish", "cooldown_secs": 0.0 },
+    "switches": [
+      {
+        "id": "route_bridge",
+        "activation": "toggle",
+        "reset_on_player_death": "solo",
+        "held": "any",
+        "color": "#00ccff"
+      },
+      {
+        "id": "finish",
+        "activation": "momentary",
+        "reset_on_player_death": "never",
+        "held": "any",
+        "color": "#ffcc00"
+      }
+    ],
+    "fields": [
+      {
+        "id": "relay_bridge",
+        "switch": "route_bridge",
+        "initially_on": false,
+        "color": "#00ccff"
+      }
+    ],
+    "checkpoints": [
+      {
+        "level": 6,
+        "cols": [4, 5],
+        "rows": [8, 9],
+        "type": "individual",
+        "number": 0
+      },
+      {
+        "level": 6,
+        "cols": [9, 12],
+        "rows": [10, 12],
+        "type": "individual",
+        "number": 1
+      },
+      {
+        "level": 6,
+        "cols": [17, 20],
+        "rows": [10, 13],
+        "type": "individual",
+        "number": 2
+      },
+      {
+        "level": 4,
+        "cols": [16, 20],
+        "rows": [18, 20],
+        "type": "individual",
+        "number": 3
+      },
+      {
+        "level": 5,
+        "cols": [25, 27],
+        "rows": [23, 25],
+        "type": "individual",
+        "number": 4
+      },
+      {
+        "level": 5,
+        "cols": [28, 31],
+        "rows": [25, 27],
+        "type": "individual",
+        "number": 5
+      }
+    ],
+    "pressure_plates": [
+      { "level": 6, "col": 13, "row": 10, "switch": "route_bridge" },
+      { "level": 5, "col": 29, "row": 25, "switch": "finish" }
+    ],
+    "levels": [
+      {
+        "name": "Deep well",
+        "floors": [{ "col": 18, "row": 20, "all": "portal" }]
+      },
+      { "name": "Open shaft", "floors": [] },
+      {
+        "name": "Vertical launch",
+        "floors": [{ "col": 23, "row": 23, "all": "portal" }]
+      },
+      {
+        "name": "Fling entrance",
+        "floors": [{ "col": 18, "row": 13, "all": "portal" }]
+      },
+      {
+        "name": "Fling landing",
+        "floors": [
+          { "col": 16, "row": 18, "all": "solid" },
+          { "col": 16, "row": 19, "all": "solid" },
+          { "col": 17, "row": 18, "all": "solid" },
+          { "col": 17, "row": 19, "all": "solid" },
+          { "col": 18, "row": 18, "all": "solid" },
+          { "col": 18, "row": 19, "all": "solid" },
+          { "col": 19, "row": 18, "all": "solid" },
+          { "col": 19, "row": 19, "all": "solid" }
+        ]
+      },
+      {
+        "name": "Air catch and finish",
+        "floors": [
+          { "col": 25, "row": 23, "all": "solid" },
+          { "col": 25, "row": 24, "all": "solid" },
+          { "col": 26, "row": 23, "all": "solid" },
+          { "col": 26, "row": 24, "all": "solid" },
+          { "col": 28, "row": 25, "all": "solid" },
+          { "col": 28, "row": 26, "all": "solid" },
+          { "col": 29, "row": 25, "all": "solid" },
+          { "col": 29, "row": 26, "all": "solid" },
+          { "col": 30, "row": 25, "all": "solid" },
+          { "col": 30, "row": 26, "all": "solid" }
+        ],
+        "walls": [{ "c0": 22, "r0": 18, "c1": 22, "r1": 19, "all": "portal" }]
+      },
+      {
+        "name": "Balcony relay",
+        "floors": [
+          { "col": 3, "row": 7, "all": "solid" },
+          { "col": 3, "row": 8, "all": "solid" },
+          { "col": 3, "row": 9, "all": "solid" },
+          { "col": 4, "row": 7, "all": "solid" },
+          { "col": 4, "row": 8, "all": "solid" },
+          { "col": 4, "row": 9, "all": "solid" },
+          { "col": 5, "row": 7, "all": "solid" },
+          { "col": 5, "row": 8, "all": "solid" },
+          { "col": 5, "row": 9, "all": "solid" },
+          { "col": 9, "row": 10, "all": "solid" },
+          { "col": 9, "row": 11, "all": "solid" },
+          { "col": 10, "row": 10, "all": "solid" },
+          { "col": 10, "row": 11, "all": "solid" },
+          { "col": 11, "row": 10, "all": "solid" },
+          { "col": 11, "row": 11, "all": "solid" },
+          { "col": 13, "row": 10, "all": "solid" },
+          { "col": 17, "row": 10, "all": "solid" },
+          { "col": 17, "row": 11, "all": "solid" },
+          { "col": 17, "row": 12, "all": "solid" },
+          { "col": 18, "row": 10, "all": "solid" },
+          { "col": 18, "row": 11, "all": "solid" },
+          { "col": 18, "row": 12, "all": "solid" },
+          { "col": 19, "row": 10, "all": "solid" },
+          { "col": 19, "row": 11, "all": "solid" },
+          { "col": 19, "row": 12, "all": "solid" }
+        ],
+        "walls": [
+          { "c0": 3, "r0": 8, "c1": 3, "r1": 9, "all": "portal" },
+          { "c0": 10, "r0": 12, "c1": 11, "r1": 12, "all": "portal" }
+        ],
+        "light_bridges": [
+          { "col": 14, "row": 10, "field": "relay_bridge" },
+          { "col": 15, "row": 10, "field": "relay_bridge" },
+          { "col": 16, "row": 10, "field": "relay_bridge" }
+        ]
+      }
+    ]
+  }
+}

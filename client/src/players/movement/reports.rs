@@ -3,7 +3,9 @@ use common::{
     config::{NetworkConfig, UpdateCadence},
     map::Carriers,
     physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
-    protocol::{CMove, CarrierId, ClientMessage, FaceYaw, PlayerGeneration, PlayerMoveIntent, Position},
+    protocol::{
+        CMove, CarrierId, ClientMessage, FaceYaw, PlayerGeneration, PlayerMoveIntent, PlayerMovementState, Position,
+    },
 };
 
 use super::{outcomes::LocalMovementStep, player_movement_state};
@@ -38,6 +40,32 @@ impl LocalMovementReports {
         self.portal_crossing = 0;
         self.last_carrier = None;
         self.clear_crossings();
+    }
+
+    pub fn movement_report(
+        &mut self,
+        cadence: &mut UpdateCadence,
+        mut movement: PlayerMovementState,
+        motor_carrier: CarrierId,
+        carriers: &Carriers,
+    ) -> Option<CMove> {
+        // A crossing lands in world space; otherwise use the frame the motor rode.
+        let carrier = if self.crossing_entrance.is_some() {
+            CarrierId::WORLD
+        } else {
+            motor_carrier
+        };
+        if !self.report_due(cadence, carrier) {
+            return None;
+        }
+        movement.carrier = carrier;
+        movement.pos = carriers.pose(carrier).inverse_transform_position(&movement.pos);
+        Some(CMove {
+            generation: self.generation,
+            seq: self.seq,
+            portal_crossing: self.portal_crossing,
+            movement,
+        })
     }
 
     // A new body reports at once through the carrier change, so the cadence keeps its phase across bodies.
@@ -76,26 +104,15 @@ pub fn report_player_movement_system(
     let Ok((pos, intent, yaw, vertical, momentum, knockback, step)) = query.single() else {
         return;
     };
-    let reports = &mut local.reports;
-    // A crossing lands in world space; otherwise the frame is the one the
-    // motor actually rode.
-    let carrier = if reports.crossing_entrance.is_some() {
-        CarrierId::WORLD
-    } else {
-        step.carrier
-    };
-    if !reports.report_due(cadence.get_or_insert_with(|| network.update_cadence()), carrier) {
-        return;
-    }
-    let mut movement = player_movement_state(*pos, *intent, yaw, vertical, momentum, knockback, step.support);
-    movement.carrier = carrier;
-    movement.pos = carriers.pose(carrier).inverse_transform_position(pos);
-    to_server.send(ClientMessage::Move(CMove {
-        generation: reports.generation,
-        seq: reports.seq,
-        portal_crossing: reports.portal_crossing,
+    let movement = player_movement_state(*pos, *intent, yaw, vertical, momentum, knockback, step.support);
+    if let Some(report) = local.reports.movement_report(
+        cadence.get_or_insert_with(|| network.update_cadence()),
         movement,
-    }));
+        step.carrier,
+        &carriers,
+    ) {
+        to_server.send(ClientMessage::Move(report));
+    }
 }
 
 #[cfg(test)]

@@ -30,3 +30,7 @@ pub use tick::TickSync;
 #[cfg(test)]
 #[path = "tests/timing.rs"]
 mod timing_tests;
+
+mod playback;
+pub(crate) use playback::live_gameplay;
+pub use playback::{PlaybackFrame, PlaybackMode, apply_playback_frame, install_playback};

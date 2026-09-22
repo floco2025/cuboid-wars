@@ -1,7 +1,6 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
-    math::PHYSICS_EPSILON,
     physics::{CollisionWorld, PortalSet},
     protocol::{
         ActorId, ActorMarker, CProjectileHit, ClientMessage, FaceYaw, MapSettings, PlayerId, PlayerMarker, Position,
@@ -10,11 +9,12 @@ use common::{
 };
 
 use super::{
-    PROJECTILE_EVENT_LIMIT, ProjectileEvent, ProjectileMarker, ProjectileMotion,
+    ProjectileEnvironment, ProjectileFlightEvent, ProjectileMarker, ProjectileMotion,
     audio::LastBounceSound,
-    collision::{closest_character_hit, handle_field_collisions, present_character_impact, present_world_bounce},
-    earliest_projectile_event, projectile_overlaps_character,
+    collision::{closest_character_hit, present_character_impact, present_field_impact, present_world_bounce},
+    projectile_overlaps_character,
     spawn::EmberMarker,
+    step_projectile,
 };
 use crate::{
     actors::ActorMap,
@@ -70,7 +70,6 @@ pub fn projectiles_movement_system(
     listener: Query<&GlobalTransform, With<MainCameraMarker>>,
 ) {
     let gravity = world.map_settings.movement.gravity * world.gameplay_config.projectiles.gravity_scale;
-    let delta = time.delta_secs();
     let current_time = time.elapsed_secs();
     let collision_world = &world.collision_world;
     // Louder-bounce preference measures distance to the audio listener (the
@@ -84,27 +83,18 @@ pub fn projectiles_movement_system(
     for (projectile_entity, mut position, mut previous_tick_position, mut projectile, shooter_id, ember) in
         &mut projectile_query
     {
-        projectile.lifetime.tick(time.delta());
-        if projectile.lifetime.is_finished() {
-            commands.entity(projectile_entity).despawn();
-            continue;
-        }
-
-        previous_tick_position.0 = *position;
-        projectile.apply_gravity(delta, gravity);
-        projectile.apply_drag(delta);
-
-        let mut current_pos = *position;
-        let mut remaining_delta = delta;
-        let mut terminated = false;
-
-        for _ in 0..PROJECTILE_EVENT_LIMIT {
-            if remaining_delta <= PHYSICS_EPSILON {
-                break;
-            }
-
-            if !projectile.left_shooter {
-                let overlaps_shooter = player_query
+        let result = step_projectile(
+            *position,
+            &mut projectile,
+            &ProjectileEnvironment {
+                delta: time.delta(),
+                gravity,
+                collision_world,
+                portals: &world.portal_set,
+                open_fields: &world.switch_state.open_fields,
+            },
+            |projectile, current_pos| {
+                player_query
                     .iter()
                     .find(|(entity, _, _, player_id, _)| {
                         *player_id == shooter_id
@@ -114,106 +104,68 @@ pub fn projectiles_movement_system(
                     })
                     .is_some_and(|(_, player_pos, face_yaw, _, _)| {
                         projectile_overlaps_character(
-                            &projectile,
-                            &current_pos,
+                            projectile,
+                            current_pos,
                             player_pos,
                             face_yaw.0,
                             world.gameplay_config.player.physics(),
                         )
-                    });
-                if !overlaps_shooter {
-                    projectile.left_shooter = true;
-                }
-            }
-
-            let character_hit = closest_character_hit(
-                &projectile,
-                &current_pos,
-                remaining_delta,
-                *shooter_id,
-                &player_query,
-                &actor_query,
-                &actors,
-                &world.players,
-                &world.gameplay_config,
-            );
-            let field_t = projectile.field_collision_t(
-                &current_pos,
-                remaining_delta,
-                collision_world,
-                &world.switch_state.open_fields,
-            );
-            let portal_hop = world.portal_set.projectile_hop(
-                Vec3::from(current_pos),
-                projectile.velocity,
-                remaining_delta,
-                world.gameplay_config.projectiles.radius,
-                delta,
-            );
-            let excluded_colliders = portal_hop.map_or(&[][..], |hop| hop.entry_backing);
-            let surface_t =
-                projectile.surface_collision_t(&current_pos, remaining_delta, collision_world, excluded_colliders);
-
-            match earliest_projectile_event(
-                character_hit.map(|hit| hit.hit().time_of_impact),
-                field_t,
-                surface_t,
-                portal_hop.map(|hop| hop.t),
-            ) {
-                ProjectileEvent::Field => {
-                    let hit = handle_field_collisions(
-                        &mut commands,
-                        asset_server.as_ref(),
-                        &asset_set,
-                        &mut particle_clouds.sparks,
-                        &client_settings,
-                        &field_assets,
-                        projectile_entity,
-                        &projectile,
-                        &current_pos,
-                        remaining_delta,
-                        collision_world,
-                        &world.switch_state.open_fields,
-                    );
-                    assert!(hit, "field event missing its collision");
-                    terminated = true;
-                    break;
-                }
-                ProjectileEvent::Surface => {
-                    let speed_before = projectile.velocity.length();
-                    let bounce = projectile
-                        .bounce_at_world_surface(&current_pos, remaining_delta, collision_world, excluded_colliders)
-                        .expect("surface event missing its collision");
-                    current_pos = bounce.position;
-                    remaining_delta = bounce.remaining_delta;
-                    present_world_bounce(
-                        &mut commands,
-                        asset_server.as_ref(),
-                        &asset_set,
-                        &mut particle_clouds.sparks,
-                        &client_settings,
-                        &projectile,
-                        bounce,
-                        speed_before,
-                        current_time,
-                        &mut last_bounce_sound,
-                        listener_pos,
-                    );
-                }
-                ProjectileEvent::Portal => {
-                    let hop = portal_hop.expect("portal event missing its crossing");
-                    projectile.velocity = hop.exit_velocity;
-                    current_pos = hop.exit_pos.into();
-                    remaining_delta *= 1.0 - hop.t;
-                    previous_tick_position.0 = current_pos;
-                }
-                ProjectileEvent::Hit => {
-                    let hit = character_hit.expect("character event missing its hit");
+                    })
+            },
+            |projectile, current_pos, remaining| {
+                closest_character_hit(
+                    projectile,
+                    current_pos,
+                    remaining,
+                    *shooter_id,
+                    &player_query,
+                    &actor_query,
+                    &actors,
+                    &world.players,
+                    &world.gameplay_config,
+                )
+                .map(|hit| (hit, hit.hit()))
+            },
+        );
+        for event in result.events {
+            match event {
+                ProjectileFlightEvent::Field { impact, speed } => present_field_impact(
+                    &mut commands,
+                    asset_server.as_ref(),
+                    &asset_set,
+                    &mut particle_clouds.sparks,
+                    &client_settings,
+                    &field_assets,
+                    impact,
+                    speed,
+                ),
+                ProjectileFlightEvent::Bounce {
+                    bounce,
+                    speed_before,
+                    velocity,
+                } => present_world_bounce(
+                    &mut commands,
+                    asset_server.as_ref(),
+                    &asset_set,
+                    &mut particle_clouds.sparks,
+                    &client_settings,
+                    velocity,
+                    bounce,
+                    speed_before,
+                    current_time,
+                    &mut last_bounce_sound,
+                    listener_pos,
+                ),
+                ProjectileFlightEvent::Hit {
+                    target,
+                    hit,
+                    position,
+                    velocity,
+                } => {
                     if !ember && *shooter_id == world.my_player_id.0 {
-                        let direction = hit.hit().direction;
                         world.to_server.send(ClientMessage::ProjectileHit(CProjectileHit {
-                            target: hit.target(),
-                            direction: [direction.x, direction.z],
+                            target: target.target(),
+                            direction: [hit.direction.x, hit.direction.z],
                         }));
                     }
                     present_character_impact(
@@ -222,24 +174,19 @@ pub fn projectiles_movement_system(
                         &asset_set,
                         &mut particle_clouds.sparks,
                         &client_settings,
-                        projectile_entity,
-                        &projectile,
-                        &current_pos,
-                        remaining_delta,
-                        hit,
+                        position,
+                        velocity,
+                        target,
                     );
-                    terminated = true;
-                    break;
                 }
-                ProjectileEvent::Fly => {
-                    current_pos = (Vec3::from(current_pos) + projectile.velocity * remaining_delta).into();
-                    break;
-                }
+                ProjectileFlightEvent::Expired | ProjectileFlightEvent::Portal { .. } => {}
             }
         }
-
-        if !terminated {
-            *position = current_pos;
+        if result.terminated {
+            commands.entity(projectile_entity).despawn();
+        } else {
+            *position = result.position;
+            previous_tick_position.0 = result.previous_position;
         }
     }
 }

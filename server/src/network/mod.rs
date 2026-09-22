@@ -20,3 +20,5 @@ pub(crate) use handlers::SharedWorld;
 pub use incoming::register_local;
 pub use links::{ClientLinks, LinkSource, Listener, LocalLink, listen};
 pub use plugin::network_plugin;
+
+pub use snapshot::capture_snapshot;

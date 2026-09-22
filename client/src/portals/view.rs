@@ -57,7 +57,7 @@ pub fn apply_portal_view(
 // seeded full rotation whose leftover tilt the blend decays. Camera forward
 // is `rotation * -Z`; a vertically mapped forward has no yaw, so the
 // server's mapped facing breaks the tie.
-fn portal_view_transition(
+pub fn portal_view_transition(
     entry: &PortalFrame,
     exit: &PortalFrame,
     camera_yaw: f32,

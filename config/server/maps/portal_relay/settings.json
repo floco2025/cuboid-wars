@@ -1,0 +1,27 @@
+{
+  "textures": {
+    "solid": { "material": "steelplate1", "portalable": false },
+    "portal": { "material": "titanium-scuffed", "portalable": true }
+  },
+  "grounds": null,
+  "random_items": null,
+  "placed_items": null,
+  "quests": [],
+  "weather": "clear",
+  "geometry": {
+    "grid_cell_size": 4.0,
+    "level_height": 4.4,
+    "floor_thickness": 0.4,
+    "wall_thickness": 0.4
+  },
+  "portals": "both",
+  "power_ups": {
+    "portal_gun": { "mode": "always" },
+    "single_shot": { "mode": "pickup", "duration_secs": null }
+  },
+  "combat": { "health": { "player": { "max": 500.0, "regen_rate": 0.0 } } },
+  "movement": {
+    "gravity": 25.0,
+    "player": { "walk_speed": 6.0, "run_speed": 9.0, "jump_speed": 12.0 }
+  }
+}
