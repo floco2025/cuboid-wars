@@ -1,6 +1,9 @@
 use serde_json::{Value, json};
 
-use super::{fixtures::scenario, script::Action};
+use super::{
+    fixtures::scenario,
+    script::{Action, End},
+};
 
 fn events(report: &Value) -> impl Iterator<Item = &Value> {
     report["steps"]
@@ -51,7 +54,7 @@ fn relay_course_connects_all_checkpoints_and_triggers_the_finish() {
 fn vertical_launch_accepts_a_range_of_air_steering_times() {
     let (_folder, mut script) = scenario("portal_relay");
     script.actions.truncate(35);
-    for ticks in [39, 42, 45, 48, 51] {
+    for ticks in [34, 37, 40, 43, 46] {
         script.actions[31] = Action::Advance { ticks };
         let report = script.run().expect("air steering timing");
         assert_passed(&report["steps"][34]);
@@ -103,4 +106,32 @@ fn bypassing_the_plate_leaves_the_bridge_impassable() {
     assert_eq!(report["steps"][11]["state"]["active_switches"], json!([]));
     assert_eq!(report["steps"][11]["state"]["open_fields"], json!(["relay_bridge"]));
     assert_eq!(report["steps"][13]["result"]["status"], "failed");
+}
+
+#[test]
+fn lower_portal_targets_accept_shots_while_standing_back_from_the_ledge() {
+    let (_folder, mut script) = scenario("portal_relay");
+    // These feet positions are inside the upper slabs, with the portal targets
+    // across the small horizontal gaps. A shot must clear the upper slab's lip.
+    for (spawn, target) in [
+        ([10.0, 26.4, -12.3], [10.0, 13.2, -8.0]),
+        ([10.0, 17.6, 15.8], [10.0, 0.0, 20.0]),
+    ] {
+        script.spawn = spawn;
+        script.actions = vec![
+            Action::Advance { ticks: 2 },
+            Action::Aim { target },
+            Action::Portal { end: End::A },
+        ];
+        let report = script.run().expect("shot from upper ledge");
+        let shot = &report["steps"][2];
+        assert_eq!(shot["state"]["player"]["support"], "ground", "{shot}");
+        assert_eq!(shot["result"]["status"], "submitted", "{shot}");
+        let portal = &shot["result"]["portal"];
+        assert_eq!(portal["normal"], json!([0.0, 1.0, 0.0]));
+        for (axis, expected) in target.into_iter().enumerate() {
+            let actual = portal["position"][axis].as_f64().expect("portal coordinate");
+            assert!((actual - f64::from(expected)).abs() < 0.01, "{shot}");
+        }
+    }
 }

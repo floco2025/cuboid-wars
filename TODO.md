@@ -20,7 +20,7 @@
 
 - **World-space content authoring:** support placing items, actor zones, objectives, and authored geometry throughout the playable world, including the surrounding terrain. The authored grid boundary should bound an editing region, not gameplay eligibility; use shared collision/support and traversal rules for content inside and outside it. Navigation already loads regions beyond the grid.
 
-- **Finer map placement:** evaluate a 1 m authoring grid for traversal maps, using multi-cell platforms and smaller horizontal offsets so lower portal targets are visible before takeoff. Existing per-map cell sizing supports this; converting an existing map must preserve its world footprint, heights, and intended fixture positions. Review cell-scaled pressure-plate sizes and activation areas, floor-edge extensions, and editor/load cost. Keep portal and player dimensions independent of grid resolution.
+- **Pressure-plate sizing:** allow plate size and activation area to be authored independently of grid resolution. Portal Relay uses a 2 m grid with 1 m plates; broader landing targets should not require coarser geometry.
 
 - **Editor portal fit guidance:** add backing-size and front-clearance checks across adjoining cells if finer grids make them useful. The portal-jump preview may continue assuming sufficient space for now; this enhancement does not block finer map placement.
 
@@ -32,6 +32,6 @@
 
 - **Graphical experiment playtest:** play and step through Portal Relay with `--play-experiment`, inspect portals and airborne motion from different camera angles, and check the overlay, Escape menu, and restart in the actual window. Automated tests cover continuous and single-action playback, frame-rate-independent results, paused gameplay, camera/input isolation, Escape menu/cursor controls, and renderer state restoration after death and restart.
 
-- **Portal Relay playtest:** play with `--map portal_relay`; assess route discovery, third-person portal aiming at ledge lips, jump and air-steering comfort, and checkpoint pacing. Headless tests cover completion, bridge activation, air-steering timing variation, and recovery after a missed landing.
+- **Portal Relay playtest:** play with `--map portal_relay`; assess route discovery, visibility of the offset lower pads, third-person portal aiming at ledge lips, landing on the smaller pressure plates, jump and air-steering comfort, and checkpoint pacing. Check editor responsiveness with the 2 m grid and doubled level count. Headless tests cover completion, grounded portal shots across the ledge gaps, bridge activation, air-steering timing variation, and recovery after a missed landing.
 
 - **Client playtest:** check crowded ledges, ramps, and moving supports in Hotel/Obby; missile pursuit through moving rooms and around exterior obstacles with several simultaneous launches; and grass streaming, explosion recovery, and low plank clearance. Headless regression and budget tests cover these systems; visual frame pacing and appearance still need an in-game pass.

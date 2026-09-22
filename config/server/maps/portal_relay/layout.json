@@ -1,8 +1,11 @@
 {
   "map": {
-    "grid_cols": 32,
-    "grid_rows": 32,
-    "fireworks": { "switch": "finish", "cooldown_secs": 0.0 },
+    "grid_cols": 64,
+    "grid_rows": 64,
+    "fireworks": {
+      "switch": "finish",
+      "cooldown_secs": 0.0
+    },
     "switches": [
       {
         "id": "route_bridge",
@@ -29,132 +32,341 @@
     ],
     "checkpoints": [
       {
-        "level": 6,
-        "cols": [4, 5],
-        "rows": [8, 9],
+        "level": 12,
+        "cols": [8, 10],
+        "rows": [16, 18],
         "type": "individual",
         "number": 0
       },
       {
-        "level": 6,
-        "cols": [9, 12],
-        "rows": [10, 12],
+        "level": 12,
+        "cols": [18, 24],
+        "rows": [20, 24],
         "type": "individual",
         "number": 1
       },
       {
-        "level": 6,
-        "cols": [17, 20],
-        "rows": [10, 13],
+        "level": 12,
+        "cols": [34, 40],
+        "rows": [20, 26],
         "type": "individual",
         "number": 2
       },
       {
-        "level": 4,
-        "cols": [16, 20],
-        "rows": [18, 20],
+        "level": 8,
+        "cols": [32, 40],
+        "rows": [36, 40],
         "type": "individual",
         "number": 3
       },
       {
-        "level": 5,
-        "cols": [25, 27],
-        "rows": [23, 25],
+        "level": 10,
+        "cols": [50, 54],
+        "rows": [46, 50],
         "type": "individual",
         "number": 4
       },
       {
-        "level": 5,
-        "cols": [28, 31],
-        "rows": [25, 27],
+        "level": 10,
+        "cols": [56, 62],
+        "rows": [50, 54],
         "type": "individual",
         "number": 5
       }
     ],
     "pressure_plates": [
-      { "level": 6, "col": 13, "row": 10, "switch": "route_bridge" },
-      { "level": 5, "col": 29, "row": 25, "switch": "finish" }
+      {
+        "level": 12,
+        "col": 26,
+        "row": 21,
+        "switch": "route_bridge"
+      },
+      {
+        "level": 10,
+        "col": 59,
+        "row": 51,
+        "switch": "finish"
+      }
     ],
     "levels": [
       {
         "name": "Deep well",
-        "floors": [{ "col": 18, "row": 20, "all": "portal" }]
+        "floors": [
+          { "col": 36, "row": 41, "all": "portal" },
+          { "col": 37, "row": 41, "all": "portal" },
+          { "col": 36, "row": 42, "all": "portal" },
+          { "col": 37, "row": 42, "all": "portal" }
+        ]
       },
-      { "name": "Open shaft", "floors": [] },
+      {
+        "name": "Deep well - upper",
+        "floors": []
+      },
+      {
+        "name": "Open shaft",
+        "floors": []
+      },
+      {
+        "name": "Open shaft - upper",
+        "floors": []
+      },
       {
         "name": "Vertical launch",
-        "floors": [{ "col": 23, "row": 23, "all": "portal" }]
+        "floors": [
+          { "col": 46, "row": 46, "all": "portal" },
+          { "col": 47, "row": 46, "all": "portal" },
+          { "col": 46, "row": 47, "all": "portal" },
+          { "col": 47, "row": 47, "all": "portal" }
+        ]
+      },
+      {
+        "name": "Vertical launch - upper",
+        "floors": []
       },
       {
         "name": "Fling entrance",
-        "floors": [{ "col": 18, "row": 13, "all": "portal" }]
+        "floors": [
+          { "col": 36, "row": 27, "all": "portal" },
+          { "col": 37, "row": 27, "all": "portal" },
+          { "col": 36, "row": 28, "all": "portal" },
+          { "col": 37, "row": 28, "all": "portal" }
+        ]
+      },
+      {
+        "name": "Fling entrance - upper",
+        "floors": []
       },
       {
         "name": "Fling landing",
         "floors": [
-          { "col": 16, "row": 18, "all": "solid" },
-          { "col": 16, "row": 19, "all": "solid" },
-          { "col": 17, "row": 18, "all": "solid" },
-          { "col": 17, "row": 19, "all": "solid" },
-          { "col": 18, "row": 18, "all": "solid" },
-          { "col": 18, "row": 19, "all": "solid" },
-          { "col": 19, "row": 18, "all": "solid" },
-          { "col": 19, "row": 19, "all": "solid" }
+          { "col": 32, "row": 36, "all": "solid" },
+          { "col": 33, "row": 36, "all": "solid" },
+          { "col": 34, "row": 36, "all": "solid" },
+          { "col": 35, "row": 36, "all": "solid" },
+          { "col": 36, "row": 36, "all": "solid" },
+          { "col": 37, "row": 36, "all": "solid" },
+          { "col": 38, "row": 36, "all": "solid" },
+          { "col": 39, "row": 36, "all": "solid" },
+          { "col": 32, "row": 37, "all": "solid" },
+          { "col": 33, "row": 37, "all": "solid" },
+          { "col": 34, "row": 37, "all": "solid" },
+          { "col": 35, "row": 37, "all": "solid" },
+          { "col": 36, "row": 37, "all": "solid" },
+          { "col": 37, "row": 37, "all": "solid" },
+          { "col": 38, "row": 37, "all": "solid" },
+          { "col": 39, "row": 37, "all": "solid" },
+          { "col": 32, "row": 38, "all": "solid" },
+          { "col": 33, "row": 38, "all": "solid" },
+          { "col": 34, "row": 38, "all": "solid" },
+          { "col": 35, "row": 38, "all": "solid" },
+          { "col": 36, "row": 38, "all": "solid" },
+          { "col": 37, "row": 38, "all": "solid" },
+          { "col": 38, "row": 38, "all": "solid" },
+          { "col": 39, "row": 38, "all": "solid" },
+          { "col": 32, "row": 39, "all": "solid" },
+          { "col": 33, "row": 39, "all": "solid" },
+          { "col": 34, "row": 39, "all": "solid" },
+          { "col": 35, "row": 39, "all": "solid" },
+          { "col": 36, "row": 39, "all": "solid" },
+          { "col": 37, "row": 39, "all": "solid" },
+          { "col": 38, "row": 39, "all": "solid" },
+          { "col": 39, "row": 39, "all": "solid" }
         ]
+      },
+      {
+        "name": "Fling landing - upper",
+        "floors": []
       },
       {
         "name": "Air catch and finish",
         "floors": [
-          { "col": 25, "row": 23, "all": "solid" },
-          { "col": 25, "row": 24, "all": "solid" },
-          { "col": 26, "row": 23, "all": "solid" },
-          { "col": 26, "row": 24, "all": "solid" },
-          { "col": 28, "row": 25, "all": "solid" },
-          { "col": 28, "row": 26, "all": "solid" },
-          { "col": 29, "row": 25, "all": "solid" },
-          { "col": 29, "row": 26, "all": "solid" },
-          { "col": 30, "row": 25, "all": "solid" },
-          { "col": 30, "row": 26, "all": "solid" }
+          { "col": 50, "row": 46, "all": "solid" },
+          { "col": 51, "row": 46, "all": "solid" },
+          { "col": 52, "row": 46, "all": "solid" },
+          { "col": 53, "row": 46, "all": "solid" },
+          { "col": 50, "row": 47, "all": "solid" },
+          { "col": 51, "row": 47, "all": "solid" },
+          { "col": 52, "row": 47, "all": "solid" },
+          { "col": 53, "row": 47, "all": "solid" },
+          { "col": 50, "row": 48, "all": "solid" },
+          { "col": 51, "row": 48, "all": "solid" },
+          { "col": 52, "row": 48, "all": "solid" },
+          { "col": 53, "row": 48, "all": "solid" },
+          { "col": 50, "row": 49, "all": "solid" },
+          { "col": 51, "row": 49, "all": "solid" },
+          { "col": 52, "row": 49, "all": "solid" },
+          { "col": 53, "row": 49, "all": "solid" },
+          { "col": 56, "row": 50, "all": "solid" },
+          { "col": 57, "row": 50, "all": "solid" },
+          { "col": 58, "row": 50, "all": "solid" },
+          { "col": 59, "row": 50, "all": "solid" },
+          { "col": 60, "row": 50, "all": "solid" },
+          { "col": 61, "row": 50, "all": "solid" },
+          { "col": 56, "row": 51, "all": "solid" },
+          { "col": 57, "row": 51, "all": "solid" },
+          { "col": 58, "row": 51, "all": "solid" },
+          { "col": 59, "row": 51, "all": "solid" },
+          { "col": 60, "row": 51, "all": "solid" },
+          { "col": 61, "row": 51, "all": "solid" },
+          { "col": 56, "row": 52, "all": "solid" },
+          { "col": 57, "row": 52, "all": "solid" },
+          { "col": 58, "row": 52, "all": "solid" },
+          { "col": 59, "row": 52, "all": "solid" },
+          { "col": 60, "row": 52, "all": "solid" },
+          { "col": 61, "row": 52, "all": "solid" },
+          { "col": 56, "row": 53, "all": "solid" },
+          { "col": 57, "row": 53, "all": "solid" },
+          { "col": 58, "row": 53, "all": "solid" },
+          { "col": 59, "row": 53, "all": "solid" },
+          { "col": 60, "row": 53, "all": "solid" },
+          { "col": 61, "row": 53, "all": "solid" }
         ],
-        "walls": [{ "c0": 22, "r0": 18, "c1": 22, "r1": 19, "all": "portal" }]
+        "walls": [
+          { "c0": 44, "r0": 36, "c1": 44, "r1": 37, "all": "portal" },
+          { "c0": 44, "r0": 37, "c1": 44, "r1": 38, "all": "portal" }
+        ]
+      },
+      {
+        "name": "Air catch and finish - upper",
+        "floors": [],
+        "walls": [
+          { "c0": 44, "r0": 36, "c1": 44, "r1": 37, "all": "portal" },
+          { "c0": 44, "r0": 37, "c1": 44, "r1": 38, "all": "portal" }
+        ]
       },
       {
         "name": "Balcony relay",
         "floors": [
-          { "col": 3, "row": 7, "all": "solid" },
-          { "col": 3, "row": 8, "all": "solid" },
-          { "col": 3, "row": 9, "all": "solid" },
-          { "col": 4, "row": 7, "all": "solid" },
-          { "col": 4, "row": 8, "all": "solid" },
-          { "col": 4, "row": 9, "all": "solid" },
-          { "col": 5, "row": 7, "all": "solid" },
-          { "col": 5, "row": 8, "all": "solid" },
-          { "col": 5, "row": 9, "all": "solid" },
-          { "col": 9, "row": 10, "all": "solid" },
-          { "col": 9, "row": 11, "all": "solid" },
-          { "col": 10, "row": 10, "all": "solid" },
-          { "col": 10, "row": 11, "all": "solid" },
-          { "col": 11, "row": 10, "all": "solid" },
-          { "col": 11, "row": 11, "all": "solid" },
-          { "col": 13, "row": 10, "all": "solid" },
-          { "col": 17, "row": 10, "all": "solid" },
-          { "col": 17, "row": 11, "all": "solid" },
-          { "col": 17, "row": 12, "all": "solid" },
-          { "col": 18, "row": 10, "all": "solid" },
-          { "col": 18, "row": 11, "all": "solid" },
-          { "col": 18, "row": 12, "all": "solid" },
-          { "col": 19, "row": 10, "all": "solid" },
-          { "col": 19, "row": 11, "all": "solid" },
-          { "col": 19, "row": 12, "all": "solid" }
-        ],
-        "walls": [
-          { "c0": 3, "r0": 8, "c1": 3, "r1": 9, "all": "portal" },
-          { "c0": 10, "r0": 12, "c1": 11, "r1": 12, "all": "portal" }
+          { "col": 6, "row": 14, "all": "solid" },
+          { "col": 7, "row": 14, "all": "solid" },
+          { "col": 8, "row": 14, "all": "solid" },
+          { "col": 9, "row": 14, "all": "solid" },
+          { "col": 10, "row": 14, "all": "solid" },
+          { "col": 11, "row": 14, "all": "solid" },
+          { "col": 6, "row": 15, "all": "solid" },
+          { "col": 7, "row": 15, "all": "solid" },
+          { "col": 8, "row": 15, "all": "solid" },
+          { "col": 9, "row": 15, "all": "solid" },
+          { "col": 10, "row": 15, "all": "solid" },
+          { "col": 11, "row": 15, "all": "solid" },
+          { "col": 6, "row": 16, "all": "solid" },
+          { "col": 7, "row": 16, "all": "solid" },
+          { "col": 8, "row": 16, "all": "solid" },
+          { "col": 9, "row": 16, "all": "solid" },
+          { "col": 10, "row": 16, "all": "solid" },
+          { "col": 11, "row": 16, "all": "solid" },
+          { "col": 6, "row": 17, "all": "solid" },
+          { "col": 7, "row": 17, "all": "solid" },
+          { "col": 8, "row": 17, "all": "solid" },
+          { "col": 9, "row": 17, "all": "solid" },
+          { "col": 10, "row": 17, "all": "solid" },
+          { "col": 11, "row": 17, "all": "solid" },
+          { "col": 6, "row": 18, "all": "solid" },
+          { "col": 7, "row": 18, "all": "solid" },
+          { "col": 8, "row": 18, "all": "solid" },
+          { "col": 9, "row": 18, "all": "solid" },
+          { "col": 10, "row": 18, "all": "solid" },
+          { "col": 11, "row": 18, "all": "solid" },
+          { "col": 6, "row": 19, "all": "solid" },
+          { "col": 7, "row": 19, "all": "solid" },
+          { "col": 8, "row": 19, "all": "solid" },
+          { "col": 9, "row": 19, "all": "solid" },
+          { "col": 10, "row": 19, "all": "solid" },
+          { "col": 11, "row": 19, "all": "solid" },
+          { "col": 18, "row": 20, "all": "solid" },
+          { "col": 19, "row": 20, "all": "solid" },
+          { "col": 20, "row": 20, "all": "solid" },
+          { "col": 21, "row": 20, "all": "solid" },
+          { "col": 22, "row": 20, "all": "solid" },
+          { "col": 23, "row": 20, "all": "solid" },
+          { "col": 26, "row": 20, "all": "solid" },
+          { "col": 27, "row": 20, "all": "solid" },
+          { "col": 34, "row": 20, "all": "solid" },
+          { "col": 35, "row": 20, "all": "solid" },
+          { "col": 36, "row": 20, "all": "solid" },
+          { "col": 37, "row": 20, "all": "solid" },
+          { "col": 38, "row": 20, "all": "solid" },
+          { "col": 39, "row": 20, "all": "solid" },
+          { "col": 18, "row": 21, "all": "solid" },
+          { "col": 19, "row": 21, "all": "solid" },
+          { "col": 20, "row": 21, "all": "solid" },
+          { "col": 21, "row": 21, "all": "solid" },
+          { "col": 22, "row": 21, "all": "solid" },
+          { "col": 23, "row": 21, "all": "solid" },
+          { "col": 26, "row": 21, "all": "solid" },
+          { "col": 27, "row": 21, "all": "solid" },
+          { "col": 34, "row": 21, "all": "solid" },
+          { "col": 35, "row": 21, "all": "solid" },
+          { "col": 36, "row": 21, "all": "solid" },
+          { "col": 37, "row": 21, "all": "solid" },
+          { "col": 38, "row": 21, "all": "solid" },
+          { "col": 39, "row": 21, "all": "solid" },
+          { "col": 18, "row": 22, "all": "solid" },
+          { "col": 19, "row": 22, "all": "solid" },
+          { "col": 20, "row": 22, "all": "solid" },
+          { "col": 21, "row": 22, "all": "solid" },
+          { "col": 22, "row": 22, "all": "solid" },
+          { "col": 23, "row": 22, "all": "solid" },
+          { "col": 34, "row": 22, "all": "solid" },
+          { "col": 35, "row": 22, "all": "solid" },
+          { "col": 36, "row": 22, "all": "solid" },
+          { "col": 37, "row": 22, "all": "solid" },
+          { "col": 38, "row": 22, "all": "solid" },
+          { "col": 39, "row": 22, "all": "solid" },
+          { "col": 18, "row": 23, "all": "solid" },
+          { "col": 19, "row": 23, "all": "solid" },
+          { "col": 20, "row": 23, "all": "solid" },
+          { "col": 21, "row": 23, "all": "solid" },
+          { "col": 22, "row": 23, "all": "solid" },
+          { "col": 23, "row": 23, "all": "solid" },
+          { "col": 34, "row": 23, "all": "solid" },
+          { "col": 35, "row": 23, "all": "solid" },
+          { "col": 36, "row": 23, "all": "solid" },
+          { "col": 37, "row": 23, "all": "solid" },
+          { "col": 38, "row": 23, "all": "solid" },
+          { "col": 39, "row": 23, "all": "solid" },
+          { "col": 34, "row": 24, "all": "solid" },
+          { "col": 35, "row": 24, "all": "solid" },
+          { "col": 36, "row": 24, "all": "solid" },
+          { "col": 37, "row": 24, "all": "solid" },
+          { "col": 38, "row": 24, "all": "solid" },
+          { "col": 39, "row": 24, "all": "solid" },
+          { "col": 34, "row": 25, "all": "solid" },
+          { "col": 35, "row": 25, "all": "solid" },
+          { "col": 36, "row": 25, "all": "solid" },
+          { "col": 37, "row": 25, "all": "solid" },
+          { "col": 38, "row": 25, "all": "solid" },
+          { "col": 39, "row": 25, "all": "solid" }
         ],
         "light_bridges": [
-          { "col": 14, "row": 10, "field": "relay_bridge" },
-          { "col": 15, "row": 10, "field": "relay_bridge" },
-          { "col": 16, "row": 10, "field": "relay_bridge" }
+          { "col": 28, "row": 20, "field": "relay_bridge" },
+          { "col": 29, "row": 20, "field": "relay_bridge" },
+          { "col": 30, "row": 20, "field": "relay_bridge" },
+          { "col": 31, "row": 20, "field": "relay_bridge" },
+          { "col": 32, "row": 20, "field": "relay_bridge" },
+          { "col": 33, "row": 20, "field": "relay_bridge" },
+          { "col": 28, "row": 21, "field": "relay_bridge" },
+          { "col": 29, "row": 21, "field": "relay_bridge" },
+          { "col": 30, "row": 21, "field": "relay_bridge" },
+          { "col": 31, "row": 21, "field": "relay_bridge" },
+          { "col": 32, "row": 21, "field": "relay_bridge" },
+          { "col": 33, "row": 21, "field": "relay_bridge" }
+        ],
+        "walls": [
+          { "c0": 6, "r0": 16, "c1": 6, "r1": 17, "all": "portal" },
+          { "c0": 6, "r0": 17, "c1": 6, "r1": 18, "all": "portal" },
+          { "c0": 20, "r0": 24, "c1": 21, "r1": 24, "all": "portal" },
+          { "c0": 21, "r0": 24, "c1": 22, "r1": 24, "all": "portal" }
+        ]
+      },
+      {
+        "name": "Balcony relay - upper",
+        "floors": [],
+        "walls": [
+          { "c0": 6, "r0": 16, "c1": 6, "r1": 17, "all": "portal" },
+          { "c0": 6, "r0": 17, "c1": 6, "r1": 18, "all": "portal" },
+          { "c0": 20, "r0": 24, "c1": 21, "r1": 24, "all": "portal" },
+          { "c0": 21, "r0": 24, "c1": 22, "r1": 24, "all": "portal" }
         ]
       }
     ]
