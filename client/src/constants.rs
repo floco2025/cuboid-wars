@@ -359,6 +359,7 @@ pub const ITEM_SPEED_COLOR: Color = Color::srgb(1.00, 0.85, 0.15); // Yellow
 pub const ITEM_SINGLESHOT_COLOR: Color = PROJECTILE_COLOR;
 pub const ITEM_MULTISHOT_COLOR: Color = PROJECTILE_COLOR;
 pub const ITEM_LOW_GRAVITY_COLOR: Color = Color::WHITE;
+pub const ITEM_EQUIPMENT_ERASER_COLOR: Color = Color::srgb(1.0, 0.25, 0.65);
 pub const ITEM_COIN_COLOR: Color = Color::srgb(1.0, 0.72, 0.12);
 pub const ITEM_HEALTH_COLOR: Color = Color::srgb(0.20, 0.95, 0.30); // Green (heal / potion)
 pub const ITEM_MISSILE_COLOR: Color = Color::srgb(0.95, 0.45, 0.10); // Orange (missile pack)

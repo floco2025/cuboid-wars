@@ -650,3 +650,120 @@ fn player_standing_on_a_pressure_plate_collects_the_item_on_its_cell() {
 
     assert!(app.world().resource::<ItemMap>().get(&item).is_none());
 }
+
+#[test]
+fn suspended_eraser_pickup_clears_collected_equipment_and_preserves_permanent_map_abilities() {
+    use crate::players::erase_equipment_system;
+    let mut app = test_app();
+    app.add_systems(Update, erase_equipment_system.after(item_collection_system));
+    app.world_mut()
+        .resource_mut::<PlacedItemsConfig>()
+        .respawn_secs
+        .equipment_eraser = Some(0.0);
+    let mut always = [false; PowerUpKind::COUNT];
+    always[PowerUpKind::PortalGun.index()] = true;
+    app.insert_resource(PlayerMap::new(Default::default(), always));
+    let id = PlayerId(1);
+    let (entity, rx) = spawn_player(&mut app, id, Position::default());
+    {
+        let mut players = app.world_mut().resource_mut::<PlayerMap>();
+        let info = players.get_mut(&id).expect("player");
+        info.add_key(FieldId(0));
+        info.life.missiles = 2;
+        info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Permanent;
+        info.life.power_ups[PowerUpKind::LowGravity.index()] = PowerUpState::Timed(30.0);
+    }
+    let eraser = spawn_item(
+        &mut app,
+        1,
+        ItemType::EquipmentEraser,
+        Position { y: 4.4, ..default() },
+        ItemPlacement::Placed {
+            respawn_countdown: Some(0.0),
+        },
+    );
+    app.update();
+    assert!(
+        app.world()
+            .resource::<PlayerMap>()
+            .get(&id)
+            .expect("player")
+            .has_speed()
+    );
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(Position { y: 4.4, ..default() });
+    app.update();
+    let info = app.world().resource::<PlayerMap>().get(&id).expect("player");
+    assert!(!info.has_speed());
+    assert!(!info.has_low_gravity());
+    assert_eq!(info.life.missiles, 0);
+    assert!(info.has(PowerUpKind::PortalGun));
+    assert_eq!(info.life.held_keys, [FieldId(0)]);
+    assert_eq!(app.world().get::<Health>(entity), Some(&Health(50.0)));
+    assert!(
+        !app.world()
+            .resource::<ItemMap>()
+            .get(&eraser)
+            .expect("placed eraser")
+            .is_hidden()
+    );
+    assert_eq!(
+        rx.try_iter()
+            .filter(|m| matches!(m, ServerMessage::EquipmentErased(_)))
+            .count(),
+        1
+    );
+    app.update();
+    assert!(!rx.try_iter().any(|m| matches!(m, ServerMessage::EquipmentErased(_))));
+    app.world_mut()
+        .resource_mut::<PlayerMap>()
+        .get_mut(&id)
+        .expect("player")
+        .life
+        .missiles = 1;
+    app.update();
+    assert_eq!(
+        app.world()
+            .resource::<PlayerMap>()
+            .get(&id)
+            .expect("player")
+            .life
+            .missiles,
+        0
+    );
+    assert_eq!(
+        rx.try_iter()
+            .filter(|m| matches!(m, ServerMessage::EquipmentErased(_)))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn eraser_pickup_waits_for_equipment_and_wins_over_a_same_tick_boost() {
+    use crate::players::erase_equipment_system;
+    let mut app = test_app();
+    app.add_systems(Update, erase_equipment_system.after(item_collection_system));
+    let id = PlayerId(1);
+    let (_, rx) = spawn_player(&mut app, id, Position::default());
+    let eraser = spawn_item(&mut app, 1, ItemType::EquipmentEraser, Position::default(), random(0.0));
+    app.update();
+    assert!(app.world().resource::<ItemMap>().get(&eraser).is_some());
+    spawn_item(&mut app, 2, ItemType::SpeedPowerUp, Position::default(), random(0.0));
+    app.update();
+    assert!(
+        !app.world()
+            .resource::<PlayerMap>()
+            .get(&id)
+            .expect("player")
+            .has_speed()
+    );
+    assert!(app.world().resource::<ItemMap>().get(&eraser).is_none());
+    assert_eq!(
+        rx.try_iter()
+            .filter(|m| matches!(m, ServerMessage::EquipmentErased(_)))
+            .count(),
+        1
+    );
+}

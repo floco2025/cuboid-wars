@@ -5,13 +5,14 @@ use serde_json::json;
 #[test]
 fn placed_item_respawns_allow_sparse_entries_and_explicit_null() {
     let config: PlacedItemsConfig = serde_json::from_value(json!({
-        "respawn_secs": {"gold": 60, "key": null, "portal_gun": 0}
+        "respawn_secs": {"gold": 60, "key": null, "portal_gun": 0, "equipment_eraser": 2}
     }))
     .expect("sparse respawn settings rejected");
     config
         .validate("placed_items")
         .expect("valid respawn settings rejected");
     assert_eq!(config.respawn_secs_for(ItemType::Gold), Some(60.0));
+    assert_eq!(config.respawn_secs_for(ItemType::EquipmentEraser), Some(2.0));
     assert_eq!(config.respawn_secs_for(ItemType::PortalGunPowerUp), Some(0.0));
     assert_eq!(config.respawn_secs_for(ItemType::SingleShotPowerUp), None);
     assert_eq!(config.respawn_secs.key, None);

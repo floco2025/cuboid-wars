@@ -372,6 +372,10 @@ impl Session {
                     "portal": portal(message.portal, self.server.world().resource::<Carriers>())}),
                 ServerMessage::PortalFizzled(_) => json!({"kind": "portal_fizzled"}),
                 ServerMessage::Firework(_) => json!({"kind": "fireworks_started"}),
+                ServerMessage::EquipmentErased(_) => json!({"kind": "equipment_erased"}),
+                ServerMessage::PlayerStatus(status) if status.id == self.id && status.collected.is_some() => {
+                    json!({"kind": "item_collected", "item": status.collected.expect("collected item").config_id()})
+                }
                 ServerMessage::ActorHit(hit) => json!({"kind": "actor_hit", "actor": hit.id.0, "health": hit.health.0}),
                 ServerMessage::ActorDeath(death) => json!({"kind": "actor_died", "actor": death.id.0,
                     "killer": death.killer.map(|id| id.0)}),

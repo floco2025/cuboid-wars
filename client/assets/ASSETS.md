@@ -69,4 +69,4 @@
 | Asset | Source | License |
 | --- | --- | --- |
 | `screenshot1.png`–`screenshot5.png` | Cuboid Wars gameplay captures | Project-owned; depicted third-party assets retain their licenses |
-| `symbols/items.json` | Project-created pickup and HUD outlines | Project-owned |
+| `symbols/items.json` | Project-created pickup and HUD outlines, including the equipment eraser | Project-owned |

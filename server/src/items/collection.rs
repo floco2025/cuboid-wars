@@ -34,7 +34,7 @@ pub fn item_collection_system(
     mut quest_board: ResMut<QuestBoard>,
     quest_catalog: Res<QuestCatalog>,
 ) {
-    let available_items: Vec<_> = items
+    let mut available_items: Vec<_> = items
         .iter()
         .filter_map(|(item_id, item_info)| {
             if item_info.is_hidden() {
@@ -46,6 +46,10 @@ pub fn item_collection_system(
             Some((*item_id, item_info.item_type, item_pos))
         })
         .collect();
+
+    // A co-located boost is collected before erasure is queued, even when
+    // the player arrived empty-handed; the normal equipment phase erases last.
+    available_items.sort_by_key(|(_, item, _)| *item == ItemType::EquipmentEraser);
 
     let player_physics = gameplay_config.player.physics();
     let mut status_broadcasts = Vec::new();
@@ -87,6 +91,14 @@ pub fn item_collection_system(
                 &server_gameplay_config,
             ),
             ItemType::Key(kind) => collect_key(&mut players, player_id, kind, &mut status_broadcasts, &mut feed_events),
+            ItemType::EquipmentEraser => {
+                players
+                    .get_mut(&player_id)
+                    .expect("collecting player missing")
+                    .life
+                    .outcomes
+                    .erase_equipment = true;
+            }
             ItemType::HealthPotion => {
                 collect_health_potion(&mut players, &mut player_health, player_id, &server_gameplay_config);
             }
@@ -140,6 +152,7 @@ fn pickup_has_effect(
         ItemType::HealthPotion => {
             health.is_none_or(|health| health.0 < server_gameplay_config.combat.health.player.max)
         }
+        ItemType::EquipmentEraser => !player_info.life.outcomes.erase_equipment && player_info.has_erasable_equipment(),
         ItemType::Gold => true,
         item => PowerUpKind::from_item_type(item).is_some_and(|kind| !player_info.has_permanent(kind)),
     }

@@ -21,6 +21,8 @@ pub enum ItemType {
     // in the map's `items` list; once collected, the kind enters the
     // player's permanent inventory.
     Key(FieldId),
+    // Instant removal of collected equipment; no persistent power-up flag.
+    EquipmentEraser,
 }
 
 impl ItemType {
@@ -29,8 +31,8 @@ impl ItemType {
     // carry — so key-accepting parsers must check this id themselves.
     pub const KEY_CONFIG_ID: &'static str = "key";
 
-    // Items that grant a persistent player effect on pickup. `HealthPotion` is NOT one of these — its effect is
-    // instant; see `PowerUpKind`.
+    // Items that grant a persistent player effect on pickup. Instant items
+    // such as healing and equipment erasure have no `PowerUpKind` flag.
     #[must_use]
     pub const fn is_power_up(self) -> bool {
         matches!(
@@ -51,6 +53,7 @@ impl ItemType {
             "missile_pack" => Some(Self::MissilePack),
             "portal_gun" => Some(Self::PortalGunPowerUp),
             "health_potion" => Some(Self::HealthPotion),
+            "equipment_eraser" => Some(Self::EquipmentEraser),
             "speed" => Some(Self::SpeedPowerUp),
             "low_gravity" => Some(Self::LowGravityPowerUp),
             "gold" => Some(Self::Gold),
@@ -66,6 +69,7 @@ impl ItemType {
             Self::MissilePack => "missile_pack",
             Self::PortalGunPowerUp => "portal_gun",
             Self::HealthPotion => "health_potion",
+            Self::EquipmentEraser => "equipment_eraser",
             Self::SpeedPowerUp => "speed",
             Self::LowGravityPowerUp => "low_gravity",
             Self::Gold => "gold",
@@ -75,9 +79,8 @@ impl ItemType {
 }
 
 // Power-up kinds indexed by `PowerUpKind::index()` for `[T; PowerUpKind::COUNT]`
-// arrays on `PlayerInfo`, `Player`, and `SPlayerStatus`. `HealthPotion` is
-// deliberately NOT in this enum: it's an instant-effect item that mutates
-// `Health` directly and has no durable flag.
+// arrays on `PlayerInfo`, `Player`, and `SPlayerStatus`. Healing and
+// equipment erasure are instant effects and have no durable flag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum PowerUpKind {
     SingleShot,
@@ -110,7 +113,11 @@ impl PowerUpKind {
             ItemType::PortalGunPowerUp => Some(Self::PortalGun),
             ItemType::SpeedPowerUp => Some(Self::Speed),
             ItemType::LowGravityPowerUp => Some(Self::LowGravity),
-            ItemType::HealthPotion | ItemType::Gold | ItemType::Key(_) | ItemType::MissilePack => None,
+            ItemType::HealthPotion
+            | ItemType::EquipmentEraser
+            | ItemType::Gold
+            | ItemType::Key(_)
+            | ItemType::MissilePack => None,
         }
     }
 

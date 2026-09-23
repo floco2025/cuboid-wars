@@ -68,6 +68,7 @@ pub fn setup_item_assets(
         ItemType::SingleShotPowerUp,
         ItemType::MultiShotPowerUp,
         ItemType::HealthPotion,
+        ItemType::EquipmentEraser,
         ItemType::SpeedPowerUp,
         ItemType::LowGravityPowerUp,
     ]
@@ -110,6 +111,7 @@ pub fn item_type_color(item_type: ItemType) -> Color {
         ItemType::MissilePack => ITEM_MISSILE_COLOR,
         ItemType::PortalGunPowerUp => PORTAL_A_COLOR,
         ItemType::HealthPotion => ITEM_HEALTH_COLOR,
+        ItemType::EquipmentEraser => ITEM_EQUIPMENT_ERASER_COLOR,
         ItemType::SpeedPowerUp => ITEM_SPEED_COLOR,
         ItemType::LowGravityPowerUp => ITEM_LOW_GRAVITY_COLOR,
         ItemType::Gold => ITEM_COIN_COLOR,
@@ -163,6 +165,7 @@ pub fn spawn_item(
         | ItemType::MultiShotPowerUp
         | ItemType::LowGravityPowerUp
         | ItemType::HealthPotion
+        | ItemType::EquipmentEraser
         | ItemType::PortalGunPowerUp => {
             let visual = item_assets.power_up(item_type);
             entity.insert((Mesh3d(visual.mesh.clone()), MeshMaterial3d(visual.material.clone())));

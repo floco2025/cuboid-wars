@@ -27,6 +27,15 @@ class EquipmentTests(unittest.TestCase):
         self.assertEqual(normalize_map(json.loads(encoded)["map"]), data)
         self.assertFalse(validate_map(data, []))
 
+    def test_suspended_eraser_pickup_round_trips_without_supporting_floor(self):
+        data = {"fireworks": None, **empty_map(4, 4)}
+        data["checkpoints"] = []
+        data["items"] = [{"level": 0, "col": 2, "row": 2, "type": "equipment_eraser"}]
+        data = canonicalize_map(data)
+        self.assertFalse(validate_map(data, []))
+        encoded = format_map_file({"map": data})
+        self.assertEqual(normalize_map(json.loads(encoded)["map"]), data)
+
     def test_fields_and_gun_round_trip_and_resize(self):
         data = {"fireworks": None, **empty_map(4, 4)}
         data["checkpoints"] = []

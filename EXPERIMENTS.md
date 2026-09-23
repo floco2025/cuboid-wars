@@ -1,5 +1,24 @@
 # Movement and portal experiments
 
+When authoring these maps, keep landing platforms and portal pads far enough
+out from their takeoff platforms that players can see and aim at them from a
+safe approach position. Never require standing on the lip and looking straight
+down over the edge. Judge the gap against the drop height and the player's view,
+then verify the traversal; one empty grid cell is not a general visibility rule.
+
+For portal setup, ramp selection, and movement-pickup decisions, play
+**[Portal Choices](config/server/maps/portal_choices/README.md)**:
+
+```sh
+cargo run --release -- --map portal_choices --look 90,-10
+```
+
+Its suspended `equipment_eraser` pickup removes collected boosts during a
+flight while preserving the map's always-active portal gun. The adjacent
+`experiment.json` also works with `--play-experiment`. The final ramp choices
+face a shared destination, and a deck beneath the speed launch provides a
+refill and a portal entrance for retries.
+
 For the longer traversal course, play **Portal Relay**:
 
 ```sh
@@ -26,6 +45,7 @@ The maps live in `config/server/maps/` and are registered alongside the other
 maps. Open them in the normal editor:
 
 ```sh
+python3 tools/editor.py portal_choices
 python3 tools/editor.py portal_relay
 python3 tools/editor.py portal_movement
 python3 tools/editor.py portal_turret
@@ -155,11 +175,13 @@ movement sets body heading and portal crossings transform the aim.
 The JSON contains `initial` state and a `steps` array. Every step records the
 action, its result, events, and resulting state. Player state includes the owner's
 position, the last position adopted by the server, vertical velocity, momentum,
-knockback, support, health, equipment, and checkpoint. These positions can differ
+knockback, support, health, equipment (including `speed` and `low_gravity`), and checkpoint. These positions can differ
 at lower movement report rates; the owner remains authoritative for its motion.
 `active_switches` and `open_fields` contain authored names: an open field is off,
 so a light bridge belonging to it cannot support the player. `fireworks_started`
 records the server's celebration cue without its random presentation seed.
+`item_collected` names collected items, and `equipment_erased` records the
+server applying erasure from a field or pickup.
 
 `player_step` records each tick's positions, combined control/momentum velocity,
 and geometry or actor blocking. That velocity describes the request; a blocked

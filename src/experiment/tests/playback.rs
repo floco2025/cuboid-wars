@@ -11,45 +11,47 @@ use super::{
 
 #[test]
 fn graphical_pacing_and_observation_preserve_the_headless_trace() {
-    let (_folder, script) = scenario("portal_relay");
-    let expected = script.run().expect("headless route");
-    for render_delta in [
-        Duration::from_millis(7),
-        Duration::from_millis(43),
-        Duration::from_millis(250),
-    ] {
-        let mut playback = Playback::new(script.clone()).expect("viewer route");
-        while !playback.executor.finished() {
-            let state = playback.executor.session.state();
-            assert_eq!(
+    for map in ["portal_relay", "portal_choices"] {
+        let (_folder, script) = scenario(map);
+        let expected = script.run().expect("headless route");
+        for render_delta in [
+            Duration::from_millis(7),
+            Duration::from_millis(43),
+            Duration::from_millis(250),
+        ] {
+            let mut playback = Playback::new(script.clone()).expect("viewer route");
+            while !playback.executor.finished() {
+                let state = playback.executor.session.state();
+                assert_eq!(
+                    playback
+                        .update(Controls::default(), Duration::from_secs(120))
+                        .expect("pause"),
+                    Duration::ZERO
+                );
+                assert_eq!(state, playback.executor.session.state());
                 playback
-                    .update(Controls::default(), Duration::from_secs(120))
-                    .expect("pause"),
-                Duration::ZERO
-            );
-            assert_eq!(state, playback.executor.session.state());
-            playback
-                .update(
-                    Controls {
-                        next: true,
-                        ..Default::default()
-                    },
-                    Duration::ZERO,
-                )
-                .expect("start action");
-            while playback.executor.running() {
-                playback.update(Controls::default(), render_delta).expect("paced tick");
-                // Graphical sampling must not advance the simulation or change results.
-                let before = playback.executor.session.state();
-                playback.take_frame();
-                assert_eq!(before, playback.executor.session.state());
+                    .update(
+                        Controls {
+                            next: true,
+                            ..Default::default()
+                        },
+                        Duration::ZERO,
+                    )
+                    .expect("start action");
+                while playback.executor.running() {
+                    playback.update(Controls::default(), render_delta).expect("paced tick");
+                    // Graphical sampling must not advance the simulation or change results.
+                    let before = playback.executor.session.state();
+                    playback.take_frame();
+                    assert_eq!(before, playback.executor.session.state());
+                }
+                assert!(playback.paused);
             }
-            assert!(playback.paused);
+            assert_eq!(
+                json!({"initial":playback.executor.initial, "steps":playback.executor.steps}),
+                expected
+            );
         }
-        assert_eq!(
-            json!({"initial":playback.executor.initial, "steps":playback.executor.steps}),
-            expected
-        );
     }
 }
 

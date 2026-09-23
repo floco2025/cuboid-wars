@@ -238,8 +238,12 @@ impl PlayerInfo {
         self.session.always_active[kind.index()] || self.life.power_ups[kind.index()] == PowerUpState::Permanent
     }
 
+    pub fn has_erasable_equipment(&self) -> bool {
+        self.life.missiles > 0 || self.life.power_ups.iter().any(|state| state.is_active())
+    }
+
     pub fn erase_equipment(&mut self) -> bool {
-        let changed = self.life.missiles > 0 || self.life.power_ups.iter().any(|state| state.is_active());
+        let changed = self.has_erasable_equipment();
         self.life.power_ups.fill(PowerUpState::Inactive);
         self.life.missiles = 0;
         changed

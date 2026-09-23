@@ -152,7 +152,7 @@ pub(super) fn items(data: &Value, context: &Value, errors: &mut Errors) {
                 ));
             }
         } else if !item_type(kind) {
-            errors.add(format!("{label} has unknown type {}; known: [single_shot, multi_shot, missile_pack, portal_gun, health_potion, speed, low_gravity, gold, key]",repr(&item["type"])));
+            errors.add(format!("{label} has unknown type {}; known: [single_shot, multi_shot, missile_pack, portal_gun, health_potion, equipment_eraser, speed, low_gravity, gold, key]",repr(&item["type"])));
         } else if !item["field"].is_null() {
             errors.add(format!(
                 "{label} ({kind}) must not have `field` — only key items take one"

@@ -1,0 +1,41 @@
+{
+  "textures": {
+    "solid": { "material": "steelplate1", "portalable": false },
+    "portal": { "material": "titanium-scuffed", "portalable": true }
+  },
+  "grounds": null,
+  "random_items": null,
+  "placed_items": {
+    "respawn_secs": {
+      "speed": 0.0,
+      "low_gravity": 0.0,
+      "equipment_eraser": 0.0
+    }
+  },
+  "quests": [],
+  "weather": "clear",
+  "geometry": {
+    "grid_cell_size": 2.0,
+    "level_height": 2.2,
+    "floor_thickness": 0.2,
+    "wall_thickness": 0.2
+  },
+  "portals": "both",
+  "power_ups": {
+    "portal_gun": { "mode": "always" },
+    "single_shot": { "mode": "pickup", "duration_secs": null },
+    "speed": { "mode": "pickup", "duration_secs": null },
+    "low_gravity": { "mode": "pickup", "duration_secs": null }
+  },
+  "combat": { "health": { "player": { "max": 500.0, "regen_rate": 0.0 } } },
+  "movement": {
+    "gravity": 25.0,
+    "player": {
+      "walk_speed": 6.0,
+      "run_speed": 9.0,
+      "jump_speed": 12.0,
+      "speed_power_up": 2.0
+    },
+    "low_gravity": 8.0
+  }
+}

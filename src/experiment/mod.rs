@@ -27,3 +27,7 @@ mod course_tests;
 #[cfg(test)]
 #[path = "tests/playback.rs"]
 mod playback_tests;
+
+#[cfg(test)]
+#[path = "tests/choices.rs"]
+mod choices_tests;

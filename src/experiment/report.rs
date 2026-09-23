@@ -55,6 +55,8 @@ impl Session {
                 "generation": info.session.generation.0,
                 "single_shot": info.has(PowerUpKind::SingleShot),
                 "portal_gun": info.has(PowerUpKind::PortalGun),
+                "speed": info.has(PowerUpKind::Speed),
+                "low_gravity": info.has(PowerUpKind::LowGravity),
             })
         });
         let mut actors: Vec<_> = world

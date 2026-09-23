@@ -8,6 +8,7 @@ fn item_type_config_ids_round_trip() {
         ItemType::MissilePack,
         ItemType::PortalGunPowerUp,
         ItemType::HealthPotion,
+        ItemType::EquipmentEraser,
         ItemType::SpeedPowerUp,
         ItemType::LowGravityPowerUp,
         ItemType::Gold,

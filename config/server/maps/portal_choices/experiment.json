@@ -1,0 +1,107 @@
+{
+  "gameplay": "../../gameplay.json",
+  "settings": "settings.json",
+  "layout": "layout.json",
+  "spawn": [-49, 26.4, -59],
+  "actions": [
+    {
+      "action": "move",
+      "direction": [1, 0],
+      "ticks": 140,
+      "run": false,
+      "jump": false
+    },
+    { "action": "aim", "target": [-23, 23.6, -16.1] },
+    { "action": "portal", "end": "b" },
+    {
+      "action": "move",
+      "direction": [-1, 0],
+      "ticks": 140,
+      "run": false,
+      "jump": false
+    },
+    {
+      "action": "move",
+      "direction": [0, 1],
+      "ticks": 102,
+      "run": false,
+      "jump": false
+    },
+    { "action": "aim", "target": [-49, 13.2, -30] },
+    { "action": "portal", "end": "a" },
+    {
+      "action": "move",
+      "direction": [0, 1],
+      "ticks": 28,
+      "run": true,
+      "jump": false
+    },
+    { "action": "advance", "ticks": 70 },
+    { "action": "check", "min": [-28, 17.5, -38], "max": [-16, 17.8, -18] },
+    { "action": "aim", "target": [17, 19.8, -29] },
+    { "action": "portal", "end": "b" },
+    {
+      "action": "move",
+      "direction": [0, 1],
+      "ticks": 11,
+      "run": false,
+      "jump": false
+    },
+    { "action": "aim", "target": [-16.1, 19.22, -29] },
+    { "action": "portal", "end": "a" },
+    {
+      "action": "move",
+      "direction": [1, 0],
+      "ticks": 40,
+      "run": true,
+      "jump": false
+    },
+    { "action": "advance", "ticks": 20 },
+    { "action": "check", "min": [0, 21.9, -32], "max": [12, 22.2, -24] },
+    {
+      "action": "move",
+      "direction": [1, 0],
+      "ticks": 40,
+      "run": false,
+      "jump": false
+    },
+    {
+      "action": "move",
+      "direction": [1, 0],
+      "ticks": 60,
+      "run": true,
+      "jump": true
+    },
+    { "action": "advance", "ticks": 35 },
+    { "action": "check", "min": [28, 28.5, -32], "max": [36, 28.8, -24] },
+    {
+      "action": "move",
+      "direction": [0, 1],
+      "ticks": 19,
+      "run": false,
+      "jump": false
+    },
+    { "action": "aim", "target": [109, 11, 15] },
+    { "action": "portal", "end": "b" },
+    { "action": "advance", "ticks": 4 },
+    { "action": "aim", "target": [29, 0, 0] },
+    { "action": "portal", "end": "a" },
+    {
+      "action": "move",
+      "direction": [0, 1],
+      "ticks": 83,
+      "run": true,
+      "jump": true
+    },
+    { "action": "advance", "ticks": 120 },
+    { "action": "check", "min": [86, 8.7, 12], "max": [92, 9, 18] },
+    {
+      "action": "move",
+      "direction": [1, 0],
+      "ticks": 10,
+      "run": false,
+      "jump": false
+    },
+    { "action": "advance", "ticks": 3 }
+  ]
+}
