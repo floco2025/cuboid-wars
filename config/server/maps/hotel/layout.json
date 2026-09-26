@@ -21,16 +21,16 @@
       {"level": 1, "cols": [10, 22], "rows": [20, 21], "kind": "scuttler", "count": [2], "respawn_secs": 90, "beam_in_secs": 3.0, "roam_distance": 5.0},
       {"level": 1, "cols": [1, 4], "rows": [26, 29], "kind": "bruiser", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "roam_distance": 20.0},
       {"level": 1, "cols": [26, 29], "rows": [26, 29], "kind": "bruiser", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "roam_distance": 20.0},
-      {"level": 2, "cols": [13, 17], "rows": [12, 13], "kind": "zapper", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 2.0},
-      {"level": 2, "cols": [12, 13], "rows": [13, 17], "kind": "zapper", "count": [2], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 2.0},
-      {"level": 2, "cols": [17, 18], "rows": [13, 17], "kind": "zapper", "count": [2], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 2.0},
-      {"level": 2, "cols": [13, 17], "rows": [17, 18], "kind": "zapper", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 2.0}
+      {"level": 2, "cols": [13, 17], "rows": [12, 13], "kind": "zapper", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 1.0},
+      {"level": 2, "cols": [12, 13], "rows": [13, 17], "kind": "zapper", "count": [2], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 1.0},
+      {"level": 2, "cols": [17, 18], "rows": [13, 17], "kind": "zapper", "count": [2], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 1.0},
+      {"level": 2, "cols": [13, 17], "rows": [17, 18], "kind": "zapper", "count": [1], "respawn_secs": 90, "beam_in_secs": 3.0, "levels": 2, "roam_distance": 1.0}
     ],
     "checkpoints": [
-      {"level": 4, "cols": [12, 18], "rows": [6, 8], "type": "individual", "number": 0},
-      {"level": 4, "cols": [6, 8], "rows": [12, 18], "type": "individual", "number": 0},
-      {"level": 4, "cols": [22, 24], "rows": [12, 18], "type": "individual", "number": 0},
-      {"level": 4, "cols": [12, 18], "rows": [22, 24], "type": "individual", "number": 0}
+      {"level": 4, "cols": [11, 19], "rows": [6, 7], "type": "individual", "number": 0},
+      {"level": 4, "cols": [6, 7], "rows": [11, 19], "type": "individual", "number": 0},
+      {"level": 4, "cols": [23, 24], "rows": [11, 19], "type": "individual", "number": 0},
+      {"level": 4, "cols": [11, 19], "rows": [23, 24], "type": "individual", "number": 0}
     ],
     "pressure_plates": [
       {"level": 1, "col": 13, "row": 13, "switch": "lobby"},
