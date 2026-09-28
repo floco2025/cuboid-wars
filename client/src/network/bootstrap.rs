@@ -17,9 +17,10 @@ use crate::{
     map::MapDimensions,
     missiles::AirGraph,
     players::MyPlayerId,
+    portals::PortalAssets,
     projectiles::ProjectileAssets,
     ui::{HudBanner, QuestLog},
-    vfx::BlastRadii,
+    vfx::{BlastRadii, PortalFizzleAssets},
 };
 use common::{map::Carriers, physics::CollisionWorld, protocol::*};
 
@@ -144,5 +145,13 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
         .insert_resource(message.world.map.items)
         .insert_resource(QuestLog::default())
         .insert_resource(HudBanner::default());
+    // These assets read portal dimensions from the validated gameplay resource;
+    // constructing them during plugin registration would precede the bootstrap.
+    app.init_resource::<PortalAssets>()
+        .init_resource::<PortalFizzleAssets>();
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "tests/bootstrap.rs"]
+mod tests;

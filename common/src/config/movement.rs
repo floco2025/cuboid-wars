@@ -27,10 +27,18 @@ pub struct MapMovementConfig {
 #[derive(Debug, Clone, Copy, Encode, Decode, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlayerMovementConfig {
-    pub walk_speed: f32,
-    pub run_speed: f32,
-    pub speed_power_up: f32,
+    pub move_speed: f32,
+    // Multiplies horizontal movement speed, never jump_speed or control rates.
+    pub move_speed_power_up: f32,
     pub jump_speed: f32,
+    // All control rates are m/s², independent of movement speed and pickups.
+    // Zero air rates disable their respective input/braking effects.
+    pub ground_acceleration: f32,
+    pub ground_deceleration: f32,
+    pub ground_lateral_deceleration: f32,
+    pub air_acceleration: f32,
+    pub air_deceleration: f32,
+    pub air_lateral_deceleration: f32,
 }
 
 // A component on server actors so movement ticks do not hash the kind string.
@@ -64,9 +72,22 @@ impl MapMovementConfig {
 
 impl PlayerMovementConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.walk_speed, &format!("{path}.walk_speed"))?;
-        validate_positive_finite(self.run_speed, &format!("{path}.run_speed"))?;
-        validate_positive_finite(self.speed_power_up, &format!("{path}.speed_power_up"))?;
+        validate_positive_finite(self.move_speed, &format!("{path}.move_speed"))?;
+        validate_positive_finite(self.move_speed_power_up, &format!("{path}.move_speed_power_up"))?;
+        for (name, value) in [
+            ("ground_acceleration", self.ground_acceleration),
+            ("ground_deceleration", self.ground_deceleration),
+            ("ground_lateral_deceleration", self.ground_lateral_deceleration),
+        ] {
+            validate_positive_finite(value, &format!("{path}.{name}"))?;
+        }
+        for (name, value) in [
+            ("air_acceleration", self.air_acceleration),
+            ("air_deceleration", self.air_deceleration),
+            ("air_lateral_deceleration", self.air_lateral_deceleration),
+        ] {
+            validate_non_negative_finite(value, &format!("{path}.{name}"))?;
+        }
         validate_positive_finite(self.jump_speed, &format!("{path}.jump_speed"))
     }
 }

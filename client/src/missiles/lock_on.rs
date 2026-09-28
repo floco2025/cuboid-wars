@@ -19,7 +19,11 @@ use common::{
 type LockCandidateQuery<'w, 's> = Query<
     'w,
     's,
-    (&'static Position, &'static FaceYaw),
+    (
+        &'static Position,
+        &'static FaceYaw,
+        Option<&'static common::protocol::PlayerStance>,
+    ),
     (Or<(With<PlayerMarker>, With<ActorMarker>)>, Without<MissileMarker>),
 >;
 
@@ -94,16 +98,16 @@ fn compute_lock(
         .iter()
         .filter(|(id, _)| **id != my_player_id.0)
         .filter_map(|(id, info)| {
-            let (pos, face_yaw) = character_data.get(info.entity).ok()?;
+            let (pos, face_yaw, stance) = character_data.get(info.entity).ok()?;
             Some((
                 HomingTarget::Player(*id),
                 *pos,
                 face_yaw.0,
-                gameplay_config.player.physics(),
+                stance.copied().unwrap_or_default().physics(&gameplay_config.player),
             ))
         })
         .chain(actors.iter().filter_map(|(id, info)| {
-            let (pos, face_yaw) = character_data.get(info.entity).ok()?;
+            let (pos, face_yaw, _stance) = character_data.get(info.entity).ok()?;
             Some((
                 HomingTarget::Actor(*id),
                 *pos,

@@ -32,18 +32,18 @@ pub(crate) fn report_move_outcomes_system(
     gameplay: Res<GameplayConfig>,
     network: Res<NetworkConfig>,
     mut eraser_cadence: Local<Option<UpdateCadence>>,
-    query: Query<(&Position, &LocalMovementStep), With<LocalPlayerMarker>>,
+    query: Query<(&Position, &LocalMovementStep, &common::protocol::PlayerStance), With<LocalPlayerMarker>>,
 ) {
     if local.is_dead {
         return;
     }
-    let Ok((pos, step)) = query.single() else {
+    let Ok((pos, step, stance)) = query.single() else {
         return;
     };
     for event in collect_move_outcomes(
         pos,
         step,
-        gameplay.player.physics(),
+        stance.physics(&gameplay.player),
         &collision,
         &carriers,
         &mut local.reports,

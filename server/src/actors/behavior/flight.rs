@@ -197,7 +197,7 @@ fn advance_search(
                 open,
                 budget,
                 |_, _| true,
-                |p| attack_position(p.into(), aware.pos, context),
+                |p| attack_position(p.into(), *aware, context),
             )
         }
         Some(FlightTask::Evade) => {

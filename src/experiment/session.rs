@@ -108,7 +108,13 @@ impl Session {
             .get(&self.id)
             .context("experiment player missing")?;
         ensure!(!player.is_dead(), "player is dead");
-        Ok(Vec3::from(self.owner.position) + Vec3::Y * world.resource::<GameplayConfig>().player.eye_height)
+        Ok(Vec3::from(self.owner.position)
+            + Vec3::Y
+                * self
+                    .owner
+                    .motion
+                    .stance
+                    .eye_height(&world.resource::<GameplayConfig>().player))
     }
 
     pub fn aim(&mut self, position: [f32; 3]) -> Result<Value> {
@@ -159,7 +165,7 @@ impl Session {
             self.eye()?,
             self.direction,
             self.yaw(),
-            world.resource::<GameplayConfig>().portals.range,
+            &world.resource::<GameplayConfig>().portals,
             world.resource::<CollisionWorld>(),
             world.resource::<MapLayout>(),
             carriers,
@@ -169,7 +175,12 @@ impl Session {
         let (result, response) = match placement {
             Ok(placement) => {
                 let placed = placement.portal(pair, end, carriers);
-                if portal_placement_overlaps(&placed, &existing, carriers) {
+                if portal_placement_overlaps(
+                    &placed,
+                    &existing,
+                    carriers,
+                    world.resource::<GameplayConfig>().portals.size,
+                ) {
                     return Ok(json!({"status": "rejected", "reason": "portal_overlap"}));
                 }
                 (
@@ -263,6 +274,7 @@ impl Session {
             &world.resource::<PortalMap>().snapshot_portals(),
             world.resource::<CollisionWorld>(),
             world.resource::<Carriers>(),
+            config.portals.size,
         );
         let (messages, mut events) = self.owner.step(
             world,
@@ -402,7 +414,7 @@ impl Session {
                         .movement
                         .knockback
                         .max_speed
-                        * common::constants::KNOCKBACK_CLAMP_RATIO;
+                        * common::constants::CHARACTER_KNOCKBACK_CLAMP_RATIO;
                     self.owner.motion.knockback.0 =
                         (self.owner.motion.knockback.0 + impulse.with_y(0.0)).clamp_length_max(max);
                     json!({"kind": "player_knockback", "impulse": message.impulse})
@@ -414,15 +426,21 @@ impl Session {
         Ok(())
     }
 
-    pub fn begin_move(&mut self, direction: [f32; 2], run: bool, jump: bool) {
+    pub fn begin_move(&mut self, direction: [f32; 2], crouch: bool, jump: bool) {
         let heading = direction[0].atan2(direction[1]);
+        let yaw = self.direction.x.atan2(self.direction.z);
         self.owner.motion.move_intent = if direction == [0.0, 0.0] {
-            PlayerMoveIntent::Idle
-        } else if run {
-            PlayerMoveIntent::Running { direction: heading }
+            PlayerMoveIntent::NONE
         } else {
-            PlayerMoveIntent::Walking { direction: heading }
+            PlayerMoveIntent {
+                forward: (heading - yaw).cos(),
+                sideways: (heading - yaw).sin(),
+                yaw,
+                pitch: self.direction.y.clamp(-1.0, 1.0).asin(),
+                crouch,
+            }
         };
+        self.owner.motion.move_intent.crouch = crouch;
         if direction != [0.0, 0.0] {
             self.owner.motion.face_yaw.0 = heading;
         }
@@ -430,7 +448,7 @@ impl Session {
     }
 
     pub fn end_move(&mut self) {
-        self.owner.motion.move_intent = PlayerMoveIntent::Idle;
+        self.owner.motion.move_intent = PlayerMoveIntent::NONE;
         self.jump_requested = false;
     }
 
@@ -506,7 +524,7 @@ fn bodies(world: &World) -> Vec<(HitTarget, Position, f32, CharacterPhysicsConfi
                 },
                 *world.get::<Position>(entity)?,
                 world.get::<FaceYaw>(entity)?.0,
-                config.player.physics(),
+                player.stance().physics(&config.player),
             ))
         })
         .collect();

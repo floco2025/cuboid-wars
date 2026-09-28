@@ -337,6 +337,7 @@ impl TraversalExecutor {
             };
             let offset = Vec3::from(target.expect("target missing from walking action")) - Vec3::from(start);
             blocker = blocking_actor(&CharacterMovementResult {
+                contact_normals: [Default::default(); 5],
                 position: (Vec3::from(start) + offset.clamp_length_max(reach)).into(),
                 ..movement
             });

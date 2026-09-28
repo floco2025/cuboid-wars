@@ -8,9 +8,9 @@ use bevy_math::{Mat3, Quat, Vec3};
 use rapier3d::{
     parry::{
         query::intersection_test,
-        shape::{Cuboid, Shape},
+        shape::{ConvexPolyhedron, Cuboid, Shape},
     },
-    prelude::{Collider, ColliderHandle, Pose, SharedShape, Vector},
+    prelude::{Collider, ColliderHandle, Pose, Vector},
 };
 
 use super::{
@@ -19,7 +19,7 @@ use super::{
     surface_materials::collider_material,
 };
 use crate::{
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_RIM_SCALE},
+    constants::PORTAL_RIM_SCALE,
     math::{from_rapier, rapier_pose, to_rapier},
     physics::PortalFrame,
     protocol::{CarrierId, MapLayout, TextureSettings},
@@ -95,7 +95,14 @@ impl CollisionWorld {
         );
         let outward = to_rapier(frame.normal);
         let plane = frame.center.dot(frame.normal);
-        let face = aperture_face_shape().as_ref();
+        let Some(face) =
+            aperture_face_shape()
+                .clone()
+                .scaled(Vector::new(frame.size.half_width(), frame.size.half_height(), 1.0))
+        else {
+            return false;
+        };
+        let face = &face;
         self.query_pipeline(query_filter(world_collision_groups()))
             .intersect_shape(pose, face)
             .all(|(_, collider): (ColliderHandle, &Collider)| {
@@ -146,8 +153,8 @@ fn surface_reach(collider: &Collider, probe_pose: &Pose, probe: &dyn Shape, outw
 // to either side of the plane, so a surface level with the plane lies
 // inside it instead of touching its face, which an intersection test
 // reports inconsistently.
-fn aperture_face_shape() -> &'static SharedShape {
-    static SHAPE: OnceLock<SharedShape> = OnceLock::new();
+fn aperture_face_shape() -> &'static ConvexPolyhedron {
+    static SHAPE: OnceLock<ConvexPolyhedron> = OnceLock::new();
     SHAPE.get_or_init(|| {
         // Circumscribe the oval so a narrow forbidden patch cannot hide between rim samples.
         let scale = PORTAL_RIM_SCALE / (PI / RIM_SEGMENTS as f32).cos();
@@ -156,14 +163,10 @@ fn aperture_face_shape() -> &'static SharedShape {
             .flat_map(|z| {
                 (0..RIM_SEGMENTS).map(move |i| {
                     let angle = i as f32 * TAU / RIM_SEGMENTS as f32;
-                    Vector::new(
-                        PORTAL_HALF_WIDTH * scale * angle.cos(),
-                        PORTAL_HALF_HEIGHT * scale * angle.sin(),
-                        z,
-                    )
+                    Vector::new(scale * angle.cos(), scale * angle.sin(), z)
                 })
             })
             .collect();
-        SharedShape::convex_hull(&points).expect("portal face oval has no convex hull")
+        ConvexPolyhedron::from_convex_hull(&points).expect("portal face oval has no convex hull")
     })
 }

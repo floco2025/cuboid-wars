@@ -15,7 +15,7 @@ class RunSettings:
         return cls(
             setting_number(settings, source, "geometry.grid_cell_size"),
             setting_number(settings, source, "movement.player.run_speed"),
-            setting_number(settings, source, "movement.player.speed_power_up"),
+            setting_number(settings, source, "movement.player.move_speed_power_up"),
         )
 
     @property

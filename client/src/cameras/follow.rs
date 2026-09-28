@@ -16,7 +16,10 @@ use common::{
 // interpolate between last-tick and current-tick positions so the camera
 // stays smooth at the render rate.
 pub fn local_player_camera_sync_system(
-    local_player_query: Query<(&Position, &PreviousTickPosition), With<LocalPlayerMarker>>,
+    local_player_query: Query<
+        (&Position, &PreviousTickPosition, &common::protocol::PlayerStance),
+        With<LocalPlayerMarker>,
+    >,
     windows: Query<&Window>,
     fixed_time: Res<Time<Fixed>>,
     mut camera_query: Query<
@@ -34,7 +37,7 @@ pub fn local_player_camera_sync_system(
     real_time: Res<Time<Real>>,
     playback: Option<Res<crate::network::PlaybackMode>>,
 ) {
-    let Some((current_pos, prev_pos)) = local_player_query.iter().next() else {
+    let Some((current_pos, prev_pos, stance)) = local_player_query.iter().next() else {
         return;
     };
     let interp = prev_pos.lerp_to(*current_pos, fixed_time.overstep_fraction());
@@ -56,7 +59,7 @@ pub fn local_player_camera_sync_system(
     persp.fov = client_settings.preferences.fov_degrees.to_radians();
 
     let config = client_settings.camera.follow;
-    let eye_height = gameplay_config.player.eye_height();
+    let eye_height = stance.eye_height(&gameplay_config.player);
     let rotation = Quat::from_euler(
         EulerRot::YXZ,
         local_player_info.stored_yaw,
@@ -66,7 +69,7 @@ pub fn local_player_camera_sync_system(
     if view_mode.is_debug() {
         // No arm sweep: the debug camera goes through geometry and shows
         // whatever is there.
-        let centre = character_movement_center(*player_pos, gameplay_config.player.physics());
+        let centre = character_movement_center(*player_pos, stance.physics(&gameplay_config.player));
         *camera_transform = Transform {
             translation: centre + rotation * Vec3::new(0.0, 0.0, third.debug_distance),
             rotation,

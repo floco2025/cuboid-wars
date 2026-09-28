@@ -33,7 +33,7 @@ fn final_flight() -> (TempDir, Script) {
         Action::Move {
             direction: [0.0, 1.0],
             ticks: 20,
-            run: false,
+            crouch: false,
             jump: false,
         },
         Action::Aim {
@@ -48,7 +48,7 @@ fn final_flight() -> (TempDir, Script) {
         Action::Move {
             direction: [0.0, 1.0],
             ticks: 83,
-            run: true,
+            crouch: false,
             jump: true,
         },
         Action::Advance { ticks: 120 },
@@ -142,7 +142,7 @@ fn first_drop_accepts_a_range_of_run_off_timings() {
         script.actions[7] = Action::Move {
             direction: [0.0, 1.0],
             ticks,
-            run: true,
+            crouch: false,
             jump: false,
         };
         let report = script.run().expect("run off toward the offset first pad");
@@ -195,7 +195,7 @@ fn the_starting_balcony_cannot_jump_or_drop_directly_to_the_first_landing() {
                 Action::Move {
                     direction,
                     ticks: 90,
-                    run: true,
+                    crouch: false,
                     jump,
                 },
             ];
@@ -219,19 +219,19 @@ fn the_high_ledge_cannot_jump_directly_to_the_finish_with_low_gravity() {
         Action::Move {
             direction: [1.0, 0.0],
             ticks: 33,
-            run: false,
+            crouch: false,
             jump: false,
         },
         Action::Move {
             direction: [0.0, 1.0],
             ticks: 23,
-            run: false,
+            crouch: false,
             jump: false,
         },
         Action::Move {
             direction: [53.4, 39.4],
             ticks: 180,
-            run: true,
+            crouch: false,
             jump: true,
         },
     ];
@@ -258,7 +258,7 @@ fn the_entry_runway_refills_speed_before_the_second_launch() {
         Action::Move {
             direction: [0.0, 1.0],
             ticks: 20,
-            run: false,
+            crouch: false,
             jump: false,
         },
         Action::Aim {
@@ -268,7 +268,7 @@ fn the_entry_runway_refills_speed_before_the_second_launch() {
         Action::Move {
             direction: [1.0, 0.0],
             ticks: 48,
-            run: true,
+            crouch: false,
             jump: false,
         },
         Action::Advance { ticks: 30 },
@@ -298,14 +298,14 @@ fn running_without_speed_cannot_reach_the_ramp_landing() {
     script.actions[12] = Action::Move {
         direction: [0.0, 1.0],
         ticks: 22,
-        run: false,
+        crouch: false,
         jump: false,
     };
     for ticks in [50, 60, 70] {
         script.actions[15] = Action::Move {
             direction: [1.0, 0.0],
             ticks,
-            run: true,
+            crouch: false,
             jump: false,
         };
         let report = script.run().expect("unboosted launch");
@@ -329,13 +329,13 @@ fn low_gravity_is_required_to_jump_to_the_high_drop_ledge() {
         Action::Move {
             direction: [1.0, 0.0],
             ticks: 10,
-            run: false,
+            crouch: false,
             jump: false,
         },
         Action::Move {
             direction: [1.0, 0.0],
             ticks: 60,
-            run: true,
+            crouch: false,
             jump: true,
         },
         Action::Advance { ticks: 35 },
@@ -373,7 +373,7 @@ fn final_flight_tolerates_placement_and_jump_approach_variation() {
             script.actions[7] = Action::Move {
                 direction: [0.0, 1.0],
                 ticks,
-                run: true,
+                crouch: false,
                 jump: true,
             };
             let report = script.run().expect("varied final flight");
@@ -398,7 +398,7 @@ fn final_jump_reaches_the_portal_and_finish_at_walking_speed_without_a_speed_pic
         script.actions[7] = Action::Move {
             direction: [0.0, 1.0],
             ticks,
-            run: false,
+            crouch: false,
             jump: true,
         };
         let report = script.run().expect("walking jump with low gravity only");
@@ -446,7 +446,7 @@ fn keeping_low_gravity_overshoots_even_with_full_countersteering() {
         script.actions[9] = Action::Move {
             direction,
             ticks: 180,
-            run: true,
+            crouch: false,
             jump: false,
         };
         let report = script.run().expect("no suspended eraser");
@@ -514,7 +514,7 @@ fn every_checkpoint_recovers_from_a_missed_jump_with_pickups_available() {
             Action::Move {
                 direction: [0.0, -1.0],
                 ticks: 90,
-                run: true,
+                crouch: false,
                 jump: false,
             },
             Action::Advance { ticks: 300 },
@@ -551,14 +551,14 @@ fn losing_speed_after_the_upper_eraser_has_a_walkable_refill_and_retry() {
         Action::Move {
             direction: [-1.0, 0.0],
             ticks: 20,
-            run: false,
+            crouch: false,
             jump: false,
         },
         Action::Advance { ticks: 60 },
         Action::Move {
             direction: [1.0, 0.0],
             ticks: 50,
-            run: false,
+            crouch: false,
             jump: false,
         },
         Action::Aim {
@@ -573,7 +573,7 @@ fn losing_speed_after_the_upper_eraser_has_a_walkable_refill_and_retry() {
         Action::Move {
             direction: [1.0, 0.0],
             ticks: 50,
-            run: true,
+            crouch: false,
             jump: false,
         },
         Action::Advance { ticks: 30 },
@@ -606,7 +606,7 @@ fn an_unboosted_player_on_the_ramp_can_drop_to_the_refill_and_retry() {
         Action::Move {
             direction: [-1.0, 0.0],
             ticks: 40,
-            run: false,
+            crouch: false,
             jump: false,
         },
         Action::Advance { ticks: 60 },
@@ -622,7 +622,7 @@ fn an_unboosted_player_on_the_ramp_can_drop_to_the_refill_and_retry() {
         Action::Move {
             direction: [1.0, 0.0],
             ticks: 49,
-            run: true,
+            crouch: false,
             jump: false,
         },
         Action::Advance { ticks: 30 },
@@ -662,7 +662,7 @@ fn final_sprint_approach_accepts_varied_takeoffs_and_a_missed_jump() {
             Action::Move {
                 direction: [0.0, if reposition < 0 { -1.0 } else { 1.0 }],
                 ticks: reposition.unsigned_abs(),
-                run: false,
+                crouch: false,
                 jump: false,
             }
         };
@@ -670,7 +670,7 @@ fn final_sprint_approach_accepts_varied_takeoffs_and_a_missed_jump() {
             script.actions[8] = Action::Move {
                 direction: [0.0, 1.0],
                 ticks: approach_ticks,
-                run: true,
+                crouch: false,
                 jump,
             };
             let report = script.run().expect("takeoff");

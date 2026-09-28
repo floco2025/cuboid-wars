@@ -2,7 +2,7 @@ use bevy::math::Vec3;
 use bevy::prelude::Bundle;
 
 use common::{
-    physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, KnockbackVelocity},
+    physics::{CharacterSupport, CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity},
     protocol::{CarrierId, FaceYaw, PlayerMoveIntent, PlayerMovementState, Position},
 };
 
@@ -12,9 +12,10 @@ pub fn player_movement_state(
     move_intent: PlayerMoveIntent,
     face_yaw: &FaceYaw,
     vertical_velocity: &CharacterVerticalVelocity,
-    airborne_momentum: &AirborneMomentum,
+    horizontal_velocity: &HorizontalVelocity,
     knockback: &KnockbackVelocity,
     support: CharacterSupport,
+    stance: common::protocol::PlayerStance,
 ) -> PlayerMovementState {
     PlayerMovementState {
         carrier: CarrierId::WORLD,
@@ -22,9 +23,10 @@ pub fn player_movement_state(
         move_intent,
         vertical_velocity: vertical_velocity.0,
         face_yaw: face_yaw.0,
-        airborne_momentum: airborne_momentum.0.to_array(),
+        horizontal_velocity: horizontal_velocity.0.to_array(),
         knockback: knockback.0.to_array(),
         support,
+        stance,
     }
 }
 
@@ -34,9 +36,10 @@ pub struct PlayerMotionBundle {
     pub move_intent: PlayerMoveIntent,
     pub face_yaw: FaceYaw,
     pub vertical_velocity: CharacterVerticalVelocity,
-    pub airborne_momentum: AirborneMomentum,
+    pub horizontal_velocity: HorizontalVelocity,
     pub knockback: KnockbackVelocity,
     pub support: CharacterSupport,
+    pub stance: common::protocol::PlayerStance,
 }
 
 impl From<&PlayerMovementState> for PlayerMotionBundle {
@@ -45,9 +48,10 @@ impl From<&PlayerMovementState> for PlayerMotionBundle {
             move_intent: movement.move_intent,
             face_yaw: FaceYaw(movement.face_yaw),
             vertical_velocity: CharacterVerticalVelocity(movement.vertical_velocity),
-            airborne_momentum: AirborneMomentum(Vec3::from_array(movement.airborne_momentum)),
+            horizontal_velocity: HorizontalVelocity(Vec3::from_array(movement.horizontal_velocity)),
             knockback: KnockbackVelocity(Vec3::from_array(movement.knockback)),
             support: movement.support,
+            stance: movement.stance,
         }
     }
 }

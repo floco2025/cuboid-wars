@@ -138,6 +138,7 @@ fn rebuild_portal_views_system(
             main_projection,
             scene_target.size,
             usize::from(budget),
+            portal_assets.size,
         )
     };
     if state.portals == wire_portals && state.budget == Some(budget) && state.roots == roots {
@@ -269,13 +270,22 @@ fn largest_visible_roots(
     projection: &Projection,
     size: UVec2,
     budget: usize,
+    portal_size: common::config::PortalSize,
 ) -> Vec<PortalKey> {
     let mut roots: Vec<_> = complete_portals
         .iter()
         .filter_map(|portal| {
             let key = (portal.pair, portal.end);
-            let (_, _, footprint, _) =
-                view_through_chain(portals, &[key], carriers, alpha, transform, projection, size)?;
+            let (_, _, footprint, _) = view_through_chain(
+                portals,
+                &[key],
+                carriers,
+                alpha,
+                transform,
+                projection,
+                size,
+                portal_size,
+            )?;
             Some((key, footprint.x * footprint.y))
         })
         .collect();
@@ -349,6 +359,7 @@ fn update_portal_view_cameras_system(
                 main_transform,
                 main_projection,
                 scene_target.size,
+                portal_assets.size,
             )?;
             Some(MappedView {
                 entity,
@@ -384,7 +395,7 @@ fn update_portal_view_cameras_system(
                     *render_target = RenderTarget::Image(view.target.image.clone().into());
                 }
                 let target = &view.target;
-                let uv_transform = aperture_uv_transform(mapped_view.rect);
+                let uv_transform = aperture_uv_transform(mapped_view.rect, portal_assets.size);
                 if materials
                     .get(&target.material)
                     .is_some_and(|material| material.uv_transform != uv_transform)
@@ -450,16 +461,17 @@ fn view_through_chain(
     main_transform: &Transform,
     main_projection: &Projection,
     main_size: UVec2,
+    portal_size: common::config::PortalSize,
 ) -> Option<(Transform, Projection, Vec2, Rect)> {
     let mut view_transform = *main_transform;
     let mut view_projection = main_projection.clone();
     let mut footprint = main_size.as_vec2();
-    let mut rect = full_aperture();
+    let mut rect = full_aperture(portal_size);
     for key in chain {
         let entry = &portals.get(key)?.portal;
         let exit = paired_portal(portals, entry)?;
-        let entry_frame = PortalFrame::from_portal_between(entry, carriers, alpha);
-        let exit_frame = PortalFrame::from_portal_between(exit, carriers, alpha);
+        let entry_frame = PortalFrame::from_portal_between(entry, carriers, alpha, portal_size);
+        let exit_frame = PortalFrame::from_portal_between(exit, carriers, alpha, portal_size);
         let visible = visible_aperture(&entry_frame, &view_transform, &view_projection, footprint)?;
         footprint = visible.footprint;
         rect = visible.rect;
@@ -495,7 +507,7 @@ fn visible_aperture(
     view_size: Vec2,
 ) -> Option<VisibleAperture> {
     let clip_from_world = projection.get_clip_from_view() * camera_transform.to_matrix().inverse();
-    let aperture = full_aperture();
+    let aperture = full_aperture(frame.size);
     let mut polygon: Vec<Vec3> = [
         Vec2::new(aperture.min.x, aperture.min.y),
         Vec2::new(aperture.max.x, aperture.min.y),
@@ -562,8 +574,8 @@ fn clip_polygon(polygon: &[Vec3], plane: Vec4) -> Vec<Vec3> {
 }
 
 // Maps the disc's UVs (the whole aperture, v downward) onto the rendered `rect`.
-fn aperture_uv_transform(rect: Rect) -> Affine2 {
-    let aperture = full_aperture();
+fn aperture_uv_transform(rect: Rect, size: common::config::PortalSize) -> Affine2 {
+    let aperture = full_aperture(size);
     let size = rect.size();
     Affine2::from_scale_angle_translation(
         aperture.size() / size,

@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 fn defaults() -> Value {
     json!({
         "network": {"server_hz": 30},
-        "movement": {"gravity": 25.0, "player": {"walk_speed": 6.0, "run_speed": 9.0}},
+        "movement": {"gravity": 25.0, "player": {"move_speed": 6.0, "jump_speed": 9.0}},
         "power_ups": {
             "single_shot": {"mode": "always"},
             "speed": {"mode": "pickup", "duration_secs": 30.0}
@@ -20,10 +20,10 @@ fn merge(map: Value) -> Result<Value, String> {
 
 #[test]
 fn nested_overrides_replace_leaves_and_keep_their_siblings() {
-    let merged = merge(json!({"textures": {}, "movement": {"player": {"run_speed": 5.0}}})).expect("valid override");
+    let merged = merge(json!({"textures": {}, "movement": {"player": {"jump_speed": 5.0}}})).expect("valid override");
     assert_eq!(
         merged["movement"],
-        json!({"gravity": 25.0, "player": {"walk_speed": 6.0, "run_speed": 5.0}})
+        json!({"gravity": 25.0, "player": {"move_speed": 6.0, "jump_speed": 5.0}})
     );
     assert_eq!(merged["textures"], json!({}));
     assert_eq!(merged["network"], json!({"server_hz": 30}));

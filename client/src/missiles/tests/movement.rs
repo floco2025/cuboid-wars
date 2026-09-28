@@ -141,7 +141,7 @@ fn a_fast_missile_reports_the_swept_hit_and_victim_generation_once() {
     let id = PlayerId(2);
     let pos = Position { x: 5.0, y: 0.0, z: 0.0 };
     let target = app.world_mut().spawn((PlayerMarker, id, pos, FaceYaw(0.0))).id();
-    let mut player = Player::new("Player".into(), pos, PlayerMoveIntent::Idle, 0.0, 0, Health(100.0));
+    let mut player = Player::new("Player".into(), pos, PlayerMoveIntent::NONE, 0.0, 0, Health(100.0));
     player.generation = PlayerGeneration(4);
     app.world_mut()
         .resource_mut::<PlayerMap>()
@@ -195,7 +195,7 @@ fn a_retired_body_kept_for_the_death_camera_does_not_block_flight() {
     let id = PlayerId(1);
     let pos = Position { x: 5.0, y: 0.0, z: 0.0 };
     let target = app.world_mut().spawn((PlayerMarker, id, pos, FaceYaw(0.0))).id();
-    let player = Player::new("Player".into(), pos, PlayerMoveIntent::Idle, 0.0, 0, Health(0.0));
+    let player = Player::new("Player".into(), pos, PlayerMoveIntent::NONE, 0.0, 0, Health(0.0));
     app.world_mut()
         .resource_mut::<PlayerMap>()
         .insert(id, PlayerInfo::from_snapshot(target, &player, 0));
@@ -248,7 +248,7 @@ fn a_missile_arms_against_its_shooter_only_after_leaving_them() {
     let player = Player::new(
         "Player".into(),
         Position::default(),
-        PlayerMoveIntent::Idle,
+        PlayerMoveIntent::NONE,
         0.0,
         0,
         Health(100.0),
@@ -304,7 +304,7 @@ fn a_dead_target_clears_the_missiles_lock() {
         z: 0.0,
     };
     let target = app.world_mut().spawn((PlayerMarker, id, pos, FaceYaw(0.0))).id();
-    let player = Player::new("Player".into(), pos, PlayerMoveIntent::Idle, 0.0, 0, Health(100.0));
+    let player = Player::new("Player".into(), pos, PlayerMoveIntent::NONE, 0.0, 0, Health(100.0));
     app.world_mut()
         .resource_mut::<PlayerMap>()
         .insert(id, PlayerInfo::from_snapshot(target, &player, 0));

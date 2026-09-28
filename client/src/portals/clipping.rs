@@ -93,7 +93,15 @@ pub(crate) fn portal_body_clipping_system(
     mut commands: Commands,
     world: PortalBodyWorld,
     mut materials: ClipMaterialAccess,
-    mut players: Query<(&Transform, &mut PortalBody, Has<LocalPlayerMarker>), With<PlayerMarker>>,
+    mut players: Query<
+        (
+            &Transform,
+            &mut PortalBody,
+            Has<LocalPlayerMarker>,
+            &common::protocol::PlayerStance,
+        ),
+        With<PlayerMarker>,
+    >,
     mut models: Query<&mut Transform, (With<CharacterModel>, Without<PortalTwinMarker>, Without<PlayerMarker>)>,
     mut twins: Query<(&mut Transform, &mut Visibility), (With<PortalTwinMarker>, Without<PlayerMarker>)>,
     children: Query<&Children>,
@@ -108,8 +116,10 @@ pub(crate) fn portal_body_clipping_system(
     >,
 ) {
     let alpha = world.fixed_time.overstep_fraction();
-    let physics = world.gameplay_config.player.physics();
-    for (player_transform, mut body, is_local) in &mut players {
+    for (player_transform, mut body, is_local, stance) in &mut players {
+        let physics = stance.physics(&world.gameplay_config.player);
+        let mut base = body.base;
+        base.scale.y *= 1.0 - 0.5 * stance.fraction;
         let body_hidden = is_local && world.view_mode.is_first_person();
         let straddle = (!body_hidden)
             .then(|| {
@@ -118,7 +128,7 @@ pub(crate) fn portal_body_clipping_system(
                     .straddled_gate(player_transform.translation, physics, &world.carriers, alpha)
             })
             .flatten();
-        let base_world = player_transform.mul_transform(body.base);
+        let base_world = player_transform.mul_transform(base);
         if let (Some((pair, end)), Some(gate)) = (body.gate, &straddle)
             && pair == gate.pair
             && end != gate.end
@@ -151,7 +161,7 @@ pub(crate) fn portal_body_clipping_system(
                 if transient.is_some() {
                     body.pose = None;
                 }
-                model_transform.set_if_neq(body.base);
+                model_transform.set_if_neq(base);
                 base_world
             }
         };

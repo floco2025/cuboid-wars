@@ -18,9 +18,12 @@ class RunTimeTests(unittest.TestCase):
         self.assertEqual(self.settings.seconds((1, 1), (1, 1)), (0, 0))
 
     def test_invalid_fields_name_the_source_and_field(self):
-        settings = {"geometry": {"grid_cell_size": 2}, "movement": {"player": {"run_speed": 4, "speed_power_up": 1.5}}}
+        settings = {
+            "geometry": {"grid_cell_size": 2},
+            "movement": {"player": {"run_speed": 4, "move_speed_power_up": 1.5}},
+        }
         self.assertEqual(RunSettings.from_settings(settings, "settings.json"), self.settings)
-        for path in ("geometry.grid_cell_size", "movement.player.run_speed", "movement.player.speed_power_up"):
+        for path in ("geometry.grid_cell_size", "movement.player.run_speed", "movement.player.move_speed_power_up"):
             with self.subTest(path=path):
                 invalid = copy.deepcopy(settings)
                 section, *keys = path.split(".")

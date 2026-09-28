@@ -124,7 +124,11 @@ fn placement_rejects_overlap_with_another_portal() {
     assert!(portal_placement_overlaps(
         &placement.portal(PortalPairId(2), PortalEnd::B, &Carriers::default()),
         &existing,
-        &Carriers::default()
+        &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size
     ));
 }
 
@@ -140,14 +144,22 @@ fn placement_allows_clear_space_and_replacing_its_own_end() {
     assert!(!portal_placement_overlaps(
         &placement.portal(PortalPairId(2), PortalEnd::B, &Carriers::default()),
         &clear,
-        &Carriers::default()
+        &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size
     ));
 
     let replaced = [portal(PortalEnd::B, Vec3::new(0.0, 1.6, 0.0), Vec3::Z, 0.0)];
     assert!(!portal_placement_overlaps(
         &placement.portal(PortalPairId(1), PortalEnd::B, &Carriers::default()),
         &replaced,
-        &Carriers::default()
+        &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size
     ));
 }
 
@@ -259,6 +271,10 @@ fn wall_portal_near_ramp_excludes_only_wall_backing() {
         ],
         &world,
         &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     );
     let physics = player_physics();
     let origin = Vec3::new(-1.5, center_y - physics.movement_collider.height / 2.0, z);
@@ -306,6 +322,10 @@ fn wall_portal_across_a_stacked_wall_opens_its_trim_strip() {
         ],
         &world,
         &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     );
     let physics = player_physics();
     let origin = Vec3::new(0.0, LEVEL_HEIGHT - physics.movement_collider.height / 2.0, -0.5);
@@ -347,6 +367,10 @@ fn wall_portal_keeps_the_floor_it_stands_on_solid() {
         ],
         &world,
         &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     );
     let physics = player_physics();
     let origin = Vec3::new(0.0, 1.0 - physics.movement_collider.height / 2.0, -0.5);
@@ -396,7 +420,15 @@ fn ramp_lip_shot_nudges_the_whole_aperture_onto_the_slope() {
     let target = Vec3::new(0.0, slope * 5.05, 5.05);
     let normal = Vec3::new(0.0, 1.0, -slope).normalize();
     let placement = place(&layout, target + normal * 3.0, target, 0.0).expect("ramp-lip shot did not nudge");
-    let frame = PortalFrame::from_surface(placement.pos, placement.normal, placement.yaw);
+    let frame = PortalFrame::from_surface(
+        placement.pos,
+        placement.normal,
+        placement.yaw,
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
+    );
 
     assert!((frame.center + frame.up * PORTAL_HALF_HEIGHT).z <= ramp_length);
 }
@@ -554,4 +586,54 @@ fn vertical_placement_yaw_snaps_to_quarter_turns() {
     assert!((floor.yaw - FRAC_PI_2).abs() < 1e-4);
     let wall = place(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::new(0.0, 1.6, 0.0), 1.0).expect("wall shot rejected");
     assert!((wall.yaw - 1.0).abs() < 1e-4);
+}
+
+#[test]
+fn configured_portal_size_controls_fit_overlap_and_aperture_crossings() {
+    let layout = textured_layout(&placement_layout());
+    let world = CollisionWorld::from_map_layout(&layout);
+    let carriers = Carriers::default();
+    let mut config = crate::config::gameplay::load_test_gameplay().expect("fixture").portals;
+    let shoot = |config: &crate::config::PortalsConfig| {
+        compute_portal_placement(
+            Vec3::new(0.0, 1.6, 3.0),
+            Vec3::NEG_Z,
+            0.0,
+            config,
+            &world,
+            &layout,
+            &carriers,
+            &[],
+            &test_textures(),
+        )
+    };
+    config.size.width = 0.8;
+    shoot(&config).expect("small portal should fit wall");
+    config.size.width = 20.0;
+    assert!(shoot(&config).is_err(), "oversized portal cannot fit backing");
+    config.size.width = 1.4;
+    config.size.height = 10.0;
+    assert!(shoot(&config).is_err(), "too tall for wall");
+    config.size.height = 2.6;
+    let a = portal(PortalEnd::A, Vec3::new(0.0, 1.6, 0.0), Vec3::Z, 0.0);
+    let b = portal(PortalEnd::B, Vec3::new(1.2, 1.6, 0.0), Vec3::Z, 0.0);
+    assert!(portal_placement_overlaps(&a, &[b], &carriers, config.size));
+    config.size.width = 0.8;
+    assert!(!portal_placement_overlaps(&a, &[b], &carriers, config.size));
+    for (width, height, hit) in [(0.8, 2.6, false), (1.4, 2.6, true), (1.4, 0.5, false)] {
+        config.size.width = width;
+        config.size.height = height;
+        let set = PortalSet::rebuild(
+            &[a, portal(PortalEnd::B, Vec3::new(20.0, 1.6, 0.0), Vec3::Z, 0.0)],
+            &world,
+            &carriers,
+            config.size,
+        );
+        assert_eq!(
+            set.projectile_hop(Vec3::new(0.5, 2.0, 1.0), Vec3::NEG_Z * 10.0, 0.2, 0.01, 0.2)
+                .is_some(),
+            hit,
+            "size {width} × {height}"
+        );
+    }
 }

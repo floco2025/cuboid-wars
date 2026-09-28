@@ -46,7 +46,12 @@ pub(crate) fn handle_portal_shot_message(
             );
         }
         PortalShotResult::Placed(portal) => {
-            if portal_placement_overlaps(&portal, &portals.snapshot_portals(), &world.carriers) || !portals.set(portal)
+            if portal_placement_overlaps(
+                &portal,
+                &portals.snapshot_portals(),
+                &world.carriers,
+                world.gameplay_config.portals.size,
+            ) || !portals.set(portal)
             {
                 return;
             }

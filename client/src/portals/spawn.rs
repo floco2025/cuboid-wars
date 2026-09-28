@@ -5,7 +5,7 @@ use crate::{
     constants::{PORTAL_A_COLOR, PORTAL_B_COLOR, PORTAL_EMISSIVE},
 };
 use common::{
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_RIM_SCALE},
+    constants::PORTAL_RIM_SCALE,
     map::Carriers,
     physics::PortalFrame,
     protocol::{Portal, PortalEnd, PortalPairId},
@@ -27,6 +27,7 @@ pub(crate) struct PortalSurface {
 // One shared unit-disc mesh with per-end emissive fallback/rim materials.
 #[derive(Resource)]
 pub struct PortalAssets {
+    pub(crate) size: common::config::PortalSize,
     mesh: Handle<Mesh>,
     material_a: Handle<StandardMaterial>,
     material_b: Handle<StandardMaterial>,
@@ -43,9 +44,11 @@ impl PortalAssets {
 
 impl FromWorld for PortalAssets {
     fn from_world(world: &mut World) -> Self {
+        let size = world.resource::<common::config::GameplayConfig>().portals.size;
         let mesh = world.resource_mut::<Assets<Mesh>>().add(Circle::new(0.5));
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
         Self {
+            size,
             mesh,
             material_a: materials.add(portal_material(PORTAL_A_COLOR)),
             material_b: materials.add(portal_material(PORTAL_B_COLOR)),
@@ -77,7 +80,7 @@ pub(super) fn spawn_portal_visual(
     carriers: &Carriers,
     render_layer: usize,
 ) -> Entity {
-    let frame = PortalFrame::from_portal(portal, carriers);
+    let frame = PortalFrame::from_portal(portal, carriers, assets.size);
     let material = assets.material(portal.end);
     let render_layer = RenderLayers::layer(render_layer);
     commands
@@ -87,7 +90,7 @@ pub(super) fn spawn_portal_visual(
             Transform {
                 translation: frame.center + frame.normal * PORTAL_SURFACE_OFFSET,
                 rotation: Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal)),
-                scale: Vec3::new(PORTAL_HALF_WIDTH * 2.0, PORTAL_HALF_HEIGHT * 2.0, 1.0),
+                scale: Vec3::new(assets.size.width, assets.size.height, 1.0),
             },
             NotShadowCaster,
             render_layer.clone(),

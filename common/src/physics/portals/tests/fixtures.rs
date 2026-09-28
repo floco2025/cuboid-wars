@@ -1,6 +1,6 @@
 pub(super) use super::super::*;
 pub(super) use crate::{
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_RIM_SCALE, TICK_SECS},
+    constants::{PORTAL_RIM_SCALE, TICK_SECS},
     map::{Carriers, Grounds, GroundsSettings},
     physics::{
         CharacterEnvironment, CharacterStep, CharacterSupport, CollisionWorld, LadderMode, step_character_movement,
@@ -30,10 +30,15 @@ pub(crate) const TILE: CarrierId = CarrierId(1);
 pub(crate) fn map_movement() -> MapMovementConfig {
     MapMovementConfig {
         player: PlayerMovementConfig {
-            walk_speed: 6.0,
-            run_speed: 9.0,
-            speed_power_up: 1.6,
+            move_speed: 6.0,
+            move_speed_power_up: 1.6,
             jump_speed: 12.0,
+            ground_acceleration: 60.0,
+            ground_deceleration: 24.0,
+            ground_lateral_deceleration: 60.0,
+            air_acceleration: 5.0,
+            air_deceleration: 0.0,
+            air_lateral_deceleration: 0.0,
         },
         actors: HashMap::new(),
         missile_speed: 16.0,
@@ -81,6 +86,10 @@ pub(crate) fn pair(a_pos: Vec3, a_normal: Vec3, b_pos: Vec3, b_normal: Vec3) -> 
         ],
         &empty_world(),
         &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     )
 }
 
@@ -153,6 +162,10 @@ pub(crate) fn moving_projectile_portals(
         ],
         &world,
         &carriers,
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     );
     (world, set)
 }
@@ -227,7 +240,10 @@ pub(crate) fn place_on_geometry(
         origin,
         direction,
         yaw,
-        range,
+        &crate::config::PortalsConfig {
+            range,
+            ..load_test_gameplay().expect("fixture gameplay").portals
+        },
         world,
         &textured_layout(layout),
         carriers,
@@ -261,7 +277,10 @@ pub(crate) fn material_shot(
         origin,
         direction,
         0.0,
-        40.0,
+        &crate::config::PortalsConfig {
+            range: 40.0,
+            ..load_test_gameplay().expect("fixture gameplay").portals
+        },
         &world,
         layout,
         &Carriers::from_layout(layout),
@@ -418,7 +437,7 @@ pub(crate) fn run_ticks(
             CharacterHopBody {
                 control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity,
                 yaw: 0.0,
             },
@@ -429,3 +448,6 @@ pub(crate) fn run_ticks(
     }
     (None, pos, support)
 }
+
+pub(crate) const PORTAL_HALF_WIDTH: f32 = 0.7;
+pub(crate) const PORTAL_HALF_HEIGHT: f32 = 1.3;

@@ -30,9 +30,14 @@ pub(super) fn scenario(name: &str) -> (TempDir, Script) {
     gameplay["movement"]["projectile_speed"] = json!(90.0);
     gameplay["movement"]["gravity"] = json!(25.0);
     gameplay["combat"]["damage"]["projectile"] = json!(60.0);
-    gameplay["movement"]["player"]["walk_speed"] = json!(6.0);
-    gameplay["movement"]["player"]["run_speed"] = json!(9.0);
+    gameplay["movement"]["player"]["move_speed"] = json!(6.0);
     gameplay["movement"]["player"]["jump_speed"] = json!(12.0);
+    gameplay["movement"]["player"]["ground_acceleration"] = json!(60.0);
+    gameplay["movement"]["player"]["ground_deceleration"] = json!(24.0);
+    gameplay["movement"]["player"]["ground_lateral_deceleration"] = json!(60.0);
+    gameplay["movement"]["player"]["air_acceleration"] = json!(5.0);
+    gameplay["movement"]["player"]["air_deceleration"] = json!(0.0);
+    gameplay["movement"]["player"]["air_lateral_deceleration"] = json!(0.0);
     script.gameplay = folder.path().join("gameplay.json");
     fs::write(&script.gameplay, gameplay.to_string()).expect("write test defaults");
     (folder, script)

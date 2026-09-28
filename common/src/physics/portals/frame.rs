@@ -1,6 +1,6 @@
 use bevy_math::Vec3;
 
-use crate::{map::Carriers, math::direction_from_yaw_pitch, protocol::Portal};
+use crate::{config::PortalSize, map::Carriers, math::direction_from_yaw_pitch, protocol::Portal};
 
 // Near-vertical normals need placement yaw because world-up has no usable in-plane projection.
 const PORTAL_UP_DEGENERACY_LIMIT: f32 = 0.99;
@@ -12,6 +12,7 @@ const PORTAL_UP_DEGENERACY_LIMIT: f32 = 0.99;
 #[derive(Debug, Clone, Copy)]
 pub struct PortalFrame {
     pub center: Vec3,
+    pub size: PortalSize,
     pub normal: Vec3,
     pub up: Vec3,
     pub right: Vec3,
@@ -21,28 +22,30 @@ impl PortalFrame {
     // The world frame of a placed end at this tick: its carrier-local
     // position and normal placed by the carrier's pose.
     #[must_use]
-    pub fn from_portal(portal: &Portal, carriers: &Carriers) -> Self {
+    pub fn from_portal(portal: &Portal, carriers: &Carriers, size: PortalSize) -> Self {
         let pose = carriers.pose(portal.carrier);
         Self::from_surface(
             pose.transform_point(Vec3::from(portal.pos)),
             pose.transform_vector(Vec3::new(portal.nx, portal.ny, portal.nz)),
             portal.yaw,
+            size,
         )
     }
 
     // The same between the last two ticks, for render-rate interpolation.
     #[must_use]
-    pub fn from_portal_between(portal: &Portal, carriers: &Carriers, alpha: f32) -> Self {
+    pub fn from_portal_between(portal: &Portal, carriers: &Carriers, alpha: f32, size: PortalSize) -> Self {
         let pose = carriers.pose_between(portal.carrier, alpha);
         Self::from_surface(
             pose.transform_point(Vec3::from(portal.pos)),
             pose.transform_vector(Vec3::new(portal.nx, portal.ny, portal.nz)),
             portal.yaw,
+            size,
         )
     }
 
     #[must_use]
-    pub fn from_surface(center: Vec3, normal: Vec3, yaw: f32) -> Self {
+    pub fn from_surface(center: Vec3, normal: Vec3, yaw: f32, size: PortalSize) -> Self {
         let normal = normal.normalize();
         // World-up projected onto the plane orients the frame; only a
         // near-vertical normal is degenerate, and there the shooter's
@@ -55,6 +58,7 @@ impl PortalFrame {
         let up = reference.reject_from_normalized(normal).normalize();
         Self {
             center,
+            size,
             normal,
             up,
             right: up.cross(normal),

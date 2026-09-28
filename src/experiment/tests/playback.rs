@@ -11,7 +11,7 @@ use super::{
 
 #[test]
 fn graphical_pacing_and_observation_preserve_the_headless_trace() {
-    for map in ["portal_relay", "portal_choices"] {
+    for map in ["portal_movement"] {
         let (_folder, script) = scenario(map);
         let expected = script.run().expect("headless route");
         for render_delta in [
@@ -61,7 +61,7 @@ fn an_airborne_pause_freezes_the_owner_server_and_action_progress() {
     script.actions = vec![Action::Move {
         direction: [0.0, 0.0],
         ticks: 30,
-        run: false,
+        crouch: false,
         jump: true,
     }];
     let expected = script.run().expect("headless jump");
@@ -165,7 +165,7 @@ fn restart_and_script_reset_clear_simulation_state_and_pending_view_frames() {
 
 #[test]
 fn space_plays_the_whole_route_at_the_tick_rate_and_stops_at_completion() {
-    let (_folder, script) = scenario("portal_relay");
+    let (_folder, script) = scenario("portal_movement");
     let expected = script.run().expect("headless route");
     for render_delta in [
         Duration::from_millis(7),

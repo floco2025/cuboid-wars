@@ -109,6 +109,11 @@ fn place_bodies(world: &mut World, snapshot: &SSnapshot) {
             player.power_ups[PowerUpKind::Speed.index()],
             player.stunned,
         );
+        let velocity = if movement.support == common::physics::CharacterSupport::Ladder {
+            velocity
+        } else {
+            Vec3::from_array(movement.horizontal_velocity)
+        };
         world.entity_mut(entity).insert((
             movement.pos,
             PreviousTickPosition(movement.pos),

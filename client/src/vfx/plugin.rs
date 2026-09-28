@@ -18,7 +18,6 @@ pub fn presentation_plugin(app: &mut App) {
             .before(TransformSystems::Propagate),
     );
     app.init_resource::<FireworkShow>();
-    app.init_resource::<PortalFizzleAssets>();
     app.add_observer(beam_ghost_removed_system);
     app.add_systems(
         Update,

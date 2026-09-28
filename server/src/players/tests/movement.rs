@@ -59,7 +59,7 @@ fn report(seq: u32, pos: Position) -> CMove {
         generation: PlayerGeneration(0),
         seq,
         portal_crossing: 0,
-        movement: PlayerMovementState::new(pos, PlayerMoveIntent::Idle, 0.0, 0.0),
+        movement: PlayerMovementState::new(pos, PlayerMoveIntent::NONE, 0.0, 0.0),
     }
 }
 
@@ -227,7 +227,7 @@ fn crossing_and_full_exit_motion_survive_sequence_wrap() {
             y: 10.0,
             z: -20.0,
         },
-        PlayerMoveIntent::Running { direction: 1.0 },
+        PlayerMoveIntent::moving(1.0),
         12.0,
         -2.0,
     )
@@ -249,7 +249,7 @@ fn crossing_and_full_exit_motion_survive_sequence_wrap() {
     assert_eq!(entry.movement.move_intent, movement.move_intent);
     assert_eq!(entry.movement.face_yaw, movement.face_yaw);
     assert_eq!(entry.movement.vertical_velocity, movement.vertical_velocity);
-    assert_eq!(entry.movement.airborne_momentum, movement.airborne_momentum);
+    assert_eq!(entry.movement.horizontal_velocity, movement.horizontal_velocity);
     assert_eq!(entry.movement.knockback, movement.knockback);
     assert_eq!(entry.movement.support, movement.support);
 }
@@ -281,13 +281,8 @@ fn accepts_client_state_through_a_wall() {
     };
     let (mut app, entity) = movement_app(layout);
     let mut message = report(1, Position { x: 2.0, y: 1.0, z: 0.0 });
-    message.movement = PlayerMovementState::new(
-        message.movement.pos,
-        PlayerMoveIntent::Running { direction: 2.0 },
-        7.0,
-        2.0,
-    )
-    .with_momentum(Vec3::new(-3.0, 0.0, 2.0), Vec3::X);
+    message.movement = PlayerMovementState::new(message.movement.pos, PlayerMoveIntent::moving(2.0), 7.0, 2.0)
+        .with_momentum(Vec3::new(-3.0, 0.0, 2.0), Vec3::X);
     let expected = message.movement;
     deliver(&mut app, message);
     app.update();
@@ -299,7 +294,7 @@ fn accepts_client_state_through_a_wall() {
     let relayed = result(&mut app).movement;
     assert_eq!(relayed.pos, expected.pos);
     assert_eq!(relayed.vertical_velocity, 7.0);
-    assert_eq!(relayed.airborne_momentum, [-3.0, 0.0, 2.0]);
+    assert_eq!(relayed.horizontal_velocity, [-3.0, 0.0, 2.0]);
     assert_eq!(relayed.knockback, [1.0, 0.0, 0.0]);
     assert_eq!(relayed.move_intent, expected.move_intent);
 }
@@ -321,7 +316,7 @@ fn accepted_reports_remain_stationary_without_fresh_reports() {
     let mut moving = report(2, Position { x: 500.0, ..default() });
     moving.movement.vertical_velocity = -8.0;
     moving.movement.knockback = [3.0, 0.0, 2.0];
-    moving.movement.move_intent = PlayerMoveIntent::Running { direction: 1.0 };
+    moving.movement.move_intent = PlayerMoveIntent::moving(1.0);
     deliver(&mut app, moving);
     app.update();
     let accepted = result(&mut app);
@@ -345,7 +340,7 @@ fn accepted_reports_remain_stationary_without_fresh_reports() {
 fn only_newest_report_steers_and_is_processed_even_when_packets_arrive_together() {
     let (mut app, _) = movement_app(MapLayout::default());
     let mut stale = report(1, Position { x: 3.0, y: 0.0, z: 0.0 });
-    stale.movement.move_intent = PlayerMoveIntent::Running { direction: 1.0 };
+    stale.movement.move_intent = PlayerMoveIntent::moving(1.0);
     deliver(&mut app, stale.clone());
     deliver(&mut app, report(3, Position { x: 1.0, y: 0.0, z: 0.0 }));
     deliver(&mut app, stale);
@@ -353,7 +348,7 @@ fn only_newest_report_steers_and_is_processed_even_when_packets_arrive_together(
     let entry = result(&mut app);
     assert_eq!(entry.seq, 3);
     assert_eq!(entry.movement.pos.x, 1.0);
-    assert_eq!(entry.movement.move_intent, PlayerMoveIntent::Idle);
+    assert_eq!(entry.movement.move_intent, PlayerMoveIntent::NONE);
 }
 
 #[test]
@@ -451,7 +446,7 @@ fn delayed_jittered_and_lost_reports_stay_accepted_during_regular_travel() {
     {
         let mut settings = app.world_mut().resource_mut::<MapSettings>();
         settings.movement.gravity = 0.0;
-        settings.movement.player.walk_speed = 3.0;
+        settings.movement.player.move_speed = 3.0;
     }
     let mut queue = Vec::new();
     let mut last_seq = 0;
@@ -465,9 +460,7 @@ fn delayed_jittered_and_lost_reports_stay_accepted_during_regular_travel() {
                     z: 0.0,
                 },
             );
-            message.movement.move_intent = PlayerMoveIntent::Walking {
-                direction: std::f32::consts::FRAC_PI_2,
-            };
+            message.movement.move_intent = PlayerMoveIntent::moving(std::f32::consts::FRAC_PI_2);
             queue.push((tick + 6 + (tick * 7 % 9), message));
         }
         let mut delivered = Vec::new();

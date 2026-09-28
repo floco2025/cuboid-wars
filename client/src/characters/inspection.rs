@@ -29,11 +29,18 @@ pub struct CharacterBounds {
 #[derive(Component)]
 pub struct BoundsShape(BoundsMode);
 
+#[derive(Component)]
+pub struct StanceBoundsMeshes {
+    standing: Handle<Mesh>,
+    crouched: Handle<Mesh>,
+}
+
 pub fn spawn_character_bounds(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     physics: CharacterPhysicsConfig,
+    can_crouch: bool,
 ) -> Entity {
     let root = commands
         .spawn((CharacterBounds { physics }, Transform::default(), Visibility::Inherited))
@@ -49,10 +56,10 @@ pub fn spawn_character_bounds(
         (BoundsMode::Grounding, capsule, BOUNDS_CAPSULE_COLOR),
         (BoundsMode::Hitbox, hitbox, BOUNDS_HITBOX_COLOR),
     ] {
-        commands.spawn((
+        let mut shape = commands.spawn((
             BoundsShape(mode),
             ChildOf(root),
-            Mesh3d(mesh),
+            Mesh3d(mesh.clone()),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: color,
                 alpha_mode: AlphaMode::Blend,
@@ -64,6 +71,26 @@ pub fn spawn_character_bounds(
             NotShadowCaster,
             NotShadowReceiver,
         ));
+        if can_crouch {
+            let crouched = common::protocol::PlayerStance {
+                crouched: true,
+                fraction: 1.0,
+            }
+            .adjust_physics(physics);
+            let body = crouched.movement_collider;
+            let crouched_mesh = match mode {
+                BoundsMode::Grounding => Mesh::from(Capsule3d::new(body.radius(), body.height - body.diameter)),
+                _ => Mesh::from(Cuboid::new(
+                    crouched.hitbox.width,
+                    crouched.hitbox.height,
+                    crouched.hitbox.depth,
+                )),
+            };
+            shape.insert(StanceBoundsMeshes {
+                standing: mesh,
+                crouched: meshes.add(crouched_mesh),
+            });
+        }
     }
     root
 }
@@ -71,10 +98,25 @@ pub fn spawn_character_bounds(
 pub fn character_bounds_sync_system(
     mode: Res<BoundsMode>,
     roots: Query<(&ChildOf, &CharacterBounds)>,
-    actors: Query<(&FaceYaw, &Transform, Option<&CuboidShake>), Without<BoundsShape>>,
-    mut shapes: Query<(&ChildOf, &BoundsShape, &mut Transform, &mut Visibility)>,
+    actors: Query<
+        (
+            &FaceYaw,
+            &Transform,
+            Option<&CuboidShake>,
+            Option<&common::protocol::PlayerStance>,
+        ),
+        Without<BoundsShape>,
+    >,
+    mut shapes: Query<(
+        &ChildOf,
+        &BoundsShape,
+        &mut Transform,
+        &mut Visibility,
+        Option<&StanceBoundsMeshes>,
+        Option<&mut Mesh3d>,
+    )>,
 ) {
-    for (parent, marker, mut transform, mut visibility) in &mut shapes {
+    for (parent, marker, mut transform, mut visibility, meshes, mesh) in &mut shapes {
         let active = *mode != BoundsMode::Off && marker.0 == *mode;
         visibility.set_if_neq(if active {
             Visibility::Inherited
@@ -87,10 +129,21 @@ pub fn character_bounds_sync_system(
         let Ok((actor, bounds)) = roots.get(parent.parent()) else {
             continue;
         };
-        let Ok((yaw, actor_transform, shake)) = actors.get(actor.parent()) else {
+        let Ok((yaw, actor_transform, shake, stance)) = actors.get(actor.parent()) else {
             continue;
         };
-        let physics = bounds.physics;
+        let stance = stance.copied().unwrap_or_default();
+        let physics = stance.adjust_physics(bounds.physics);
+        if let (Some(meshes), Some(mut mesh)) = (meshes, mesh) {
+            let selected = if stance.crouched {
+                &meshes.crouched
+            } else {
+                &meshes.standing
+            };
+            if mesh.0 != *selected {
+                mesh.0 = selected.clone();
+            }
+        }
         let origin = rendered_feet(actor_transform, shake);
         let (height, rotation) = match *mode {
             BoundsMode::Hitbox => (physics.hitbox.center_y_offset(), Quat::from_rotation_y(yaw.0)),
@@ -128,6 +181,7 @@ pub(crate) fn refresh_grounding_debug_system(
             Option<&PlayerId>,
             &CharacterVerticalVelocity,
             Option<&CharacterSupport>,
+            Option<&common::protocol::PlayerStance>,
         ),
         Or<(
             Without<GroundingDiagnostics>,
@@ -141,19 +195,20 @@ pub(crate) fn refresh_grounding_debug_system(
     }
     for (parent, bounds) in &roots {
         let entity = parent.parent();
-        let Ok((pos, player, motion, support)) = characters.get(entity) else {
+        let Ok((pos, player, motion, support, stance)) = characters.get(entity) else {
             continue;
         };
         let keys = player
             .and_then(|id| players.get(id))
             .map_or(&[][..], |p| p.held_keys.as_slice());
         let passable = passable_fields(keys, &switch_state.open_fields);
+        let physics = stance.copied().unwrap_or_default().adjust_physics(bounds.physics);
         let excluded = if player.is_some() {
-            portals.collision_exclusions(Vec3::from(*pos), bounds.physics)
+            portals.collision_exclusions(Vec3::from(*pos), physics)
         } else {
             Vec::new()
         };
-        let mut ground = grounding_diagnostics(&world, pos, bounds.physics, &passable, &excluded);
+        let mut ground = grounding_diagnostics(&world, pos, physics, &passable, &excluded);
         ground.supported &= motion.0 <= 0.0;
         commands.entity(entity).insert(ground);
         if support.is_none() {

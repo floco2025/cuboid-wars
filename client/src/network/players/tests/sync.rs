@@ -22,7 +22,7 @@ fn player() -> Player {
     Player::new(
         "Player".into(),
         Position::default(),
-        PlayerMoveIntent::Idle,
+        PlayerMoveIntent::NONE,
         0.0,
         0,
         Health(100.0),

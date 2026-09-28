@@ -3,7 +3,7 @@ use common::{
     map::Carriers,
     math::angle_delta_radians,
     physics::{
-        AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, KnockbackVelocity, player_control_velocity,
+        CharacterSupport, CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity, player_control_velocity,
     },
     protocol::{
         CarrierId, FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, PowerUpKind,
@@ -36,6 +36,7 @@ impl RemotePlayerMotion {
         let end = Vec3::from(rendered(right, carriers, carrier_alpha).pos);
         movement.pos = start.lerp(end, playback.alpha).into();
         movement.face_yaw += angle_delta_radians(right.movement.face_yaw, movement.face_yaw) * playback.alpha;
+        movement.stance.fraction += (right.movement.stance.fraction - movement.stance.fraction) * playback.alpha;
         movement.vertical_velocity += (right.movement.vertical_velocity - movement.vertical_velocity) * playback.alpha;
         (
             movement,
@@ -65,10 +66,11 @@ pub(crate) fn interpolate_remote_players_system(
             &mut FaceYaw,
             &mut PlayerMoveIntent,
             &mut CharacterVerticalVelocity,
-            &mut AirborneMomentum,
+            &mut HorizontalVelocity,
             &mut KnockbackVelocity,
             &mut CharacterSupport,
             &mut PlayerAnimationMotion,
+            &mut common::protocol::PlayerStance,
         ),
         Without<LocalPlayerMarker>,
     >,
@@ -84,6 +86,7 @@ pub(crate) fn interpolate_remote_players_system(
         mut knockback,
         mut support,
         mut animation,
+        mut stance,
     ) in &mut query
     {
         let (movement, velocity) = buffer.advance(
@@ -96,9 +99,10 @@ pub(crate) fn interpolate_remote_players_system(
         yaw.0 = movement.face_yaw;
         *intent = movement.move_intent;
         vertical.0 = movement.vertical_velocity;
-        momentum.0 = Vec3::from_array(movement.airborne_momentum);
+        momentum.0 = Vec3::from_array(movement.horizontal_velocity);
         knockback.0 = Vec3::from_array(movement.knockback);
         *support = movement.support;
+        *stance = movement.stance;
         let info = players.get(id);
         let control = player_control_velocity(
             *intent,
@@ -106,8 +110,13 @@ pub(crate) fn interpolate_remote_players_system(
             info.is_some_and(|info| info.power_up(PowerUpKind::Speed)),
             info.is_some_and(|info| info.stunned),
         );
+        let control = if *support == CharacterSupport::Ladder {
+            control
+        } else {
+            momentum.0
+        };
         let direction = control.normalize_or_zero();
-        let travelled = velocity - momentum.0 - knockback.0;
+        let travelled = velocity - knockback.0;
         let speed = travelled.dot(direction).clamp(0.0, control.length());
         *animation = PlayerAnimationMotion {
             support: *support,

@@ -70,7 +70,7 @@ fn missing_the_air_catch_respawns_at_the_fling_landing() {
         Action::Move {
             direction: [0.0, -1.0],
             ticks: 90,
-            run: true,
+            crouch: false,
             jump: false,
         },
         Action::Advance { ticks: 180 },
@@ -98,7 +98,7 @@ fn bypassing_the_plate_leaves_the_bridge_impassable() {
     script.actions[7] = Action::Move {
         direction: [0.0, 0.0],
         ticks: 8,
-        run: false,
+        crouch: false,
         jump: false,
     };
     let report = script.run().expect("jump beside plate");

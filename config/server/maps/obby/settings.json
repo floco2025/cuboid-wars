@@ -19,7 +19,13 @@
   "movement": {
     "gravity": 24.0,
     "low_gravity": 13.2,
-    "player": { "walk_speed": 5.1, "run_speed": 5.1, "speed_power_up": 1.818 }
+    "player": {
+      "move_speed": 5.1,
+      "move_speed_power_up": 1.818,
+      "air_acceleration": 0.0,
+      "air_deceleration": 0.0,
+      "air_lateral_deceleration": 0.0
+    }
   },
   "portals": "single",
   "power_ups": {

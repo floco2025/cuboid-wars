@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::{GameplayConfig, MapMovementConfig},
-    constants::KNOCKBACK_CLAMP_RATIO,
+    constants::CHARACTER_KNOCKBACK_CLAMP_RATIO,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, blast_hit, character_hitbox_center},
     protocol::{
         ActorId, ActorMarker, FieldId, Health, HitTarget, MapSettings, MissileBlastHit, PlayerId, PlayerMarker,
@@ -258,7 +258,7 @@ fn apply_blast(
         let Some(player) = players.get(id).filter(|info| !info.is_dead()) else {
             continue;
         };
-        let victim_center = character_hitbox_center(*pos, gameplay.player.physics());
+        let victim_center = character_hitbox_center(*pos, player.life.movement.stance.physics(&gameplay.player));
         let Some((falloff, direction)) = resolved_blast_hit(
             spec,
             HitTarget::Player {
@@ -369,7 +369,7 @@ fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<Playe
 }
 
 fn apply_actor_impulses(context: &mut ExplosionContext, impulses: HashMap<ActorId, AccumulatedImpulse>) {
-    let max_speed = context.map_settings.movement.knockback.max_speed * KNOCKBACK_CLAMP_RATIO;
+    let max_speed = context.map_settings.movement.knockback.max_speed * CHARACTER_KNOCKBACK_CLAMP_RATIO;
     for (id, impulse) in impulses {
         if context.actors.get(&id).is_none() {
             continue;

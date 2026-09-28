@@ -60,10 +60,11 @@ fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_worl
         .spawn((
             LocalPlayerMarker,
             Position::default(),
-            PlayerMoveIntent::Idle,
+            PlayerMoveIntent::NONE,
             FaceYaw(0.0),
             CharacterVerticalVelocity(0.0),
-            AirborneMomentum::default(),
+            common::protocol::PlayerStance::default(),
+            HorizontalVelocity::default(),
             KnockbackVelocity::default(),
             step(CarrierId(1), CharacterSupport::Ground),
         ))
@@ -138,10 +139,11 @@ fn boarding_a_carrier_reports_immediately() {
         .spawn((
             LocalPlayerMarker,
             Position::default(),
-            PlayerMoveIntent::Idle,
+            PlayerMoveIntent::NONE,
             FaceYaw(0.0),
             CharacterVerticalVelocity(0.0),
-            AirborneMomentum::default(),
+            common::protocol::PlayerStance::default(),
+            HorizontalVelocity::default(),
             KnockbackVelocity::default(),
             step(CarrierId::WORLD, CharacterSupport::Ground),
         ))
@@ -172,10 +174,11 @@ fn a_dead_local_player_sends_no_movement_report() {
     app.world_mut().spawn((
         LocalPlayerMarker,
         Position::default(),
-        PlayerMoveIntent::Idle,
+        PlayerMoveIntent::NONE,
         FaceYaw(0.0),
         CharacterVerticalVelocity(0.0),
-        AirborneMomentum::default(),
+        common::protocol::PlayerStance::default(),
+        HorizontalVelocity::default(),
         KnockbackVelocity::default(),
         step(CarrierId::WORLD, CharacterSupport::Ground),
     ));
@@ -225,7 +228,12 @@ fn crossings_send_immediately_and_repeat_the_boundary_in_later_reports() {
             carrier: CarrierId::WORLD,
         })
         .collect();
-    let portal_set = PortalSet::rebuild(&portals, &collision, &Carriers::default());
+    let portal_set = PortalSet::rebuild(
+        &portals,
+        &collision,
+        &Carriers::default(),
+        crate::test_fixtures::gameplay_config().portals.size,
+    );
     app.insert_resource(portal_set)
         .insert_resource(collision)
         .init_resource::<Carriers>()
@@ -251,10 +259,11 @@ fn crossings_send_immediately_and_repeat_the_boundary_in_later_reports() {
                 PlayerMarker,
                 entrance,
                 PreviousTickPosition(Position { z: 0.15, ..entrance }),
-                PlayerMoveIntent::Running { direction: PI },
+                PlayerMoveIntent::moving(PI),
                 FaceYaw(PI),
                 CharacterVerticalVelocity(-2.0),
-                AirborneMomentum(Vec3::X * 4.0),
+                common::protocol::PlayerStance::default(),
+                HorizontalVelocity(Vec3::X * 4.0),
                 KnockbackVelocity(Vec3::Z * 2.0),
                 step(CarrierId::WORLD, CharacterSupport::Airborne),
             ))
@@ -270,7 +279,7 @@ fn crossings_send_immediately_and_repeat_the_boundary_in_later_reports() {
     assert_eq!(crossing.seq, 1);
     assert_eq!(crossing.portal_crossing, 1);
     assert!((crossing.movement.pos.x - 10.0).abs() < 1e-5);
-    assert!((crossing.movement.airborne_momentum[0] + 4.0).abs() < 1e-4);
+    assert!((crossing.movement.horizontal_velocity[0] + 4.0).abs() < 1e-4);
     assert!((crossing.movement.knockback[2] + 2.0).abs() < 1e-4);
     assert_eq!(
         *app.world().get::<Position>(remote).expect("remote position missing"),

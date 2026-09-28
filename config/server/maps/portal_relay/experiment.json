@@ -9,111 +9,39 @@
     { "action": "advance", "ticks": 4 },
     { "action": "aim", "target": [-22, 28.02, -16.1] },
     { "action": "portal", "end": "b" },
-    {
-      "action": "move",
-      "direction": [-1, 0],
-      "ticks": 50,
-      "run": false,
-      "jump": false
-    },
+    { "action": "move", "direction": [-1, 0], "ticks": 50, "jump": false },
     { "action": "check", "min": [-28, 26.3, -24], "max": [-16, 26.5, -16] },
-    {
-      "action": "move",
-      "direction": [0, -1],
-      "ticks": 5,
-      "run": false,
-      "jump": false
-    },
-    {
-      "action": "move",
-      "direction": [1, 0],
-      "ticks": 26,
-      "run": false,
-      "jump": false
-    },
-    {
-      "action": "move",
-      "direction": [1, 0],
-      "ticks": 20,
-      "run": true,
-      "jump": true
-    },
+    { "action": "move", "direction": [0, -1], "ticks": 5, "jump": false },
+    { "action": "move", "direction": [1, 0], "ticks": 26, "jump": false },
+    { "action": "move", "direction": [1, 0], "ticks": 20, "jump": true },
     { "action": "advance", "ticks": 15 },
     { "action": "check", "min": [-12, 26.3, -24], "max": [-8, 26.6, -20] },
-    {
-      "action": "move",
-      "direction": [1, 0],
-      "ticks": 70,
-      "run": true,
-      "jump": false
-    },
+    { "action": "move", "direction": [1, 0], "ticks": 70, "jump": false },
     { "action": "check", "min": [4, 26.3, -24], "max": [16, 26.5, -12] },
-    {
-      "action": "move",
-      "direction": [0, 1],
-      "ticks": 45,
-      "run": false,
-      "jump": false
-    },
+    { "action": "move", "direction": [0, 1], "ticks": 45, "jump": false },
     { "action": "aim", "target": [10, 13.2, -8] },
     { "action": "portal", "end": "a" },
     { "action": "advance", "ticks": 4 },
     { "action": "aim", "target": [23.9, 23.6, 10] },
     { "action": "portal", "end": "b" },
-    {
-      "action": "move",
-      "direction": [0, 1],
-      "ticks": 20,
-      "run": false,
-      "jump": false
-    },
+    { "action": "move", "direction": [0, 1], "ticks": 20, "jump": false },
     { "action": "advance", "ticks": 65 },
     { "action": "check", "min": [0, 17.5, 8], "max": [16, 17.7, 16] },
-    {
-      "action": "move",
-      "direction": [1, 0],
-      "ticks": 19,
-      "run": false,
-      "jump": false
-    },
-    {
-      "action": "move",
-      "direction": [0, 1],
-      "ticks": 30,
-      "run": false,
-      "jump": false
-    },
+    { "action": "move", "direction": [1, 0], "ticks": 19, "jump": false },
+    { "action": "move", "direction": [0, 1], "ticks": 30, "jump": false },
     { "action": "aim", "target": [10, 0, 20] },
     { "action": "portal", "end": "a" },
     { "action": "advance", "ticks": 4 },
     { "action": "aim", "target": [30, 8.8, 30] },
     { "action": "portal", "end": "b" },
-    {
-      "action": "move",
-      "direction": [0, 1],
-      "ticks": 19,
-      "run": false,
-      "jump": false
-    },
+    { "action": "move", "direction": [0, 1], "ticks": 19, "jump": false },
     { "action": "advance", "ticks": 40 },
-    {
-      "action": "move",
-      "direction": [1, 0],
-      "ticks": 25,
-      "run": true,
-      "jump": false
-    },
+    { "action": "move", "direction": [1, 0], "ticks": 25, "jump": false },
     { "action": "advance", "ticks": 30 },
     { "action": "check", "min": [36, 21.9, 28], "max": [44, 22.2, 36] },
     { "action": "move", "direction": [1, 0], "ticks": 28 },
     { "action": "move", "direction": [0, 1], "ticks": 20 },
-    {
-      "action": "move",
-      "direction": [1, 1],
-      "ticks": 26,
-      "run": true,
-      "jump": true
-    },
+    { "action": "move", "direction": [1, 1], "ticks": 26, "jump": true },
     { "action": "advance", "ticks": 10 },
     { "action": "check", "min": [48, 21.9, 36], "max": [60, 22.2, 44] },
     { "action": "move", "direction": [1, 0], "ticks": 31 },

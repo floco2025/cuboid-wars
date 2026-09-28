@@ -7,15 +7,19 @@ use std::{
 
 use bevy_math::{Mat3, Quat, Vec3};
 use rapier3d::{
-    parry::{query::intersection_test, shape::Cuboid},
-    prelude::{Pose, SharedShape, Vector},
+    parry::{
+        query::intersection_test,
+        shape::{ConvexPolyhedron, Cuboid},
+    },
+    prelude::{Pose, Vector},
 };
 
 use super::PortalFrame;
 use crate::{
+    config::{PortalSize, PortalsConfig},
     constants::{
-        PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
-        PORTAL_PLATE_CLEARANCE, PORTAL_RIM_SCALE, PORTAL_STANDABLE_NORMAL_Y,
+        PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_LIGHT_CLEARANCE, PORTAL_PLATE_CLEARANCE, PORTAL_RIM_SCALE,
+        PORTAL_STANDABLE_NORMAL_Y,
     },
     map::Carriers,
     math::{direction_from_yaw_pitch, rapier_pose},
@@ -66,7 +70,7 @@ pub fn compute_portal_placement(
     origin: Vec3,
     direction: Vec3,
     yaw: f32,
-    range: f32,
+    config: &PortalsConfig,
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
     carriers: &Carriers,
@@ -74,7 +78,7 @@ pub fn compute_portal_placement(
     textures: &BTreeMap<String, TextureSettings>,
 ) -> Result<PortalPlacement, PortalPlacementFailure> {
     let hit = collision_world
-        .portal_surface_along_ray(origin, direction, range, open_fields)
+        .portal_surface_along_ray(origin, direction, config.range, open_fields)
         .ok_or(PortalPlacementFailure::InvalidPlacement)?;
     let yaw = portal_placement_yaw(hit.normal, yaw);
     let impact = PortalPlacement {
@@ -83,10 +87,21 @@ pub fn compute_portal_placement(
         yaw,
         carrier: hit.carrier,
     };
-    let frame = PortalFrame::from_surface(hit.point, hit.normal, yaw);
-    let (pos, carrier) = portal_fits(&frame, collision_world, map_layout, carriers, open_fields)
+    let frame = PortalFrame::from_surface(hit.point, hit.normal, yaw, config.size);
+    let front = front_clearance_shape(config.size).ok_or(PortalPlacementFailure::InvalidPlacement)?;
+    let (pos, carrier) = portal_fits(&frame, collision_world, map_layout, carriers, open_fields, &front)
         .map(|carrier| (hit.point, carrier))
-        .or_else(|| nudged_center(&frame, collision_world, map_layout, carriers, open_fields, |_| true))
+        .or_else(|| {
+            nudged_center(
+                &frame,
+                collision_world,
+                map_layout,
+                carriers,
+                open_fields,
+                &front,
+                |_| true,
+            )
+        })
         .ok_or(PortalPlacementFailure::InvalidPlacement)?;
     // Space wins over material feedback, including shots that need a placement nudge.
     if !collision_world.portal_surface_allows(&hit, map_layout, textures) {
@@ -103,6 +118,7 @@ pub fn compute_portal_placement(
         map_layout,
         carriers,
         open_fields,
+        &front,
         materials_allow,
     )
     .ok_or(PortalPlacementFailure::IncompatibleMaterial(impact))?;
@@ -135,6 +151,7 @@ fn nudged_center(
     map_layout: &MapLayout,
     carriers: &Carriers,
     open_fields: &[FieldId],
+    front: &ConvexPolyhedron,
     accepts: impl Fn(&PortalFrame) -> bool,
 ) -> Option<(Vec3, CarrierId)> {
     let steps = (NUDGE_MAX_DISTANCE / NUDGE_STEP) as usize;
@@ -144,7 +161,7 @@ fn nudged_center(
             let angle = FRAC_PI_2 + direction as f32 / NUDGE_DIRECTIONS as f32 * TAU;
             let center = frame.center + frame.right * (radius * angle.cos()) + frame.up * (radius * angle.sin());
             let candidate = PortalFrame { center, ..*frame };
-            if let Some(carrier) = portal_fits(&candidate, collision_world, map_layout, carriers, open_fields)
+            if let Some(carrier) = portal_fits(&candidate, collision_world, map_layout, carriers, open_fields, front)
                 && accepts(&candidate)
             {
                 return Some((center, carrier));
@@ -175,18 +192,14 @@ fn portal_fits(
     map_layout: &MapLayout,
     carriers: &Carriers,
     open_fields: &[FieldId],
+    front: &ConvexPolyhedron,
 ) -> Option<CarrierId> {
     // Sweep the oval itself so geometry outside the visible rim cannot make
     // a portal float above a ramp, while geometry crossing the opening still
     // rejects between the backing probes.
     let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
     let front_center = frame.center + frame.normal * (FIT_FRONT_GAP + FIT_FRONT_DEPTH / 2.0);
-    if collision_world.oriented_shape_overlaps_surface(
-        front_center,
-        rotation,
-        front_clearance_shape().as_ref(),
-        open_fields,
-    ) {
+    if collision_world.oriented_shape_overlaps_surface(front_center, rotation, front, open_fields) {
         return None;
     }
     // Each sample must meet a surface parallel to the shot face, and every
@@ -225,32 +238,37 @@ fn portal_fits(
     backing
 }
 
-fn front_clearance_shape() -> &'static SharedShape {
-    static SHAPE: OnceLock<SharedShape> = OnceLock::new();
-    SHAPE.get_or_init(|| {
-        let mut points = Vec::with_capacity(FIT_FRONT_RIM_SEGMENTS * 2);
-        for depth in [-FIT_FRONT_DEPTH / 2.0, FIT_FRONT_DEPTH / 2.0] {
-            for i in 0..FIT_FRONT_RIM_SEGMENTS {
-                let angle = i as f32 / FIT_FRONT_RIM_SEGMENTS as f32 * TAU;
-                points.push(Vector::new(
-                    PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE * angle.cos(),
-                    PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE * angle.sin(),
-                    depth,
-                ));
+// Build topology once; resizing a shot only scales its vertices and normals.
+fn front_clearance_shape(size: PortalSize) -> Option<ConvexPolyhedron> {
+    static SHAPE: OnceLock<ConvexPolyhedron> = OnceLock::new();
+    SHAPE
+        .get_or_init(|| {
+            let mut points = Vec::with_capacity(FIT_FRONT_RIM_SEGMENTS * 2);
+            for depth in [-FIT_FRONT_DEPTH / 2.0, FIT_FRONT_DEPTH / 2.0] {
+                for i in 0..FIT_FRONT_RIM_SEGMENTS {
+                    let angle = i as f32 / FIT_FRONT_RIM_SEGMENTS as f32 * TAU;
+                    points.push(Vector::new(
+                        PORTAL_RIM_SCALE * angle.cos(),
+                        PORTAL_RIM_SCALE * angle.sin(),
+                        depth,
+                    ));
+                }
             }
-        }
-        SharedShape::convex_hull(&points).expect("portal front-clearance hull is degenerate")
-    })
+            ConvexPolyhedron::from_convex_hull(&points).expect("portal front-clearance hull is degenerate")
+        })
+        .clone()
+        .scaled(Vector::new(size.half_width(), size.half_height(), 1.0))
 }
 
 fn aperture_samples(frame: &PortalFrame) -> impl Iterator<Item = Vec3> {
     let center = frame.center;
+    let size = frame.size;
     let (right, up) = (frame.right, frame.up);
     once(center).chain((0..FIT_RIM_SAMPLES).map(move |i| {
         let angle = i as f32 / FIT_RIM_SAMPLES as f32 * TAU;
         center
-            + right * (PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE * angle.cos())
-            + up * (PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE * angle.sin())
+            + right * (size.half_width() * PORTAL_RIM_SCALE * angle.cos())
+            + up * (size.half_height() * PORTAL_RIM_SCALE * angle.sin())
     }))
 }
 
@@ -272,8 +290,8 @@ fn fixture_blocks(frame: &PortalFrame, fixture: Vec3, clearance: f32) -> bool {
     if offset.dot(frame.normal).abs() > PORTAL_FIXTURE_PLANE_DEPTH {
         return false;
     }
-    let across = offset.dot(frame.right) / (PORTAL_HALF_WIDTH + clearance);
-    let along_up = offset.dot(frame.up) / (PORTAL_HALF_HEIGHT + clearance);
+    let across = offset.dot(frame.right) / (frame.size.half_width() + clearance);
+    let along_up = offset.dot(frame.up) / (frame.size.half_height() + clearance);
     across * across + along_up * along_up <= 1.0
 }
 
@@ -282,21 +300,28 @@ const PORTAL_OVERLAP_HALF_DEPTH: f32 = 0.05;
 // Whether the candidate crosses another end where the ends are right now;
 // an end that later rides its carrier into a static one is not foreseen.
 #[must_use]
-pub fn portal_placement_overlaps(candidate: &Portal, existing: &[Portal], carriers: &Carriers) -> bool {
-    let frame = PortalFrame::from_portal(candidate, carriers);
+pub fn portal_placement_overlaps(
+    candidate: &Portal,
+    existing: &[Portal],
+    carriers: &Carriers,
+    size: PortalSize,
+) -> bool {
+    let frame = PortalFrame::from_portal(candidate, carriers, size);
     existing.iter().any(|portal| {
         (portal.pair, portal.end) != (candidate.pair, candidate.end)
-            && portal_frames_overlap(&frame, &PortalFrame::from_portal(portal, carriers))
+            && portal_frames_overlap(&frame, &PortalFrame::from_portal(portal, carriers, size))
     })
 }
 
 fn portal_frames_overlap(a: &PortalFrame, b: &PortalFrame) -> bool {
-    let shape = Cuboid::new(Vector::new(
-        PORTAL_HALF_WIDTH,
-        PORTAL_HALF_HEIGHT,
-        PORTAL_OVERLAP_HALF_DEPTH,
-    ));
-    intersection_test(&portal_pose(a), &shape, &portal_pose(b), &shape).is_ok_and(|overlaps| overlaps)
+    let shape = |frame: &PortalFrame| {
+        Cuboid::new(Vector::new(
+            frame.size.half_width(),
+            frame.size.half_height(),
+            PORTAL_OVERLAP_HALF_DEPTH,
+        ))
+    };
+    intersection_test(&portal_pose(a), &shape(a), &portal_pose(b), &shape(b)).is_ok_and(|overlaps| overlaps)
 }
 
 fn portal_pose(frame: &PortalFrame) -> Pose {

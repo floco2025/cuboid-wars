@@ -21,7 +21,7 @@ pub use geometry::MapGeometryConfig;
 pub use missiles::MissilesConfig;
 pub use movement::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig};
 pub use network::{NetworkConfig, UpdateCadence};
-pub use portals::PortalsConfig;
+pub use portals::{PortalFunnelConfig, PortalSize, PortalsConfig};
 pub use projectiles::{MultiShotConfig, MultiShotPatternConfig, ProjectilesConfig};
 pub use switch::{SwitchActivation, SwitchConfig, SwitchHold};
 pub use validation::{deserialize_required_option, validate_non_negative_finite, validate_positive_finite};

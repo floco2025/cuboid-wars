@@ -49,10 +49,10 @@ impl Executor {
             Action::Move {
                 direction,
                 ticks,
-                run,
+                crouch,
                 jump,
             } => {
-                self.session.begin_move(direction, run, jump);
+                self.session.begin_move(direction, crouch, jump);
                 self.remaining = ticks;
                 return Ok(());
             }

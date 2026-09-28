@@ -93,7 +93,7 @@ pub fn input_portal_system(
         origin,
         direction,
         aim.yaw,
-        world.gameplay_config.portals.range,
+        &world.gameplay_config.portals,
         &world.collision_world,
         &world.map_layout,
         &world.carriers,
@@ -101,7 +101,14 @@ pub fn input_portal_system(
         &world.map_settings.textures,
     );
     let existing = world.portals.wire_portals();
-    let Some(result) = portal_shot_result(placement, pair, end, &existing, &world.carriers) else {
+    let Some(result) = portal_shot_result(
+        placement,
+        pair,
+        end,
+        &existing,
+        &world.carriers,
+        world.gameplay_config.portals.size,
+    ) else {
         play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
         return;
     };
@@ -119,11 +126,12 @@ fn portal_shot_result(
     end: PortalEnd,
     existing: &[Portal],
     carriers: &Carriers,
+    size: common::config::PortalSize,
 ) -> Option<PortalShotResult> {
     match placement {
         Ok(placement) => {
             let portal = placement.portal(pair, end, carriers);
-            (!portal_placement_overlaps(&portal, existing, carriers)).then_some(PortalShotResult::Placed(portal))
+            (!portal_placement_overlaps(&portal, existing, carriers, size)).then_some(PortalShotResult::Placed(portal))
         }
         Err(PortalPlacementFailure::IncompatibleMaterial(impact)) => {
             Some(PortalShotResult::Fizzled(impact.portal(pair, end, carriers)))

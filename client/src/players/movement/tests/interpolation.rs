@@ -17,12 +17,7 @@ fn sample(seq: u32, x: f32, portal_crossing: u32) -> PlayerMove {
         generation: PlayerGeneration(1),
         seq,
         portal_crossing,
-        movement: PlayerMovementState::new(
-            Position { x, ..default() },
-            PlayerMoveIntent::Running { direction: 0.0 },
-            0.0,
-            0.0,
-        ),
+        movement: PlayerMovementState::new(Position { x, ..default() }, PlayerMoveIntent::moving(0.0), 0.0, 0.0),
     }
 }
 

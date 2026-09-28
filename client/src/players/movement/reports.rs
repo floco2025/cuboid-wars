@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::{NetworkConfig, UpdateCadence},
     map::Carriers,
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
+    physics::{CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity},
     protocol::{
         CMove, CarrierId, ClientMessage, FaceYaw, PlayerGeneration, PlayerMoveIntent, PlayerMovementState, Position,
     },
@@ -91,9 +91,10 @@ pub fn report_player_movement_system(
             &PlayerMoveIntent,
             &FaceYaw,
             &CharacterVerticalVelocity,
-            &AirborneMomentum,
+            &HorizontalVelocity,
             &KnockbackVelocity,
             &LocalMovementStep,
+            &common::protocol::PlayerStance,
         ),
         With<LocalPlayerMarker>,
     >,
@@ -101,10 +102,10 @@ pub fn report_player_movement_system(
     if local.is_dead {
         return;
     }
-    let Ok((pos, intent, yaw, vertical, momentum, knockback, step)) = query.single() else {
+    let Ok((pos, intent, yaw, vertical, momentum, knockback, step, stance)) = query.single() else {
         return;
     };
-    let movement = player_movement_state(*pos, *intent, yaw, vertical, momentum, knockback, step.support);
+    let movement = player_movement_state(*pos, *intent, yaw, vertical, momentum, knockback, step.support, *stance);
     if let Some(report) = local.reports.movement_report(
         cadence.get_or_insert_with(|| network.update_cadence()),
         movement,

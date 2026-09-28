@@ -432,7 +432,7 @@ fn snapshot_player_uses_same_status_fields_as_status_message() {
     info.add_missiles(2, 3);
     let id = PlayerId(7);
     let pos = Position { x: 1.0, y: 2.0, z: 3.0 };
-    let move_intent = PlayerMoveIntent::Running { direction: 0.25 };
+    let move_intent = PlayerMoveIntent::moving(0.25);
     let face_yaw = 1.5;
     let health = Health(42.0);
     let vertical_velocity = -3.0;

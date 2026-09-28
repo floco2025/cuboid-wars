@@ -14,7 +14,7 @@ struct Climber {
     physics: CharacterPhysicsConfig,
     position: Position,
     vertical_velocity: f32,
-    momentum: AirborneMomentum,
+    momentum: HorizontalVelocity,
     tick: u32,
 }
 
@@ -77,7 +77,7 @@ impl Climber {
             carriers,
             physics,
             vertical_velocity: 0.0,
-            momentum: AirborneMomentum::default(),
+            momentum: HorizontalVelocity::default(),
             tick: 0,
         }
     }

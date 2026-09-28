@@ -122,7 +122,13 @@ pub fn spawn_player(
 
     let mut children = vec![];
 
-    children.push(spawn_character_bounds(commands, meshes, materials, player_physics));
+    children.push(spawn_character_bounds(
+        commands,
+        meshes,
+        materials,
+        player_physics,
+        true,
+    ));
 
     let model = commands
         .spawn((

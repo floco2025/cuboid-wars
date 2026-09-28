@@ -1,8 +1,8 @@
 use super::*;
 
 #[test]
-fn move_intents_reject_only_non_finite_directions() {
-    assert!(PlayerMoveIntent::Idle.is_finite());
+fn move_intents_reject_non_finite_view_and_axes() {
+    assert!(PlayerMoveIntent::NONE.is_finite());
     for (direction, finite) in [
         (0.0, true),
         (-2.5, true),
@@ -11,8 +11,19 @@ fn move_intents_reject_only_non_finite_directions() {
         (f32::NEG_INFINITY, false),
     ] {
         for intent in [
-            PlayerMoveIntent::Walking { direction },
-            PlayerMoveIntent::Running { direction },
+            PlayerMoveIntent::moving(direction),
+            PlayerMoveIntent {
+                pitch: direction,
+                ..PlayerMoveIntent::NONE
+            },
+            PlayerMoveIntent {
+                forward: direction,
+                ..PlayerMoveIntent::NONE
+            },
+            PlayerMoveIntent {
+                sideways: direction,
+                ..PlayerMoveIntent::NONE
+            },
         ] {
             assert_eq!(intent.is_finite(), finite, "{intent:?}");
         }

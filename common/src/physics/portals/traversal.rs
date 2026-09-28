@@ -7,17 +7,13 @@ use rapier3d::{
 
 use super::PortalFrame;
 use crate::{
-    config::{CharacterPhysicsConfig, GameplayConfig, MapMovementConfig},
-    constants::{
-        PORTAL_FUNNEL_CAPTURE_MARGIN, PORTAL_FUNNEL_GAIN, PORTAL_FUNNEL_MAX_SPEED, PORTAL_FUNNEL_MIN_APPROACH,
-        PORTAL_FUNNEL_RELEASE_SPEED, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_KNOCKBACK_CARRY_FACTOR,
-        PORTAL_STANDABLE_NORMAL_Y,
-    },
+    config::{CharacterPhysicsConfig, GameplayConfig, MapMovementConfig, PortalSize},
+    constants::PORTAL_KNOCKBACK_CARRY_FACTOR,
     map::Carriers,
     math::{direction_from_yaw_pitch, to_rapier},
     physics::{
-        AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_movement_center,
-        character_movement_shape, player_control_velocity,
+        CharacterVerticalVelocity, CollisionWorld, HorizontalVelocity, KnockbackVelocity, character_movement_center,
+        character_movement_shape,
     },
     protocol::{CarrierId, FaceYaw, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
 };
@@ -53,16 +49,15 @@ pub fn traverse_rotation(entry: &PortalFrame, exit: &PortalFrame) -> Quat {
 
 #[must_use]
 pub fn traverse_move_intent(entry: &PortalFrame, exit: &PortalFrame, intent: PlayerMoveIntent) -> PlayerMoveIntent {
-    // The server keeps using the last intent until another CMove arrives; it
-    // must point out of the exit immediately instead of re-entering it.
-    match intent {
-        PlayerMoveIntent::Idle => PlayerMoveIntent::Idle,
-        PlayerMoveIntent::Walking { direction } => PlayerMoveIntent::Walking {
-            direction: traverse_yaw(entry, exit, direction),
+    let view = traverse_vector(entry, exit, direction_from_yaw_pitch(intent.yaw, intent.pitch));
+    PlayerMoveIntent {
+        yaw: if view.x * view.x + view.z * view.z > 0.01 {
+            view.x.atan2(view.z)
+        } else {
+            traverse_yaw(entry, exit, intent.yaw)
         },
-        PlayerMoveIntent::Running { direction } => PlayerMoveIntent::Running {
-            direction: traverse_yaw(entry, exit, direction),
-        },
+        pitch: view.y.clamp(-1.0, 1.0).asin(),
+        ..intent
     }
 }
 
@@ -82,8 +77,8 @@ pub fn traverse_yaw(entry: &PortalFrame, exit: &PortalFrame, yaw: f32) -> f32 {
 }
 
 fn in_aperture(offset_from_center: Vec3, frame: &PortalFrame) -> bool {
-    let across = offset_from_center.dot(frame.right) / PORTAL_HALF_WIDTH;
-    let along_up = offset_from_center.dot(frame.up) / PORTAL_HALF_HEIGHT;
+    let across = offset_from_center.dot(frame.right) / frame.size.half_width();
+    let along_up = offset_from_center.dot(frame.up) / frame.size.half_height();
     across * across + along_up * along_up <= 1.0
 }
 
@@ -92,11 +87,11 @@ fn in_aperture(offset_from_center: Vec3, frame: &PortalFrame) -> bool {
 // to a sliver of the visible width. The forgiving gate keeps the whole
 // drawn width walkable; projectiles keep the exact oval.
 fn in_character_aperture(offset_from_center: Vec3, frame: &PortalFrame) -> bool {
-    offset_from_center.dot(frame.right).abs() <= PORTAL_HALF_WIDTH
-        && offset_from_center.dot(frame.up).abs() <= PORTAL_HALF_HEIGHT
+    offset_from_center.dot(frame.right).abs() <= frame.size.half_width()
+        && offset_from_center.dot(frame.up).abs() <= frame.size.half_height()
 }
 
-fn body_support(shape: &impl SupportMap, direction: Vec3) -> f32 {
+pub(super) fn body_support(shape: &impl SupportMap, direction: Vec3) -> f32 {
     let direction = to_rapier(direction);
     shape.local_support_point(direction).dot(direction)
 }
@@ -109,11 +104,9 @@ fn corridor_reach(shape: &Capsule, frame: &PortalFrame) -> f32 {
 }
 
 pub struct PlayerHopBody<'a> {
-    pub move_intent: PlayerMoveIntent,
-    pub has_speed: bool,
-    pub stunned: bool,
+    pub stance: crate::protocol::PlayerStance,
     pub knockback: &'a KnockbackVelocity,
-    pub airborne_momentum: &'a AirborneMomentum,
+    pub horizontal_velocity: &'a HorizontalVelocity,
     pub vertical_velocity: f32,
     pub yaw: f32,
 }
@@ -122,13 +115,14 @@ pub struct PlayerHopBody<'a> {
 pub struct CharacterHopBody {
     pub control_velocity: Vec3,
     pub knockback: Vec3,
-    pub airborne_momentum: Vec3,
+    pub horizontal_velocity: Vec3,
     pub vertical_velocity: f32,
     pub yaw: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterPortalHop {
+    pub force_crouch: bool,
     // New entity origin (feet): the entry pose mapped continuously through
     // the pair — aperture offset carried (clamped to keep the body inside
     // the exit aperture) and the crossing penetration carried, so
@@ -140,7 +134,7 @@ pub struct CharacterPortalHop {
     pub knockback: Vec3,
     // Non-blast horizontal velocity carried through the portal. It persists
     // in the air so a launch keeps its mapped angle.
-    pub airborne_momentum: Vec3,
+    pub horizontal_velocity: Vec3,
     // The gate that was crossed, for camera view mapping.
     pub entry: PortalFrame,
     pub exit: PortalFrame,
@@ -153,16 +147,25 @@ impl CharacterPortalHop {
         face_yaw: &mut FaceYaw,
         vertical_velocity: &mut CharacterVerticalVelocity,
         move_intent: &mut PlayerMoveIntent,
+        stance: &mut crate::protocol::PlayerStance,
     ) {
+        if self.force_crouch {
+            stance.crouched = true;
+            stance.fraction = 1.0;
+        }
         *position = self.origin.into();
         face_yaw.0 = self.yaw;
         vertical_velocity.0 = self.vertical_velocity;
         *move_intent = traverse_move_intent(&self.entry, &self.exit, *move_intent);
     }
 
-    pub fn apply_motion_components(&self, knockback: &mut KnockbackVelocity, airborne_momentum: &mut AirborneMomentum) {
+    pub fn apply_motion_components(
+        &self,
+        knockback: &mut KnockbackVelocity,
+        horizontal_velocity: &mut HorizontalVelocity,
+    ) {
         knockback.0 = self.knockback;
-        airborne_momentum.0 = self.airborne_momentum;
+        horizontal_velocity.0 = self.horizontal_velocity;
     }
 }
 
@@ -183,16 +186,16 @@ pub struct ProjectileHop<'a> {
 // aperture, the backing is excluded from its collision and support queries
 // — that is what makes the surface passable.
 #[derive(Debug, Clone)]
-struct PortalGate {
+pub(super) struct PortalGate {
     portal: Portal,
-    frame: PortalFrame,
-    backing: Vec<ColliderHandle>,
+    pub(super) frame: PortalFrame,
+    pub(super) backing: Vec<ColliderHandle>,
     // How far the gate's carrier moved this tick, zero on the world. A
     // crossing is motion relative to the plane, so a body's previous
     // position is shifted by this before the test; without it a rising
     // plane misses crossings and a body a descending plane sweeps through
     // is never caught.
-    carry: Vec3,
+    pub(super) carry: Vec3,
 }
 
 // The gate a body straddles, with both ends' frames where they are drawn.
@@ -210,7 +213,7 @@ impl PortalGate {
         if self.portal.carrier.is_world() {
             self.frame
         } else {
-            PortalFrame::from_portal_between(&self.portal, carriers, alpha)
+            PortalFrame::from_portal_between(&self.portal, carriers, alpha, self.frame.size)
         }
     }
 }
@@ -250,7 +253,12 @@ impl PortalSet {
     // sides derive them from the same world at the same tick, so the sets
     // agree.
     #[must_use]
-    pub fn rebuild(portals: &[Portal], collision_world: &CollisionWorld, carriers: &Carriers) -> Self {
+    pub fn rebuild(
+        portals: &[Portal],
+        collision_world: &CollisionWorld,
+        carriers: &Carriers,
+        size: PortalSize,
+    ) -> Self {
         let mut portals = portals.to_vec();
         portals.sort_by_key(|portal| (portal.pair.0, portal.end == PortalEnd::B));
         let mut pairs = Vec::new();
@@ -262,8 +270,8 @@ impl PortalSet {
                 continue;
             };
             pairs.push(PortalPairGates {
-                a: gate_from_portal(a, collision_world, carriers),
-                b: gate_from_portal(b, collision_world, carriers),
+                a: gate_from_portal(a, collision_world, carriers, size),
+                b: gate_from_portal(b, collision_world, carriers, size),
             });
         }
         Self { pairs }
@@ -274,7 +282,7 @@ impl PortalSet {
         for pair in &mut self.pairs {
             for gate in [&mut pair.a, &mut pair.b] {
                 if !gate.portal.carrier.is_world() {
-                    gate.frame = PortalFrame::from_portal(&gate.portal, carriers);
+                    gate.frame = PortalFrame::from_portal(&gate.portal, carriers, gate.frame.size);
                     gate.carry = carriers.displacement(gate.portal.carrier);
                 }
             }
@@ -302,22 +310,37 @@ impl PortalSet {
         movement: &MapMovementConfig,
         body: PlayerHopBody<'_>,
     ) -> Option<CharacterPortalHop> {
-        self.character_hop(
+        let mut hop = self.character_hop(
             from,
             to,
-            gameplay_config.player.physics(),
+            body.stance.physics(&gameplay_config.player),
             CharacterHopBody {
-                control_velocity: player_control_velocity(body.move_intent, movement, body.has_speed, body.stunned),
+                control_velocity: Vec3::ZERO,
                 knockback: body.knockback.0,
-                airborne_momentum: body.airborne_momentum.0,
+                horizontal_velocity: body.horizontal_velocity.0,
                 vertical_velocity: body.vertical_velocity,
                 yaw: body.yaw,
             },
             PORTAL_KNOCKBACK_CARRY_FACTOR * movement.knockback.max_speed,
-        )
+        )?;
+        // Rotating an upright body more than 30 degrees needs the shorter hull
+        // at the exit. Preserve its centre, as with an airborne manual duck.
+        if !body.stance.crouched
+            && traverse_vector(&hop.entry, &hop.exit, Vec3::Y).y.abs() < std::f32::consts::FRAC_PI_6.cos()
+        {
+            let old = body.stance.physics(&gameplay_config.player);
+            let crouched = crate::protocol::PlayerStance {
+                crouched: true,
+                fraction: 1.0,
+            }
+            .physics(&gameplay_config.player);
+            hop.origin.y += (old.movement_collider.height - crouched.movement_collider.height) * 0.5;
+            hop.force_crouch = true;
+        }
+        Some(hop)
     }
 
-    fn gates(&self) -> impl Iterator<Item = (&PortalGate, &PortalGate)> {
+    pub(super) fn gates(&self) -> impl Iterator<Item = (&PortalGate, &PortalGate)> {
         self.pairs
             .iter()
             .flat_map(|pair| [(&pair.a, &pair.b), (&pair.b, &pair.a)])
@@ -463,7 +486,7 @@ impl PortalSet {
         let CharacterHopBody {
             control_velocity,
             knockback,
-            airborne_momentum,
+            horizontal_velocity,
             vertical_velocity,
             yaw,
         } = body;
@@ -476,7 +499,7 @@ impl PortalSet {
         let shape = character_movement_shape(physics);
         let center_offset = character_movement_center(Position::default(), physics);
         let center_to = to + center_offset;
-        let portal_velocity = airborne_momentum + Vec3::Y * vertical_velocity;
+        let portal_velocity = horizontal_velocity + Vec3::Y * vertical_velocity;
         let velocity = control_velocity + knockback + portal_velocity;
         for (entry_gate, exit_gate) in self.gates() {
             let entry = &entry_gate.frame;
@@ -493,80 +516,27 @@ impl PortalSet {
                 continue;
             }
             let offset = center_to - entry.center;
-            let across_limit = (PORTAL_HALF_WIDTH - body_support(&shape, exit.right)).max(0.0);
-            let up_limit = (PORTAL_HALF_HEIGHT - body_support(&shape, exit.up)).max(0.0);
+            let across_limit = (exit.size.half_width() - body_support(&shape, exit.right)).max(0.0);
+            let up_limit = (exit.size.half_height() - body_support(&shape, exit.up)).max(0.0);
             let exit_center = exit.center
                 + exit.right * (-offset.dot(entry.right)).clamp(-across_limit, across_limit)
                 + exit.up * offset.dot(entry.up).clamp(-up_limit, up_limit)
                 + exit.normal * (-to_distance);
             let mapped_velocity = traverse_vector(entry, exit, velocity);
-            let mapped_portal_velocity = traverse_vector(entry, exit, portal_velocity);
+            let mapped_portal_velocity = traverse_vector(entry, exit, portal_velocity + control_velocity);
             let mapped_knockback = traverse_vector(entry, exit, knockback);
             return Some(CharacterPortalHop {
+                force_crouch: false,
                 origin: exit_center - center_offset,
                 yaw: traverse_yaw(entry, exit, yaw),
                 vertical_velocity: mapped_velocity.y,
                 knockback: Vec3::new(mapped_knockback.x, 0.0, mapped_knockback.z).clamp_length_max(knockback_cap),
-                airborne_momentum: Vec3::new(mapped_portal_velocity.x, 0.0, mapped_portal_velocity.z),
+                horizontal_velocity: Vec3::new(mapped_portal_velocity.x, 0.0, mapped_portal_velocity.z),
                 entry: *entry,
                 exit: *exit,
             });
         }
         None
-    }
-
-    // Portal-2-style funneling: the horizontal pull toward the axis of a
-    // vertical-normal aperture the body is flying toward. The pull grows
-    // with the lateral offset, captures a little beyond the aperture rect
-    // (so a near-miss is gathered in), and disengages the moment the
-    // player steers — escaping a fall chain stays deliberate.
-    #[must_use]
-    pub fn funnel_displacement(
-        &self,
-        origin: Vec3,
-        physics: CharacterPhysicsConfig,
-        control_velocity: Vec3,
-        vertical_velocity: f32,
-        delta: f32,
-    ) -> Vec3 {
-        if self.pairs.is_empty() {
-            return Vec3::ZERO;
-        }
-        let steering = Vec3::new(control_velocity.x, 0.0, control_velocity.z).length() > PORTAL_FUNNEL_RELEASE_SPEED;
-        if steering {
-            return Vec3::ZERO;
-        }
-        let center = character_movement_center(origin.into(), physics);
-        for (gate, _) in self.gates() {
-            let normal = gate.frame.normal;
-            if normal.y.abs() <= PORTAL_STANDABLE_NORMAL_Y {
-                continue;
-            }
-            let approaching = if normal.y > 0.0 {
-                vertical_velocity < -PORTAL_FUNNEL_MIN_APPROACH
-            } else {
-                vertical_velocity > PORTAL_FUNNEL_MIN_APPROACH
-            };
-            if !approaching {
-                continue;
-            }
-            let offset = center - gate.frame.center;
-            if offset.dot(normal) <= 0.0 {
-                continue;
-            }
-            let captured = offset.dot(gate.frame.right).abs() <= PORTAL_HALF_WIDTH + PORTAL_FUNNEL_CAPTURE_MARGIN
-                && offset.dot(gate.frame.up).abs() <= PORTAL_HALF_HEIGHT + PORTAL_FUNNEL_CAPTURE_MARGIN;
-            if !captured {
-                continue;
-            }
-            let lateral = Vec3::new(offset.x, 0.0, offset.z);
-            let Some(direction) = lateral.try_normalize() else {
-                continue;
-            };
-            let speed = (lateral.length() * PORTAL_FUNNEL_GAIN).min(PORTAL_FUNNEL_MAX_SPEED);
-            return -direction * speed * delta;
-        }
-        Vec3::ZERO
     }
 
     // `delta` is the time left in the fixed tick: prior bounces have already consumed part of the portal's travel.
@@ -619,15 +589,20 @@ impl PortalSet {
     }
 }
 
-fn gate_from_portal(portal: &Portal, collision_world: &CollisionWorld, carriers: &Carriers) -> PortalGate {
-    let frame = PortalFrame::from_portal(portal, carriers);
+fn gate_from_portal(
+    portal: &Portal,
+    collision_world: &CollisionWorld,
+    carriers: &Carriers,
+    size: PortalSize,
+) -> PortalGate {
+    let frame = PortalFrame::from_portal(portal, carriers, size);
     // The backing is taken once, at this tick's pose: a rigid carrier keeps
     // the same colliders flush behind its aperture wherever it goes.
     let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
     let backing = collision_world.portal_backing_colliders(
         frame.center,
         frame.normal,
-        Vec3::new(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, BACKING_DEPTH / 2.0),
+        Vec3::new(size.half_width(), size.half_height(), BACKING_DEPTH / 2.0),
         rotation,
         portal.carrier,
     );

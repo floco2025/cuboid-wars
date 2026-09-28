@@ -1,8 +1,5 @@
 use super::*;
-use crate::{
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
-    map::{Grounds, GroundsSettings},
-};
+use crate::map::{Grounds, GroundsSettings};
 use bevy_math::{Mat3, Quat};
 use rapier3d::prelude::ColliderHandle;
 
@@ -28,7 +25,7 @@ fn floor_portal_backing(world: &CollisionWorld, center: Vec3) -> Vec<ColliderHan
     world.portal_backing_colliders(
         center,
         Vec3::Y,
-        Vec3::new(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, 0.25),
+        Vec3::new(0.7, 1.3, 0.25),
         Quat::from_mat3(&Mat3::from_cols(Vec3::X, Vec3::NEG_Z, Vec3::Y)),
         CarrierId::WORLD,
     )

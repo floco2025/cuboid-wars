@@ -105,7 +105,7 @@ class JumpReachTests(unittest.TestCase):
                     "jump_speed": 2,
                     "walk_speed": 0.5,
                     "run_speed": 1,
-                    "speed_power_up": 2,
+                    "move_speed_power_up": 2,
                 },
             },
         }

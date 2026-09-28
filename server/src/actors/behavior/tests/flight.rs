@@ -55,6 +55,7 @@ fn home(physics: CharacterPhysicsConfig, world: &CollisionWorld) -> AirHome {
 
 fn aware(pos: Position) -> AwarePlayer {
     AwarePlayer {
+        stance: Default::default(),
         id: PlayerId(1),
         pos,
         carrier: CarrierId::WORLD,

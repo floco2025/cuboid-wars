@@ -42,7 +42,7 @@ pub fn characters_movement_system(
             entity,
             *pos,
             info.life.movement.vertical_velocity,
-            gameplay_config.player.physics(),
+            info.life.movement.stance.physics(&gameplay_config.player),
         ))
     }));
     planned_moves.extend(ground_moves.0.iter().copied());

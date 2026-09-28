@@ -20,10 +20,15 @@ use common::{
 fn ok_movement() -> MapMovementConfig {
     MapMovementConfig {
         player: PlayerMovementConfig {
-            walk_speed: 6.0,
-            run_speed: 9.0,
-            speed_power_up: 1.6,
+            move_speed: 6.0,
+            move_speed_power_up: 1.6,
             jump_speed: 12.0,
+            ground_acceleration: 60.0,
+            ground_deceleration: 24.0,
+            ground_lateral_deceleration: 60.0,
+            air_acceleration: 5.0,
+            air_deceleration: 0.0,
+            air_lateral_deceleration: 0.0,
         },
         actors: [("scuttler", 3.0, 5.0), ("bruiser", 5.0, 8.0), ("zapper", 2.0, 4.0)]
             .into_iter()
@@ -250,9 +255,9 @@ fn validate_maps_rejects_non_positive_cell_size() {
 #[test]
 fn validate_maps_rejects_non_positive_player_speed() {
     let mut config = ok_config();
-    config.settings.movement.player.run_speed = 0.0;
+    config.settings.movement.player.move_speed = 0.0;
     let err = validate_config(&config, "hotel").expect_err("zero run speed must be rejected");
-    assert!(err.to_string().contains("movement.player.run_speed"));
+    assert!(err.to_string().contains("movement.player.move_speed"));
 }
 
 #[test]

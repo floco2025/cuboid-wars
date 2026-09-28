@@ -36,6 +36,7 @@ pub use map_layout::{
 };
 pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
+    PlayerStance,
 };
 pub use player_generation::PlayerGeneration;
 pub use portals::{Portal, PortalAccess, PortalEnd};

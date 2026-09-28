@@ -30,6 +30,7 @@ pub(crate) fn apply_player_moves(
             _,
             mut momentum,
             mut animation_motion,
+            mut stance,
             is_local,
         )) = query.get_mut(planned_move.entity)
         else {
@@ -42,18 +43,24 @@ pub(crate) fn apply_player_moves(
         let result = planned_move.result;
         *client_pos = result.position;
         motion.0 = result.vertical_velocity;
-        momentum.finish_step(&result);
+        momentum.0 = planned_move.horizontal_velocity;
+        *stance = planned_move.stance;
         if planned_move.hits_character {
             momentum.0 = Vec3::ZERO;
         }
         animation_motion.record_step(
             planned_move.start,
             &result,
-            planned_move.control_velocity,
+            if result.support == common::physics::CharacterSupport::Ladder {
+                planned_move.control_velocity
+            } else {
+                planned_move.horizontal_velocity
+            },
             planned_move.external_displacement,
             delta,
         );
         commands.entity(planned_move.entity).insert((
+            crate::characters::PreviousTickPosition(planned_move.start),
             result.grounding,
             LocalMovementStep {
                 start: planned_move.start,

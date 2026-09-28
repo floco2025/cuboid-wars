@@ -42,7 +42,7 @@ fn firing_sends_the_client_resolved_geometry_and_current_body_generation() {
         let mut player = Player::new(
             "Player".into(),
             Position::default(),
-            PlayerMoveIntent::Idle,
+            PlayerMoveIntent::NONE,
             0.0,
             0,
             Health(100.0),

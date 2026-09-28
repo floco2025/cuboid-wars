@@ -18,19 +18,24 @@ pub(super) struct CharacterBody {
 pub(super) fn contact_explosions_system(
     mut health: Query<&mut Health, With<ActorMarker>>,
     actors: Res<ActorMap>,
+    player_map: Res<crate::players::PlayerMap>,
     gameplay: Res<GameplayConfig>,
     config: Res<ServerGameplayConfig>,
     collision: Res<CollisionWorld>,
     switch_state: Res<SwitchState>,
-    players: Query<(Entity, &Position), With<PlayerMarker>>,
+    players: Query<(Entity, &Position, &common::protocol::PlayerId), With<PlayerMarker>>,
     actor_positions: Query<(Entity, &ActorId, &Position), With<ActorMarker>>,
 ) {
     let players: Vec<_> = players
         .iter()
-        .map(|(entity, pos)| CharacterBody {
+        .map(|(entity, pos, id)| CharacterBody {
             entity,
             pos: *pos,
-            physics: gameplay.player.physics(),
+            physics: player_map
+                .get(id)
+                .map(|info| info.life.movement.stance)
+                .unwrap_or_default()
+                .physics(&gameplay.player),
         })
         .collect();
     // Actors whose kind detonates on contact, with the kind's trigger gap.

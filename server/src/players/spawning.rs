@@ -111,7 +111,7 @@ pub(crate) fn place_player_body(
     tick: u32,
     portal_access: PortalAccess,
 ) {
-    let movement = PlayerMovementState::new(spawn.pos, PlayerMoveIntent::Idle, 0.0, spawn.face_yaw);
+    let movement = PlayerMovementState::new(spawn.pos, PlayerMoveIntent::NONE, 0.0, spawn.face_yaw);
     commands.entity(entity).insert((spawn.pos, FaceYaw(spawn.face_yaw)));
     if let Some(info) = players.get_mut(&id) {
         info.life.movement = movement;

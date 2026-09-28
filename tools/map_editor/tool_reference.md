@@ -63,7 +63,7 @@ Choose a tool in the left palette. **Place / Erase** switches between placing th
 ## Run Time
 
 - **Run Time** — Click any cell, including an empty one, to set a run origin. Every other cell on that level shows the seconds from the origin's centre to its own in a straight line: the upper number at run speed, the lower with the speed power-up. Hover shows both to two decimals. The origin has a white dashed outline; another click replaces it. Numbers and the legend stay visible while using other tools. **Clear** beside the legend or **Clear Run Time** in View removes them; Escape leaves them in place.
-- **Estimate** — Uses the map's `grid_cell_size`, `run_speed`, and `speed_power_up`, and the legend shows both speeds. Walls, obstacles, ramps, ladders, jumps, and platform motion are ignored, so the number is the shortest possible time. Numbers hide when cells are too small to hold them; hover still reports them. Movement settings reload automatically. Switching outer/nested geometry, replacing a document, resizing, or inserting/removing levels clears the origin.
+- **Estimate** — Uses the map's `grid_cell_size`, `run_speed`, and `move_speed_power_up`, and the legend shows both speeds. Walls, obstacles, ramps, ladders, jumps, and platform motion are ignored, so the number is the shortest possible time. Numbers hide when cells are too small to hold them; hover still reports them. Movement settings reload automatically. Switching outer/nested geometry, replacing a document, resizing, or inserting/removing levels clears the origin.
 
 ## Floors
 

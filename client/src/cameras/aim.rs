@@ -18,9 +18,9 @@ pub fn camera_aim_system(
     mut aim: ResMut<CameraAim>,
     view: Res<CameraViewMode>,
     camera: Query<(&Transform, &Projection), With<MainCameraMarker>>,
-    local_player: Query<&Position, With<LocalPlayerMarker>>,
+    local_player: Query<(&Position, &common::protocol::PlayerStance), With<LocalPlayerMarker>>,
     local_player_info: Res<LocalPlayerInfo>,
-    characters: Query<(&Position, &FaceYaw)>,
+    characters: Query<(&Position, &FaceYaw, Option<&common::protocol::PlayerStance>)>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
     me: Res<MyPlayerId>,
@@ -28,13 +28,13 @@ pub fn camera_aim_system(
     config: Res<GameplayConfig>,
     switch_state: Res<SwitchState>,
 ) {
-    let Ok(position) = local_player.single() else {
+    let Ok((position, stance)) = local_player.single() else {
         return;
     };
     let Ok((camera, Projection::Perspective(projection))) = camera.single() else {
         return;
     };
-    let eye = Vec3::new(position.x, position.y + config.player.eye_height(), position.z);
+    let eye = Vec3::new(position.x, position.y + stance.eye_height(&config.player), position.z);
     let crosshair_height_offset = if view.is_first_person() {
         0.0
     } else {
@@ -47,11 +47,11 @@ pub fn camera_aim_system(
             .iter()
             .filter(|(id, _)| **id != me.0)
             .filter_map(|(_, info)| {
-                let (pos, yaw) = characters.get(info.entity).ok()?;
-                Some((*pos, yaw.0, config.player.physics()))
+                let (pos, yaw, stance) = characters.get(info.entity).ok()?;
+                Some((*pos, yaw.0, stance.copied().unwrap_or_default().physics(&config.player)))
             })
             .chain(actors.iter().filter_map(|(_, info)| {
-                let (pos, yaw) = characters.get(info.entity).ok()?;
+                let (pos, yaw, _stance) = characters.get(info.entity).ok()?;
                 Some((*pos, yaw.0, config.expect_actor(&info.kind).physics()))
             }));
         third_person_aim(

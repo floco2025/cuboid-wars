@@ -20,11 +20,12 @@ def gameplay():
         "movement": {
             "gravity": 25,
             "low_gravity": 5,
-            "player": {"walk_speed": 6, "run_speed": 9, "speed_power_up": 1.5, "jump_speed": 12},
+            "player": {"walk_speed": 6, "run_speed": 9, "move_speed_power_up": 1.5, "jump_speed": 12},
         },
         "player_fall": {"safe_distance": 8, "lethal_distance": 15},
         "combat": {"health": {"player": {"max": 500}}},
         "portals": "both",
+        "weapons": {"portals": {"size": {"width": 1.4, "height": 2.6}}},
     }
 
 

@@ -23,9 +23,6 @@ WALL_ENTRY_SAMPLE_STEP = 1 / 120
 WALL_ENTRY_MAX_STEPS = 128
 # Match common/src/physics/characters/geometry.rs::character_movement_center.
 CHARACTER_CONTACT_OFFSET = 0.01
-# Keep aperture dimensions in sync with common/src/constants.rs.
-PORTAL_HALF_WIDTH = 0.7
-PORTAL_HALF_HEIGHT = 1.3
 PORTAL_RIM_SCALE = 1.06
 Vec3 = tuple[float, float, float]
 
@@ -39,6 +36,8 @@ class PortalSettings:
     movement: JumpSettings
     body_height: float
     body_radius: float
+    half_width: float
+    half_height: float
 
     @property
     def center_height(self):
@@ -51,6 +50,8 @@ class PortalSettings:
             movement,
             setting_number(settings, source, "player.movement_collider.height"),
             setting_number(settings, source, "player.movement_collider.diameter") / 2,
+            setting_number(settings, source, "weapons.portals.size.width") / 2,
+            setting_number(settings, source, "weapons.portals.size.height") / 2,
         )
 
     def scenarios(self, running):
@@ -95,7 +96,7 @@ class PortalSurface:
             horizontal = self.face in ("north", "south")
             center = (
                 (self.col + (0.5 if horizontal else 0)) * size + normal[0] * m.wall_thickness / 2,
-                y + PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE,
+                y + settings.half_height * PORTAL_RIM_SCALE,
                 (self.row + (0 if horizontal else 0.5)) * size + normal[2] * m.wall_thickness / 2,
             )
             up = (0, 1, 0)
@@ -223,7 +224,7 @@ def sampled_entries(states):
 
 def exit_frame(settings, frame, state):
     support = settings.body_height / 2 if frame.up[1] else settings.body_radius
-    limit = max(0, PORTAL_HALF_HEIGHT - support)
+    limit = max(0, settings.half_height - support)
     offset = max(-limit, min(limit, state.up_offset))
     return replace(frame, center=tuple(p + up * offset for p, up in zip(frame.center, frame.up)))
 
@@ -257,7 +258,7 @@ def entry_states(settings, origin, surface, data, *, running, jumping, margin, r
             # Reserve a small approach distance rather than testing near-equality of flight ranges.
             earliest = margin + (distance + (0 if front else ENTRY_APPROACH_MARGIN)) / speed
             for start, end in wall_entry_windows(
-                velocity, gravity, height - PORTAL_HALF_HEIGHT, height + PORTAL_HALF_HEIGHT, earliest
+                velocity, gravity, height - settings.half_height, height + settings.half_height, earliest
             ):
                 elevation, vertical = vertical_motion(velocity, gravity, start)
                 result.setdefault(bit, []).append(EntryState(start, vertical, speed, gravity, elevation - height, end))

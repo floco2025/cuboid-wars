@@ -120,7 +120,7 @@ impl PlayerLife {
     fn with_lifecycle(lifecycle: PlayerLifecycle) -> Self {
         Self {
             lifecycle,
-            movement: PlayerMovementState::new(Position::default(), PlayerMoveIntent::Idle, 0.0, 0.0),
+            movement: PlayerMovementState::new(Position::default(), PlayerMoveIntent::NONE, 0.0, 0.0),
             portal_crossing: 0,
             power_ups: [PowerUpState::Inactive; PowerUpKind::COUNT],
             stun_timer: 0.0,
@@ -146,6 +146,11 @@ pub struct PlayerInfo {
 }
 
 impl PlayerInfo {
+    #[must_use]
+    pub fn stance(&self) -> common::protocol::PlayerStance {
+        self.life.movement.stance
+    }
+
     #[must_use]
     pub fn new(entity: Entity, channel: Sender<ServerMessage>) -> Self {
         Self {
@@ -200,7 +205,7 @@ impl PlayerInfo {
 
     pub(crate) fn advance_body(&mut self) {
         self.session.generation = self.session.generation.next();
-        self.life.movement = PlayerMovementState::new(Position::default(), PlayerMoveIntent::Idle, 0.0, 0.0);
+        self.life.movement = PlayerMovementState::new(Position::default(), PlayerMoveIntent::NONE, 0.0, 0.0);
         self.life.portal_crossing = 0;
         self.life.outcomes = PendingOutcomes::default();
     }

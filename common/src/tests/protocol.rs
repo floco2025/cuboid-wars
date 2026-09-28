@@ -126,7 +126,7 @@ fn reliable_lane_carries_bootstrap_events_and_text() {
 
 #[test]
 fn movement_is_unreliable() {
-    let movement = PlayerMovementState::new(position(), PlayerMoveIntent::Idle, 0.0, 0.0);
+    let movement = PlayerMovementState::new(position(), PlayerMoveIntent::NONE, 0.0, 0.0);
     assert_eq!(
         ClientMessage::Move(CMove {
             generation: PlayerGeneration(0),
@@ -160,7 +160,7 @@ fn hotel_sized_snapshot_takes_the_retransmitted_channel() {
             Player {
                 generation: PlayerGeneration(0),
                 name: format!("Player {i}"),
-                movement: PlayerMovementState::new(position(), PlayerMoveIntent::Idle, 0.0, 0.0),
+                movement: PlayerMovementState::new(position(), PlayerMoveIntent::NONE, 0.0, 0.0),
                 health: Health(500.0),
                 score: 0,
                 power_ups: [false; PowerUpKind::COUNT],

@@ -21,6 +21,24 @@ use crate::{
 };
 
 impl CollisionWorld {
+    pub(crate) fn character_sweep_clear(
+        &self,
+        start: Position,
+        end: Position,
+        physics: CharacterPhysicsConfig,
+        open: &[FieldId],
+        excluded: &[ColliderHandle],
+    ) -> bool {
+        self.flight_cast(
+            &character_movement_pose(&start, physics),
+            Vec3::from(end) - Vec3::from(start),
+            physics,
+            open,
+            excluded,
+        )
+        .is_none()
+    }
+
     pub fn character_flight_path_clear(
         &self,
         start: Position,
@@ -88,6 +106,7 @@ impl CollisionWorld {
         let traveled = from_rapier(pose.translation - initial.translation);
         let position = Position::from(Vec3::from(start) + traveled);
         CharacterMovementResult {
+            contact_normals: [Default::default(); 5],
             grounding: GroundingDiagnostics::default(),
             position,
             vertical_velocity: traveled.y / delta,

@@ -66,20 +66,20 @@ fn walking_cannot_pass_a_wall_and_a_jump_requires_ground_support() {
         Action::Move {
             direction: [1.0, 0.0],
             ticks: 90,
-            run: false,
+            crouch: false,
             jump: false,
         },
         Action::Reset,
         Action::Move {
             direction: [0.0, 0.0],
             ticks: 1,
-            run: false,
+            crouch: false,
             jump: true,
         },
         Action::Move {
             direction: [0.0, 0.0],
             ticks: 1,
-            run: false,
+            crouch: false,
             jump: true,
         },
         Action::Check {
@@ -115,12 +115,18 @@ fn a_jump_clears_a_gap_that_walking_cannot() {
     }});
     script.layout = folder.path().join("gap.json");
     std::fs::write(&script.layout, layout.to_string()).expect("test map");
-    script.spawn = [-9.0, 0.0, -6.0];
+    script.spawn = [-11.0, 0.0, -6.0];
     script.actions = vec![
         Action::Move {
             direction: [1.0, 0.0],
+            ticks: 12,
+            crouch: false,
+            jump: false,
+        },
+        Action::Move {
+            direction: [1.0, 0.0],
             ticks: 28,
-            run: false,
+            crouch: false,
             jump: true,
         },
         Action::Advance { ticks: 10 },
@@ -132,18 +138,18 @@ fn a_jump_clears_a_gap_that_walking_cannot() {
     ];
     let jumping = script.run().expect("jump gap");
     assert_eq!(
-        jumping["steps"][2]["result"]["status"], "passed",
+        jumping["steps"][3]["result"]["status"], "passed",
         "{}",
-        jumping["steps"][2]
+        jumping["steps"][3]
     );
-    script.actions[0] = Action::Move {
+    script.actions[1] = Action::Move {
         direction: [1.0, 0.0],
         ticks: 28,
-        run: false,
+        crouch: false,
         jump: false,
     };
     let walking = script.run().expect("walk gap");
-    assert_eq!(walking["steps"][2]["result"]["status"], "failed");
+    assert_eq!(walking["steps"][3]["result"]["status"], "failed");
 }
 
 #[test]
@@ -175,7 +181,7 @@ fn a_wall_portal_turns_held_movement_and_reports_the_owners_exit_position() {
         Action::Move {
             direction: [0.0, -1.0],
             ticks: 50,
-            run: false,
+            crouch: false,
             jump: false,
         },
         Action::Check {
@@ -227,5 +233,5 @@ fn a_void_fall_is_reported_and_respawn_establishes_a_new_owned_body() {
     let player = &report["steps"][2]["state"]["player"];
     assert_eq!(player["generation"], 1);
     assert_eq!(player["position"], player["reported_position"]);
-    assert_eq!(player["momentum"], json!([0.0, 0.0, 0.0]));
+    assert_eq!(player["horizontal_velocity"], json!([0.0, 0.0, 0.0]));
 }

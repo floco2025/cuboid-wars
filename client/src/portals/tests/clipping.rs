@@ -2,15 +2,35 @@ use super::*;
 
 fn frames() -> (PortalFrame, PortalFrame) {
     (
-        PortalFrame::from_surface(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, 0.0),
-        PortalFrame::from_surface(Vec3::new(10.0, 1.0, 10.0), Vec3::X, 0.0),
+        PortalFrame::from_surface(
+            Vec3::new(0.0, 1.6, 0.0),
+            Vec3::Z,
+            0.0,
+            crate::test_fixtures::gameplay_config().portals.size,
+        ),
+        PortalFrame::from_surface(
+            Vec3::new(10.0, 1.0, 10.0),
+            Vec3::X,
+            0.0,
+            crate::test_fixtures::gameplay_config().portals.size,
+        ),
     )
 }
 
 fn floor_pair() -> (PortalFrame, PortalFrame) {
     (
-        PortalFrame::from_surface(Vec3::ZERO, Vec3::Y, 0.0),
-        PortalFrame::from_surface(Vec3::new(10.0, 0.0, 0.0), Vec3::Y, 0.0),
+        PortalFrame::from_surface(
+            Vec3::ZERO,
+            Vec3::Y,
+            0.0,
+            crate::test_fixtures::gameplay_config().portals.size,
+        ),
+        PortalFrame::from_surface(
+            Vec3::new(10.0, 0.0, 0.0),
+            Vec3::Y,
+            0.0,
+            crate::test_fixtures::gameplay_config().portals.size,
+        ),
     )
 }
 
@@ -70,8 +90,18 @@ fn a_floor_handoff_starts_the_body_inverted_about_its_centre() {
 
 #[test]
 fn a_wall_handoff_needs_no_turn() {
-    let entry = PortalFrame::from_surface(Vec3::new(0.0, 1.0, 0.0), Vec3::Z, 0.0);
-    let exit = PortalFrame::from_surface(Vec3::new(0.0, 1.0, 10.0), Vec3::NEG_Z, 0.0);
+    let entry = PortalFrame::from_surface(
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::Z,
+        0.0,
+        crate::test_fixtures::gameplay_config().portals.size,
+    );
+    let exit = PortalFrame::from_surface(
+        Vec3::new(0.0, 1.0, 10.0),
+        Vec3::NEG_Z,
+        0.0,
+        crate::test_fixtures::gameplay_config().portals.size,
+    );
     let before = Quat::from_rotation_y(0.3);
     let after = traverse_rotation(&entry, &exit) * before;
     assert!((after * Vec3::Y).y > 0.99, "a facing pair keeps the body upright");

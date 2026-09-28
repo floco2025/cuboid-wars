@@ -22,7 +22,17 @@ pub(super) fn closest_character_hit(
     proj_pos: &Position,
     delta: f32,
     shooter_id: PlayerId,
-    player_query: &Query<(Entity, &Position, &FaceYaw, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
+    player_query: &Query<
+        (
+            Entity,
+            &Position,
+            &FaceYaw,
+            &PlayerId,
+            Has<LocalPlayerMarker>,
+            &common::protocol::PlayerStance,
+        ),
+        With<PlayerMarker>,
+    >,
     actor_query: &Query<(&ActorId, &Position, &FaceYaw), With<ActorMarker>>,
     actors: &ActorMap,
     players: &PlayerMap,
@@ -30,7 +40,7 @@ pub(super) fn closest_character_hit(
 ) -> Option<ProjectileTargetHit> {
     let mut closest_hit = None;
 
-    for (entity, player_pos, face_yaw, player_id, is_local_player) in player_query.iter() {
+    for (entity, player_pos, face_yaw, player_id, is_local_player, stance) in player_query.iter() {
         let Some(info) = players.get(player_id).filter(|info| info.entity == entity) else {
             continue;
         };
@@ -49,7 +59,7 @@ pub(super) fn closest_character_hit(
             delta,
             player_pos,
             face_yaw.0,
-            gameplay_config.player.physics(),
+            stance.physics(&gameplay_config.player),
         ) {
             closest_hit = Some(closer_hit(
                 closest_hit,

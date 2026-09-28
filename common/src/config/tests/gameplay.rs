@@ -64,3 +64,49 @@ fn gameplay_bootstrap_rejects_duplicate_actor_kinds() {
     let error = bootstrap.gameplay_config().expect_err("duplicate actor kind accepted");
     assert!(error.to_string().contains("duplicate actor kind"));
 }
+
+#[test]
+fn portal_size_and_capture_settings_are_validated_after_bootstrap() {
+    let mut bootstrap = gameplay_bootstrap();
+    bootstrap.portals.size.width = 2.0;
+    bootstrap.portals.size.height = 3.0;
+    bootstrap.portals.funnel.capture_margin = 0.9;
+    let bytes = bincode::encode_to_vec(&bootstrap, bincode::config::standard()).expect("encode");
+    let (decoded, _): (GameplayBootstrap, _) =
+        bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("decode");
+    let config = decoded.gameplay_config().expect("valid resized portals");
+    assert_eq!(config.portals.size.width, 2.0);
+    assert_eq!(config.portals.size.height, 3.0);
+    assert_eq!(config.portals.funnel.capture_margin, 0.9);
+    for value in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+        let mut bad = config.portals;
+        bad.size.width = value;
+        assert!(
+            bad.validate("portals")
+                .expect_err("invalid portal setting accepted")
+                .to_string()
+                .contains("size.width")
+        );
+        bad = config.portals;
+        bad.size.height = value;
+        assert!(
+            bad.validate("portals")
+                .expect_err("invalid portal setting accepted")
+                .to_string()
+                .contains("size.height")
+        );
+    }
+    for value in [-1.0, f32::NAN, f32::INFINITY] {
+        let mut bad = config.portals;
+        bad.funnel.capture_margin = value;
+        assert!(
+            bad.validate("portals")
+                .expect_err("invalid portal setting accepted")
+                .to_string()
+                .contains("funnel.capture_margin")
+        );
+    }
+    let mut disabled = config.portals;
+    disabled.funnel.capture_margin = 0.0;
+    disabled.validate("portals").expect("zero disables assistance");
+}

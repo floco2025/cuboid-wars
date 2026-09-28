@@ -221,7 +221,7 @@ fn simultaneous_returns_reserve_their_destinations() {
         let entity = {
             let mut players = app.world_mut().resource_mut::<PlayerMap>();
             let info = players.get_mut(&id).expect("player missing");
-            info.life.movement = PlayerMovementState::new(pos, PlayerMoveIntent::Idle, 0.0, 0.0);
+            info.life.movement = PlayerMovementState::new(pos, PlayerMoveIntent::NONE, 0.0, 0.0);
             info.entity().expect("body missing")
         };
         app.world_mut().entity_mut(entity).insert(pos);
@@ -442,6 +442,8 @@ fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
 #[test]
 fn give_keys_hands_out_only_the_keys_placed_on_the_map() {
     let mut map = floor_map();
+    // Keep random login placement away from the key so only /give can grant it.
+    map["checkpoints"][0]["rows"] = serde_json::json!([1, 2]);
     map["fields"] = serde_json::json!([
         {"id": "lobby", "color": "#ff0000"},
         {"id": "vault", "color": "#0000ff"}
@@ -531,7 +533,7 @@ fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
                 generation: PlayerGeneration(0),
                 seq: 1,
                 portal_crossing: 0,
-                movement: PlayerMovementState::new(*pos, PlayerMoveIntent::Idle, 0.0, 0.0),
+                movement: PlayerMovementState::new(*pos, PlayerMoveIntent::NONE, 0.0, 0.0),
             }))
             .expect("movement delivery failed");
     }

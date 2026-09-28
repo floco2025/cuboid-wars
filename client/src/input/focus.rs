@@ -24,6 +24,6 @@ pub(super) fn input_focus_system(
     keyboard.reset_all();
     mouse.reset_all();
     for mut intent in &mut players {
-        *intent = PlayerMoveIntent::Idle;
+        *intent = PlayerMoveIntent::NONE;
     }
 }

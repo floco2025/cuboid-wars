@@ -68,6 +68,7 @@ fn app() -> (App, Entity, f32) {
         .advance_by(Duration::from_secs_f32(1.0 / 60.0));
     app.world_mut().spawn((
         LocalPlayerMarker,
+        common::protocol::PlayerStance::default(),
         FaceYaw(0.0),
         Position::default(),
         PreviousTickPosition(Position::default()),

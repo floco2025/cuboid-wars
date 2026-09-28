@@ -14,7 +14,7 @@ use common::{
     math::direction_from_yaw_pitch,
     physics::{
         CharacterMovePlan, CharacterSupport, CollisionWorld, PlayerHopBody, PortalSet, passable_fields,
-        player_control_velocity, player_jump_velocity,
+        player_jump_velocity,
     },
     protocol::*,
 };
@@ -62,9 +62,10 @@ impl Owner {
             self.motion.move_intent,
             &self.motion.face_yaw,
             &self.motion.vertical_velocity,
-            &self.motion.airborne_momentum,
+            &self.motion.horizontal_velocity,
             &self.motion.knockback,
             self.motion.support,
+            self.motion.stance,
         )
     }
 
@@ -95,7 +96,7 @@ impl Owner {
         let mut events = Vec::new();
         if jump {
             let passable = passable_fields(&player.life.held_keys, open);
-            let velocity = (!stunned)
+            let velocity = (!stunned && !self.motion.stance.crouched)
                 .then(|| {
                     player_jump_velocity(
                         self.motion.vertical_velocity.0,
@@ -117,7 +118,6 @@ impl Owner {
         {
             self.motion.face_yaw.0 = (-ladder.normal_x).atan2(-ladder.normal_z);
         }
-        let control = player_control_velocity(self.motion.move_intent, &settings.movement, has_speed, stunned);
         let blockers: Vec<_> = world
             .resource::<ActorMap>()
             .values()
@@ -130,22 +130,24 @@ impl Owner {
                 )
             })
             .collect();
+        self.motion.move_intent.yaw = aim.x.atan2(aim.z);
+        self.motion.move_intent.pitch = aim.y.clamp(-1.0, 1.0).asin();
         let start = self.position;
         let planned = plan_player_move(
             entity,
             PlayerMovementStep {
                 start,
                 vertical_velocity: self.motion.vertical_velocity.0,
-                control_velocity: control,
+                horizontal_velocity: self.motion.horizontal_velocity.0,
+                stance: self.motion.stance,
+                intent: self.motion.move_intent,
+                has_speed,
+                disabled: stunned,
                 delta,
                 has_low_gravity: player.has(PowerUpKind::LowGravity),
                 held_keys: &player.life.held_keys,
                 open_fields: open,
-                external_displacement: momentum_displacement(
-                    Some(&self.motion.knockback),
-                    Some(&self.motion.airborne_momentum),
-                    delta,
-                ),
+                external_displacement: momentum_displacement(Some(&self.motion.knockback), delta),
                 collision_world: collision,
                 map_settings: settings,
                 gameplay_config: gameplay,
@@ -154,13 +156,15 @@ impl Owner {
             },
             &blockers,
         );
+        let start = planned.start;
         let result = planned.result;
         self.position = result.position;
         self.motion.vertical_velocity.0 = result.vertical_velocity;
         self.motion.support = result.support;
-        self.motion.airborne_momentum.finish_step(&result);
+        self.motion.horizontal_velocity.0 = planned.horizontal_velocity;
+        self.motion.stance = planned.stance;
         if planned.hits_character {
-            self.motion.airborne_momentum.0 = Vec3::ZERO;
+            self.motion.horizontal_velocity.0 = Vec3::ZERO;
         }
 
         if let Some(hop) = portals.player_hop(
@@ -169,24 +173,23 @@ impl Owner {
             gameplay,
             &settings.movement,
             PlayerHopBody {
-                move_intent: self.motion.move_intent,
-                has_speed,
-                stunned,
+                stance: self.motion.stance,
                 knockback: &self.motion.knockback,
-                airborne_momentum: &self.motion.airborne_momentum,
+                horizontal_velocity: &self.motion.horizontal_velocity,
                 vertical_velocity: self.motion.vertical_velocity.0,
                 yaw: self.motion.face_yaw.0,
             },
         ) {
             let entrance = self.position;
-            let before = self.velocity(settings, has_speed, stunned);
+            let before = self.velocity();
             hop.apply_player_state(
                 &mut self.position,
                 &mut self.motion.face_yaw,
                 &mut self.motion.vertical_velocity,
                 &mut self.motion.move_intent,
+                &mut self.motion.stance,
             );
-            hop.apply_motion_components(&mut self.motion.knockback, &mut self.motion.airborne_momentum);
+            hop.apply_motion_components(&mut self.motion.knockback, &mut self.motion.horizontal_velocity);
             let (_, yaw, pitch) = portal_view_transition(
                 &hop.entry,
                 &hop.exit,
@@ -197,9 +200,11 @@ impl Owner {
             *aim = direction_from_yaw_pitch(yaw + PI, pitch);
             self.reports.begin_crossing(entrance);
             self.crossed_last_step = true;
-            events.push(json!({"kind": "player_portal_crossing", "entry": hop.entry.center.to_array(),
+            events.push(
+                json!({"kind": "player_portal_crossing", "entry": hop.entry.center.to_array(),
                 "exit": hop.exit.center.to_array(), "position": point(self.position),
-                "velocity_before": before.to_array(), "velocity_after": self.velocity(settings, has_speed, stunned).to_array()}));
+                "velocity_before": before.to_array(), "velocity_after": self.velocity().to_array()}),
+            );
         }
         let step = LocalMovementStep {
             start,
@@ -211,7 +216,7 @@ impl Owner {
         let outcomes = collect_move_outcomes(
             &self.position,
             &step,
-            gameplay.player.physics(),
+            self.motion.stance.physics(&gameplay.player),
             collision,
             carriers,
             &mut self.reports,
@@ -242,7 +247,7 @@ impl Owner {
         }
         events.push(
             json!({"kind": "player_step", "start": point(start), "position": point(self.position),
-            "velocity": self.velocity(settings, has_speed, stunned).to_array(), "support": support(self.motion.support),
+            "velocity": self.velocity().to_array(), "support": support(self.motion.support),
             "blocked": result.blocked, "blocked_by_actor": planned.hits_character}),
         );
         self.motion
@@ -251,11 +256,8 @@ impl Owner {
         (messages, events)
     }
 
-    fn velocity(&self, settings: &MapSettings, has_speed: bool, stunned: bool) -> Vec3 {
-        player_control_velocity(self.motion.move_intent, &settings.movement, has_speed, stunned)
-            + Vec3::Y * self.motion.vertical_velocity.0
-            + self.motion.airborne_momentum.0
-            + self.motion.knockback.0
+    fn velocity(&self) -> Vec3 {
+        Vec3::Y * self.motion.vertical_velocity.0 + self.motion.horizontal_velocity.0 + self.motion.knockback.0
     }
 }
 

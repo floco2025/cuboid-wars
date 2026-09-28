@@ -59,7 +59,13 @@ pub fn spawn_actor(
     if !actor_model.rotate_with_facing {
         commands.entity(entity).insert(FixedFacingMarker);
     }
-    children.push(spawn_character_bounds(commands, meshes, materials, actor_physics));
+    children.push(spawn_character_bounds(
+        commands,
+        meshes,
+        materials,
+        actor_physics,
+        false,
+    ));
 
     let rest = model_transform(actor_model);
     let mut model_commands = commands.spawn((load_character_model(actor_model, asset_server), rest));

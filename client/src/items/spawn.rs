@@ -10,10 +10,7 @@ use crate::{
     map::MapLevel,
     missiles::{MissileAssets, spawn_missile_pickup_visual},
 };
-use common::{
-    constants::{ITEM_HOVER_HEIGHT, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
-    protocol::*,
-};
+use common::{constants::ITEM_HOVER_HEIGHT, protocol::*};
 
 // ============================================================================
 // Components
@@ -58,6 +55,7 @@ pub fn setup_item_assets(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     client_settings: Res<ClientSettings>,
+    gameplay: Res<common::config::GameplayConfig>,
 ) {
     let glow = client_settings.vfx.pickups.emissive_brightness;
     let coin = CoinAssets::new(&mut meshes, &mut materials, glow);
@@ -89,7 +87,11 @@ pub fn setup_item_assets(
             }
             .mesh()
             .build()
-            .scaled_by(Vec3::new(1.0, 1.0, PORTAL_HALF_HEIGHT / PORTAL_HALF_WIDTH)),
+            .scaled_by(Vec3::new(
+                1.0,
+                1.0,
+                gameplay.portals.size.height / gameplay.portals.size.width,
+            )),
         ),
         material: build_power_up(ItemType::PortalGunPowerUp),
         base_orientation: Quat::from_rotation_x(FRAC_PI_2),

@@ -32,13 +32,19 @@ pub(super) fn covered(point: Vec3, threats: &[Position], context: &BeamContext<'
     })
 }
 
-pub(super) fn attack_position(pos: Position, target: Position, context: &BeamContext<'_>) -> bool {
+pub(super) fn attack_position(
+    pos: Position,
+    target: crate::actors::resources::AwarePlayer,
+    context: &BeamContext<'_>,
+) -> bool {
     let character = &context.kind_config.character;
     let physics = character.physics();
+    let target_physics = target.stance.adjust_physics(context.player_physics);
+    let target = target.pos;
     let range = match context.kind_config.attack {
         ActorAttackConfig::Beam(beam) => pos.distance_sq(&target) <= beam.range * beam.range,
         _ => {
-            character_surface_distance(pos, physics, target, context.player_physics)
+            character_surface_distance(pos, physics, target, target_physics)
                 <= context
                     .kind_config
                     .attack
@@ -49,7 +55,7 @@ pub(super) fn attack_position(pos: Position, target: Position, context: &BeamCon
     range
         && context.collision_world.attack_path_clear(
             Vec3::from(pos) + Vec3::Y * character.beam_origin_y_offset(),
-            character_hitbox_center(target, context.player_physics),
+            character_hitbox_center(target, target_physics),
             context.open_fields,
         )
 }

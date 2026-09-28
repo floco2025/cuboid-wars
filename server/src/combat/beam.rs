@@ -52,7 +52,6 @@ pub fn actors_beam_damage_system(
     let delta = time.delta_secs();
     let now = time.elapsed_secs();
     let respawn_secs = server_gameplay_config.player.respawn_secs;
-    let player_physics = gameplay_config.player.physics();
     next_cue_at.retain(|id, _| actors.get(id).is_some());
 
     for (actor_id, info) in actors.iter() {
@@ -80,6 +79,13 @@ pub fn actors_beam_damage_system(
         if actor_pos.distance_sq(target_pos) > range * range {
             continue;
         }
+        let player_physics = players
+            .get(&target_id)
+            .expect("beam target")
+            .life
+            .movement
+            .stance
+            .physics(&gameplay_config.player);
         let actor_config = gameplay_config.expect_actor(&info.spawn_kind);
         let target_center = Vec3::new(target_pos.x, player_physics.hitbox_center_y(target_pos.y), target_pos.z);
         if !collision_world.attack_path_clear(

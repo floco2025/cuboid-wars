@@ -149,7 +149,11 @@
       "stall_secs": 2.0,
       "missiles_per_pack": 1
     },
-    "portals": { "range": 100.0 }
+    "portals": {
+      "range": 100.0,
+      "size": { "width": 1.4, "height": 2.6 },
+      "funnel": { "capture_margin": 0.8 }
+    }
   },
   "scoring": {
     "player_kill": 0,
@@ -247,10 +251,15 @@
     "gravity": 25.0,
     "low_gravity": 5.0,
     "player": {
-      "walk_speed": 6.0,
-      "run_speed": 9.0,
-      "speed_power_up": 1.5,
-      "jump_speed": 12.0
+      "move_speed": 9.0,
+      "move_speed_power_up": 1.5,
+      "jump_speed": 12.0,
+      "ground_acceleration": 20.0,
+      "ground_deceleration": 30.0,
+      "ground_lateral_deceleration": 40.0,
+      "air_acceleration": 5.0,
+      "air_deceleration": 5.0,
+      "air_lateral_deceleration": 5.0
     },
     "actors": {
       "scuttler": { "roam_speed": 3.0, "active_speed": 5.0 },

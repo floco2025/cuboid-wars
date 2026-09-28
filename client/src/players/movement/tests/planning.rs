@@ -21,9 +21,10 @@ fn remote_bodies_stay_at_reported_positions_while_the_owner_simulates() {
                 PlayerMarker,
                 PlayerId(1),
                 position,
-                PlayerMoveIntent::Walking { direction: FRAC_PI_2 },
+                PlayerMoveIntent::moving(FRAC_PI_2),
                 CharacterVerticalVelocity(-3.0),
-                AirborneMomentum(Vec3::X),
+                common::protocol::PlayerStance::default(),
+                HorizontalVelocity(Vec3::X),
                 KnockbackVelocity(Vec3::X),
                 PlayerAnimationMotion::default(),
             ))
@@ -86,9 +87,10 @@ fn a_dead_local_player_gets_no_plan() {
             LocalPlayerMarker,
             PlayerId(1),
             position,
-            PlayerMoveIntent::Walking { direction: FRAC_PI_2 },
+            PlayerMoveIntent::moving(FRAC_PI_2),
             CharacterVerticalVelocity(-3.0),
-            AirborneMomentum(Vec3::X),
+            common::protocol::PlayerStance::default(),
+            HorizontalVelocity(Vec3::X),
             KnockbackVelocity(Vec3::X),
             PlayerAnimationMotion::default(),
         ))
@@ -171,7 +173,7 @@ fn character_blocking_commits_consistent_edges_landings_ramps_and_carrier_motion
     gameplay.player.movement_collider.height = 1.8;
     let physics = gameplay.player.physics();
     let mut settings = test_fixtures::map_settings();
-    settings.movement.player.walk_speed = 12.0;
+    settings.movement.player.move_speed = 12.0;
     let delta = 0.1;
     for scene in ["edge", "landing", "ramp", "carrier"] {
         let carrier = if scene == "carrier" {
@@ -250,7 +252,11 @@ fn character_blocking_commits_consistent_edges_landings_ramps_and_carrier_motion
         let request = PlayerMovementStep {
             start,
             vertical_velocity: vertical,
-            control_velocity: Vec3::X * 12.0,
+            horizontal_velocity: Vec3::X * 12.0,
+            stance: Default::default(),
+            intent: PlayerMoveIntent::moving(FRAC_PI_2),
+            has_speed: false,
+            disabled: false,
             external_displacement: Vec3::X * delta,
             delta,
             has_low_gravity: false,
@@ -262,12 +268,14 @@ fn character_blocking_commits_consistent_edges_landings_ramps_and_carrier_motion
             portal_set: &portals,
             carriers: &carriers,
         };
-        let proposed = step_player_movement(request);
+        let proposed = step_player_movement(request).movement;
         let expected = step_player_movement(PlayerMovementStep {
-            control_velocity: Vec3::ZERO,
+            horizontal_velocity: Vec3::ZERO,
+            intent: PlayerMoveIntent::NONE,
             external_displacement: Vec3::ZERO,
             ..request
-        });
+        })
+        .movement;
         assert!(
             proposed.support != expected.support || (proposed.position.y - expected.position.y).abs() > 0.01,
             "{scene}: fixture must exercise a changed support result"
@@ -281,9 +289,10 @@ fn character_blocking_commits_consistent_edges_landings_ramps_and_carrier_motion
                 LocalPlayerMarker,
                 PlayerId(1),
                 start,
-                PlayerMoveIntent::Walking { direction: FRAC_PI_2 },
+                PlayerMoveIntent::moving(FRAC_PI_2),
                 CharacterVerticalVelocity(vertical),
-                AirborneMomentum(Vec3::X),
+                common::protocol::PlayerStance::default(),
+                HorizontalVelocity(Vec3::X * 12.0),
                 KnockbackVelocity::default(),
                 PlayerAnimationMotion::default(),
             ))
@@ -344,7 +353,7 @@ fn character_blocking_commits_consistent_edges_landings_ramps_and_carrier_motion
                 expected.crushed
             )
         );
-        assert_eq!(world.get::<AirborneMomentum>(entity).expect("momentum").0, Vec3::ZERO);
+        assert_eq!(world.get::<HorizontalVelocity>(entity).expect("momentum").0, Vec3::ZERO);
         assert_eq!(
             world.get::<PlayerAnimationMotion>(entity).expect("animation").support,
             expected.support

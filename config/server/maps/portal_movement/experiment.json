@@ -4,7 +4,7 @@
   "layout": "layout.json",
   "spawn": [-10.0, 13.2, -6],
   "actions": [
-    { "action": "move", "direction": [1, 0], "ticks": 7, "run": true },
+    { "action": "move", "direction": [1, 0], "ticks": 7 },
     { "action": "aim", "target": [-6, 0, -6] },
     { "action": "portal", "end": "a" },
     { "action": "advance", "ticks": 4 },

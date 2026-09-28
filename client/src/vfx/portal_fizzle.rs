@@ -2,7 +2,6 @@ use bevy::{light::NotShadowCaster, prelude::*};
 
 use crate::{carriers::CarrierEntities, constants::*};
 use common::{
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
     physics::PortalFrame,
     protocol::{Portal, PortalEnd},
 };
@@ -13,6 +12,7 @@ const FLASH_LIFT: f32 = 0.003;
 
 #[derive(Resource)]
 pub struct PortalFizzleAssets {
+    pub(crate) size: common::config::PortalSize,
     ring: Handle<Mesh>,
     flash: Handle<Mesh>,
     spark: Handle<Mesh>,
@@ -21,6 +21,7 @@ pub struct PortalFizzleAssets {
 
 impl FromWorld for PortalFizzleAssets {
     fn from_world(world: &mut World) -> Self {
+        let size = world.resource::<common::config::GameplayConfig>().portals.size;
         let mut meshes = world.resource_mut::<Assets<Mesh>>();
         let ring = meshes.add(Annulus::new(PORTAL_FIZZLE_RING_INNER_RADIUS, 1.0));
         let flash = meshes.add(Circle::new(1.0));
@@ -35,6 +36,7 @@ impl FromWorld for PortalFizzleAssets {
             })
         });
         Self {
+            size,
             ring,
             flash,
             spark,
@@ -62,6 +64,7 @@ pub fn spawn_portal_fizzle(
         impact.pos.into(),
         Vec3::new(impact.nx, impact.ny, impact.nz),
         impact.yaw,
+        assets.size,
     );
     let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
     let center = frame.center + frame.normal * SURFACE_LIFT;
@@ -87,7 +90,7 @@ pub fn spawn_portal_fizzle(
     spawn(
         assets.ring.clone(),
         center,
-        aperture_scale(PORTAL_FIZZLE_RING_APERTURE_FRACTION),
+        aperture_scale(PORTAL_FIZZLE_RING_APERTURE_FRACTION, assets.size),
         Vec3::ZERO,
         PORTAL_FIZZLE_LIFETIME,
         true,
@@ -95,7 +98,7 @@ pub fn spawn_portal_fizzle(
     spawn(
         assets.flash.clone(),
         center + frame.normal * FLASH_LIFT,
-        aperture_scale(PORTAL_FIZZLE_FLASH_APERTURE_FRACTION),
+        aperture_scale(PORTAL_FIZZLE_FLASH_APERTURE_FRACTION, assets.size),
         Vec3::ZERO,
         PORTAL_FIZZLE_FLASH_LIFETIME,
         false,
@@ -118,8 +121,8 @@ pub fn spawn_portal_fizzle(
 }
 
 // A disc's semi-axes at the given fraction of the aperture's.
-fn aperture_scale(fraction: f32) -> Vec3 {
-    Vec3::new(PORTAL_HALF_WIDTH * fraction, PORTAL_HALF_HEIGHT * fraction, 1.0)
+fn aperture_scale(fraction: f32, size: common::config::PortalSize) -> Vec3 {
+    Vec3::new(size.half_width() * fraction, size.half_height() * fraction, 1.0)
 }
 
 pub fn portal_fizzle_system(

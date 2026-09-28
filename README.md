@@ -23,7 +23,7 @@ to obstacle courses.
 | Settings menu (also frees the cursor)    | Escape               |
 | Look                                     | mouse                |
 | Move                                     | WASD                 |
-| Sprint                                   | hold Shift           |
+| Crouch                                   | hold Ctrl            |
 | Jump                                     | Space                |
 | Cycle weapons / multi-shot patterns      | Q                    |
 | Fire selected weapon / portal A          | Left mouse button    |

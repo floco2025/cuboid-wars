@@ -22,6 +22,6 @@
   "combat": { "health": { "player": { "max": 500.0, "regen_rate": 0.0 } } },
   "movement": {
     "gravity": 25.0,
-    "player": { "walk_speed": 6.0, "run_speed": 9.0, "jump_speed": 12.0 }
+    "player": { "move_speed": 6.0, "jump_speed": 12.0 }
   }
 }

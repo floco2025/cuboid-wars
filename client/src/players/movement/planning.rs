@@ -3,8 +3,8 @@ use common::{
     config::GameplayConfig,
     map::Carriers,
     physics::{
-        AirborneMomentum, CharacterMovePlan, CharacterMovementResult, CharacterVerticalVelocity, CollisionWorld,
-        KnockbackVelocity, PortalSet, character_move_plans_intersect, player_control_velocity,
+        CharacterMovePlan, CharacterMovementResult, CharacterVerticalVelocity, CollisionWorld, HorizontalVelocity,
+        KnockbackVelocity, PortalSet, character_move_plans_intersect,
     },
     protocol::{
         ActorMarker, FieldId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind, SwitchState,
@@ -21,6 +21,8 @@ pub struct PlayerMove {
     pub control_velocity: Vec3,
     pub external_displacement: Vec3,
     pub hits_character: bool,
+    pub horizontal_velocity: Vec3,
+    pub stance: common::protocol::PlayerStance,
 }
 
 pub(crate) fn plan_player_moves(
@@ -39,18 +41,14 @@ pub(crate) fn plan_player_moves(
     if local_dead {
         return Vec::new();
     }
-    let player_physics = gameplay_config.player.physics();
     let mut blockers = actors.to_vec();
-    blockers.extend(
-        query
-            .iter()
-            .filter(|(.., is_local)| !is_local)
-            .map(|(entity, _, position, _, motion, ..)| {
-                CharacterMovePlan::stationary(entity, *position, motion.0, player_physics)
-            }),
-    );
+    blockers.extend(query.iter().filter(|(.., is_local)| !is_local).map(
+        |(entity, _, position, _, motion, _, _, _, _, stance, _)| {
+            CharacterMovePlan::stationary(entity, *position, motion.0, stance.physics(&gameplay_config.player))
+        },
+    ));
     let mut moves = Vec::new();
-    for (entity, player_id, client_pos, move_intent, motion, _, knockback, airborne_momentum, _, is_local) in
+    for (entity, player_id, client_pos, move_intent, motion, _, knockback, horizontal_velocity, _, stance, is_local) in
         query.iter()
     {
         if !is_local {
@@ -62,18 +60,15 @@ pub(crate) fn plan_player_moves(
         let movement_disabled = info.is_some_and(|i| i.stunned);
         let held_keys: &[FieldId] = info.map_or(&[], |i| i.held_keys.as_slice());
 
-        let control_velocity = player_control_velocity(
-            *move_intent,
-            &map_settings.movement,
-            has_speed_power_up,
-            movement_disabled,
-        );
-
-        let external_displacement = momentum_displacement(Some(knockback), Some(airborne_momentum), delta);
+        let external_displacement = momentum_displacement(Some(knockback), delta);
         let request = PlayerMovementStep {
             start: *client_pos,
             vertical_velocity: motion.0,
-            control_velocity,
+            horizontal_velocity: horizontal_velocity.0,
+            stance: *stance,
+            intent: *move_intent,
+            has_speed: has_speed_power_up,
+            disabled: movement_disabled,
             delta,
             has_low_gravity,
             held_keys,
@@ -92,32 +87,52 @@ pub(crate) fn plan_player_moves(
 
 // Both rendered and headless owners retry a body-blocked move with vertical
 // travel only, so support and landing outcomes describe the accepted position.
-pub fn plan_player_move(entity: Entity, request: PlayerMovementStep<'_>, blockers: &[CharacterMovePlan]) -> PlayerMove {
-    let mut result = step_player_movement(request);
+pub fn plan_player_move(
+    entity: Entity,
+    mut request: PlayerMovementStep<'_>,
+    blockers: &[CharacterMovePlan],
+) -> PlayerMove {
+    let mut stepped = step_player_movement(request);
+    if request.stance.crouched && !stepped.stance.crouched {
+        let standing = CharacterMovePlan::stationary(
+            entity,
+            stepped.start,
+            0.0,
+            stepped.stance.physics(&request.gameplay_config.player),
+        );
+        if overlapping_character(&standing, blockers).is_some() {
+            request.intent.crouch = true;
+            stepped = step_player_movement(request);
+        }
+    }
     let candidate = CharacterMovePlan::from_movement_result(
         entity,
-        request.start,
-        result,
-        request.gameplay_config.player.physics(),
+        stepped.start,
+        stepped.movement,
+        stepped.stance.physics(&request.gameplay_config.player),
     );
     let hits_character = overlapping_character(&candidate, blockers).is_some();
-    let mut control_velocity = request.control_velocity;
-    let mut external_displacement = request.external_displacement;
     if hits_character {
-        control_velocity = Vec3::ZERO;
-        external_displacement *= Vec3::Y;
-        result = step_player_movement(PlayerMovementStep {
-            control_velocity,
-            external_displacement,
+        stepped = step_player_movement(PlayerMovementStep {
+            intent: PlayerMoveIntent {
+                forward: 0.0,
+                sideways: 0.0,
+                ..request.intent
+            },
+            horizontal_velocity: Vec3::ZERO,
+            external_displacement: request.external_displacement * Vec3::Y,
             ..request
         });
+        stepped.horizontal_velocity = Vec3::ZERO;
     }
     PlayerMove {
         entity,
-        start: request.start,
-        result,
-        control_velocity,
-        external_displacement,
+        start: stepped.start,
+        result: stepped.movement,
+        control_velocity: stepped.control_velocity,
+        external_displacement: request.external_displacement,
+        horizontal_velocity: stepped.horizontal_velocity,
+        stance: stepped.stance,
         hits_character,
     }
 }
@@ -142,8 +157,9 @@ pub(crate) type PlayerMovementQuery<'w, 's> = Query<
         &'static mut CharacterVerticalVelocity,
         Option<&'static mut BumpFeedbackState>,
         &'static KnockbackVelocity,
-        &'static mut AirborneMomentum,
+        &'static mut HorizontalVelocity,
         &'static mut PlayerAnimationMotion,
+        &'static mut common::protocol::PlayerStance,
         Has<LocalPlayerMarker>,
     ),
     (With<PlayerMarker>, Without<ActorMarker>),

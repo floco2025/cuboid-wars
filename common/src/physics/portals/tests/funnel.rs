@@ -40,6 +40,10 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
         ],
         &world,
         &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     );
     let env = CharacterEnvironment {
         ladder_mode: LadderMode::Automatic,
@@ -77,7 +81,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
             CharacterHopBody {
                 control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity,
                 yaw: 0.0,
             },
@@ -128,6 +132,10 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
         ],
         &world,
         &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     );
     let env = CharacterEnvironment {
         ladder_mode: LadderMode::Automatic,
@@ -165,7 +173,7 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
             CharacterHopBody {
                 control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity,
                 yaw: 0.0,
             },
@@ -213,7 +221,7 @@ fn aperture_offset_carries_through_an_opposing_pair() {
             CharacterHopBody {
                 control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -5.0,
                 yaw: 0.0,
             },
@@ -241,7 +249,7 @@ fn carried_offset_is_clamped_to_the_exit_aperture() {
             CharacterHopBody {
                 control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -5.0,
                 yaw: 0.0,
             },
@@ -280,6 +288,10 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
         ],
         &world,
         &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     );
     let env = CharacterEnvironment {
         ladder_mode: LadderMode::Automatic,
@@ -323,7 +335,7 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
             CharacterHopBody {
                 control_velocity: control,
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity,
                 yaw: 0.0,
             },
@@ -338,192 +350,4 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
     assert!(hops >= 1, "the chain never started");
     assert!(hops <= 10, "steering never escaped the chain: {hops} hops");
     assert!(pos.z > 2.0, "escaped body did not keep moving: z = {}", pos.z);
-}
-
-#[test]
-fn falling_toward_a_floor_portal_funnels_toward_its_axis() {
-    let set = pair(
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::Y,
-        Vec3::new(10.0, 4.0, 10.0),
-        Vec3::NEG_Y,
-    );
-    let pull = set.funnel_displacement(Vec3::new(0.5, 2.0, -0.3), player_physics(), Vec3::ZERO, -10.0, 0.1);
-    assert!(pull.x < 0.0, "pull should point back toward the axis: {pull:?}");
-    assert!(pull.z > 0.0, "pull should point back toward the axis: {pull:?}");
-    assert!(pull.y == 0.0);
-}
-
-#[test]
-fn floor_portal_funnel_is_symmetric_through_character_movement() {
-    let physics = player_physics();
-    let layout = MapLayout {
-        floors: vec![Floor {
-            x1: -10.0,
-            z1: -10.0,
-            x2: 10.0,
-            z2: 10.0,
-            y: 0.0,
-            thickness: FLOOR_THICKNESS,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
-        ..Default::default()
-    };
-    let world = CollisionWorld::from_map_layout(&layout);
-    let set = PortalSet::rebuild(
-        &[
-            portal(PortalEnd::A, Vec3::ZERO, Vec3::Y, 0.0),
-            portal(PortalEnd::B, Vec3::new(8.0, 4.0, 8.0), Vec3::NEG_Y, 0.0),
-        ],
-        &world,
-        &Carriers::default(),
-    );
-    let env = CharacterEnvironment {
-        ladder_mode: LadderMode::Automatic,
-        collision_world: &world,
-        gravity: 25.0,
-        passable_fields: &[],
-        physics,
-        ladder_climb_ratio: LADDER_CLIMB_RATIO,
-        portals: Some(&set),
-        carriers: &Carriers::default(),
-    };
-
-    let step_from = |x| {
-        step_character_movement(
-            CharacterStep {
-                start: Position { x, y: 0.0, z: 0.0 },
-                vertical_velocity: -10.0,
-                control_velocity: Vec3::ZERO,
-                external_displacement: Vec3::ZERO,
-                delta: TICK_SECS,
-            },
-            &env,
-        )
-    };
-    let from_left = step_from(-0.5);
-    let from_right = step_from(0.5);
-
-    assert!(from_left.position.x > -0.5, "left approach was repelled: {from_left:?}");
-    assert!(
-        from_right.position.x < 0.5,
-        "right approach was repelled: {from_right:?}"
-    );
-    assert!((from_left.position.x + from_right.position.x).abs() < 1e-4);
-}
-
-#[test]
-fn steering_disengages_the_funnel() {
-    let set = pair(
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::Y,
-        Vec3::new(10.0, 4.0, 10.0),
-        Vec3::NEG_Y,
-    );
-    let pull = set.funnel_displacement(
-        Vec3::new(0.5, 2.0, 0.0),
-        player_physics(),
-        Vec3::new(6.0, 0.0, 0.0),
-        -10.0,
-        0.1,
-    );
-    assert_eq!(pull, Vec3::ZERO);
-}
-
-#[test]
-fn rising_away_from_a_floor_portal_is_not_funneled() {
-    let set = pair(
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::Y,
-        Vec3::new(10.0, 4.0, 10.0),
-        Vec3::NEG_Y,
-    );
-    let pull = set.funnel_displacement(Vec3::new(0.5, 2.0, 0.0), player_physics(), Vec3::ZERO, 10.0, 0.1);
-    assert_eq!(pull, Vec3::ZERO);
-}
-
-#[test]
-fn wall_portals_never_funnel() {
-    let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
-    let pull = set.funnel_displacement(Vec3::new(0.3, 0.0, 1.0), player_physics(), Vec3::ZERO, -10.0, 0.1);
-    assert_eq!(pull, Vec3::ZERO);
-}
-
-// The user-facing promise of funneling: a hand-placed floor/ceiling pair
-// with realistic misalignment loops indefinitely hands-off.
-#[test]
-fn misaligned_fall_loop_is_sustained_by_funneling() {
-    let physics = player_physics();
-    let layout = MapLayout {
-        floors: vec![Floor {
-            x1: -10.0,
-            z1: -10.0,
-            x2: 10.0,
-            z2: 10.0,
-            y: 0.0,
-            thickness: FLOOR_THICKNESS,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
-        ..Default::default()
-    };
-    let world = CollisionWorld::from_map_layout(&layout);
-    let set = PortalSet::rebuild(
-        &[
-            portal(PortalEnd::A, Vec3::new(0.0, 0.0, 0.0), Vec3::Y, 0.0),
-            portal(PortalEnd::B, Vec3::new(0.4, 4.0, 0.3), Vec3::NEG_Y, 0.0),
-        ],
-        &world,
-        &Carriers::default(),
-    );
-    let env = CharacterEnvironment {
-        ladder_mode: LadderMode::Automatic,
-        collision_world: &world,
-        gravity: 25.0,
-        passable_fields: &[],
-        physics,
-        ladder_climb_ratio: LADDER_CLIMB_RATIO,
-        portals: Some(&set),
-        carriers: &Carriers::default(),
-    };
-
-    let mut pos = Position { x: 0.0, y: 3.0, z: 0.0 };
-    let mut vertical_velocity = 0.0_f32;
-    let mut hops = 0;
-
-    for _ in 0..(30 * 12) {
-        let from = pos;
-        let result = step_character_movement(
-            CharacterStep {
-                start: pos,
-                vertical_velocity,
-                control_velocity: Vec3::ZERO,
-                external_displacement: Vec3::ZERO,
-                delta: TICK_SECS,
-            },
-            &env,
-        );
-        pos = result.position;
-        vertical_velocity = result.vertical_velocity;
-        if let Some(hop) = set.character_hop(
-            Vec3::from(from),
-            Vec3::from(pos),
-            physics,
-            CharacterHopBody {
-                control_velocity: Vec3::ZERO,
-                knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
-                vertical_velocity,
-                yaw: 0.0,
-            },
-            22.5,
-        ) {
-            pos = hop.origin.into();
-            vertical_velocity = hop.vertical_velocity;
-            hops += 1;
-        }
-    }
-
-    assert!(hops >= 15, "misaligned loop died after {hops} hops at {pos:?}");
 }

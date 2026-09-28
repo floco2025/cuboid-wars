@@ -5,7 +5,7 @@ use bevy::{
 };
 
 use common::{
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
+    config::PortalSize,
     physics::{PortalFrame, traverse_vector},
 };
 
@@ -26,10 +26,10 @@ pub(super) struct PortalProjection {
 impl Default for PortalProjection {
     fn default() -> Self {
         Self {
-            left: -PORTAL_HALF_WIDTH,
-            right: PORTAL_HALF_WIDTH,
-            bottom: -PORTAL_HALF_HEIGHT,
-            top: PORTAL_HALF_HEIGHT,
+            left: -1.0,
+            right: 1.0,
+            bottom: -1.0,
+            top: 1.0,
             near: 0.1,
             far: 1000.0,
         }
@@ -102,12 +102,12 @@ impl CameraProjection for PortalProjection {
     }
 }
 
-pub(super) fn full_aperture() -> Rect {
+pub(super) fn full_aperture(size: PortalSize) -> Rect {
     Rect::new(
-        -PORTAL_HALF_WIDTH,
-        -PORTAL_HALF_HEIGHT,
-        PORTAL_HALF_WIDTH,
-        PORTAL_HALF_HEIGHT,
+        -size.half_width(),
+        -size.half_height(),
+        size.half_width(),
+        size.half_height(),
     )
 }
 

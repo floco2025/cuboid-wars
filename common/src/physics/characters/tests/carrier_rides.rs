@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     constants::TICK_SECS,
     map::CarrierRun,
-    physics::AirborneMomentum,
+    physics::HorizontalVelocity,
     protocol::{Carrier, CarrierId, CarrierMotion, SwitchId, SwitchState},
 };
 
@@ -292,7 +292,7 @@ fn walking_off_the_tile_keeps_its_velocity_at_different_tick_rates() {
             })
             .expect("player never left the moving tile");
         assert!((step.floor_velocity.x - 2.0).abs() < 1e-3);
-        let mut momentum = AirborneMomentum::default();
+        let mut momentum = HorizontalVelocity::default();
         momentum.finish_step(&step);
         assert!(
             (momentum.0 - Vec3::new(2.0, 0.0, 0.0)).length() < 1e-3,
@@ -477,7 +477,7 @@ fn jumping_rider_takes_the_tile_velocity() {
         step.position
     );
     assert!((step.floor_velocity.x - 2.0).abs() < 1e-3);
-    let mut momentum = AirborneMomentum::default();
+    let mut momentum = HorizontalVelocity::default();
     momentum.finish_step(&step);
     assert!((momentum.0.x - 2.0).abs() < 1e-3, "momentum {}", momentum.0);
 }
@@ -495,7 +495,7 @@ fn a_takeoff_takes_the_tile_velocity_at_most_once() {
     for takeoff_speed in [0.5, 1.0, 1.4, 1.8, 2.2, 2.6, 3.0, 6.0, 12.0] {
         let mut pos = Position::default();
         let mut vertical_velocity = takeoff_speed;
-        let mut momentum = AirborneMomentum::default();
+        let mut momentum = HorizontalVelocity::default();
         let mut took_off = false;
         for tick in 1..=4 {
             let (world, carriers) = carried_world((carrier, floor), &[], &[], tick);

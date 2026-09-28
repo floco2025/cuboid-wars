@@ -8,7 +8,7 @@ use crate::{
     vfx::spawn_player_explosion,
 };
 use common::{
-    constants::KNOCKBACK_CLAMP_RATIO,
+    constants::CHARACTER_KNOCKBACK_CLAMP_RATIO,
     physics::{CharacterVerticalVelocity, KnockbackVelocity},
     protocol::*,
 };
@@ -184,7 +184,7 @@ pub(in crate::network) fn handle_player_knockback_message(
     let Some(info) = context.players.get(&message.id) else {
         return;
     };
-    let max_speed = context.map_settings.movement.knockback.max_speed * KNOCKBACK_CLAMP_RATIO;
+    let max_speed = context.map_settings.movement.knockback.max_speed * CHARACTER_KNOCKBACK_CLAMP_RATIO;
     commands.entity(info.entity).queue(move |entity: EntityWorldMut| {
         apply_player_impulse(entity, message, max_speed);
     });

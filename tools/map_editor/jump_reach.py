@@ -61,7 +61,7 @@ class JumpSettings:
             number("movement.player.jump_speed"),
             number("movement.player.walk_speed"),
             number("movement.player.run_speed"),
-            number("movement.player.speed_power_up"),
+            number("movement.player.move_speed_power_up"),
             number("movement.gravity"),
             number("movement.low_gravity", allow_zero=True),
             number("geometry.wall_thickness"),

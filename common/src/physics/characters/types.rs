@@ -10,6 +10,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CharacterMovementResult {
+    pub contact_normals: [Vec3; 5],
     pub grounding: GroundingDiagnostics,
     pub position: Position,
     pub vertical_velocity: f32,
@@ -23,7 +24,7 @@ pub struct CharacterMovementResult {
     pub carrier: CarrierId,
     // Velocity of the carrier that carried the body this step, zero
     // otherwise. Its vertical part is already in `vertical_velocity` when the
-    // body ends airborne; the horizontal part becomes `AirborneMomentum`.
+    // body ends airborne; the horizontal part becomes `HorizontalVelocity`.
     pub floor_velocity: Vec3,
     // Includes carried portal transit, which does not contribute floor velocity.
     pub lifted: bool,

@@ -31,7 +31,12 @@ pub(in crate::network) fn sync_portals(
     });
 
     if changed {
-        *context.portal_set = PortalSet::rebuild(server_portals, &context.collision_world, &context.carriers);
+        *context.portal_set = PortalSet::rebuild(
+            server_portals,
+            &context.collision_world,
+            &context.carriers,
+            context.gameplay_config.portals.size,
+        );
     }
 }
 

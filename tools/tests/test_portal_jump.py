@@ -32,7 +32,9 @@ from PySide6.QtTest import QTest
 
 class PortalJumpTests(unittest.TestCase):
     def setUp(self):
-        self.settings = PortalSettings(JumpSettings(4, 5, 10, 3, 6, 2, 10, 2, 0.2, FallSettings(8, 15, 100)), 2, 0.3)
+        self.settings = PortalSettings(
+            JumpSettings(4, 5, 10, 3, 6, 2, 10, 2, 0.2, FallSettings(8, 15, 100)), 2, 0.3, 0.7, 1.3
+        )
         self.data = empty_map(30, 30)
         self.data["levels"] = [empty_level(i) for i in range(5)]
 
@@ -297,6 +299,17 @@ class PortalJumpTests(unittest.TestCase):
         a = PortalSurface(0, 5, 5)
         self.assertTrue(portals_overlap(a, replace(a, turn=1), self.settings))
         self.assertFalse(portals_overlap(a, replace(a, col=10), self.settings))
+
+    def test_portal_dimensions_follow_shared_gameplay_settings(self):
+        settings = {**gameplay(), **map_settings()}
+        settings["weapons"]["portals"]["size"] = {"width": 4.4, "height": 3.8}
+        parsed = PortalSettings.from_settings(settings, "map")
+        self.assertEqual((parsed.half_width, parsed.half_height), (2.2, 1.9))
+        wall = PortalSurface(0, 1, 1, "east").frame(parsed)
+        self.assertAlmostEqual(wall.center[1], 1.9 * 1.06)
+        a, b = PortalSurface(0, 1, 1), PortalSurface(0, 2, 1)
+        self.assertTrue(portals_overlap(a, b, parsed))
+        self.assertFalse(portals_overlap(a, b, replace(parsed, half_width=0.7)))
 
     def test_invalid_configuration_has_a_diagnostic(self):
         settings = {**gameplay(), **map_settings()}

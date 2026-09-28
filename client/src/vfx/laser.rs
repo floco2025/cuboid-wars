@@ -155,11 +155,13 @@ pub fn laser_beam_update_system(
     gameplay_config: Res<GameplayConfig>,
     collision_world: Res<CollisionWorld>,
     switch_state: Res<SwitchState>,
-    endpoints: Query<(&Transform, Option<&AimRig>), (Without<LaserBeam>, Without<AimJointMarker>)>,
+    endpoints: Query<
+        (&Transform, Option<&AimRig>, Option<&common::protocol::PlayerStance>),
+        (Without<LaserBeam>, Without<AimJointMarker>),
+    >,
     mut joints: Query<&mut Transform, With<AimJointMarker>>,
     mut beams: Query<(Entity, &LaserBeam, &mut Transform, &mut Visibility), Without<AimJointMarker>>,
 ) {
-    let target_hitbox = gameplay_config.player.physics().hitbox;
     for (entity, beam, mut transform, mut visibility) in &mut beams {
         let anchors = actors
             .get(&beam.actor)
@@ -171,13 +173,13 @@ pub fn laser_beam_update_system(
                     gameplay_config.expect_actor(&actor.kind),
                 ))
             });
-        let Some(((actor_transform, aim_rig), (target_transform, _), actor_config)) = anchors else {
+        let Some(((actor_transform, aim_rig, _), (target_transform, _, stance), actor_config)) = anchors else {
             commands.entity(entity).despawn();
             continue;
         };
         let frame = aim_rig.and_then(|rig| {
             rig.frame(actor_transform, |entity| {
-                endpoints.get(entity).ok().map(|(transform, _)| *transform)
+                endpoints.get(entity).ok().map(|(transform, _, _)| *transform)
             })
         });
         if aim_rig.is_some() && frame.is_none() {
@@ -189,6 +191,11 @@ pub fn laser_beam_update_system(
             || actor_transform.translation + Vec3::Y * actor_config.beam_origin_y_offset(),
             |(rig, frame)| rig.pivot(frame),
         );
+        let target_hitbox = stance
+            .copied()
+            .unwrap_or_default()
+            .physics(&gameplay_config.player)
+            .hitbox;
         let aim_local = beam_target_local(beam.actor, &target_hitbox, time.elapsed_secs());
         let target = target_transform.translation + target_transform.rotation * aim_local;
         let full_length = origin.distance(target);

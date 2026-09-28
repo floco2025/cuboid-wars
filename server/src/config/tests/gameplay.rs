@@ -91,9 +91,80 @@ fn a_map_override_replaces_one_leaf_and_inherits_the_rest() {
         defaults["movement"]["low_gravity"].as_f64().expect("default")
     );
     assert_eq!(
-        f64::from(movement.player.run_speed),
-        defaults["movement"]["player"]["run_speed"].as_f64().expect("default")
+        f64::from(movement.player.move_speed),
+        defaults["movement"]["player"]["move_speed"].as_f64().expect("default")
     );
+}
+
+#[test]
+fn ground_rates_can_be_overridden_independently_and_reject_nonpositive_values() {
+    let directory = TestConfigDir::new();
+    directory.write_hotel_override(|settings| {
+        settings["movement"]["player"] = json!({
+            "ground_acceleration": 3.0,
+            "ground_deceleration": 90.0,
+            "ground_lateral_deceleration": 60.0,
+        });
+    });
+    let loaded = directory.load().expect("independent ground rates rejected");
+    let movement = &loaded.maps["hotel"].settings.movement.player;
+    assert_eq!(movement.ground_acceleration, 3.0);
+    assert_eq!(movement.ground_deceleration, 90.0);
+    assert_eq!(movement.ground_lateral_deceleration, 60.0);
+    for field in [
+        "ground_acceleration",
+        "ground_deceleration",
+        "ground_lateral_deceleration",
+    ] {
+        for value in [0.0, -1.0] {
+            directory.write_hotel_override(|settings| settings["movement"]["player"][field] = json!(value));
+            let error = directory.load_error("nonpositive ground rate accepted");
+            assert!(error.contains(&format!("movement.player.{field}")), "{error}");
+        }
+    }
+}
+
+#[test]
+fn air_rates_merge_independently_and_zero_overrides_survive_the_bootstrap_codec() {
+    let directory = TestConfigDir::new();
+    directory.write_hotel_override(|settings| {
+        settings["movement"]["player"] = json!({
+            "air_acceleration": 0.0,
+            "air_deceleration": 0.0,
+            "air_lateral_deceleration": 0.0,
+        });
+    });
+    let loaded = directory.load().expect("zero air overrides rejected");
+    let settings = &loaded.maps["hotel"].settings;
+    let bytes = bincode::encode_to_vec(settings, bincode::config::standard()).expect("encode map settings");
+    let (decoded, used): (common::protocol::MapSettings, usize) =
+        bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("decode map settings");
+    assert_eq!(used, bytes.len());
+    assert_eq!(decoded.movement.player.air_acceleration, 0.0);
+    assert_eq!(decoded.movement.player.air_deceleration, 0.0);
+    assert_eq!(decoded.movement.player.air_lateral_deceleration, 0.0);
+    assert_eq!(
+        decoded.movement.player.ground_acceleration,
+        settings.movement.player.ground_acceleration
+    );
+    directory.write_hotel_override(|settings| {
+        settings["movement"]["player"] = json!({"air_lateral_deceleration": 7.0});
+    });
+    let loaded = directory.load().expect("lateral-only override rejected");
+    let movement = &loaded.maps["hotel"].settings.movement.player;
+    let defaults = TestConfigDir::shipped_gameplay();
+    assert_eq!(movement.air_lateral_deceleration, 7.0);
+    for (field, value) in [
+        ("air_acceleration", movement.air_acceleration),
+        ("air_deceleration", movement.air_deceleration),
+    ] {
+        assert_eq!(
+            f64::from(value),
+            defaults["movement"]["player"][field]
+                .as_f64()
+                .expect("default air rate")
+        );
+    }
 }
 
 #[test]
@@ -112,7 +183,7 @@ fn a_tag_change_replaces_the_variant_and_a_matching_tag_merges() {
 #[test]
 fn an_unknown_override_key_names_the_map_file_and_path() {
     let directory = TestConfigDir::new();
-    directory.write_hotel_override(|settings| settings["movement"]["playr"] = json!({"run_speed": 1.0}));
+    directory.write_hotel_override(|settings| settings["movement"]["playr"] = json!({"move_speed": 1.0}));
     let error = directory.load_error("typo accepted");
     assert!(error.contains("maps/hotel/settings.json"), "{error}");
     assert!(error.contains("movement.playr is not a key in the defaults"), "{error}");

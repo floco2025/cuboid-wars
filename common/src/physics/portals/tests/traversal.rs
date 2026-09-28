@@ -3,7 +3,7 @@ use crate::{
     config::gameplay::load_test_gameplay,
     constants::CHARACTER_CONTACT_OFFSET,
     math::angle_delta_radians,
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
+    physics::{CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity},
     protocol::{FaceYaw, PlayerMoveIntent},
 };
 
@@ -27,7 +27,14 @@ fn frames_are_right_handed_orthonormal_for_any_normal() {
         Vec3::new(0.0, 0.6, 0.8),
         Vec3::new(-1.0, -1.0, 1.4),
     ] {
-        let frame = PortalFrame::from_portal(&portal(PortalEnd::A, Vec3::ZERO, normal, 1.2), &Carriers::default());
+        let frame = PortalFrame::from_portal(
+            &portal(PortalEnd::A, Vec3::ZERO, normal, 1.2),
+            &Carriers::default(),
+            crate::config::gameplay::load_test_gameplay()
+                .expect("fixture gameplay")
+                .portals
+                .size,
+        );
         assert_frame_valid(&frame);
     }
 }
@@ -37,6 +44,10 @@ fn ramp_frame_up_points_along_the_slope() {
     let frame = PortalFrame::from_portal(
         &portal(PortalEnd::A, Vec3::ZERO, Vec3::new(0.0, 0.6, 0.8), 0.0),
         &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     );
     assert!((frame.up - Vec3::new(0.0, 0.8, -0.6)).length() < 1e-5);
     assert!((frame.right - Vec3::X).length() < 1e-5);
@@ -82,8 +93,8 @@ fn same_wall_pair_reverses_heading() {
 fn same_wall_hop_maps_held_input_away_from_the_exit() {
     let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(5.0, 1.6, 0.0), Vec3::Z);
     let physics = player_physics();
-    let intent = PlayerMoveIntent::Running { direction: PI };
-    let control = intent.to_horizontal_velocity(2.0, 6.0, false, 1.0);
+    let intent = PlayerMoveIntent::moving(PI);
+    let control = intent.wish_velocity(2.0, false);
     let hop = set
         .character_hop(
             Vec3::new(0.0, 0.7, 0.15),
@@ -92,7 +103,7 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
             CharacterHopBody {
                 control_velocity: control,
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -103,14 +114,20 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
     let mut face_yaw = FaceYaw(PI);
     let mut vertical_velocity = CharacterVerticalVelocity(0.0);
     let mut mapped = intent;
-    hop.apply_player_state(&mut position, &mut face_yaw, &mut vertical_velocity, &mut mapped);
+    hop.apply_player_state(
+        &mut position,
+        &mut face_yaw,
+        &mut vertical_velocity,
+        &mut mapped,
+        &mut Default::default(),
+    );
     assert_eq!(position, hop.origin.into());
     assert_eq!(face_yaw.0, hop.yaw);
     assert_eq!(vertical_velocity.0, hop.vertical_velocity);
     let mapped_direction = mapped.direction().expect("running intent became idle");
     assert!(angle_delta_radians(mapped_direction, 0.0).abs() < 1e-4);
 
-    let next_control = mapped.to_horizontal_velocity(2.0, 6.0, false, 1.0);
+    let next_control = mapped.wish_velocity(2.0, false);
     let next = hop.origin + next_control * 0.1;
     assert!((next - hop.exit.center).dot(hop.exit.normal) > (hop.origin - hop.exit.center).dot(hop.exit.normal));
     assert!(
@@ -121,7 +138,7 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
             CharacterHopBody {
                 control_velocity: next_control,
                 knockback: hop.knockback,
-                airborne_momentum: hop.airborne_momentum,
+                horizontal_velocity: hop.horizontal_velocity,
                 vertical_velocity: hop.vertical_velocity,
                 yaw: hop.yaw,
             },
@@ -178,7 +195,7 @@ fn square_on_wall_entry_to_floor_exit_faces_the_exit_up() {
 }
 
 #[test]
-fn falling_into_floor_portal_carries_out_of_wall_as_airborne_momentum() {
+fn falling_into_floor_portal_carries_out_of_wall_as_horizontal_velocity() {
     let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(10.0, 2.0, 0.0), Vec3::X);
     let hop = set
         .character_hop(
@@ -188,7 +205,7 @@ fn falling_into_floor_portal_carries_out_of_wall_as_airborne_momentum() {
             CharacterHopBody {
                 control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -10.0,
                 yaw: 0.0,
             },
@@ -197,7 +214,7 @@ fn falling_into_floor_portal_carries_out_of_wall_as_airborne_momentum() {
         .expect("fall through a floor portal did not trigger");
     assert!(hop.vertical_velocity.abs() < 1e-4);
     assert!(hop.knockback.length() < 1e-4);
-    assert!((hop.airborne_momentum - Vec3::new(10.0, 0.0, 0.0)).length() < 1e-4);
+    assert!((hop.horizontal_velocity - Vec3::new(10.0, 0.0, 0.0)).length() < 1e-4);
 }
 
 #[test]
@@ -211,7 +228,7 @@ fn walking_into_wall_portal_exits_floor_portal_upward() {
             CharacterHopBody {
                 control_velocity: Vec3::new(0.0, 0.0, -6.0),
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -221,7 +238,7 @@ fn walking_into_wall_portal_exits_floor_portal_upward() {
     // Control maps into the vertical write but not either momentum carry.
     assert!((hop.vertical_velocity - 6.0).abs() < 1e-4);
     assert!(hop.knockback.length() < 1e-4);
-    assert!(hop.airborne_momentum.length() < 1e-4);
+    assert!(hop.horizontal_velocity.length() < 1e-4);
     // Emerges half-in: the crossing penetration is carried through.
     assert!((hop.origin.y - (0.1 - 0.9 - CHARACTER_CONTACT_OFFSET)).abs() < 1e-4);
 }
@@ -244,21 +261,20 @@ fn falling_into_floor_portal_exits_ramp_at_its_normal_angle() {
             &gameplay,
             &movement,
             PlayerHopBody {
-                move_intent: PlayerMoveIntent::Idle,
-                has_speed: false,
-                stunned: false,
+                stance: Default::default(),
                 knockback: &KnockbackVelocity::default(),
-                airborne_momentum: &AirborneMomentum::default(),
+                horizontal_velocity: &HorizontalVelocity::default(),
                 vertical_velocity: -10.0,
                 yaw: 0.0,
             },
         )
         .expect("floor-to-ramp portal crossing missing");
-    let exit_velocity = hop.airborne_momentum + hop.knockback + Vec3::Y * hop.vertical_velocity;
+    let exit_velocity = hop.horizontal_velocity + hop.knockback + Vec3::Y * hop.vertical_velocity;
 
     assert!((exit_velocity - ramp_normal * 10.0).length() < 1e-4);
     assert!(hop.knockback.length() < 1e-4);
-    assert!(hop.airborne_momentum.z > 1.0);
+    assert!(hop.horizontal_velocity.z > 1.0);
+    assert!(hop.force_crouch, "an angled fling uses the shorter exit hull");
 }
 
 #[test]
@@ -272,7 +288,7 @@ fn crossing_the_plane_triggers_and_carries_penetration() {
             CharacterHopBody {
                 control_velocity: Vec3::new(0.0, 0.0, -6.0),
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -294,7 +310,7 @@ fn approaching_without_crossing_does_not_trigger() {
         CharacterHopBody {
             control_velocity: Vec3::new(0.0, 0.0, -6.0),
             knockback: Vec3::ZERO,
-            airborne_momentum: Vec3::ZERO,
+            horizontal_velocity: Vec3::ZERO,
             vertical_velocity: 0.0,
             yaw: PI,
         },
@@ -313,7 +329,7 @@ fn crossing_from_behind_does_not_trigger() {
         CharacterHopBody {
             control_velocity: Vec3::new(0.0, 0.0, 1.0),
             knockback: Vec3::ZERO,
-            airborne_momentum: Vec3::ZERO,
+            horizontal_velocity: Vec3::ZERO,
             vertical_velocity: 0.0,
             yaw: 0.0,
         },
@@ -332,7 +348,7 @@ fn crossing_outside_the_aperture_does_not_trigger() {
         CharacterHopBody {
             control_velocity: Vec3::new(0.0, 0.0, -6.0),
             knockback: Vec3::ZERO,
-            airborne_momentum: Vec3::ZERO,
+            horizontal_velocity: Vec3::ZERO,
             vertical_velocity: 0.0,
             yaw: PI,
         },
@@ -353,7 +369,7 @@ fn off_center_crossing_uses_the_full_rectangle() {
         CharacterHopBody {
             control_velocity: Vec3::new(0.0, 0.0, -6.0),
             knockback: Vec3::ZERO,
-            airborne_momentum: Vec3::ZERO,
+            horizontal_velocity: Vec3::ZERO,
             vertical_velocity: 0.0,
             yaw: PI,
         },
@@ -373,7 +389,7 @@ fn knockback_carry_is_capped() {
             CharacterHopBody {
                 control_velocity: Vec3::ZERO,
                 knockback: Vec3::X * 50.0,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -1.0,
                 yaw: 0.0,
             },
@@ -394,7 +410,7 @@ fn an_external_teleport_is_not_a_crossing() {
         CharacterHopBody {
             control_velocity: Vec3::ZERO,
             knockback: Vec3::ZERO,
-            airborne_momentum: Vec3::ZERO,
+            horizontal_velocity: Vec3::ZERO,
             vertical_velocity: 0.0,
             yaw: PI,
         },
@@ -416,6 +432,10 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
         ],
         &world,
         &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     );
     let physics = player_physics();
     let inside_from = Vec3::new(0.4, 0.7, placement.pos.z + 0.15);
@@ -433,7 +453,7 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
             CharacterHopBody {
                 control_velocity: inside_move,
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -457,7 +477,7 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
             CharacterHopBody {
                 control_velocity: outside_move,
                 knockback: Vec3::ZERO,
-                airborne_momentum: Vec3::ZERO,
+                horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -526,7 +546,15 @@ fn straddled_gate_is_the_one_whose_plane_the_body_reaches_from_the_front() {
 fn a_carried_gate_is_straddled_where_it_is_drawn() {
     let layout = tile_wall_layout(false);
     let (world, carriers) = tile_world(&layout, 1);
-    let set = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers);
+    let set = PortalSet::rebuild(
+        &[carried_portal(0.0), wall_portal()],
+        &world,
+        &carriers,
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
+    );
     let physics = player_physics();
     let current = tile_center(&carriers);
     let travel = current - carriers.pose_between(TILE, 0.0).translation;

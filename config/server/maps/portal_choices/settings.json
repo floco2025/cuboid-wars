@@ -31,10 +31,9 @@
   "movement": {
     "gravity": 25.0,
     "player": {
-      "walk_speed": 6.0,
-      "run_speed": 9.0,
+      "move_speed": 6.0,
       "jump_speed": 12.0,
-      "speed_power_up": 2.0
+      "move_speed_power_up": 2.0
     },
     "low_gravity": 8.0
   }

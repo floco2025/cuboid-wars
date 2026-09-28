@@ -5,11 +5,10 @@ use bevy_ecs::{
 use bevy_math::Vec3;
 use bevy_time::Time;
 
-use super::types::{CharacterMovementResult, CharacterSupport};
 use crate::{math::PHYSICS_EPSILON, protocol::MapSettings};
 
 // Component attached to character entities tracking persistent gravity-axis
-// velocity. X/Z velocity is derived from intent each tick. Running on a ramp can
+// velocity. Player X/Z velocity persists separately. Running on a ramp can
 // add vertical displacement for that frame, but it is not stored as velocity.
 #[derive(Component, Default)]
 pub struct CharacterVerticalVelocity(pub f32);
@@ -40,22 +39,31 @@ impl KnockbackVelocity {
     }
 }
 
-// Horizontal velocity a body keeps while airborne: a portal exit's launch,
-// or the velocity of a carrier it jumped or walked off. Constant in the
-// air; movement planning clears it on landing or collision.
+// Persistent player horizontal velocity, including ordinary locomotion,
+// portal launches and inherited carrier motion. Ground control and collision
+// projection are applied by the shared player step, never by input sampling.
 #[derive(Component, Debug, Default, Clone, Copy)]
-pub struct AirborneMomentum(pub Vec3);
+pub struct HorizontalVelocity(pub Vec3);
 
-impl AirborneMomentum {
-    #[must_use]
+impl HorizontalVelocity {
     pub fn step(&self, delta: f32) -> Vec3 {
         self.0 * delta
     }
 
-    pub fn finish_step(&mut self, movement: &CharacterMovementResult) {
-        if movement.support == CharacterSupport::Airborne && !movement.blocked {
+    pub fn finish_step(&mut self, movement: &super::CharacterMovementResult) {
+        if movement.support == super::CharacterSupport::Airborne {
             self.0 += movement.floor_velocity.with_y(0.0);
-        } else {
+        }
+        if movement.blocked {
+            for normal in movement.contact_normals {
+                if normal.y.abs() > 0.5 {
+                    continue;
+                }
+                let n = normal.with_y(0.0).normalize_or_zero();
+                self.0 -= n * self.0.dot(n).min(0.0);
+            }
+        }
+        if movement.support == super::CharacterSupport::Ladder {
             self.0 = Vec3::ZERO;
         }
     }

@@ -3,7 +3,7 @@ use std::time::Duration;
 use bevy::{gltf::Gltf, prelude::*, world_serialization::WorldInstanceReady};
 use common::{
     physics::{CharacterMovementResult, CharacterSupport},
-    protocol::{MapSettings, PlayerId, PlayerMoveIntent, Position},
+    protocol::{PlayerId, PlayerMoveIntent, Position},
 };
 
 use super::{PlayerMap, footsteps::FootstepPlayback};
@@ -179,11 +179,12 @@ impl AnimationState {
             return (PlayerClip::Idle, 1.0);
         }
         if local_velocity.x.abs() > local_velocity.z.abs() * PLAYER_ANIMATION_STRAFE_RATIO {
+            // Imported strafe clips have the opposite lateral sign to our +Z-facing movement frame.
             return (
                 if local_velocity.x > 0.0 {
-                    PlayerClip::StrafeLeft
-                } else {
                     PlayerClip::StrafeRight
+                } else {
+                    PlayerClip::StrafeLeft
                 },
                 (speed / PLAYER_ANIMATION_WALK_SPEED).clamp(0.4, 2.5),
             );
@@ -244,7 +245,6 @@ pub(crate) fn player_animation_setup_system(
 pub(crate) fn player_animation_update_system(
     time: Res<Time>,
     players: Res<PlayerMap>,
-    settings: Res<MapSettings>,
     clips: Res<Assets<AnimationClip>>,
     owners: Query<(&PlayerId, &PlayerAnimationMotion, &PlayerMoveIntent, &Transform)>,
     mut animations: Query<(
@@ -253,11 +253,8 @@ pub(crate) fn player_animation_update_system(
         &mut AnimationTransitions,
     )>,
 ) {
-    let movement = &settings.movement.player;
-    // Equal configured speeds mean the map always uses running locomotion.
-    let always_running = movement.walk_speed == movement.run_speed;
     for (mut playback, mut player, mut transitions) in &mut animations {
-        let Ok((id, motion, intent, transform)) = owners.get(playback.source.owner) else {
+        let Ok((id, motion, _intent, transform)) = owners.get(playback.source.owner) else {
             continue;
         };
         let current = playback.source.clips[playback.state.clip as usize];
@@ -265,7 +262,7 @@ pub(crate) fn player_animation_update_system(
         let local_velocity = transform.rotation.inverse() * motion.velocity;
         let (clip, mut speed) = playback.state.select(
             *motion,
-            intent.is_running() || always_running,
+            motion.velocity.with_y(0.0).length() > 4.0,
             local_velocity,
             players.get(id).is_some_and(|info| info.stunned),
             finished,

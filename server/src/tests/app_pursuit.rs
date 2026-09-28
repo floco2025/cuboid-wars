@@ -82,7 +82,7 @@ impl PursuitScene {
 
     fn report(&mut self, position: Position, support: CharacterSupport, vertical_velocity: f32) {
         self.seq += 1;
-        let mut movement = PlayerMovementState::new(position, PlayerMoveIntent::Idle, vertical_velocity, 0.0);
+        let mut movement = PlayerMovementState::new(position, PlayerMoveIntent::NONE, vertical_velocity, 0.0);
         movement.support = support;
         self.client
             .send(ClientMessage::Move(CMove {

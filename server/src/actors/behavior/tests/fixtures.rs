@@ -108,6 +108,7 @@ pub(crate) fn aware(
     visible: bool,
 ) -> crate::actors::resources::AwarePlayer {
     crate::actors::resources::AwarePlayer {
+        stance: Default::default(),
         id: PlayerId(id),
         pos,
         carrier: CarrierId::WORLD,

@@ -135,6 +135,10 @@ fn half_placed_pair_is_inert() {
         &[portal(PortalEnd::A, Vec3::new(0.0, 1.0, 0.0), Vec3::Z, 0.0)],
         &empty_world(),
         &Carriers::default(),
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     );
     assert!(set.is_empty());
     let hop = set.projectile_hop(

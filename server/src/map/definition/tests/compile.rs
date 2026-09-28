@@ -274,7 +274,14 @@ fn compiled_wall_trim_blocks_portal_shots_through_the_storey_seam() {
         Vec3::new(geometry.cell_center_x(0), seam_y, geometry.cell_center_z(0)),
         Vec3::X,
         0.0,
-        geometry.width(),
+        &common::config::PortalsConfig {
+            range: geometry.width(),
+            size: common::config::PortalSize {
+                width: 1.4,
+                height: 2.6,
+            },
+            funnel: common::config::PortalFunnelConfig { capture_margin: 0.6 },
+        },
         &world,
         &layout,
         &Carriers::default(),

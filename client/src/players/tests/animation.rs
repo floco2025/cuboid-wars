@@ -28,12 +28,12 @@ fn choose(
     state: &mut AnimationState,
     support: CharacterSupport,
     velocity: Vec3,
-    intent: PlayerMoveIntent,
+    _intent: PlayerMoveIntent,
     finished: bool,
 ) -> (PlayerClip, f32) {
     let result = state.select(
         PlayerAnimationMotion { support, velocity },
-        intent.is_running(),
+        velocity.with_y(0.0).length() > 4.0,
         velocity,
         false,
         finished,
@@ -47,40 +47,20 @@ fn choose(
 fn locomotion_distinguishes_walking_running_backwards_and_strafing() {
     let mut state = AnimationState::default();
     for (velocity, intent, expected, backwards) in [
-        (
-            Vec3::ZERO,
-            PlayerMoveIntent::Running { direction: 0.0 },
-            PlayerClip::Idle,
-            false,
-        ),
-        (
-            Vec3::Z * 3.0,
-            PlayerMoveIntent::Walking { direction: 0.0 },
-            PlayerClip::Walk,
-            false,
-        ),
-        (
-            Vec3::Z * 5.0,
-            PlayerMoveIntent::Running { direction: 0.0 },
-            PlayerClip::Run,
-            false,
-        ),
-        (
-            -Vec3::Z * 3.0,
-            PlayerMoveIntent::Walking { direction: PI },
-            PlayerClip::Walk,
-            true,
-        ),
+        (Vec3::ZERO, PlayerMoveIntent::moving(0.0), PlayerClip::Idle, false),
+        (Vec3::Z * 3.0, PlayerMoveIntent::moving(0.0), PlayerClip::Walk, false),
+        (Vec3::Z * 5.0, PlayerMoveIntent::moving(0.0), PlayerClip::Run, false),
+        (-Vec3::Z * 3.0, PlayerMoveIntent::moving(PI), PlayerClip::Walk, true),
         (
             Vec3::X * 3.0,
-            PlayerMoveIntent::Walking { direction: FRAC_PI_2 },
-            PlayerClip::StrafeLeft,
+            PlayerMoveIntent::moving(FRAC_PI_2),
+            PlayerClip::StrafeRight,
             false,
         ),
         (
             -Vec3::X * 3.0,
-            PlayerMoveIntent::Walking { direction: -FRAC_PI_2 },
-            PlayerClip::StrafeRight,
+            PlayerMoveIntent::moving(-FRAC_PI_2),
+            PlayerClip::StrafeLeft,
             false,
         ),
     ] {
@@ -98,7 +78,7 @@ fn ladder_pose_holds_and_reverses_without_becoming_a_jump_or_fall() {
             &mut state,
             CharacterSupport::Ladder,
             Vec3::Y * speed,
-            PlayerMoveIntent::Idle,
+            PlayerMoveIntent::NONE,
             false,
         );
         assert_eq!(clip, PlayerClip::Climb);
@@ -108,7 +88,7 @@ fn ladder_pose_holds_and_reverses_without_becoming_a_jump_or_fall() {
             &mut state,
             CharacterSupport::Ground,
             Vec3::ZERO,
-            PlayerMoveIntent::Idle,
+            PlayerMoveIntent::NONE,
             false
         )
         .0,
@@ -135,20 +115,12 @@ fn climb_cadence_tracks_rungs_independently_of_clip_duration() {
 #[test]
 fn moving_landings_and_movement_during_recovery_resume_locomotion() {
     for (intent, velocity, expected) in [
+        (PlayerMoveIntent::moving(0.0), Vec3::Z * 3.0, PlayerClip::Walk),
+        (PlayerMoveIntent::moving(0.0), Vec3::Z * 5.0, PlayerClip::Run),
         (
-            PlayerMoveIntent::Walking { direction: 0.0 },
-            Vec3::Z * 3.0,
-            PlayerClip::Walk,
-        ),
-        (
-            PlayerMoveIntent::Running { direction: 0.0 },
-            Vec3::Z * 5.0,
-            PlayerClip::Run,
-        ),
-        (
-            PlayerMoveIntent::Walking { direction: FRAC_PI_2 },
+            PlayerMoveIntent::moving(FRAC_PI_2),
             Vec3::X * 3.0,
-            PlayerClip::StrafeLeft,
+            PlayerClip::StrafeRight,
         ),
     ] {
         for initial_clip in [PlayerClip::Jump, PlayerClip::Fall, PlayerClip::Land] {
@@ -190,7 +162,7 @@ fn jump_holds_through_apex_falls_lands_once_and_can_jump_again() {
                 &mut state,
                 support,
                 Vec3::Y * velocity,
-                PlayerMoveIntent::Idle,
+                PlayerMoveIntent::NONE,
                 finished
             )
             .0,
@@ -228,6 +200,7 @@ fn carrier_motion_and_knockback_do_not_drive_footsteps() {
     let start = Position::default();
     let mut motion = PlayerAnimationMotion::default();
     let step = CharacterMovementResult {
+        contact_normals: [Vec3::ZERO; 5],
         impact_speed: 0.0,
         grounding: Default::default(),
         position: Position { x: 1.1, y: 0.2, z: 0.0 },
@@ -244,6 +217,7 @@ fn carrier_motion_and_knockback_do_not_drive_footsteps() {
     motion.record_step(start, &step, Vec3::X * 3.0, Vec3::X * 0.1, 0.1);
     assert!(motion.velocity.length() < 1e-5);
     let walking = CharacterMovementResult {
+        contact_normals: [Default::default(); 5],
         position: Position {
             x: 1.4,
             ..step.position
@@ -270,7 +244,7 @@ fn playback_follows_map_speeds_without_restarting_each_frame() {
                 support: CharacterSupport::Ground,
                 velocity: Vec3::Z * 3.0,
             },
-            PlayerMoveIntent::Walking { direction: 0.0 },
+            PlayerMoveIntent::moving(0.0),
             Transform::IDENTITY,
         ))
         .id();
@@ -306,40 +280,20 @@ fn playback_follows_map_speeds_without_restarting_each_frame() {
         .get::<AnimationPlayer>(rig)
         .expect("rig animation player missing");
     assert_eq!(player.animation(walk).expect("walk animation missing").seek_time(), 0.3);
-    for (run_speed, intent, velocity, expected) in [
+    for (move_speed, intent, velocity, expected) in [
+        (4.0, PlayerMoveIntent::moving(0.0), Vec3::Z * 3.0, PlayerClip::Walk),
+        (7.0, PlayerMoveIntent::moving(0.0), Vec3::Z * 3.0, PlayerClip::Walk),
+        (7.0, PlayerMoveIntent::moving(0.0), Vec3::Z * 3.0, PlayerClip::Walk),
+        (4.0, PlayerMoveIntent::moving(PI), -Vec3::Z * 3.0, PlayerClip::Walk),
         (
             4.0,
-            PlayerMoveIntent::Walking { direction: 0.0 },
-            Vec3::Z * 3.0,
-            PlayerClip::Run,
-        ),
-        (
-            7.0,
-            PlayerMoveIntent::Walking { direction: 0.0 },
-            Vec3::Z * 3.0,
-            PlayerClip::Walk,
-        ),
-        (
-            7.0,
-            PlayerMoveIntent::Running { direction: 0.0 },
-            Vec3::Z * 3.0,
-            PlayerClip::Run,
-        ),
-        (
-            4.0,
-            PlayerMoveIntent::Walking { direction: PI },
-            -Vec3::Z * 3.0,
-            PlayerClip::Run,
-        ),
-        (
-            4.0,
-            PlayerMoveIntent::Walking { direction: FRAC_PI_2 },
+            PlayerMoveIntent::moving(FRAC_PI_2),
             Vec3::X * 3.0,
-            PlayerClip::StrafeLeft,
+            PlayerClip::StrafeRight,
         ),
-        (4.0, PlayerMoveIntent::Idle, Vec3::ZERO, PlayerClip::Idle),
+        (4.0, PlayerMoveIntent::NONE, Vec3::ZERO, PlayerClip::Idle),
     ] {
-        app.world_mut().resource_mut::<MapSettings>().movement.player.run_speed = run_speed;
+        app.world_mut().resource_mut::<MapSettings>().movement.player.move_speed = move_speed;
         app.world_mut().entity_mut(owner).insert((
             intent,
             PlayerAnimationMotion {
@@ -471,7 +425,7 @@ fn selected_clips_animate_the_exported_skeleton_and_climb_follows_ladder_speed()
         .spawn((
             PlayerId(1),
             PlayerAnimationMotion::default(),
-            PlayerMoveIntent::Idle,
+            PlayerMoveIntent::NONE,
             Transform::IDENTITY,
         ))
         .id();
@@ -492,7 +446,7 @@ fn selected_clips_animate_the_exported_skeleton_and_climb_follows_ladder_speed()
             support: CharacterSupport::Ground,
             velocity: Vec3::Z * 5.0,
         },
-        PlayerMoveIntent::Running { direction: 0.0 },
+        PlayerMoveIntent::moving(0.0),
     ));
     for _ in 0..6 {
         app.update();

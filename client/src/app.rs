@@ -29,7 +29,7 @@ use crate::{
         install_bootstrap, network_plugin,
     },
     players::{LocalPlayerInfo, PlayerMap},
-    portals::{PortalAssets, PortalMap, portal_render_plugin},
+    portals::{PortalMap, portal_render_plugin},
     projectiles::LastBounceSound,
     schedule::configure_client_sets,
     ui::{ConsoleState, HudShapeAssets, MessageFeed, hud_plugin, loading_screen_plugin, setup_ui_system},
@@ -206,7 +206,6 @@ pub fn build_client_app(
         .insert_resource(WeaponMode::default())
         .insert_resource(LocalSettingsPersistence(persist_local_settings))
         .insert_resource(windowed_frame)
-        .init_resource::<PortalAssets>()
         .init_resource::<MissileAssets>()
         .init_resource::<HudShapeAssets>()
         .init_resource::<ParticleClouds>()

@@ -96,7 +96,7 @@ pub(crate) fn players_checkpoints_system(
                     &carriers,
                     &collision_world,
                     pos,
-                    gameplay.player.physics(),
+                    player.stance().physics(&gameplay.player),
                     &passable_fields(&player.life.held_keys, &switch_state.open_fields),
                 )
             });

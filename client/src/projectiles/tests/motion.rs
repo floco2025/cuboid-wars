@@ -1,3 +1,4 @@
+use crate::test_fixtures::PORTAL_HALF_WIDTH;
 use bevy::{
     math::Vec3,
     time::{Timer, TimerMode},
@@ -5,7 +6,7 @@ use bevy::{
 
 use common::{
     config::MultiShotConfig,
-    constants::{PORTAL_HALF_WIDTH, TICK_SECS},
+    constants::TICK_SECS,
     map::Carriers,
     physics::{CollisionWorld, PortalSet},
     protocol::{
@@ -610,6 +611,7 @@ fn moving_projectile_portals(entry_travel: Vec3, exit_travel: Vec3, obstacles: &
         ],
         &world,
         &carriers,
+        crate::test_fixtures::gameplay_config().portals.size,
     );
     (world, set)
 }

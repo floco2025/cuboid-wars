@@ -36,7 +36,11 @@ type MissileQuery<'w, 's> = Query<
 type TargetQuery<'w, 's> = Query<
     'w,
     's,
-    (&'static Position, &'static FaceYaw),
+    (
+        &'static Position,
+        &'static FaceYaw,
+        Option<&'static common::protocol::PlayerStance>,
+    ),
     (Or<(With<PlayerMarker>, With<ActorMarker>)>, Without<MissileMarker>),
 >;
 
@@ -94,7 +98,7 @@ pub fn missiles_movement_system(
             if !params.players.accepts_generation(*id, info.generation) {
                 return None;
             }
-            let (pos, yaw) = params.targets.get(info.entity).ok()?;
+            let (pos, yaw, stance) = params.targets.get(info.entity).ok()?;
             Some((
                 HitTarget::Player {
                     id: *id,
@@ -102,11 +106,11 @@ pub fn missiles_movement_system(
                 },
                 *pos,
                 yaw.0,
-                params.gameplay.player.physics(),
+                stance.copied().unwrap_or_default().physics(&params.gameplay.player),
             ))
         })
         .chain(params.actors.iter().filter_map(|(id, info)| {
-            let (pos, yaw) = params.targets.get(info.entity).ok()?;
+            let (pos, yaw, _stance) = params.targets.get(info.entity).ok()?;
             Some((
                 HitTarget::Actor(*id),
                 *pos,

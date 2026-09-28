@@ -140,7 +140,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
                 PlayerMarker,
                 PlayerId(9),
                 Position::default(),
-                PlayerMoveIntent::Idle,
+                PlayerMoveIntent::NONE,
                 FaceYaw(0.0),
                 Health(30.0),
             ))

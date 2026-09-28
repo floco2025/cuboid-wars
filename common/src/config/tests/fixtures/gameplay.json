@@ -115,5 +115,9 @@
     "proximity_fuse_distance": 1.0,
     "stall_secs": 2.0
   },
-  "portals": { "range": 100.0 }
+  "portals": {
+    "range": 100.0,
+    "size": { "width": 1.4, "height": 2.6 },
+    "funnel": { "capture_margin": 0.6 }
+  }
 }

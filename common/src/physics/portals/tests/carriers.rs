@@ -32,7 +32,14 @@ fn a_shot_at_a_carrier_floor_places_the_portal_on_the_carrier() {
         (local - Vec3::new(0.3 - 4.0 / 60.0, 0.0, 0.0)).length() < 1e-3,
         "carrier-local pos was {local}"
     );
-    let frame = PortalFrame::from_portal(&portal, &carriers);
+    let frame = PortalFrame::from_portal(
+        &portal,
+        &carriers,
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
+    );
     assert!((frame.center - placement.pos).length() < 1e-4);
 }
 
@@ -132,7 +139,15 @@ fn placement_portal_is_carrier_local() {
 fn a_carried_portal_follows_its_carrier_after_a_refresh() {
     let layout = tile_wall_layout(false);
     let (mut world, mut carriers) = tile_world(&layout, 1);
-    let mut set = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers);
+    let mut set = PortalSet::rebuild(
+        &[carried_portal(0.0), wall_portal()],
+        &world,
+        &carriers,
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
+    );
     assert!(set.has_carried());
     let before = frames(&set).0.center;
     assert!((before - tile_center(&carriers)).length() < 1e-5);
@@ -151,7 +166,15 @@ fn a_carried_portal_follows_its_carrier_after_a_refresh() {
 fn a_body_dropped_into_a_sliding_aperture_exits_the_wall_portal() {
     let layout = tile_wall_layout(false);
     let (mut world, mut carriers) = tile_world(&layout, 1);
-    let mut set = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers);
+    let mut set = PortalSet::rebuild(
+        &[carried_portal(0.0), wall_portal()],
+        &world,
+        &carriers,
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
+    );
     let physics = player_physics();
     let start = Position {
         x: tile_center(&carriers).x,
@@ -181,7 +204,15 @@ fn a_body_dropped_into_a_sliding_aperture_exits_the_wall_portal() {
 fn a_body_dropped_where_the_aperture_was_lands_on_the_tile() {
     let layout = tile_wall_layout(false);
     let (mut world, mut carriers) = tile_world(&layout, 15);
-    let mut set = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers);
+    let mut set = PortalSet::rebuild(
+        &[carried_portal(0.0), wall_portal()],
+        &world,
+        &carriers,
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
+    );
     let physics = player_physics();
     let start = Position { x: 0.0, y: 0.2, z: 0.0 };
 
@@ -197,7 +228,15 @@ fn a_body_dropped_where_the_aperture_was_lands_on_the_tile() {
 fn a_rider_beside_the_aperture_rides_a_full_cycle_without_a_hop() {
     let layout = tile_wall_layout(false);
     let (mut world, mut carriers) = tile_world(&layout, 1);
-    let mut set = PortalSet::rebuild(&[carried_portal(FRAC_PI_2), wall_portal()], &world, &carriers);
+    let mut set = PortalSet::rebuild(
+        &[carried_portal(FRAC_PI_2), wall_portal()],
+        &world,
+        &carriers,
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
+    );
     let physics = player_physics();
     let start = Position {
         x: tile_center(&carriers).x,
@@ -228,7 +267,15 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
     layout.carriers[0].levels = 1;
     let (world, carriers) = tile_world(&layout, 1);
     let rise = LEVEL_HEIGHT / 60.0;
-    let carried = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers);
+    let carried = PortalSet::rebuild(
+        &[carried_portal(0.0), wall_portal()],
+        &world,
+        &carriers,
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
+    );
     let physics = player_physics();
     let half_y = physics.movement_collider.height / 2.0;
     // The body's center sat 0.05 above the plane last tick and moved down
@@ -246,7 +293,7 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
                 CharacterHopBody {
                     control_velocity: Vec3::ZERO,
                     knockback: Vec3::ZERO,
-                    airborne_momentum: Vec3::ZERO,
+                    horizontal_velocity: Vec3::ZERO,
                     vertical_velocity: -3.0,
                     yaw: 0.0,
                 },
@@ -263,7 +310,15 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
         pos: tile_center(&carriers).into(),
         ..carried_portal(0.0)
     };
-    let stale = PortalSet::rebuild(&[stale_portal, wall_portal()], &world, &carriers);
+    let stale = PortalSet::rebuild(
+        &[stale_portal, wall_portal()],
+        &world,
+        &carriers,
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
+    );
     assert!(
         stale
             .character_hop(
@@ -273,7 +328,7 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
                 CharacterHopBody {
                     control_velocity: Vec3::ZERO,
                     knockback: Vec3::ZERO,
-                    airborne_momentum: Vec3::ZERO,
+                    horizontal_velocity: Vec3::ZERO,
                     vertical_velocity: -3.0,
                     yaw: 0.0,
                 },
@@ -313,6 +368,10 @@ fn a_static_portal_ignores_a_carrier_floor_passing_behind_it() {
         &[portal(PortalEnd::A, Vec3::ZERO, Vec3::Y, 0.0), wall_portal()],
         &world,
         &carriers,
+        crate::config::gameplay::load_test_gameplay()
+            .expect("fixture gameplay")
+            .portals
+            .size,
     );
 
     let excluded = set.collision_exclusions(Vec3::ZERO, player_physics());

@@ -35,7 +35,7 @@ fn ordinary_surface_actor_pursues_under_an_authored_plank_and_respawns() {
     let player = app.world().resource::<PlayerMap>().get(&PlayerId(1)).expect("player");
     let body = player.entity().expect("player body");
     let target = Position { x: 1.5, y: 0.0, z: 7.5 };
-    let movement = PlayerMovementState::new(target, PlayerMoveIntent::Idle, 5.0, 0.0);
+    let movement = PlayerMovementState::new(target, PlayerMoveIntent::NONE, 5.0, 0.0);
     client
         .send(ClientMessage::Move(CMove {
             generation: player.session.generation,
@@ -169,7 +169,7 @@ fn hotel_and_obby_run_surface_actors_through_normal_switches_and_replication() {
                     y: plate.center_y + 0.1,
                     z: plate.center_z,
                 },
-                PlayerMoveIntent::Idle,
+                PlayerMoveIntent::NONE,
                 0.0,
                 0.0,
             );
@@ -307,7 +307,7 @@ fn ordinary_surface_actor_pursues_a_player_using_an_authored_shuttle() {
             generation,
             seq: 1,
             portal_crossing: 0,
-            movement: PlayerMovementState::new(target, PlayerMoveIntent::Idle, 0.0, 0.0),
+            movement: PlayerMovementState::new(target, PlayerMoveIntent::NONE, 0.0, 0.0),
         }))
         .expect("goal on island");
     let entity = app
@@ -532,7 +532,7 @@ fn wide_ground_actor_flees_over_hills_and_resumes_pursuit_on_the_physical_terrai
     let start = *app.world().get::<Position>(entity).expect("start");
     let mut seq = 0;
     let report = |client: &crossbeam_channel::Sender<ClientMessage>, seq, pos| {
-        let mut movement = PlayerMovementState::new(pos, PlayerMoveIntent::Idle, 0.0, 0.0);
+        let mut movement = PlayerMovementState::new(pos, PlayerMoveIntent::NONE, 0.0, 0.0);
         movement.support = CharacterSupport::Ground;
         client
             .send(ClientMessage::Move(CMove {
@@ -702,7 +702,7 @@ fn surface_actor_pursues_across_navigation_regions_then_returns_home() {
                     portal_crossing: 0,
                     movement: PlayerMovementState::new(
                         (target + Vec3::Y * 0.02).into(),
-                        PlayerMoveIntent::Idle,
+                        PlayerMoveIntent::NONE,
                         0.0,
                         0.0,
                     ),
@@ -824,7 +824,7 @@ fn moving_player_pursuit_stays_direct_past_an_off_path_obstacle() {
                 generation,
                 seq: tick,
                 portal_crossing: 0,
-                movement: PlayerMovementState::new(target, PlayerMoveIntent::Idle, 0.0, 0.0),
+                movement: PlayerMovementState::new(target, PlayerMoveIntent::NONE, 0.0, 0.0),
             }))
             .expect("moving owner");
         app.update();

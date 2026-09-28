@@ -19,6 +19,7 @@ pub(super) struct PlayerState {
     pub(super) carrier: CarrierId,
     pub(super) carrier_pos: Position,
     pub(super) support: CharacterSupport,
+    pub(super) stance: common::protocol::PlayerStance,
 }
 
 pub(super) fn player_states<'a>(
@@ -37,6 +38,7 @@ pub(super) fn player_states<'a>(
                     carrier: info.life.movement.carrier,
                     carrier_pos: info.life.movement.pos,
                     support: info.life.movement.support,
+                    stance: info.life.movement.stance,
                 })
         })
         .collect()
@@ -71,6 +73,7 @@ pub(super) fn update_awareness(
             aware.carrier = player.carrier;
             aware.carrier_pos = player.carrier_pos;
             aware.support = player.support;
+            aware.stance = player.stance;
             aware.forget_remaining_secs = forget_secs;
         }
         aware.forget_remaining_secs > 0.0
@@ -84,6 +87,7 @@ pub(super) fn update_awareness(
             continue;
         }
         info.awareness.push(AwarePlayer {
+            stance: player.stance,
             id: player.id,
             pos: player.pos,
             carrier: player.carrier,
@@ -109,6 +113,7 @@ fn player_visible(
     player_physics: CharacterPhysicsConfig,
     collision_world: &CollisionWorld,
 ) -> bool {
-    let center = Vec3::new(player.pos.x, player_physics.hitbox_center_y(player.pos.y), player.pos.z);
+    let physics = player.stance.adjust_physics(player_physics);
+    let center = Vec3::new(player.pos.x, physics.hitbox_center_y(player.pos.y), player.pos.z);
     actor_eye.distance_squared(center) <= range_sq && collision_world.line_of_sight_clear(actor_eye, center)
 }

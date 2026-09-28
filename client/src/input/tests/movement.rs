@@ -14,7 +14,7 @@ use bevy::{
 use common::{
     config::NetworkConfig,
     map::Carriers,
-    physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
+    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, HorizontalVelocity, KnockbackVelocity},
     protocol::{
         CarrierId, ClientMessage, FaceYaw, Floor, Ladder, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess,
         PortalPairId, Position,
@@ -77,9 +77,10 @@ fn input_app() -> (App, Entity, Entity) {
             LocalPlayerMarker,
             Position::default(),
             FaceYaw(0.0),
-            PlayerMoveIntent::Idle,
+            PlayerMoveIntent::NONE,
             CharacterVerticalVelocity(0.0),
-            AirborneMomentum::default(),
+            common::protocol::PlayerStance::default(),
+            HorizontalVelocity::default(),
             KnockbackVelocity::default(),
             LocalMovementStep {
                 start: Position::default(),
@@ -143,7 +144,7 @@ fn released_movement_is_idle_for_every_fixed_catchup_step() {
 
     let inputs = &app.world().resource::<FixedInputs>().0;
     assert_eq!(inputs.len(), 7);
-    assert!(inputs.iter().all(|(intent, _, _)| *intent == PlayerMoveIntent::Idle));
+    assert!(inputs.iter().all(|(intent, _, _)| intent.direction().is_none()));
 }
 
 #[test]
@@ -170,9 +171,7 @@ fn fixed_steps_use_the_current_mouse_direction_and_facing_lock() {
     let inputs = &app.world().resource::<FixedInputs>().0;
     assert!(!inputs.is_empty());
     for (intent, facing, _) in inputs {
-        let PlayerMoveIntent::Walking { direction } = intent else {
-            panic!("fixed step did not receive walking input");
-        };
+        let direction = &intent.direction().expect("fixed step movement input");
         assert!((*direction - (PI - 0.2)).abs() < 1e-5);
         assert_eq!(direction, facing);
     }
@@ -205,7 +204,7 @@ fn opening_an_overlay_blocks_movement_and_jump_before_catchup() {
         assert!(
             inputs
                 .iter()
-                .all(|(intent, _, velocity)| *intent == PlayerMoveIntent::Idle && *velocity == 0.0)
+                .all(|(intent, _, velocity)| intent.direction().is_none() && *velocity == 0.0)
         );
     }
 }
@@ -374,7 +373,7 @@ fn losing_focus_clears_movement_before_physics_even_if_focus_returns_in_the_same
         app.update();
         assert!(matches!(
             app.world().get::<PlayerMoveIntent>(player),
-            Some(PlayerMoveIntent::Walking { .. })
+            Some(input) if input.direction().is_some()
         ));
 
         app.world_mut().write_message(WindowFocused { window, focused: false });
@@ -382,11 +381,12 @@ fn losing_focus_clears_movement_before_physics_even_if_focus_returns_in_the_same
             app.world_mut().write_message(WindowFocused { window, focused: true });
         }
         app.world_mut().run_schedule(PreUpdate);
-        assert_eq!(
-            *app.world()
+        assert!(
+            app.world()
                 .get::<PlayerMoveIntent>(player)
-                .expect("player intent missing"),
-            PlayerMoveIntent::Idle
+                .expect("player intent missing")
+                .direction()
+                .is_none()
         );
         assert!(
             app.world()
@@ -403,11 +403,12 @@ fn losing_focus_clears_movement_before_physics_even_if_focus_returns_in_the_same
                 .is_none()
         );
         app.update();
-        assert_eq!(
-            *app.world()
+        assert!(
+            app.world()
                 .get::<PlayerMoveIntent>(player)
-                .expect("player intent missing"),
-            PlayerMoveIntent::Idle
+                .expect("player intent missing")
+                .direction()
+                .is_none()
         );
 
         app.world_mut().write_message(WindowFocused { window, focused: true });
@@ -417,17 +418,18 @@ fn losing_focus_clears_movement_before_physics_even_if_focus_returns_in_the_same
         app.update();
         assert!(matches!(
             app.world().get::<PlayerMoveIntent>(player),
-            Some(PlayerMoveIntent::Walking { .. })
+            Some(input) if input.direction().is_some()
         ));
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .release(KeyCode::KeyD);
         app.update();
-        assert_eq!(
-            *app.world()
+        assert!(
+            app.world()
                 .get::<PlayerMoveIntent>(player)
-                .expect("player intent missing"),
-            PlayerMoveIntent::Idle
+                .expect("player intent missing")
+                .direction()
+                .is_none()
         );
     }
 }
@@ -476,14 +478,12 @@ fn unlocked_movement_orbit_lock_and_menu_use_independent_controls() {
         .resource_mut::<ButtonInput<KeyCode>>()
         .press(KeyCode::KeyD);
     app.update();
-    let direction = match *app
+    let direction = app
         .world()
         .get::<PlayerMoveIntent>(player)
         .expect("movement intent missing from test player")
-    {
-        PlayerMoveIntent::Walking { direction } => direction,
-        _ => panic!("unlocked camera blocked walking"),
-    };
+        .direction()
+        .expect("unlocked camera movement");
     assert_eq!(
         app.world()
             .get::<FaceYaw>(player)
@@ -542,7 +542,7 @@ fn unlocked_movement_orbit_lock_and_menu_use_independent_controls() {
         *app.world()
             .get::<PlayerMoveIntent>(player)
             .expect("movement intent missing from test player"),
-        PlayerMoveIntent::Idle
+        PlayerMoveIntent::NONE
     );
     assert_eq!(
         app.world()
@@ -728,7 +728,7 @@ fn playback_mouse_look_does_not_change_scripted_movement_facing_or_jump() {
     let (mut app, player, _) = input_app();
     app.insert_resource(crate::network::PlaybackMode);
     app.world_mut().entity_mut(player).insert((
-        PlayerMoveIntent::Running { direction: 1.0 },
+        PlayerMoveIntent::moving(1.0),
         FaceYaw(1.0),
         CharacterVerticalVelocity(4.0),
     ));
@@ -746,7 +746,7 @@ fn playback_mouse_look_does_not_change_scripted_movement_facing_or_jump() {
     assert_ne!(app.world().resource::<LocalPlayerInfo>().stored_yaw, previous_yaw);
     assert_eq!(
         *app.world().get::<PlayerMoveIntent>(player).expect("intent"),
-        PlayerMoveIntent::Running { direction: 1.0 }
+        PlayerMoveIntent::moving(1.0)
     );
     assert_eq!(app.world().get::<FaceYaw>(player).expect("facing").0, 1.0);
     assert_eq!(
@@ -756,4 +756,38 @@ fn playback_mouse_look_does_not_change_scripted_movement_facing_or_jump() {
             .0,
         4.0
     );
+}
+
+#[test]
+fn ctrl_requests_crouch_shift_does_not_sprint_and_a_crouched_body_cannot_jump() {
+    let (mut app, player, _) = fixed_input_app();
+    app.world_mut()
+        .entity_mut(player)
+        .insert(common::protocol::PlayerStance {
+            crouched: true,
+            fraction: 1.0,
+        });
+    {
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.press(KeyCode::KeyW);
+        keys.press(KeyCode::ControlLeft);
+        keys.press(KeyCode::ShiftLeft);
+        keys.press(KeyCode::Space);
+    }
+    app.update();
+    let intent = *app.world().get::<PlayerMoveIntent>(player).expect("intent");
+    assert!(intent.crouch);
+    assert_eq!(intent.forward, 1.0);
+    assert_eq!(
+        app.world()
+            .get::<CharacterVerticalVelocity>(player)
+            .expect("velocity")
+            .0,
+        0.0
+    );
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::ShiftLeft);
+    app.update();
+    assert_eq!(*app.world().get::<PlayerMoveIntent>(player).expect("intent"), intent);
 }

@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from . import constants
 from .catalogs import load_map_settings, map_settings_path
 from .compact_widgets import CompactComboBox
-from .portal_jump import PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PortalSettings, calculate_landings, entry_states
+from .portal_jump import PortalSettings, calculate_landings, entry_states
 from .portal_surfaces import PortalSurfaces, portals_overlap
 from .reach_markers import SCENARIOS, landing_lines, paint_landing_markers
 
@@ -390,13 +390,16 @@ class PortalJumpOverlay:
         painter.setBrush(Qt.BrushStyle.NoBrush)
         if surface.face == "floor":
             rx, rz = (
-                (PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT)
+                (self.settings.half_width, self.settings.half_height)
                 if surface.turn % 2 == 0
-                else (PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH)
+                else (self.settings.half_height, self.settings.half_width)
             )
             painter.drawEllipse(QRectF(x - rx * scale, z - rz * scale, 2 * rx * scale, 2 * rz * scale))
         else:
-            dx, dz = frame.right[0] * cell * 0.23, frame.right[2] * cell * 0.23
+            dx, dz = (
+                frame.right[0] * self.settings.half_width * scale,
+                frame.right[2] * self.settings.half_width * scale,
+            )
             painter.drawLine(QPointF(x - dx, z - dz), QPointF(x + dx, z + dz))
         length = cell * (0.28 if label else 0.16)
         tip = QPointF(x + direction[0] * length, z + direction[2] * length)

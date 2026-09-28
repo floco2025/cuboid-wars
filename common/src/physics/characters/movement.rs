@@ -192,15 +192,6 @@ fn prepare_movement_request(
         (step.vertical_velocity - env.gravity * step.delta).max(-CHARACTER_TERMINAL_VELOCITY)
     };
 
-    let portal_funnel = env.portals.map_or(Vec3::ZERO, |portals| {
-        portals.funnel_displacement(
-            Vec3::from(*start_pos),
-            physics,
-            step.control_velocity,
-            step.vertical_velocity,
-            step.delta,
-        )
-    });
     // Actor mount waypoints align them; pulling adjacent climbers together can stop both moves.
     let ladder_funnel = if env.ladder_mode == LadderMode::Automatic {
         ladder.funnel_displacement(&ladder_pos, step.delta)
@@ -210,12 +201,10 @@ fn prepare_movement_request(
     let target_x = step.control_velocity.x.mul_add(step.delta, start_pos.x)
         + step.external_displacement.x
         + carry_xz.x
-        + portal_funnel.x
         + ladder_funnel.x;
     let target_z = step.control_velocity.z.mul_add(step.delta, start_pos.z)
         + step.external_displacement.z
         + carry_xz.z
-        + portal_funnel.z
         + ladder_funnel.z;
     let (target_x, target_z) = if matches!(env.ladder_mode, LadderMode::Automatic | LadderMode::Climb) {
         ladder.constrain_target(&ladder_pos, target_x, target_z, collision_world, physics)
@@ -248,6 +237,7 @@ fn prepare_movement_request(
 
 struct CharacterCollisionResult {
     translation: Vector,
+    normals: [Vec3; 5],
     saw_side_contact: bool,
     hit_ceiling: bool,
 }
@@ -259,6 +249,8 @@ fn resolve_character_collision(
     shape: &Capsule,
     request: &MovementRequest,
 ) -> CharacterCollisionResult {
+    let mut normals = [Vec3::ZERO; 5];
+    let mut count = 0;
     let mut saw_side_contact = false;
     let mut hit_ceiling = false;
     let controller = character_controller();
@@ -266,6 +258,10 @@ fn resolve_character_collision(
     let mut observe = |collision: CharacterCollision| {
         let normal = from_rapier(collision.hit.normal1);
         let is_side_contact = normal.y.abs() <= 0.5;
+        if count < normals.len() && !normals[..count].iter().any(|n: &Vec3| n.dot(normal) > 0.999) {
+            normals[count] = normal;
+            count += 1;
+        }
         let is_ceiling = normal.y < -0.5 && request.requested_vertical.y > 0.0;
         if is_side_contact {
             saw_side_contact = true;
@@ -326,6 +322,7 @@ fn resolve_character_collision(
 
     CharacterCollisionResult {
         translation: carried + movement.as_ref().map_or(Vector::ZERO, |movement| movement.translation),
+        normals,
         saw_side_contact,
         hit_ceiling,
     }
@@ -420,6 +417,7 @@ fn finish_character_movement(
         );
 
     CharacterMovementResult {
+        contact_normals: collision.normals,
         grounding,
         position: resolved,
         vertical_velocity,

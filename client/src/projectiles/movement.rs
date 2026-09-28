@@ -59,7 +59,17 @@ pub fn projectiles_movement_system(
         // `&Position` queries below (B0001).
         (With<ProjectileMarker>, Without<PlayerMarker>, Without<ActorMarker>),
     >,
-    player_query: Query<(Entity, &Position, &FaceYaw, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
+    player_query: Query<
+        (
+            Entity,
+            &Position,
+            &FaceYaw,
+            &PlayerId,
+            Has<LocalPlayerMarker>,
+            &common::protocol::PlayerStance,
+        ),
+        With<PlayerMarker>,
+    >,
     actor_query: Query<(&ActorId, &Position, &FaceYaw), With<ActorMarker>>,
     actors: Res<ActorMap>,
     world: ProjectileWorld,
@@ -96,19 +106,19 @@ pub fn projectiles_movement_system(
             |projectile, current_pos| {
                 player_query
                     .iter()
-                    .find(|(entity, _, _, player_id, _)| {
+                    .find(|(entity, _, _, player_id, _, _)| {
                         *player_id == shooter_id
                             && world.players.get(player_id).is_some_and(|info| {
                                 info.entity == *entity && world.players.accepts_generation(**player_id, info.generation)
                             })
                     })
-                    .is_some_and(|(_, player_pos, face_yaw, _, _)| {
+                    .is_some_and(|(_, player_pos, face_yaw, _, _, stance)| {
                         projectile_overlaps_character(
                             projectile,
                             current_pos,
                             player_pos,
                             face_yaw.0,
-                            world.gameplay_config.player.physics(),
+                            stance.physics(&world.gameplay_config.player),
                         )
                     })
             },

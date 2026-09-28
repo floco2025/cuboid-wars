@@ -1,9 +1,9 @@
+use crate::test_fixtures::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH};
 use common::protocol::CarrierId;
 use std::f32::consts::FRAC_PI_2;
 
 use super::*;
 use crate::portals::PortalInfo;
-use common::constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH};
 
 fn perspective() -> Projection {
     let mut projection = Projection::Perspective(PerspectiveProjection {
@@ -56,6 +56,7 @@ fn disabling_the_main_camera_or_budget_clears_views_and_restores_fallbacks() {
     app.init_resource::<Assets<Mesh>>()
         .init_resource::<Assets<Image>>()
         .init_resource::<Assets<StandardMaterial>>()
+        .insert_resource(crate::test_fixtures::gameplay_config())
         .init_resource::<PortalAssets>()
         .init_resource::<PortalRenderState>()
         .init_resource::<Carriers>()
@@ -125,8 +126,18 @@ fn disabling_the_main_camera_or_budget_clears_views_and_restores_fallbacks() {
 fn projected_portal_footprint_shrinks_with_distance() {
     let camera = Transform::IDENTITY;
     let projection = perspective();
-    let near = PortalFrame::from_surface(Vec3::new(0.0, 0.0, -2.0), Vec3::Z, 0.0);
-    let far = PortalFrame::from_surface(Vec3::new(0.0, 0.0, -8.0), Vec3::Z, 0.0);
+    let near = PortalFrame::from_surface(
+        Vec3::new(0.0, 0.0, -2.0),
+        Vec3::Z,
+        0.0,
+        crate::test_fixtures::gameplay_config().portals.size,
+    );
+    let far = PortalFrame::from_surface(
+        Vec3::new(0.0, 0.0, -8.0),
+        Vec3::Z,
+        0.0,
+        crate::test_fixtures::gameplay_config().portals.size,
+    );
 
     let near_size = visible_aperture(&near, &camera, &projection, Vec2::splat(1000.0))
         .expect("near portal is on screen")
@@ -142,7 +153,12 @@ fn projected_portal_footprint_shrinks_with_distance() {
 #[test]
 fn portal_behind_camera_has_no_projected_footprint() {
     let projection = perspective();
-    let portal = PortalFrame::from_surface(Vec3::new(0.0, 0.0, 2.0), Vec3::NEG_Z, 0.0);
+    let portal = PortalFrame::from_surface(
+        Vec3::new(0.0, 0.0, 2.0),
+        Vec3::NEG_Z,
+        0.0,
+        crate::test_fixtures::gameplay_config().portals.size,
+    );
 
     assert!(visible_aperture(&portal, &Transform::IDENTITY, &projection, Vec2::splat(1000.0)).is_none());
 }
@@ -150,7 +166,12 @@ fn portal_behind_camera_has_no_projected_footprint() {
 #[test]
 fn distant_aperture_renders_whole_and_close_aperture_renders_only_the_visible_part() {
     let projection = perspective();
-    let portal = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0);
+    let portal = PortalFrame::from_surface(
+        Vec3::ZERO,
+        Vec3::Z,
+        0.0,
+        crate::test_fixtures::gameplay_config().portals.size,
+    );
 
     let distant = visible_aperture(
         &portal,
@@ -161,12 +182,12 @@ fn distant_aperture_renders_whole_and_close_aperture_renders_only_the_visible_pa
     .expect("distant portal is on screen");
     assert!(distant.footprint.y < 1000.0);
     assert!(
-        (distant.rect.min - full_aperture().min).length() < 1e-3,
+        (distant.rect.min - full_aperture(crate::test_fixtures::gameplay_config().portals.size).min).length() < 1e-3,
         "{:?}",
         distant.rect
     );
     assert!(
-        (distant.rect.max - full_aperture().max).length() < 1e-3,
+        (distant.rect.max - full_aperture(crate::test_fixtures::gameplay_config().portals.size).max).length() < 1e-3,
         "{:?}",
         distant.rect
     );
@@ -187,7 +208,12 @@ fn distant_aperture_renders_whole_and_close_aperture_renders_only_the_visible_pa
 #[test]
 fn aperture_corner_behind_the_eye_is_clipped_not_abandoned() {
     let projection = perspective();
-    let portal = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0);
+    let portal = PortalFrame::from_surface(
+        Vec3::ZERO,
+        Vec3::Z,
+        0.0,
+        crate::test_fixtures::gameplay_config().portals.size,
+    );
     // Hugging the wall, turned along it: the near corner is behind the eye plane.
     let camera = Transform::from_xyz(0.5, 0.0, 0.15).looking_to(Vec3::new(-1.0, 0.0, -0.3).normalize(), Vec3::Y);
 
@@ -209,11 +235,17 @@ fn aperture_corner_behind_the_eye_is_clipped_not_abandoned() {
 
 #[test]
 fn uv_transform_maps_the_disc_onto_the_rendered_rect() {
-    let identity = aperture_uv_transform(full_aperture());
+    let identity = aperture_uv_transform(
+        full_aperture(crate::test_fixtures::gameplay_config().portals.size),
+        crate::test_fixtures::gameplay_config().portals.size,
+    );
     assert!((identity.transform_point2(Vec2::new(0.25, 0.75)) - Vec2::new(0.25, 0.75)).length() < 1e-6);
 
     // The upper-right quadrant of the aperture (disc UV u > 0.5, v < 0.5).
-    let quadrant = aperture_uv_transform(Rect::new(0.0, 0.0, PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT));
+    let quadrant = aperture_uv_transform(
+        Rect::new(0.0, 0.0, PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT),
+        crate::test_fixtures::gameplay_config().portals.size,
+    );
     assert!((quadrant.transform_point2(Vec2::new(0.5, 0.5)) - Vec2::new(0.0, 1.0)).length() < 1e-6);
     assert!((quadrant.transform_point2(Vec2::new(1.0, 0.0)) - Vec2::new(1.0, 0.0)).length() < 1e-6);
 }
@@ -234,7 +266,8 @@ fn view_is_active_only_while_the_aperture_is_on_screen() {
             0.0,
             &looking_at_a,
             &projection,
-            UVec2::splat(1000)
+            UVec2::splat(1000),
+            crate::test_fixtures::gameplay_config().portals.size
         )
         .is_some()
     );
@@ -246,7 +279,8 @@ fn view_is_active_only_while_the_aperture_is_on_screen() {
             0.0,
             &looking_aside,
             &projection,
-            UVec2::splat(1000)
+            UVec2::splat(1000),
+            crate::test_fixtures::gameplay_config().portals.size
         )
         .is_none()
     );
@@ -267,6 +301,7 @@ fn nested_view_continues_through_the_far_portal_but_never_its_own_exit() {
         &camera,
         &projection,
         UVec2::splat(1000),
+        crate::test_fixtures::gameplay_config().portals.size,
     )
     .expect("second look through A is in view");
     assert!(
@@ -281,7 +316,8 @@ fn nested_view_continues_through_the_far_portal_but_never_its_own_exit() {
             0.0,
             &camera,
             &projection,
-            UVec2::splat(1000)
+            UVec2::splat(1000),
+            crate::test_fixtures::gameplay_config().portals.size
         )
         .is_none()
     );
@@ -310,7 +346,7 @@ fn mapped(chain: &[PortalKey], footprint: Vec2) -> MappedView {
         transform: Transform::IDENTITY,
         projection: Projection::default(),
         footprint,
-        rect: full_aperture(),
+        rect: full_aperture(crate::test_fixtures::gameplay_config().portals.size),
     }
 }
 
@@ -377,6 +413,7 @@ fn root_selection_uses_visible_size_not_portal_pair_order() {
             &perspective(),
             UVec2::splat(1000),
             1,
+            crate::test_fixtures::gameplay_config().portals.size
         ),
         vec![(PortalPairId(2), PortalEnd::A)]
     );
@@ -385,4 +422,26 @@ fn root_selection_uses_visible_size_not_portal_pair_order() {
 #[test]
 fn recursive_camera_layers_stay_within_render_layer_capacity() {
     assert_eq!(RENDER_LAYER_PORTAL_VIEW_START + MAX_PORTAL_VIEW_CAMERAS - 1, 63);
+}
+
+#[test]
+fn resized_aperture_uses_its_configured_extent_and_uvs() {
+    let size = common::config::PortalSize {
+        width: 2.0,
+        height: 4.0,
+    };
+    let frame = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0, size);
+    let camera = Transform::from_xyz(0.0, 0.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y);
+    let visible = visible_aperture(
+        &frame,
+        &camera,
+        &Projection::Perspective(PerspectiveProjection::default()),
+        Vec2::splat(1000.0),
+    )
+    .expect("visible");
+    assert!((visible.rect.min - Vec2::new(-1.0, -2.0)).length() < 1e-5);
+    assert!((visible.rect.max - Vec2::new(1.0, 2.0)).length() < 1e-5);
+    let uv = aperture_uv_transform(visible.rect, size);
+    assert!((uv.transform_point2(Vec2::ZERO) - Vec2::ZERO).length() < 1e-5);
+    assert!((uv.transform_point2(Vec2::ONE) - Vec2::ONE).length() < 1e-5);
 }

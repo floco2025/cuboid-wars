@@ -5,67 +5,78 @@ use bincode::{Decode, Encode};
 use super::{CarrierId, Position};
 use crate::physics::CharacterSupport;
 
+// View-relative movement input. Physics owns velocity and resolved stance;
+// releasing buttons never rewrites either. Sideways is positive to the left.
 #[derive(Debug, Clone, Encode, Decode, Copy, Component, Default, PartialEq)]
-pub enum PlayerMoveIntent {
-    #[default]
-    Idle,
-    Walking {
-        direction: f32,
-    },
-    Running {
-        direction: f32,
-    },
+pub struct PlayerMoveIntent {
+    pub forward: f32,
+    pub sideways: f32,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub crouch: bool,
 }
 
 impl PlayerMoveIntent {
-    #[must_use]
-    pub const fn direction(&self) -> Option<f32> {
-        match self {
-            Self::Idle => None,
-            Self::Walking { direction } | Self::Running { direction } => Some(*direction),
+    pub const NONE: Self = Self {
+        forward: 0.0,
+        sideways: 0.0,
+        yaw: 0.0,
+        pitch: 0.0,
+        crouch: false,
+    };
+
+    pub const fn moving(direction: f32) -> Self {
+        Self {
+            forward: 1.0,
+            yaw: direction,
+            ..Self::NONE
         }
     }
 
-    #[must_use]
-    pub fn to_horizontal_velocity(
-        &self,
-        walk_speed: f32,
-        run_speed: f32,
-        has_speed_power_up: bool,
-        speed_multiplier: f32,
-    ) -> Vec3 {
-        match self {
-            Self::Idle => Vec3::ZERO,
-            Self::Walking { direction } => {
-                let speed = player_speed_with_power_up(walk_speed, has_speed_power_up, speed_multiplier);
-                Vec3::new(direction.sin() * speed, 0.0, direction.cos() * speed)
-            }
-            Self::Running { direction } => {
-                let speed = player_speed_with_power_up(run_speed, has_speed_power_up, speed_multiplier);
-                Vec3::new(direction.sin() * speed, 0.0, direction.cos() * speed)
-            }
-        }
+    pub fn direction(self) -> Option<f32> {
+        (self.forward != 0.0 || self.sideways != 0.0).then(|| self.yaw + self.sideways.atan2(self.forward))
     }
 
-    #[must_use]
-    pub const fn is_running(&self) -> bool {
-        matches!(self, Self::Running { .. })
+    pub fn wish_velocity(self, speed: f32, airborne: bool) -> Vec3 {
+        let input = bevy_math::Vec2::new(self.sideways, self.forward).clamp_length_max(1.0);
+        let forward = if airborne && self.pitch.abs() >= std::f32::consts::FRAC_PI_6 {
+            input.y * self.pitch.cos()
+        } else {
+            input.y
+        };
+        let (sin, cos) = self.yaw.sin_cos();
+        Vec3::new(sin * forward + cos * input.x, 0.0, cos * forward - sin * input.x) * speed
     }
 
-    // Reject directions a malformed/malicious client could send: a NaN/inf
-    // direction would turn into a NaN velocity in `to_horizontal_velocity` and
-    // corrupt the authoritative position the server broadcasts to everyone.
-    #[must_use]
-    pub fn is_finite(&self) -> bool {
-        self.direction().is_none_or(f32::is_finite)
+    pub fn is_finite(self) -> bool {
+        self.forward.is_finite() && self.sideways.is_finite() && self.yaw.is_finite() && self.pitch.is_finite()
     }
 }
 
-fn player_speed_with_power_up(speed: f32, has_speed_power_up: bool, speed_multiplier: f32) -> f32 {
-    if has_speed_power_up {
-        speed * speed_multiplier
-    } else {
-        speed
+#[derive(Debug, Clone, Copy, Default, PartialEq, Component, Encode, Decode)]
+pub struct PlayerStance {
+    pub crouched: bool,
+    // Camera/pose blend; the collision hull changes only at an accepted transition.
+    pub fraction: f32,
+}
+
+impl PlayerStance {
+    pub fn physics(self, config: &crate::config::CharacterGameplayConfig) -> crate::config::CharacterPhysicsConfig {
+        self.adjust_physics(config.physics())
+    }
+
+    pub fn adjust_physics(
+        self,
+        mut physics: crate::config::CharacterPhysicsConfig,
+    ) -> crate::config::CharacterPhysicsConfig {
+        if self.crouched {
+            physics.movement_collider.height *= 0.5;
+            physics.hitbox.height *= 0.5;
+        }
+        physics
+    }
+    pub fn eye_height(self, config: &crate::config::CharacterGameplayConfig) -> f32 {
+        config.eye_height() * (1.0 - self.fraction * (1.0 - 28.0 / 64.0))
     }
 }
 
@@ -152,7 +163,8 @@ pub struct PlayerMovementState {
     pub move_intent: PlayerMoveIntent,
     pub vertical_velocity: f32,
     pub face_yaw: f32,
-    pub airborne_momentum: [f32; 3],
+    pub horizontal_velocity: [f32; 3],
+    pub stance: PlayerStance,
     pub knockback: [f32; 3],
     pub support: CharacterSupport,
 }
@@ -166,26 +178,32 @@ impl PlayerMovementState {
             move_intent,
             vertical_velocity,
             face_yaw,
-            airborne_momentum: [0.0; 3],
+            horizontal_velocity: [0.0; 3],
+            stance: PlayerStance {
+                crouched: false,
+                fraction: 0.0,
+            },
             knockback: [0.0; 3],
             support: CharacterSupport::Airborne,
         }
     }
 
     #[must_use]
-    pub fn with_momentum(mut self, airborne: Vec3, knockback: Vec3) -> Self {
-        self.airborne_momentum = airborne.to_array();
+    pub fn with_momentum(mut self, horizontal: Vec3, knockback: Vec3) -> Self {
+        self.horizontal_velocity = horizontal.to_array();
         self.knockback = knockback.to_array();
         self
     }
 
     #[must_use]
     pub fn is_finite(&self) -> bool {
-        self.pos.is_finite()
+        self.stance.fraction.is_finite()
+            && (0.0..=1.0).contains(&self.stance.fraction)
+            && self.pos.is_finite()
             && self.move_intent.is_finite()
             && self.vertical_velocity.is_finite()
             && self.face_yaw.is_finite()
-            && Vec3::from_array(self.airborne_momentum).is_finite()
+            && Vec3::from_array(self.horizontal_velocity).is_finite()
             && Vec3::from_array(self.knockback).is_finite()
     }
 }

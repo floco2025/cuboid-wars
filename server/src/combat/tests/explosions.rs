@@ -17,7 +17,7 @@ use crate::{
 use common::{
     map::Carriers,
     physics::{
-        AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, blast_falloff_at_distance,
+        CharacterVerticalVelocity, CollisionWorld, HorizontalVelocity, KnockbackVelocity, blast_falloff_at_distance,
     },
     protocol::{
         ActorAnchor, ActorId, ActorMarker, Barrier, CarrierId, FieldId, Health, LightBridge, MapLayout, PlayerId,
@@ -279,7 +279,7 @@ fn simultaneous_blasts_send_one_combined_player_result() {
             Position::default(),
             Health(1_000.0),
             CharacterVerticalVelocity(-7.0),
-            AirborneMomentum::default(),
+            HorizontalVelocity::default(),
             KnockbackVelocity(Vec3::Z * 3.0),
         ))
         .id();
@@ -346,7 +346,7 @@ fn spawn_logged_in_player(
             Position { x, ..default() },
             Health(health),
             CharacterVerticalVelocity::default(),
-            AirborneMomentum::default(),
+            HorizontalVelocity::default(),
             KnockbackVelocity::default(),
         ))
         .id();

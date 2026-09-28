@@ -42,10 +42,15 @@ pub(crate) fn map_settings() -> MapSettings {
         geometry: sizes(),
         movement: MapMovementConfig {
             player: PlayerMovementConfig {
-                walk_speed: 4.0,
-                run_speed: 7.0,
-                speed_power_up: 1.5,
+                move_speed: 4.0,
+                move_speed_power_up: 1.5,
                 jump_speed: 12.0,
+                ground_acceleration: 40.0,
+                ground_deceleration: 16.0,
+                ground_lateral_deceleration: 40.0,
+                air_acceleration: 5.0,
+                air_deceleration: 0.0,
+                air_lateral_deceleration: 0.0,
             },
             actors: HashMap::new(),
             missile_speed: 20.0,

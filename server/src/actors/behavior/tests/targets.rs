@@ -5,6 +5,7 @@ fn occluded_player_keeps_last_seen_state_without_refresh() {
     let fixture = Fixture::new(CONTACT);
     let actor_pos = fixture.pos(1, 2);
     let player = PlayerState {
+        stance: Default::default(),
         id: PlayerId(7),
         pos: fixture.pos(3, 2),
         carrier: CarrierId::WORLD,
@@ -42,6 +43,7 @@ fn occluded_player_keeps_last_seen_state_without_refresh() {
         ..MapLayout::default()
     });
     let moved_player = PlayerState {
+        stance: Default::default(),
         pos: fixture.pos(4, 2),
         carrier_pos: fixture.pos(4, 2),
         support: CharacterSupport::Ladder,
@@ -98,6 +100,7 @@ fn beam_actor_sees_a_player_through_a_barrier_but_waits_for_a_clear_attack() {
         1.0,
         fixture.gameplay.player.physics(),
         &[PlayerState {
+            stance: Default::default(),
             id: PlayerId(7),
             pos: target,
             carrier: CarrierId::WORLD,

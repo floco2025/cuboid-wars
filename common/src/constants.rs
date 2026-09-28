@@ -119,7 +119,7 @@ pub const CHARACTER_STEP_MIN_WIDTH: f32 = 0.2;
 pub const CHARACTER_MAX_SLOPE: f32 = std::f32::consts::FRAC_PI_4;
 
 // Overlapping blasts may stack up to this multiple of one blast's `knockback.max_speed`.
-pub const KNOCKBACK_CLAMP_RATIO: f32 = 1.5;
+pub const CHARACTER_KNOCKBACK_CLAMP_RATIO: f32 = 1.5;
 
 // ============================================================================
 // Explosions
@@ -135,29 +135,12 @@ pub const EXPLOSION_BLAST_CORE_FRACTION: f32 = 0.25;
 // Portals
 // ============================================================================
 
-// Aperture half-extents along the frame's right/up axes — one oval for every
-// surface orientation, sized to pass the player body whole.
-pub const PORTAL_HALF_WIDTH: f32 = 0.7;
-pub const PORTAL_HALF_HEIGHT: f32 = 1.3;
 // Placement clearance follows the rendered rim so world geometry cannot
 // visibly clip it at aperture edges.
 pub const PORTAL_RIM_SCALE: f32 = 1.06;
 // Normals pointing up at least this much are standable (a surface you can
 // rest on); pressure-plate keep-outs apply only to portals on them.
 pub const PORTAL_STANDABLE_NORMAL_Y: f32 = 0.5;
-// Portal funneling (Portal-2 style): a body flying toward a vertical-normal
-// aperture without steering is pulled toward its axis, so hand-placed
-// floor/ceiling pairs loop indefinitely despite imperfect alignment. The
-// pull ramps with the lateral offset (`GAIN` per second, capped at
-// `MAX_SPEED`), engages within `CAPTURE_MARGIN` beyond the aperture rect
-// once the approach exceeds `MIN_APPROACH`, and any deliberate lateral
-// control above `RELEASE_SPEED` disengages it — escaping a fall chain
-// stays exactly as easy as before.
-pub const PORTAL_FUNNEL_GAIN: f32 = 6.0;
-pub const PORTAL_FUNNEL_MAX_SPEED: f32 = 6.0;
-pub const PORTAL_FUNNEL_CAPTURE_MARGIN: f32 = 0.6;
-pub const PORTAL_FUNNEL_MIN_APPROACH: f32 = 2.0;
-pub const PORTAL_FUNNEL_RELEASE_SPEED: f32 = 0.5;
 // Fixture keep-outs the aperture must respect: margin around a wall light,
 // and around a pressure plate's center (plates constrain only standable
 // portals — they live on floors).

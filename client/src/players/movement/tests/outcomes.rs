@@ -20,6 +20,7 @@ fn app(layout: MapLayout) -> (App, Entity, Receiver<ClientMessage>) {
         .world_mut()
         .spawn((
             LocalPlayerMarker,
+            common::protocol::PlayerStance::default(),
             Position::default(),
             LocalMovementStep {
                 start: Position::default(),

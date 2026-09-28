@@ -51,7 +51,6 @@ pub fn item_collection_system(
     // the player arrived empty-handed; the normal equipment phase erases last.
     available_items.sort_by_key(|(_, item, _)| *item == ItemType::EquipmentEraser);
 
-    let player_physics = gameplay_config.player.physics();
     let mut status_broadcasts = Vec::new();
     let mut feed_events = Vec::new();
 
@@ -65,15 +64,18 @@ pub fn item_collection_system(
             }
             let entity = player_info.entity()?;
             let character_pos = character_positions.get(entity).ok()?;
-            if !character_overlaps_item(character_pos, player_physics, &item_pos, ITEM_COLLECTION_RADIUS)
-                || !pickup_has_effect(
-                    item_type,
-                    player_info,
-                    player_health.get(entity).ok(),
-                    &gameplay_config,
-                    &server_gameplay_config,
-                )
-            {
+            if !character_overlaps_item(
+                character_pos,
+                player_info.life.movement.stance.physics(&gameplay_config.player),
+                &item_pos,
+                ITEM_COLLECTION_RADIUS,
+            ) || !pickup_has_effect(
+                item_type,
+                player_info,
+                player_health.get(entity).ok(),
+                &gameplay_config,
+                &server_gameplay_config,
+            ) {
                 return None;
             }
             Some(*player_id)

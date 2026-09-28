@@ -51,6 +51,7 @@ type LocalPlayerInputQuery<'w, 's> = Query<
         &'static mut FaceYaw,
         &'static mut CharacterVerticalVelocity,
         Option<&'static LocalMovementStep>,
+        &'static common::protocol::PlayerStance,
     ),
     With<LocalPlayerMarker>,
 >;
@@ -82,8 +83,8 @@ pub fn input_movement_system(
 
     if camera_input.state.released || camera_input.console.open || camera_input.menu.open {
         if playback.is_none() {
-            for (_, mut input, _, _, _) in local_player_query.iter_mut() {
-                *input = PlayerMoveIntent::Idle;
+            for (_, mut input, _, _, _, _) in local_player_query.iter_mut() {
+                *input = PlayerMoveIntent::NONE;
             }
         }
         return;
@@ -103,7 +104,8 @@ pub fn input_movement_system(
     let face_yaw = current_yaw + PI;
     // Death disables movement and jump just like stunned (and overrides it).
     let movement_disabled = local_player_info.is_dead || local_player_stunned(my_player_id.0, &players);
-    let move_intent = calculate_move_intent(&keyboard, face_yaw, movement_disabled);
+    let mut move_intent = calculate_move_intent(&keyboard, face_yaw, movement_disabled);
+    move_intent.pitch = local_player_info.stored_pitch;
     let jump_requested = !movement_disabled && keyboard.just_pressed(KeyCode::Space);
 
     let held_keys = players
@@ -146,7 +148,7 @@ fn calculate_current_orientation(
 
 fn calculate_move_intent(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, stunned: bool) -> PlayerMoveIntent {
     if stunned {
-        return PlayerMoveIntent::Idle;
+        return PlayerMoveIntent::NONE;
     }
 
     let mut keyboard_vec = Vec2::ZERO;
@@ -163,17 +165,12 @@ fn calculate_move_intent(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, st
         keyboard_vec.x -= 1.0;
     }
 
-    if keyboard_vec.length_squared() > 0.0 {
-        let normalized_input = keyboard_vec.normalize();
-        let angle_offset = normalized_input.x.atan2(normalized_input.y);
-        let direction = face_yaw + angle_offset;
-        if keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight) {
-            PlayerMoveIntent::Running { direction }
-        } else {
-            PlayerMoveIntent::Walking { direction }
-        }
-    } else {
-        PlayerMoveIntent::Idle
+    PlayerMoveIntent {
+        forward: keyboard_vec.y,
+        sideways: keyboard_vec.x,
+        yaw: face_yaw,
+        pitch: 0.0,
+        crouch: keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight),
     }
 }
 
@@ -193,7 +190,7 @@ fn update_player_input_face_and_jump(
     jump_speed: f32,
     local_player_query: &mut LocalPlayerInputQuery,
 ) {
-    for (pos, mut input, mut face_direction, mut motion, step) in local_player_query.iter_mut() {
+    for (pos, mut input, mut face_direction, mut motion, step, stance) in local_player_query.iter_mut() {
         *input = move_intent;
         let ladder_yaw = step
             .filter(|step| step.support == CharacterSupport::Ladder)
@@ -201,6 +198,7 @@ fn update_player_input_face_and_jump(
             .map(|ladder| (-ladder.normal_x).atan2(-ladder.normal_z));
         face_direction.0 = ladder_yaw.unwrap_or_else(|| movement_facing(move_intent, face_yaw, face_direction.0));
         if jump_requested
+            && !stance.crouched
             && let Some(vertical_velocity) = player_jump_velocity(
                 motion.0,
                 collision_world,
@@ -216,8 +214,5 @@ fn update_player_input_face_and_jump(
 }
 
 fn movement_facing(intent: PlayerMoveIntent, locked_yaw: Option<f32>, previous: f32) -> f32 {
-    locked_yaw.unwrap_or(match intent {
-        PlayerMoveIntent::Walking { direction } | PlayerMoveIntent::Running { direction } => direction,
-        PlayerMoveIntent::Idle => previous,
-    })
+    locked_yaw.or_else(|| intent.direction()).unwrap_or(previous)
 }

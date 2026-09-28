@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from .floor_footprints import FloorFootprints
 from .geometry import ramp_cells_on_level
 from .normalization import expand_face_materials
-from .portal_jump import PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PortalSurface
+from .portal_jump import PortalSurface
 
 
 @dataclass(frozen=True)
@@ -99,8 +99,8 @@ def portals_overlap(a, b, settings):
     frames = [surface.frame(settings) for surface in (a, b)]
     bounds = [
         [
-            PORTAL_HALF_WIDTH * abs(frame.right[i])
-            + PORTAL_HALF_HEIGHT * abs(frame.up[i])
+            settings.half_width * abs(frame.right[i])
+            + settings.half_height * abs(frame.up[i])
             + 0.05 * abs(frame.normal[i])
             for i in range(3)
         ]

@@ -10,6 +10,7 @@ use common::{map::Carriers, physics::PortalFrame};
 // is between the last two ticks, the same interpolation the tile mesh uses,
 // so the disc stays on it.
 pub(crate) fn portal_surfaces_transform_sync_system(
+    config: Res<common::config::GameplayConfig>,
     fixed_time: Res<Time<Fixed>>,
     carriers: Res<Carriers>,
     portals: Res<PortalMap>,
@@ -23,7 +24,7 @@ pub(crate) fn portal_surfaces_transform_sync_system(
         if info.portal.carrier.is_world() {
             continue;
         }
-        let frame = PortalFrame::from_portal_between(&info.portal, &carriers, alpha);
+        let frame = PortalFrame::from_portal_between(&info.portal, &carriers, alpha, config.portals.size);
         transform.translation = frame.center + frame.normal * PORTAL_SURFACE_OFFSET;
     }
 }

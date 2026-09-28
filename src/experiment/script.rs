@@ -37,7 +37,7 @@ pub(super) enum Action {
         direction: [f32; 2],
         ticks: u32,
         #[serde(default)]
-        run: bool,
+        crouch: bool,
         #[serde(default)]
         jump: bool,
     },
