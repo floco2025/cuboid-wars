@@ -1,10 +1,152 @@
 # Movement and portal experiments
 
+## Goal and priorities
+
+The goal is **AI-generated complex maps that are fun to play**, starting with
+single-player movement and portal traversal. Earlier generated maps were boring,
+simplistic, and primitive. Appearance is not a priority at this stage. Shooting
+encounters are secondary; adding enemies or decoration does not address the
+problem these experiments are meant to solve.
+
+The current maps and tools are groundwork for that goal. We have authored
+courses, scripts that exercise the real game simulation, and graphical playback
+for inspecting those scripts. We do not yet have an automatic map generator,
+route search, or an evaluator of fun. A script reaching the finish establishes
+a working route; player feedback must establish whether that route is readable,
+interesting, and satisfying.
+
+Complexity should come from connected decisions: preparing a route, choosing an
+exit surface, building the right entry velocity, and changing equipment at the
+right point. More platforms and repeated jumps alone are insufficient.
+
+## Design decisions to preserve
+
+- **Portal preparation from another location.** Require the player to set up
+  one portal from a different vantage before returning to the entrance. Avoid
+  always allowing both portals to be placed from the takeoff position. The
+  original aim was to make preparation matter to the eventual exit direction.
+  In Portal Choices, the first puzzle currently enforces access to the exit
+  surface through sightlines. A wall or ramp's normal determines its exit
+  direction; changing the shooting position does not rotate that normal.
+- **Ramp angles as a decision.** Offer inclined portal surfaces with different
+  trajectories toward a shared, plausible destination. Alternatives should
+  fail for understandable physical reasons, such as excessive height or speed.
+  Surfaces that visibly lead nowhere are weak choices.
+- **Required changes of equipment.** Use speed and low-gravity pickups as route
+  prerequisites. The `equipment_eraser` pickup was added so erasure can be
+  unavoidable during a jump or portal exit, including above a floor. It clears
+  collected abilities and ammunition while preserving always-active abilities,
+  keys, health, and checkpoint progress. It does not reset existing velocity.
+  Placement and gravity after collection can therefore determine the landing.
+- **Recovery after mistakes.** Losing a required boost must leave a way to
+  replenish it and retry. Checkpoints need usable equipment and a discoverable
+  route onward. Test recovery as well as the intended uninterrupted solution.
+- **Necessary traversal.** Check whether ordinary jumps, drops, alternative
+  portal placements, or air steering bypass a puzzle's prerequisites. Successful
+  execution of the intended script alone does not show that its portals or
+  pickups are necessary.
+
+### Visibility and placement
+
 When authoring these maps, keep landing platforms and portal pads far enough
 out from their takeoff platforms that players can see and aim at them from a
 safe approach position. Never require standing on the lip and looking straight
 down over the edge. Judge the gap against the drop height and the player's view,
 then verify the traversal; one empty grid cell is not a general visibility rule.
+Tune visibility and reach together so moving a pad outward does not create an
+unreasonably precise or unreachable jump.
+
+We settled on **2 m horizontal floor and wall sections** for Portal Relay and
+Portal Choices, rather than a much finer grid. This permits useful offsets
+without excessive authoring detail. Their levels are 2.2 m high; player and
+portal dimensions retain their normal physical sizes. Assemble adjacent floor
+cells or stacked wall sections where a portal needs more backing. For now, map
+authors can provide sufficient space themselves; editor guidance for backing
+size and front clearance is an enhancement in [TODO.md](TODO.md). Runtime portal
+placement still checks the actual geometry. These dimensions are course choices,
+not a change to every map's grid.
+
+## Current handoff: Portal Choices
+
+**[Portal Choices](config/server/maps/portal_choices/README.md)** is the active
+experiment combining these ideas. Keep **Portal Relay** as the simpler reference
+course. `portal_movement` and `portal_turret` are small mechanics examples.
+The map README holds the player walkthrough; its adjacent `experiment.json`
+holds an executable solution.
+
+Choices links separate-position portal preparation, a speed-powered ramp launch,
+erasure, a low-gravity jump to checkpoint 3, and a deep floor-portal drop. The
+final ramp and suspended eraser turn that drop into a landing at checkpoint 4.
+There are no enemies.
+
+Player feedback drove these changes and should guide further iterations:
+
+- The first portal could originally be skipped by jumping down from the
+  balcony. The balcony was set back, and direct jump/drop checks were added.
+- The side ramps were obvious dead ends. All three final ramps now face the
+  same finish. The tested wrong arcs cross above it and overshoot. This does
+  not prove that every placement or steered alternative fails.
+- Losing speed around the second portal puzzle could strand the player. The
+  entry runway now has a refill, and a lower retry deck provides another speed
+  pickup and portal entrance, with a return route from the upper platform.
+- The player confirmed that checkpoint 2 to checkpoint 3 works without the
+  speed pickup. Low gravity and ordinary sprinting are the intended combination.
+- The final approach means **checkpoint 3 to the lower floor portal**, not the
+  flight from its exit to the finish. The player initially reported that jump
+  as impossible without speed, then confirmed making it by sprinting. Keep
+  **Shift sprinting** distinct from the **speed pickup** in instructions and
+  diagnosis; do not record this as a confirmed failure while sprinting.
+- Lower pads were too close below their takeoff ledges to see comfortably. The
+  first pad now has a 6 m horizontal edge gap. The final pad was moved outward,
+  then its gap was reduced from 30 m to **22 m** to improve reach while preserving
+  visibility. Manual confirmation of that latest spacing is still outstanding.
+
+The [Choices regression tests](src/experiment/tests/choices.rs) cover completion,
+selected shortcuts and wrong equipment, repeatable recovery, and variation in
+portal placement and approach timing. With all speed pickups removed, the final
+section is checked with walking-speed jumps, several sprint takeoffs, and a
+run-off without jumping. Low gravity is still required for those approaches.
+Sightline checks submit real portal shots from grounded positions with at most
+60 degrees of downward aim.
+
+These are simulated checks, not a rendered camera or manual-input playtest.
+The [playback tests](src/experiment/tests/playback.rs) compare scripted execution
+at different frame rates, but do not establish how discovery, third-person
+aiming, or recovery feels. The lower pads are still small targets; the scripted
+route releases movement when aligned above the entrance. The older reference
+maps also need review against the visibility rule above; their existence is
+not evidence that all their ledges meet it.
+
+## Continuing toward generated maps
+
+1. **Playtest the current course before adding complexity.** Start with the
+   final approach using `cargo run --release -- --map portal_choices --checkpoint 3`;
+   collect low gravity and check visibility, aiming, and ordinary sprinting.
+   Then play from the start to assess discovery, the three ramp choices, and
+   recovery after losing speed. Use graphical playback to inspect the scripted
+   solution alongside free play.
+2. **Turn discrepancies into reproducible cases.** Record the map/settings,
+   equipment, portal placement, takeoff position, held input, and where the
+   attempt fails. Compare these with the trace. A passing ideal script must
+   not dismiss a player's difficulty. Keep manual confirmations separate from
+   automated results when updating this handoff and [TODO.md](TODO.md).
+3. **Develop tools around the unanswered design questions.** Route search,
+   landing-tolerance measurements, and editor previews of ramp exits and
+   mid-flight gravity changes remain useful next capabilities. The present
+   editor portal preview covers floor and wall surfaces. Add guidance as
+   experiments need it, while retaining the game's shared movement and portal
+   simulation and client ownership of movement.
+4. **Use successful experiments to inform generation.** A future generator
+   needs to compose prerequisites and meaningful alternatives, emit ordinary
+   editable maps, and validate completion, recovery, shortcuts, and tolerance.
+   Feed actual playtest findings back into those constraints. No generation
+   algorithm or automatic measure of fun has been selected or implemented.
+
+Concrete follow-ups live in [TODO.md](TODO.md), especially the Portal Choices,
+Portal Relay, graphical playback, and editor/simulation entries. Keep this guide
+focused on the intent and evidence needed to continue the work.
+
+## Play and edit the maps
 
 For portal setup, ramp selection, and movement-pickup decisions, play
 **[Portal Choices](config/server/maps/portal_choices/README.md)**:
@@ -215,5 +357,5 @@ samples and hit/death notifications remain in the report.
 Run the route, encounter, and CLI regression tests with:
 
 ```sh
-cargo test --release -p cuboid-wars experiment
+cargo test --release -p cuboid-wars
 ```
