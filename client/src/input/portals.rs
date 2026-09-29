@@ -10,7 +10,7 @@ use crate::{
     portals::PortalMap,
 };
 use common::{
-    config::GameplayConfig,
+    config::{GameplayConfig, PortalSize},
     map::Carriers,
     physics::{
         CollisionWorld, PortalPlacement, PortalPlacementFailure, compute_portal_placement, portal_placement_overlaps,
@@ -126,7 +126,7 @@ fn portal_shot_result(
     end: PortalEnd,
     existing: &[Portal],
     carriers: &Carriers,
-    size: common::config::PortalSize,
+    size: PortalSize,
 ) -> Option<PortalShotResult> {
     match placement {
         Ok(placement) => {

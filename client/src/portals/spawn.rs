@@ -5,6 +5,7 @@ use crate::{
     constants::{PORTAL_A_COLOR, PORTAL_B_COLOR, PORTAL_EMISSIVE},
 };
 use common::{
+    config::{GameplayConfig, PortalSize},
     constants::PORTAL_RIM_SCALE,
     map::Carriers,
     physics::PortalFrame,
@@ -27,7 +28,7 @@ pub(crate) struct PortalSurface {
 // One shared unit-disc mesh with per-end emissive fallback/rim materials.
 #[derive(Resource)]
 pub struct PortalAssets {
-    pub(crate) size: common::config::PortalSize,
+    pub(crate) size: PortalSize,
     mesh: Handle<Mesh>,
     material_a: Handle<StandardMaterial>,
     material_b: Handle<StandardMaterial>,
@@ -44,7 +45,7 @@ impl PortalAssets {
 
 impl FromWorld for PortalAssets {
     fn from_world(world: &mut World) -> Self {
-        let size = world.resource::<common::config::GameplayConfig>().portals.size;
+        let size = world.resource::<GameplayConfig>().portals.size;
         let mesh = world.resource_mut::<Assets<Mesh>>().add(Circle::new(0.5));
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
         Self {

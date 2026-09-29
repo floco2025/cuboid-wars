@@ -7,7 +7,8 @@ use common::{
     map::Carriers,
     physics::{CharacterMovePlan, CharacterSupport, CharacterVerticalVelocity, ProgressWatchdog},
     protocol::{
-        ActorAnchor, ActorBeam, ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, Health, PlayerId, Position,
+        ActorAnchor, ActorBeam, ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, Health, PlayerId,
+        PlayerStance, Position,
     },
 };
 
@@ -105,7 +106,7 @@ impl BeamState {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct AwarePlayer {
-    pub(crate) stance: common::protocol::PlayerStance,
+    pub(crate) stance: PlayerStance,
     pub(crate) id: PlayerId,
     pub(crate) pos: Position,
     // Where the player stood when last seen, in that carrier's frame, so a

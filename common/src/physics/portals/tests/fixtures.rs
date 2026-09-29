@@ -435,7 +435,6 @@ pub(crate) fn run_ticks(
             Vec3::from(pos),
             physics,
             CharacterHopBody {
-                control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity,

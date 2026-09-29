@@ -6,7 +6,8 @@ use common::{
         CharacterSupport, CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity, player_control_velocity,
     },
     protocol::{
-        CarrierId, FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, PowerUpKind,
+        CarrierId, FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, PlayerMovementState, PlayerStance, Position,
+        PowerUpKind,
     },
 };
 
@@ -70,7 +71,7 @@ pub(crate) fn interpolate_remote_players_system(
             &mut KnockbackVelocity,
             &mut CharacterSupport,
             &mut PlayerAnimationMotion,
-            &mut common::protocol::PlayerStance,
+            &mut PlayerStance,
         ),
         Without<LocalPlayerMarker>,
     >,

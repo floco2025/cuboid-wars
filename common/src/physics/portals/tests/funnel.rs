@@ -79,7 +79,6 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
             Vec3::from(pos),
             physics,
             CharacterHopBody {
-                control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity,
@@ -171,7 +170,6 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
             Vec3::from(pos),
             physics,
             CharacterHopBody {
-                control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity,
@@ -219,7 +217,6 @@ fn aperture_offset_carries_through_an_opposing_pair() {
             Vec3::new(0.0, -0.95, 0.5),
             player_physics(),
             CharacterHopBody {
-                control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -5.0,
@@ -247,7 +244,6 @@ fn carried_offset_is_clamped_to_the_exit_aperture() {
             Vec3::new(0.55, -0.95, 0.0),
             physics,
             CharacterHopBody {
-                control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -5.0,
@@ -333,9 +329,8 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
             Vec3::from(pos),
             physics,
             CharacterHopBody {
-                control_velocity: control,
                 knockback: Vec3::ZERO,
-                horizontal_velocity: Vec3::ZERO,
+                horizontal_velocity: control,
                 vertical_velocity,
                 yaw: 0.0,
             },

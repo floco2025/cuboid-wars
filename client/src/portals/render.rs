@@ -26,6 +26,7 @@ use crate::{
     schedule::ClientSet,
 };
 use common::{
+    config::PortalSize,
     map::Carriers,
     physics::PortalFrame,
     protocol::{Portal, PortalEnd, PortalPairId},
@@ -270,7 +271,7 @@ fn largest_visible_roots(
     projection: &Projection,
     size: UVec2,
     budget: usize,
-    portal_size: common::config::PortalSize,
+    portal_size: PortalSize,
 ) -> Vec<PortalKey> {
     let mut roots: Vec<_> = complete_portals
         .iter()
@@ -461,7 +462,7 @@ fn view_through_chain(
     main_transform: &Transform,
     main_projection: &Projection,
     main_size: UVec2,
-    portal_size: common::config::PortalSize,
+    portal_size: PortalSize,
 ) -> Option<(Transform, Projection, Vec2, Rect)> {
     let mut view_transform = *main_transform;
     let mut view_projection = main_projection.clone();
@@ -574,7 +575,7 @@ fn clip_polygon(polygon: &[Vec3], plane: Vec4) -> Vec<Vec3> {
 }
 
 // Maps the disc's UVs (the whole aperture, v downward) onto the rendered `rect`.
-fn aperture_uv_transform(rect: Rect, size: common::config::PortalSize) -> Affine2 {
+fn aperture_uv_transform(rect: Rect, size: PortalSize) -> Affine2 {
     let aperture = full_aperture(size);
     let size = rect.size();
     Affine2::from_scale_angle_translation(

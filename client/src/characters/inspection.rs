@@ -9,7 +9,7 @@ use common::{
         CharacterSupport, CharacterVerticalVelocity, CollisionWorld, GroundingDiagnostics, PortalSet,
         grounding_diagnostics, passable_fields,
     },
-    protocol::{ActorMarker, FaceYaw, PlayerId, Position, SwitchState},
+    protocol::{ActorMarker, FaceYaw, PlayerId, PlayerStance, Position, SwitchState},
 };
 
 use super::BoundsMode;
@@ -72,7 +72,7 @@ pub fn spawn_character_bounds(
             NotShadowReceiver,
         ));
         if can_crouch {
-            let crouched = common::protocol::PlayerStance {
+            let crouched = PlayerStance {
                 crouched: true,
                 fraction: 1.0,
             }
@@ -98,15 +98,7 @@ pub fn spawn_character_bounds(
 pub fn character_bounds_sync_system(
     mode: Res<BoundsMode>,
     roots: Query<(&ChildOf, &CharacterBounds)>,
-    actors: Query<
-        (
-            &FaceYaw,
-            &Transform,
-            Option<&CuboidShake>,
-            Option<&common::protocol::PlayerStance>,
-        ),
-        Without<BoundsShape>,
-    >,
+    actors: Query<(&FaceYaw, &Transform, Option<&CuboidShake>, Option<&PlayerStance>), Without<BoundsShape>>,
     mut shapes: Query<(
         &ChildOf,
         &BoundsShape,
@@ -181,7 +173,7 @@ pub(crate) fn refresh_grounding_debug_system(
             Option<&PlayerId>,
             &CharacterVerticalVelocity,
             Option<&CharacterSupport>,
-            Option<&common::protocol::PlayerStance>,
+            Option<&PlayerStance>,
         ),
         Or<(
             Without<GroundingDiagnostics>,

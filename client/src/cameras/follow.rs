@@ -4,22 +4,20 @@ use super::{CameraViewMode, FollowCamera, MainCameraMarker, third_person::third_
 use crate::{
     characters::PreviousTickPosition,
     config::ClientSettings,
+    network::PlaybackMode,
     players::{CameraShake, LocalPlayerInfo, LocalPlayerMarker, eye_position},
 };
 use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, character_movement_center},
-    protocol::{Position, SwitchState},
+    protocol::{PlayerStance, Position, SwitchState},
 };
 
 // Update camera position to follow local player. Physics ticks at 30 Hz;
 // interpolate between last-tick and current-tick positions so the camera
 // stays smooth at the render rate.
 pub fn local_player_camera_sync_system(
-    local_player_query: Query<
-        (&Position, &PreviousTickPosition, &common::protocol::PlayerStance),
-        With<LocalPlayerMarker>,
-    >,
+    local_player_query: Query<(&Position, &PreviousTickPosition, &PlayerStance), With<LocalPlayerMarker>>,
     windows: Query<&Window>,
     fixed_time: Res<Time<Fixed>>,
     mut camera_query: Query<
@@ -35,7 +33,7 @@ pub fn local_player_camera_sync_system(
     mut third: ResMut<FollowCamera>,
     time: Res<Time>,
     real_time: Res<Time<Real>>,
-    playback: Option<Res<crate::network::PlaybackMode>>,
+    playback: Option<Res<PlaybackMode>>,
 ) {
     let Some((current_pos, prev_pos, stance)) = local_player_query.iter().next() else {
         return;

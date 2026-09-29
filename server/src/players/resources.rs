@@ -6,7 +6,8 @@ use crossbeam_channel::{Sender, unbounded};
 use crate::config::{ActorRespawnScope, PlayerRespawnMode, PowerUpMode, PowerUpsConfig, RespawnConfig};
 use common::protocol::{
     FaceYaw, FieldId, Health, ItemType, MapItems, Player, PlayerGeneration, PlayerId, PlayerMarker, PlayerMoveIntent,
-    PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus, ServerMessage,
+    PlayerMovementState, PlayerStance, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
+    ServerMessage,
 };
 
 use super::{CheckpointEntry, CheckpointId, PendingOutcomes, PlayerCheckpoint, PowerUpState};
@@ -147,7 +148,7 @@ pub struct PlayerInfo {
 
 impl PlayerInfo {
     #[must_use]
-    pub fn stance(&self) -> common::protocol::PlayerStance {
+    pub fn stance(&self) -> PlayerStance {
         self.life.movement.stance
     }
 

@@ -43,7 +43,7 @@ impl Session {
         let player = info.entity().map(|entity| {
             json!({
                 "position": point(self.owner.position),
-                "reported_position": point(*world.get::<Position>(entity).expect("player position")),
+                "reported_position": point(*world.get::<Position>(entity).expect("player position missing from its entity")),
                 "yaw": self.owner.motion.face_yaw.0,
                 "vertical_velocity": self.owner.motion.vertical_velocity.0,
                 "horizontal_velocity": self.owner.motion.horizontal_velocity.0.to_array(),
@@ -53,7 +53,7 @@ impl Session {
                 "support": super::player::support(self.owner.motion.support),
                 "crossed_portal": self.owner.crossed_last_step,
                 "checkpoint": info.session.checkpoint.number,
-                "health": world.get::<Health>(entity).expect("player health").0,
+                "health": world.get::<Health>(entity).expect("player health missing from its entity").0,
                 "generation": info.session.generation.0,
                 "single_shot": info.has(PowerUpKind::SingleShot),
                 "portal_gun": info.has(PowerUpKind::PortalGun),
@@ -68,9 +68,9 @@ impl Session {
                 (
                     *id,
                     json!({"id": id.0, "kind": actor.spawn_kind,
-                        "position": point(*world.get::<Position>(actor.entity).expect("actor position")),
-                        "yaw": world.get::<FaceYaw>(actor.entity).expect("actor yaw").0,
-                        "health": world.get::<Health>(actor.entity).expect("actor health").0,
+                        "position": point(*world.get::<Position>(actor.entity).expect("actor position missing from its entity")),
+                        "yaw": world.get::<FaceYaw>(actor.entity).expect("actor yaw missing from its entity").0,
+                        "health": world.get::<Health>(actor.entity).expect("actor health missing from its entity").0,
                     }),
                 )
             })
@@ -107,12 +107,22 @@ impl Session {
         let active_switches: Vec<_> = switch_state
             .active_switches
             .iter()
-            .map(|id| world.resource::<SwitchTable>().id(*id).expect("switch name"))
+            .map(|id| {
+                world
+                    .resource::<SwitchTable>()
+                    .id(*id)
+                    .expect("active switch missing from SwitchTable")
+            })
             .collect();
         let open_fields: Vec<_> = switch_state
             .open_fields
             .iter()
-            .map(|id| world.resource::<FieldTable>().id(*id).expect("field name"))
+            .map(|id| {
+                world
+                    .resource::<FieldTable>()
+                    .id(*id)
+                    .expect("open field missing from FieldTable")
+            })
             .collect();
         json!({"tick": self.tick(), "player": player, "aim": self.direction.to_array(),
             "actors": actors.into_iter().map(|(_, value)| value).collect::<Vec<_>>(),

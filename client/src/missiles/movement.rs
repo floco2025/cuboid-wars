@@ -3,8 +3,7 @@ use crate::{
     actors::ActorMap,
     audio::play_explosion_sound,
     carriers::CarrierEntities,
-    characters::PreviousTickPosition,
-    characters::{ball_character_hit, ball_overlaps_character},
+    characters::{PreviousTickPosition, ball_character_hit, ball_overlaps_character},
     config::{AssetSet, ClientSettings},
     constants::{MISSILE_RADIUS, MISSILE_SEARCH_TICK_QUERIES},
     missiles::{AirGraph, MissileMap, MissileVelocity, OwnedMissile, guide_missile},
@@ -36,11 +35,7 @@ type MissileQuery<'w, 's> = Query<
 type TargetQuery<'w, 's> = Query<
     'w,
     's,
-    (
-        &'static Position,
-        &'static FaceYaw,
-        Option<&'static common::protocol::PlayerStance>,
-    ),
+    (&'static Position, &'static FaceYaw, Option<&'static PlayerStance>),
     (Or<(With<PlayerMarker>, With<ActorMarker>)>, Without<MissileMarker>),
 >;
 

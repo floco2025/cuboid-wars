@@ -4,6 +4,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, ensure};
+use common::protocol::Position;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use server::{
@@ -72,7 +73,7 @@ impl Script {
                 map: None,
                 god: false,
                 peace: false,
-                initial_spawn: Some(common::protocol::Position {
+                initial_spawn: Some(Position {
                     x: self.spawn[0],
                     y: self.spawn[1],
                     z: self.spawn[2],

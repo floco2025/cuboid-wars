@@ -4,7 +4,8 @@ use common::{
     map::Carriers,
     physics::{CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity},
     protocol::{
-        CMove, CarrierId, ClientMessage, FaceYaw, PlayerGeneration, PlayerMoveIntent, PlayerMovementState, Position,
+        CMove, CarrierId, ClientMessage, FaceYaw, PlayerGeneration, PlayerMoveIntent, PlayerMovementState,
+        PlayerStance, Position,
     },
 };
 
@@ -94,7 +95,7 @@ pub fn report_player_movement_system(
             &HorizontalVelocity,
             &KnockbackVelocity,
             &LocalMovementStep,
-            &common::protocol::PlayerStance,
+            &PlayerStance,
         ),
         With<LocalPlayerMarker>,
     >,

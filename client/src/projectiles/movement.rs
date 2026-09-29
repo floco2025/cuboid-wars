@@ -3,8 +3,8 @@ use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, PortalSet},
     protocol::{
-        ActorId, ActorMarker, CProjectileHit, ClientMessage, FaceYaw, MapSettings, PlayerId, PlayerMarker, Position,
-        SwitchState,
+        ActorId, ActorMarker, CProjectileHit, ClientMessage, FaceYaw, MapSettings, PlayerId, PlayerMarker,
+        PlayerStance, Position, SwitchState,
     },
 };
 
@@ -66,7 +66,7 @@ pub fn projectiles_movement_system(
             &FaceYaw,
             &PlayerId,
             Has<LocalPlayerMarker>,
-            &common::protocol::PlayerStance,
+            &PlayerStance,
         ),
         With<PlayerMarker>,
     >,

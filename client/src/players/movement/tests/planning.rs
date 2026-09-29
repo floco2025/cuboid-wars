@@ -21,9 +21,10 @@ fn remote_bodies_stay_at_reported_positions_while_the_owner_simulates() {
                 PlayerMarker,
                 PlayerId(1),
                 position,
+                PreviousTickPosition(position),
                 PlayerMoveIntent::moving(FRAC_PI_2),
                 CharacterVerticalVelocity(-3.0),
-                common::protocol::PlayerStance::default(),
+                PlayerStance::default(),
                 HorizontalVelocity(Vec3::X),
                 KnockbackVelocity(Vec3::X),
                 PlayerAnimationMotion::default(),
@@ -71,32 +72,38 @@ fn remote_bodies_stay_at_reported_positions_while_the_owner_simulates() {
 }
 
 #[test]
-fn a_dead_local_player_gets_no_plan() {
+fn a_dead_local_player_gets_no_plan_and_its_render_lerp_collapses() {
+    use super::super::application::apply_player_moves;
     let gameplay = test_fixtures::gameplay_config();
     let settings = test_fixtures::map_settings();
     let collision = CollisionWorld::from_map_layout(&MapLayout::default());
-    let mut world = World::new();
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     let position = Position {
         x: 0.0,
         y: 10.0,
         z: 0.0,
     };
-    let entity = world
+    let last_step_start = Position { y: 10.7, ..position };
+    let entity = app
+        .world_mut()
         .spawn((
             PlayerMarker,
             LocalPlayerMarker,
             PlayerId(1),
             position,
+            PreviousTickPosition(last_step_start),
             PlayerMoveIntent::moving(FRAC_PI_2),
             CharacterVerticalVelocity(-3.0),
-            common::protocol::PlayerStance::default(),
+            PlayerStance::default(),
             HorizontalVelocity(Vec3::X),
             KnockbackVelocity(Vec3::X),
             PlayerAnimationMotion::default(),
         ))
         .id();
-    let mut state = SystemState::<PlayerMovementQuery>::new(&mut world);
-    let mut query = state.get_mut(&mut world).expect("movement query invalid");
+    let mut state = SystemState::<(Commands, PlayerMovementQuery)>::new(app.world_mut());
+    let server = app.world().resource::<AssetServer>().clone();
+    let (mut commands, mut query) = state.get_mut(app.world_mut()).expect("movement query invalid");
     let plans = plan_player_moves(
         TICK_SECS,
         &collision,
@@ -110,9 +117,26 @@ fn a_dead_local_player_gets_no_plan() {
         &mut query,
         &[],
     );
-    state.apply(&mut world);
     assert!(plans.is_empty());
+    apply_player_moves(
+        &mut commands,
+        TICK_SECS,
+        &server,
+        &test_fixtures::asset_set(),
+        &test_fixtures::client_settings().audio,
+        &mut query,
+        &plans,
+    );
+    state.apply(app.world_mut());
+    let world = app.world();
     assert_eq!(*world.get::<Position>(entity).expect("position missing"), position);
+    assert_eq!(
+        world
+            .get::<PreviousTickPosition>(entity)
+            .expect("previous position missing")
+            .0,
+        position
+    );
 }
 
 fn planned_move(index: u32, start: Position, target: Position) -> CharacterMovePlan {
@@ -289,9 +313,10 @@ fn character_blocking_commits_consistent_edges_landings_ramps_and_carrier_motion
                 LocalPlayerMarker,
                 PlayerId(1),
                 start,
+                PreviousTickPosition(start),
                 PlayerMoveIntent::moving(FRAC_PI_2),
                 CharacterVerticalVelocity(vertical),
-                common::protocol::PlayerStance::default(),
+                PlayerStance::default(),
                 HorizontalVelocity(Vec3::X * 12.0),
                 KnockbackVelocity::default(),
                 PlayerAnimationMotion::default(),

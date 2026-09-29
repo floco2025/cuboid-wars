@@ -7,12 +7,16 @@ use common::{
         KnockbackVelocity, PortalSet, character_move_plans_intersect,
     },
     protocol::{
-        ActorMarker, FieldId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind, SwitchState,
+        ActorMarker, FieldId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerStance, Position,
+        PowerUpKind, SwitchState,
     },
 };
 
-use super::{PlayerMovementStep, momentum_displacement, step_player_movement};
-use crate::players::{BumpFeedbackState, LocalPlayerMarker, PlayerAnimationMotion, PlayerMap};
+use super::{PlayerMovementStep, momentum_displacement, step_player_movement, step_player_movement_blocked};
+use crate::{
+    characters::PreviousTickPosition,
+    players::{BumpFeedbackState, LocalPlayerMarker, PlayerAnimationMotion, PlayerMap},
+};
 
 pub struct PlayerMove {
     pub entity: Entity,
@@ -22,7 +26,7 @@ pub struct PlayerMove {
     pub external_displacement: Vec3,
     pub hits_character: bool,
     pub horizontal_velocity: Vec3,
-    pub stance: common::protocol::PlayerStance,
+    pub stance: PlayerStance,
 }
 
 pub(crate) fn plan_player_moves(
@@ -43,13 +47,25 @@ pub(crate) fn plan_player_moves(
     }
     let mut blockers = actors.to_vec();
     blockers.extend(query.iter().filter(|(.., is_local)| !is_local).map(
-        |(entity, _, position, _, motion, _, _, _, _, stance, _)| {
+        |(entity, _, position, _, _, motion, _, _, _, _, stance, _)| {
             CharacterMovePlan::stationary(entity, *position, motion.0, stance.physics(&gameplay_config.player))
         },
     ));
     let mut moves = Vec::new();
-    for (entity, player_id, client_pos, move_intent, motion, _, knockback, horizontal_velocity, _, stance, is_local) in
-        query.iter()
+    for (
+        entity,
+        player_id,
+        client_pos,
+        _,
+        move_intent,
+        motion,
+        _,
+        knockback,
+        horizontal_velocity,
+        _,
+        stance,
+        is_local,
+    ) in query.iter()
     {
         if !is_local {
             continue;
@@ -85,8 +101,7 @@ pub(crate) fn plan_player_moves(
     moves
 }
 
-// Both rendered and headless owners retry a body-blocked move with vertical
-// travel only, so support and landing outcomes describe the accepted position.
+// Both rendered and headless owners share this body-blocking policy.
 pub fn plan_player_move(
     entity: Entity,
     mut request: PlayerMovementStep<'_>,
@@ -113,24 +128,14 @@ pub fn plan_player_move(
     );
     let hits_character = overlapping_character(&candidate, blockers).is_some();
     if hits_character {
-        stepped = step_player_movement(PlayerMovementStep {
-            intent: PlayerMoveIntent {
-                forward: 0.0,
-                sideways: 0.0,
-                ..request.intent
-            },
-            horizontal_velocity: Vec3::ZERO,
-            external_displacement: request.external_displacement * Vec3::Y,
-            ..request
-        });
-        stepped.horizontal_velocity = Vec3::ZERO;
+        stepped = step_player_movement_blocked(request);
     }
     PlayerMove {
         entity,
         start: stepped.start,
         result: stepped.movement,
         control_velocity: stepped.control_velocity,
-        external_displacement: request.external_displacement,
+        external_displacement: stepped.external_displacement,
         horizontal_velocity: stepped.horizontal_velocity,
         stance: stepped.stance,
         hits_character,
@@ -153,13 +158,14 @@ pub(crate) type PlayerMovementQuery<'w, 's> = Query<
         Entity,
         &'static PlayerId,
         &'static mut Position,
+        &'static mut PreviousTickPosition,
         &'static PlayerMoveIntent,
         &'static mut CharacterVerticalVelocity,
         Option<&'static mut BumpFeedbackState>,
         &'static KnockbackVelocity,
         &'static mut HorizontalVelocity,
         &'static mut PlayerAnimationMotion,
-        &'static mut common::protocol::PlayerStance,
+        &'static mut PlayerStance,
         Has<LocalPlayerMarker>,
     ),
     (With<PlayerMarker>, Without<ActorMarker>),

@@ -3,7 +3,7 @@ use bevy::prelude::Bundle;
 
 use common::{
     physics::{CharacterSupport, CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity},
-    protocol::{CarrierId, FaceYaw, PlayerMoveIntent, PlayerMovementState, Position},
+    protocol::{CarrierId, FaceYaw, PlayerMoveIntent, PlayerMovementState, PlayerStance, Position},
 };
 
 #[must_use]
@@ -15,7 +15,7 @@ pub fn player_movement_state(
     horizontal_velocity: &HorizontalVelocity,
     knockback: &KnockbackVelocity,
     support: CharacterSupport,
-    stance: common::protocol::PlayerStance,
+    stance: PlayerStance,
 ) -> PlayerMovementState {
     PlayerMovementState {
         carrier: CarrierId::WORLD,
@@ -39,7 +39,7 @@ pub struct PlayerMotionBundle {
     pub horizontal_velocity: HorizontalVelocity,
     pub knockback: KnockbackVelocity,
     pub support: CharacterSupport,
-    pub stance: common::protocol::PlayerStance,
+    pub stance: PlayerStance,
 }
 
 impl From<&PlayerMovementState> for PlayerMotionBundle {

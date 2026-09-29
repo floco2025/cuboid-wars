@@ -3,7 +3,9 @@ use crate::{characters::BallCharacterHit, constants::PROJECTILE_IMPACT_MIN_BOUNC
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    protocol::{ActorId, ActorMarker, FaceYaw, HitTarget, PlayerGeneration, PlayerId, PlayerMarker, Position},
+    protocol::{
+        ActorId, ActorMarker, FaceYaw, HitTarget, PlayerGeneration, PlayerId, PlayerMarker, PlayerStance, Position,
+    },
 };
 
 use super::audio::{
@@ -29,7 +31,7 @@ pub(super) fn closest_character_hit(
             &FaceYaw,
             &PlayerId,
             Has<LocalPlayerMarker>,
-            &common::protocol::PlayerStance,
+            &PlayerStance,
         ),
         With<PlayerMarker>,
     >,

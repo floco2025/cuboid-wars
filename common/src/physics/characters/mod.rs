@@ -17,7 +17,7 @@ pub use momentum::{CharacterVerticalVelocity, HorizontalVelocity, KnockbackVeloc
 pub use movement::{CharacterEnvironment, CharacterStep, player_jump_velocity, step_character_movement};
 pub use movement_plan::character_move_plans_intersect;
 pub use player_control::{accelerate_player, player_control_velocity};
-pub use player_step::{PlayerMovementStep, PlayerStepResult, step_player_movement};
+pub use player_step::{PlayerMovementStep, PlayerStepResult, step_player_movement, step_player_movement_blocked};
 pub use support::{grounding_diagnostics, position_has_floor_support};
 pub use types::{CharacterMovePlan, CharacterMovementResult, CharacterSupport, GroundingDiagnostics};
 

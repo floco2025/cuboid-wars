@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    f32::consts::{FRAC_PI_4, FRAC_PI_6},
+    time::Duration,
+};
 
 // ============================================================================
 // Map Geometry
@@ -116,10 +119,30 @@ pub const CHARACTER_STEP_HEIGHT: f32 = 0.2;
 // the edge contact itself.
 pub const CHARACTER_STEP_MIN_WIDTH: f32 = 0.2;
 
-pub const CHARACTER_MAX_SLOPE: f32 = std::f32::consts::FRAC_PI_4;
+pub const CHARACTER_MAX_SLOPE: f32 = FRAC_PI_4;
 
 // Overlapping blasts may stack up to this multiple of one blast's `knockback.max_speed`.
 pub const CHARACTER_KNOCKBACK_CLAMP_RATIO: f32 = 1.5;
+
+// Crouching. An accepted transition shrinks both hulls to this fraction of
+// their standing height; the eye and the rendered model follow the stance blend.
+pub const PLAYER_CROUCH_HULL_RATIO: f32 = 0.5;
+// Crouched eye height as a fraction of the standing eye height.
+pub const PLAYER_CROUCH_EYE_RATIO: f32 = 28.0 / 64.0;
+// Grounded crouch speed as a fraction of the move speed.
+pub const PLAYER_CROUCH_SPEED_RATIO: f32 = 1.0 / 3.0;
+// Seconds a grounded stance blend takes; an airborne duck is instant.
+pub const PLAYER_CROUCH_BLEND_SECS: f32 = 0.2;
+// A portal exit that tilts an upright body past this angle forces the crouched hull.
+pub const PLAYER_CROUCH_PORTAL_TILT: f32 = FRAC_PI_6;
+
+// Airborne forward input keeps full strength up to this pitch, then follows
+// the view's horizontal component, so a steep look down stops driving the body.
+pub const PLAYER_AIR_STEER_PITCH: f32 = FRAC_PI_6;
+// Air acceleration drops to this fraction while rising slower than
+// PLAYER_AIR_APEX_RISE_SPEED, weakening steering just below the apex.
+pub const PLAYER_AIR_APEX_ACCELERATION_FACTOR: f32 = 0.25;
+pub const PLAYER_AIR_APEX_RISE_SPEED: f32 = 3.5;
 
 // ============================================================================
 // Explosions

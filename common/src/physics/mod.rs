@@ -13,7 +13,7 @@ pub use characters::{
     character_hitbox_shape, character_move_plans_intersect, character_movement_center, character_movement_shape,
     character_paths_intersect, character_positions_intersect, grounding_diagnostics, knockback_decay_system,
     player_control_velocity, player_jump_velocity, position_has_floor_support, step_character_movement,
-    step_player_movement,
+    step_player_movement, step_player_movement_blocked,
 };
 pub use fields::passable_fields;
 pub use portals::{

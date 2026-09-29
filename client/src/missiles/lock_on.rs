@@ -13,17 +13,13 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
-    protocol::{ActorMarker, FaceYaw, HomingTarget, PlayerMarker, Position, SwitchState},
+    protocol::{ActorMarker, FaceYaw, HomingTarget, PlayerMarker, PlayerStance, Position, SwitchState},
 };
 
 type LockCandidateQuery<'w, 's> = Query<
     'w,
     's,
-    (
-        &'static Position,
-        &'static FaceYaw,
-        Option<&'static common::protocol::PlayerStance>,
-    ),
+    (&'static Position, &'static FaceYaw, Option<&'static PlayerStance>),
     (Or<(With<PlayerMarker>, With<ActorMarker>)>, Without<MissileMarker>),
 >;
 

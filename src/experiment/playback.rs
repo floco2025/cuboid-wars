@@ -139,7 +139,12 @@ impl Playback {
                 .iter()
                 .map(|shot| (shot.id, shot.position))
                 .collect(),
-            cues: std::mem::take(session.visual_messages.as_mut().expect("visual session")),
+            cues: std::mem::take(
+                session
+                    .visual_messages
+                    .as_mut()
+                    .expect("visual messages missing from a graphical session"),
+            ),
             reset: std::mem::take(&mut self.reset),
         })
     }

@@ -12,7 +12,7 @@ use crate::{
 use common::{
     config::{GameplayConfig, HitboxConfig, NetworkConfig},
     physics::CollisionWorld,
-    protocol::{ActorId, ActorMarker, PlayerId, Position, ServerTick, SwitchState},
+    protocol::{ActorId, ActorMarker, PlayerId, PlayerStance, Position, ServerTick, SwitchState},
 };
 
 // Angular speeds (rad/s) of the endpoint wander's per-axis sines —
@@ -156,7 +156,7 @@ pub fn laser_beam_update_system(
     collision_world: Res<CollisionWorld>,
     switch_state: Res<SwitchState>,
     endpoints: Query<
-        (&Transform, Option<&AimRig>, Option<&common::protocol::PlayerStance>),
+        (&Transform, Option<&AimRig>, Option<&PlayerStance>),
         (Without<LaserBeam>, Without<AimJointMarker>),
     >,
     mut joints: Query<&mut Transform, With<AimJointMarker>>,

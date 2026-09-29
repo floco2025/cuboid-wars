@@ -4,13 +4,13 @@ use super::{
     PortalMap,
     spawn::{PORTAL_SURFACE_OFFSET, PortalSurface},
 };
-use common::{map::Carriers, physics::PortalFrame};
+use common::{config::GameplayConfig, map::Carriers, physics::PortalFrame};
 
 // Every render frame, place each disc of an anchored portal where its tile
 // is between the last two ticks, the same interpolation the tile mesh uses,
 // so the disc stays on it.
 pub(crate) fn portal_surfaces_transform_sync_system(
-    config: Res<common::config::GameplayConfig>,
+    config: Res<GameplayConfig>,
     fixed_time: Res<Time<Fixed>>,
     carriers: Res<Carriers>,
     portals: Res<PortalMap>,

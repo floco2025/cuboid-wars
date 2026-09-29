@@ -101,9 +101,8 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
             Vec3::new(0.0, 0.7, -0.05),
             physics,
             CharacterHopBody {
-                control_velocity: control,
                 knockback: Vec3::ZERO,
-                horizontal_velocity: Vec3::ZERO,
+                horizontal_velocity: control,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -136,9 +135,8 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
             next,
             physics,
             CharacterHopBody {
-                control_velocity: next_control,
                 knockback: hop.knockback,
-                horizontal_velocity: hop.horizontal_velocity,
+                horizontal_velocity: hop.horizontal_velocity + next_control,
                 vertical_velocity: hop.vertical_velocity,
                 yaw: hop.yaw,
             },
@@ -203,7 +201,6 @@ fn falling_into_floor_portal_carries_out_of_wall_as_horizontal_velocity() {
             Vec3::new(0.0, -0.95, 0.0),
             player_physics(),
             CharacterHopBody {
-                control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -10.0,
@@ -226,9 +223,8 @@ fn walking_into_wall_portal_exits_floor_portal_upward() {
             Vec3::new(0.0, 0.0, -0.1),
             player_physics(),
             CharacterHopBody {
-                control_velocity: Vec3::new(0.0, 0.0, -6.0),
                 knockback: Vec3::ZERO,
-                horizontal_velocity: Vec3::ZERO,
+                horizontal_velocity: Vec3::new(0.0, 0.0, -6.0),
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -286,9 +282,8 @@ fn crossing_the_plane_triggers_and_carries_penetration() {
             Vec3::new(0.0, 0.7, -0.05),
             player_physics(),
             CharacterHopBody {
-                control_velocity: Vec3::new(0.0, 0.0, -6.0),
                 knockback: Vec3::ZERO,
-                horizontal_velocity: Vec3::ZERO,
+                horizontal_velocity: Vec3::new(0.0, 0.0, -6.0),
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -308,9 +303,8 @@ fn approaching_without_crossing_does_not_trigger() {
         Vec3::new(0.0, 0.7, 0.1),
         player_physics(),
         CharacterHopBody {
-            control_velocity: Vec3::new(0.0, 0.0, -6.0),
             knockback: Vec3::ZERO,
-            horizontal_velocity: Vec3::ZERO,
+            horizontal_velocity: Vec3::new(0.0, 0.0, -6.0),
             vertical_velocity: 0.0,
             yaw: PI,
         },
@@ -327,9 +321,8 @@ fn crossing_from_behind_does_not_trigger() {
         Vec3::new(0.0, 0.7, 0.2),
         player_physics(),
         CharacterHopBody {
-            control_velocity: Vec3::new(0.0, 0.0, 1.0),
             knockback: Vec3::ZERO,
-            horizontal_velocity: Vec3::ZERO,
+            horizontal_velocity: Vec3::new(0.0, 0.0, 1.0),
             vertical_velocity: 0.0,
             yaw: 0.0,
         },
@@ -346,9 +339,8 @@ fn crossing_outside_the_aperture_does_not_trigger() {
         Vec3::new(2.0, 0.7, -0.05),
         player_physics(),
         CharacterHopBody {
-            control_velocity: Vec3::new(0.0, 0.0, -6.0),
             knockback: Vec3::ZERO,
-            horizontal_velocity: Vec3::ZERO,
+            horizontal_velocity: Vec3::new(0.0, 0.0, -6.0),
             vertical_velocity: 0.0,
             yaw: PI,
         },
@@ -367,9 +359,8 @@ fn off_center_crossing_uses_the_full_rectangle() {
         Vec3::new(0.65, 0.0, -0.05),
         player_physics(),
         CharacterHopBody {
-            control_velocity: Vec3::new(0.0, 0.0, -6.0),
             knockback: Vec3::ZERO,
-            horizontal_velocity: Vec3::ZERO,
+            horizontal_velocity: Vec3::new(0.0, 0.0, -6.0),
             vertical_velocity: 0.0,
             yaw: PI,
         },
@@ -387,7 +378,6 @@ fn knockback_carry_is_capped() {
             Vec3::new(0.0, -0.95, 0.0),
             player_physics(),
             CharacterHopBody {
-                control_velocity: Vec3::ZERO,
                 knockback: Vec3::X * 50.0,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -1.0,
@@ -408,7 +398,6 @@ fn an_external_teleport_is_not_a_crossing() {
         Vec3::new(0.0, 0.7, -0.05),
         player_physics(),
         CharacterHopBody {
-            control_velocity: Vec3::ZERO,
             knockback: Vec3::ZERO,
             horizontal_velocity: Vec3::ZERO,
             vertical_velocity: 0.0,
@@ -451,9 +440,8 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
             inside_to,
             physics,
             CharacterHopBody {
-                control_velocity: inside_move,
                 knockback: Vec3::ZERO,
-                horizontal_velocity: Vec3::ZERO,
+                horizontal_velocity: inside_move,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -475,9 +463,8 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
             outside_to,
             physics,
             CharacterHopBody {
-                control_velocity: outside_move,
                 knockback: Vec3::ZERO,
-                horizontal_velocity: Vec3::ZERO,
+                horizontal_velocity: outside_move,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },

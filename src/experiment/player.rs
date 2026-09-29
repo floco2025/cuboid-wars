@@ -79,7 +79,10 @@ impl Owner {
         aim: &mut Vec3,
         jump: bool,
     ) -> (Vec<ClientMessage>, Vec<Value>) {
-        let player = world.resource::<PlayerMap>().get(&id).expect("experiment player");
+        let player = world
+            .resource::<PlayerMap>()
+            .get(&id)
+            .expect("experiment player missing from PlayerMap");
         let Some(entity) = player.entity() else {
             return (Vec::new(), Vec::new());
         };
@@ -124,7 +127,9 @@ impl Owner {
             .map(|actor| {
                 CharacterMovePlan::stationary(
                     actor.entity,
-                    *world.get::<Position>(actor.entity).expect("actor position"),
+                    *world
+                        .get::<Position>(actor.entity)
+                        .expect("actor position missing from its entity"),
                     0.0,
                     gameplay.expect_actor(&actor.spawn_kind).physics(),
                 )

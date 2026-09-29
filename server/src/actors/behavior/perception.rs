@@ -4,7 +4,7 @@ use bevy::prelude::Vec3;
 use common::{
     config::CharacterPhysicsConfig,
     physics::{CharacterSupport, CollisionWorld},
-    protocol::{CarrierId, PlayerId, Position},
+    protocol::{CarrierId, PlayerId, PlayerStance, Position},
 };
 
 use crate::{
@@ -19,7 +19,7 @@ pub(super) struct PlayerState {
     pub(super) carrier: CarrierId,
     pub(super) carrier_pos: Position,
     pub(super) support: CharacterSupport,
-    pub(super) stance: common::protocol::PlayerStance,
+    pub(super) stance: PlayerStance,
 }
 
 pub(super) fn player_states<'a>(

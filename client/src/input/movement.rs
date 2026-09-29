@@ -2,7 +2,9 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
     physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, passable_fields, player_jump_velocity},
-    protocol::{FaceYaw, FieldId, MapSettings, PlayerId, PlayerMoveIntent, PortalAccess, Position, SwitchState},
+    protocol::{
+        FaceYaw, FieldId, MapSettings, PlayerId, PlayerMoveIntent, PlayerStance, PortalAccess, Position, SwitchState,
+    },
 };
 use std::f32::consts::PI;
 
@@ -11,6 +13,7 @@ use crate::{
     cameras::{CameraInputState, CameraViewMode, FollowCamera},
     config::ClientSettings,
     constants::{CAMERA_MAX_PITCH, INPUT_MOUSE_SENSITIVITY_BASE},
+    network::PlaybackMode,
     players::{LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
     ui::{ConsoleState, SettingsMenuState},
 };
@@ -51,7 +54,7 @@ type LocalPlayerInputQuery<'w, 's> = Query<
         &'static mut FaceYaw,
         &'static mut CharacterVerticalVelocity,
         Option<&'static LocalMovementStep>,
-        &'static common::protocol::PlayerStance,
+        &'static PlayerStance,
     ),
     With<LocalPlayerMarker>,
 >;
@@ -60,7 +63,7 @@ type LocalPlayerInputQuery<'w, 's> = Query<
 // vertical velocity once, retaining it if this frame has no fixed step.
 pub fn input_movement_system(
     keyboard: Res<ButtonInput<KeyCode>>,
-    playback: Option<Res<crate::network::PlaybackMode>>,
+    playback: Option<Res<PlaybackMode>>,
     camera_input: CameraMovementInput,
     my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,

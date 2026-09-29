@@ -2,7 +2,7 @@
 //! player physics or feeds observations back into a live movement owner.
 use bevy::{ecs::system::SystemState, prelude::*};
 use common::{
-    physics::{CharacterVerticalVelocity, player_control_velocity},
+    physics::{CharacterSupport, CharacterVerticalVelocity, player_control_velocity},
     protocol::*,
 };
 
@@ -50,7 +50,9 @@ pub fn apply_playback_frame(world: &mut World, frame: PlaybackFrame) {
     }
     let mut state = SystemState::<(Commands, ServerMessageContext)>::new(world);
     {
-        let (mut commands, mut context) = state.get_mut(world).expect("client presentation resources installed");
+        let (mut commands, mut context) = state
+            .get_mut(world)
+            .expect("client presentation resources missing from the world");
         // Local observation is not a wire stream: aiming may change the owner
         // without advancing the server tick, and reset starts tick numbering over.
         context.clocks.last_snapshot_tick.0 = None;
@@ -85,7 +87,9 @@ fn clear_bodies(world: &mut World, snapshot: &SSnapshot) {
     world.resource_mut::<LastSnapshotTick>().0 = None;
     let mut state = SystemState::<(Commands, ServerMessageContext)>::new(world);
     {
-        let (mut commands, mut context) = state.get_mut(world).expect("client presentation resources installed");
+        let (mut commands, mut context) = state
+            .get_mut(world)
+            .expect("client presentation resources missing from the world");
         route_server_message(ServerMessage::Snapshot(empty), &mut commands, &mut context);
         // The live client keeps the local body hidden through death. A new
         // experiment must also discard its generation and checkpoint guards.
@@ -101,7 +105,11 @@ fn clear_bodies(world: &mut World, snapshot: &SSnapshot) {
 fn place_bodies(world: &mut World, snapshot: &SSnapshot) {
     let settings = world.resource::<MapSettings>().movement.clone();
     for (id, player) in &snapshot.players {
-        let entity = world.resource::<PlayerMap>().get(id).expect("snapshot player").entity;
+        let entity = world
+            .resource::<PlayerMap>()
+            .get(id)
+            .expect("snapshot player missing from PlayerMap")
+            .entity;
         let movement = &player.movement;
         let velocity = player_control_velocity(
             movement.move_intent,
@@ -109,7 +117,7 @@ fn place_bodies(world: &mut World, snapshot: &SSnapshot) {
             player.power_ups[PowerUpKind::Speed.index()],
             player.stunned,
         );
-        let velocity = if movement.support == common::physics::CharacterSupport::Ladder {
+        let velocity = if movement.support == CharacterSupport::Ladder {
             velocity
         } else {
             Vec3::from_array(movement.horizontal_velocity)
@@ -126,9 +134,15 @@ fn place_bodies(world: &mut World, snapshot: &SSnapshot) {
     }
     let delta = world.resource::<Time>().delta_secs();
     for (id, actor) in &snapshot.actors {
-        let entity = world.resource::<ActorMap>().get(id).expect("snapshot actor").entity;
+        let entity = world
+            .resource::<ActorMap>()
+            .get(id)
+            .expect("snapshot actor missing from ActorMap")
+            .entity;
         let movement = &actor.movement;
-        let previous = *world.get::<Position>(entity).expect("actor position");
+        let previous = *world
+            .get::<Position>(entity)
+            .expect("actor position missing from the snapshot actor");
         let velocity = if delta > 0.0 {
             (Vec3::from(movement.pos) - Vec3::from(previous)) / delta
         } else {

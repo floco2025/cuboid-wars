@@ -61,10 +61,10 @@ pub fn actors_beam_damage_system(
         let Ok(actor_pos) = actor_positions.get(info.entity) else {
             continue;
         };
-        let Some((target_entity, target_generation)) = players
+        let Some((target_entity, target_generation, target_stance)) = players
             .get(&target_id)
             .filter(|player| player.connection.logged_in)
-            .and_then(|player| Some((player.entity()?, player.session.generation)))
+            .and_then(|player| Some((player.entity()?, player.session.generation, player.life.movement.stance)))
         else {
             continue;
         };
@@ -79,13 +79,7 @@ pub fn actors_beam_damage_system(
         if actor_pos.distance_sq(target_pos) > range * range {
             continue;
         }
-        let player_physics = players
-            .get(&target_id)
-            .expect("beam target")
-            .life
-            .movement
-            .stance
-            .physics(&gameplay_config.player);
+        let player_physics = target_stance.physics(&gameplay_config.player);
         let actor_config = gameplay_config.expect_actor(&info.spawn_kind);
         let target_center = Vec3::new(target_pos.x, player_physics.hitbox_center_y(target_pos.y), target_pos.z);
         if !collision_world.attack_path_clear(

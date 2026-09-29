@@ -1,12 +1,9 @@
 use bevy::prelude::*;
 
-use super::PreviousTickPosition;
 use crate::{
     actors::ActorMap,
     config::{AssetSet, ClientSettings},
-    players::{
-        LocalPlayerInfo, LocalPlayerMarker, PlayerMap, PlayerMovementQuery, apply_player_moves, plan_player_moves,
-    },
+    players::{LocalPlayerInfo, PlayerMap, PlayerMovementQuery, apply_player_moves, plan_player_moves},
 };
 use common::{
     config::GameplayConfig,
@@ -14,18 +11,6 @@ use common::{
     physics::{CharacterMovePlan, CollisionWorld, PortalSet},
     protocol::{ActorId, ActorMarker, MapSettings, PlayerMarker, Position, SwitchState},
 };
-
-// Run at the start of each fixed tick, before `characters_movement_system`,
-// so `PreviousTickPosition` captures the value `Position` had at the end of
-// the previous tick. The render-rate transform sync then lerps between
-// these two values for smooth motion above 30 Hz.
-pub fn capture_previous_tick_position_system(
-    mut query: Query<(&Position, &mut PreviousTickPosition), With<LocalPlayerMarker>>,
-) {
-    for (pos, mut prev) in &mut query {
-        prev.0 = *pos;
-    }
-}
 
 pub fn characters_movement_system(
     mut commands: Commands,

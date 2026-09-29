@@ -2,6 +2,7 @@ use bevy::{light::NotShadowCaster, prelude::*};
 
 use crate::{carriers::CarrierEntities, constants::*};
 use common::{
+    config::{GameplayConfig, PortalSize},
     physics::PortalFrame,
     protocol::{Portal, PortalEnd},
 };
@@ -12,7 +13,7 @@ const FLASH_LIFT: f32 = 0.003;
 
 #[derive(Resource)]
 pub struct PortalFizzleAssets {
-    pub(crate) size: common::config::PortalSize,
+    pub(crate) size: PortalSize,
     ring: Handle<Mesh>,
     flash: Handle<Mesh>,
     spark: Handle<Mesh>,
@@ -21,7 +22,7 @@ pub struct PortalFizzleAssets {
 
 impl FromWorld for PortalFizzleAssets {
     fn from_world(world: &mut World) -> Self {
-        let size = world.resource::<common::config::GameplayConfig>().portals.size;
+        let size = world.resource::<GameplayConfig>().portals.size;
         let mut meshes = world.resource_mut::<Assets<Mesh>>();
         let ring = meshes.add(Annulus::new(PORTAL_FIZZLE_RING_INNER_RADIUS, 1.0));
         let flash = meshes.add(Circle::new(1.0));
@@ -121,7 +122,7 @@ pub fn spawn_portal_fizzle(
 }
 
 // A disc's semi-axes at the given fraction of the aperture's.
-fn aperture_scale(fraction: f32, size: common::config::PortalSize) -> Vec3 {
+fn aperture_scale(fraction: f32, size: PortalSize) -> Vec3 {
     Vec3::new(size.half_width() * fraction, size.half_height() * fraction, 1.0)
 }
 

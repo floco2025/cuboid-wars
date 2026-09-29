@@ -6,9 +6,10 @@ use client::projectiles::{
 };
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig, NetworkConfig},
+    constants::CHARACTER_KNOCKBACK_CLAMP_RATIO,
     map::Carriers,
     physics::{
-        CollisionWorld, PortalPlacementFailure, PortalSet, compute_portal_placement, passable_fields,
+        CharacterSupport, CollisionWorld, PortalPlacementFailure, PortalSet, compute_portal_placement, passable_fields,
         portal_placement_overlaps,
     },
     protocol::*,
@@ -18,6 +19,7 @@ use serde_json::{Value, json};
 use server::{actors::ActorMap, network::LocalLink, players::PlayerMap, portals::PortalMap};
 
 use super::{
+    player::Owner,
     report::{point, portal, target},
     script::{End, Script},
 };
@@ -36,7 +38,7 @@ pub(super) struct Session {
     pub direction: Vec3,
     pub projectiles: Vec<Shot>,
     pub events: Vec<Value>,
-    pub owner: super::player::Owner,
+    pub owner: Owner,
     jump_requested: bool,
     to_server: Sender<ClientMessage>,
     from_server: Receiver<ServerMessage>,
@@ -72,7 +74,7 @@ impl Session {
                 _ => None,
             })
             .context("server did not establish the initial player body")?;
-        let owner = super::player::Owner::new(&relocated, &bootstrap.world.network);
+        let owner = Owner::new(&relocated, &bootstrap.world.network);
         let id = bootstrap.player.id;
         let access = bootstrap.player.portal_access;
         let mut session = Self {
@@ -200,7 +202,7 @@ impl Session {
         let generation = world
             .resource::<PlayerMap>()
             .get(&self.id)
-            .expect("player")
+            .expect("experiment player missing from PlayerMap")
             .session
             .generation;
         self.to_server
@@ -252,7 +254,11 @@ impl Session {
             self.to_server.send(ClientMessage::ProjectileShot(shot))?;
         }
         for id in &ids {
-            let shot = self.projectiles.iter().find(|shot| shot.id == *id).expect("new shot");
+            let shot = self
+                .projectiles
+                .iter()
+                .find(|shot| shot.id == *id)
+                .expect("new shot missing from the projectile list");
             self.record(json!({"kind": "projectile_spawned", "projectile": id,
                 "position": point(shot.position), "velocity": shot.motion.velocity.to_array()}));
         }
@@ -386,7 +392,7 @@ impl Session {
                 ServerMessage::Firework(_) => json!({"kind": "fireworks_started"}),
                 ServerMessage::EquipmentErased(_) => json!({"kind": "equipment_erased"}),
                 ServerMessage::PlayerStatus(status) if status.id == self.id && status.collected.is_some() => {
-                    json!({"kind": "item_collected", "item": status.collected.expect("collected item").config_id()})
+                    json!({"kind": "item_collected", "item": status.collected.expect("collected item missing from a pickup status").config_id()})
                 }
                 ServerMessage::ActorHit(hit) => json!({"kind": "actor_hit", "actor": hit.id.0, "health": hit.health.0}),
                 ServerMessage::ActorDeath(death) => json!({"kind": "actor_died", "actor": death.id.0,
@@ -414,7 +420,7 @@ impl Session {
                         .movement
                         .knockback
                         .max_speed
-                        * common::constants::CHARACTER_KNOCKBACK_CLAMP_RATIO;
+                        * CHARACTER_KNOCKBACK_CLAMP_RATIO;
                     self.owner.motion.knockback.0 =
                         (self.owner.motion.knockback.0 + impulse.with_y(0.0)).clamp_length_max(max);
                     json!({"kind": "player_knockback", "impulse": message.impulse})
@@ -458,7 +464,7 @@ impl Session {
             .world()
             .resource::<PlayerMap>()
             .get(&self.id)
-            .expect("player")
+            .expect("experiment player missing from PlayerMap")
             .is_dead()
     }
 
@@ -468,14 +474,13 @@ impl Session {
             .world()
             .resource::<PlayerMap>()
             .get(&self.id)
-            .expect("player")
+            .expect("experiment player missing from PlayerMap")
             .is_dead();
         let pos = point(self.owner.position);
         let inside = (0..3).all(|axis| pos[axis] >= min[axis] && pos[axis] <= max[axis]);
         // Transit follows the motor: that tick's support still describes the
         // entrance. Require a fresh motor result before claiming a landing.
-        let on_ground =
-            self.owner.motion.support == common::physics::CharacterSupport::Ground && !self.owner.crossed_last_step;
+        let on_ground = self.owner.motion.support == CharacterSupport::Ground && !self.owner.crossed_last_step;
         let reason = if !alive {
             Some("player_dead")
         } else if !inside {

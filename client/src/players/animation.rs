@@ -12,8 +12,8 @@ use crate::{
     constants::{
         LADDER_RUNG_SPACING, PLAYER_ANIMATION_APEX_SPEED, PLAYER_ANIMATION_BLEND_SECS,
         PLAYER_ANIMATION_CLIMB_RUNGS_PER_CYCLE, PLAYER_ANIMATION_LANDING_MIN_AIR_SECS, PLAYER_ANIMATION_RUN_SPEED,
-        PLAYER_ANIMATION_STANDSTILL_SPEED, PLAYER_ANIMATION_STRAFE_RATIO, PLAYER_ANIMATION_TAKEOFF_BLEND_SECS,
-        PLAYER_ANIMATION_WALK_SPEED,
+        PLAYER_ANIMATION_RUN_THRESHOLD_SPEED, PLAYER_ANIMATION_STANDSTILL_SPEED, PLAYER_ANIMATION_STRAFE_RATIO,
+        PLAYER_ANIMATION_TAKEOFF_BLEND_SECS, PLAYER_ANIMATION_WALK_SPEED,
     },
 };
 
@@ -262,7 +262,7 @@ pub(crate) fn player_animation_update_system(
         let local_velocity = transform.rotation.inverse() * motion.velocity;
         let (clip, mut speed) = playback.state.select(
             *motion,
-            motion.velocity.with_y(0.0).length() > 4.0,
+            motion.velocity.with_y(0.0).length() > PLAYER_ANIMATION_RUN_THRESHOLD_SPEED,
             local_velocity,
             players.get(id).is_some_and(|info| info.stunned),
             finished,

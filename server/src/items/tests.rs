@@ -205,7 +205,3 @@ fn zero_weight_items_are_excluded_from_selection_and_map_availability() {
         assert_eq!(choose_item_type(&mut rng, &random.pool), Some(ItemType::Gold));
     }
 }
-
-#[cfg(test)]
-#[path = "tests/tests_collection_eligibility.rs"]
-mod collection_eligibility_tests;

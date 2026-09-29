@@ -10,7 +10,7 @@ use crate::{
     map::MapLevel,
     missiles::{MissileAssets, spawn_missile_pickup_visual},
 };
-use common::{constants::ITEM_HOVER_HEIGHT, protocol::*};
+use common::{config::GameplayConfig, constants::ITEM_HOVER_HEIGHT, protocol::*};
 
 // ============================================================================
 // Components
@@ -55,7 +55,7 @@ pub fn setup_item_assets(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     client_settings: Res<ClientSettings>,
-    gameplay: Res<common::config::GameplayConfig>,
+    gameplay: Res<GameplayConfig>,
 ) {
     let glow = client_settings.vfx.pickups.emissive_brightness;
     let coin = CoinAssets::new(&mut meshes, &mut materials, glow);

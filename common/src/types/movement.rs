@@ -1,9 +1,13 @@
 use bevy_ecs::prelude::*;
-use bevy_math::Vec3;
+use bevy_math::{Vec2, Vec3};
 use bincode::{Decode, Encode};
 
 use super::{CarrierId, Position};
-use crate::physics::CharacterSupport;
+use crate::{
+    config::{CharacterGameplayConfig, CharacterPhysicsConfig},
+    constants::{PLAYER_AIR_STEER_PITCH, PLAYER_CROUCH_EYE_RATIO, PLAYER_CROUCH_HULL_RATIO},
+    physics::CharacterSupport,
+};
 
 // View-relative movement input. Physics owns velocity and resolved stance;
 // releasing buttons never rewrites either. Sideways is positive to the left.
@@ -37,13 +41,16 @@ impl PlayerMoveIntent {
         (self.forward != 0.0 || self.sideways != 0.0).then(|| self.yaw + self.sideways.atan2(self.forward))
     }
 
+    // Airborne, forward input follows the view's horizontal component past
+    // PLAYER_AIR_STEER_PITCH, scaled to keep full strength up to that angle.
     pub fn wish_velocity(self, speed: f32, airborne: bool) -> Vec3 {
-        let input = bevy_math::Vec2::new(self.sideways, self.forward).clamp_length_max(1.0);
-        let forward = if airborne && self.pitch.abs() >= std::f32::consts::FRAC_PI_6 {
-            input.y * self.pitch.cos()
+        let input = Vec2::new(self.sideways, self.forward).clamp_length_max(1.0);
+        let steer = if airborne {
+            (self.pitch.cos() / PLAYER_AIR_STEER_PITCH.cos()).clamp(0.0, 1.0)
         } else {
-            input.y
+            1.0
         };
+        let forward = input.y * steer;
         let (sin, cos) = self.yaw.sin_cos();
         Vec3::new(sin * forward + cos * input.x, 0.0, cos * forward - sin * input.x) * speed
     }
@@ -61,22 +68,29 @@ pub struct PlayerStance {
 }
 
 impl PlayerStance {
-    pub fn physics(self, config: &crate::config::CharacterGameplayConfig) -> crate::config::CharacterPhysicsConfig {
+    pub fn physics(self, config: &CharacterGameplayConfig) -> CharacterPhysicsConfig {
         self.adjust_physics(config.physics())
     }
 
-    pub fn adjust_physics(
-        self,
-        mut physics: crate::config::CharacterPhysicsConfig,
-    ) -> crate::config::CharacterPhysicsConfig {
+    pub fn adjust_physics(self, mut physics: CharacterPhysicsConfig) -> CharacterPhysicsConfig {
         if self.crouched {
-            physics.movement_collider.height *= 0.5;
-            physics.hitbox.height *= 0.5;
+            physics.movement_collider.height *= PLAYER_CROUCH_HULL_RATIO;
+            physics.hitbox.height *= PLAYER_CROUCH_HULL_RATIO;
         }
         physics
     }
-    pub fn eye_height(self, config: &crate::config::CharacterGameplayConfig) -> f32 {
-        config.eye_height() * (1.0 - self.fraction * (1.0 - 28.0 / 64.0))
+
+    pub fn eye_height(self, config: &CharacterGameplayConfig) -> f32 {
+        config.eye_height() * self.blend(PLAYER_CROUCH_EYE_RATIO)
+    }
+
+    // Vertical scale of the rendered model, following the hull through the blend.
+    pub fn model_height_scale(self) -> f32 {
+        self.blend(PLAYER_CROUCH_HULL_RATIO)
+    }
+
+    fn blend(self, crouched: f32) -> f32 {
+        1.0 - self.fraction * (1.0 - crouched)
     }
 }
 

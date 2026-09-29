@@ -1,8 +1,15 @@
 use crate::{
     config::{MapMovementConfig, PlayerMovementConfig},
+    constants::{PLAYER_AIR_APEX_ACCELERATION_FACTOR, PLAYER_AIR_APEX_RISE_SPEED},
     protocol::PlayerMoveIntent,
 };
 use bevy_math::Vec3;
+
+// Horizontal target speed; the speed pickup scales it.
+#[must_use]
+pub(super) fn player_move_speed(cfg: &PlayerMovementConfig, has_speed: bool) -> f32 {
+    cfg.move_speed * if has_speed { cfg.move_speed_power_up } else { 1.0 }
+}
 
 // Desired ground velocity, also used for animation and ladder intent. It is
 // not the player's velocity: accelerate_player owns changes to that state.
@@ -16,15 +23,7 @@ pub fn player_control_velocity(
     if disabled {
         return Vec3::ZERO;
     }
-    intent.wish_velocity(
-        movement.player.move_speed
-            * if has_speed {
-                movement.player.move_speed_power_up
-            } else {
-                1.0
-            },
-        false,
-    )
+    intent.wish_velocity(player_move_speed(&movement.player, has_speed), false)
 }
 
 // Ground and air use independent acceleration, braking, and sideways grip in
@@ -33,6 +32,8 @@ pub fn player_control_velocity(
 // also disable countersteering. Portals do not change these rules. Blast shove
 // participates in the air acceleration limit but retains its separate decay:
 // passive braking must not store opposing locomotion when the blast wears off.
+// Rising slower than PLAYER_AIR_APEX_RISE_SPEED, air acceleration drops to
+// PLAYER_AIR_APEX_ACCELERATION_FACTOR of its rate; the descent keeps the full rate.
 #[must_use]
 pub fn accelerate_player(
     mut velocity: Vec3,
@@ -51,7 +52,11 @@ pub fn accelerate_player(
             cfg.ground_lateral_deceleration,
         )
     } else {
-        let apex_factor = if vertical > 0.0 && vertical <= 3.5 { 0.25 } else { 1.0 };
+        let apex_factor = if vertical > 0.0 && vertical <= PLAYER_AIR_APEX_RISE_SPEED {
+            PLAYER_AIR_APEX_ACCELERATION_FACTOR
+        } else {
+            1.0
+        };
         (
             cfg.air_acceleration * apex_factor,
             cfg.air_deceleration,

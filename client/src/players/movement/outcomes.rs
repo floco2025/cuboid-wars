@@ -4,7 +4,7 @@ use common::{
     constants::CHARACTER_FALL_DEATH_Y,
     map::Carriers,
     physics::{CharacterSupport, CollisionWorld},
-    protocol::{CMoveOutcome, CarrierId, ClientMessage, MoveOutcome, Position},
+    protocol::{CMoveOutcome, CarrierId, ClientMessage, MoveOutcome, PlayerStance, Position},
 };
 
 use super::LocalMovementReports;
@@ -32,7 +32,7 @@ pub(crate) fn report_move_outcomes_system(
     gameplay: Res<GameplayConfig>,
     network: Res<NetworkConfig>,
     mut eraser_cadence: Local<Option<UpdateCadence>>,
-    query: Query<(&Position, &LocalMovementStep, &common::protocol::PlayerStance), With<LocalPlayerMarker>>,
+    query: Query<(&Position, &LocalMovementStep, &PlayerStance), With<LocalPlayerMarker>>,
 ) {
     if local.is_dead {
         return;

@@ -8,14 +8,14 @@ use rapier3d::{
 use super::PortalFrame;
 use crate::{
     config::{CharacterPhysicsConfig, GameplayConfig, MapMovementConfig, PortalSize},
-    constants::PORTAL_KNOCKBACK_CARRY_FACTOR,
+    constants::{PLAYER_CROUCH_PORTAL_TILT, PORTAL_KNOCKBACK_CARRY_FACTOR},
     map::Carriers,
     math::{direction_from_yaw_pitch, to_rapier},
     physics::{
         CharacterVerticalVelocity, CollisionWorld, HorizontalVelocity, KnockbackVelocity, character_movement_center,
         character_movement_shape,
     },
-    protocol::{CarrierId, FaceYaw, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
+    protocol::{CarrierId, FaceYaw, PlayerMoveIntent, PlayerStance, Portal, PortalEnd, PortalPairId, Position},
 };
 
 pub(super) const PORTAL_PROJECTILE_EXIT_STANDOFF: f32 = 0.02;
@@ -104,7 +104,7 @@ fn corridor_reach(shape: &Capsule, frame: &PortalFrame) -> f32 {
 }
 
 pub struct PlayerHopBody<'a> {
-    pub stance: crate::protocol::PlayerStance,
+    pub stance: PlayerStance,
     pub knockback: &'a KnockbackVelocity,
     pub horizontal_velocity: &'a HorizontalVelocity,
     pub vertical_velocity: f32,
@@ -113,7 +113,6 @@ pub struct PlayerHopBody<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterHopBody {
-    pub control_velocity: Vec3,
     pub knockback: Vec3,
     pub horizontal_velocity: Vec3,
     pub vertical_velocity: f32,
@@ -147,7 +146,7 @@ impl CharacterPortalHop {
         face_yaw: &mut FaceYaw,
         vertical_velocity: &mut CharacterVerticalVelocity,
         move_intent: &mut PlayerMoveIntent,
-        stance: &mut crate::protocol::PlayerStance,
+        stance: &mut PlayerStance,
     ) {
         if self.force_crouch {
             stance.crouched = true;
@@ -315,7 +314,6 @@ impl PortalSet {
             to,
             body.stance.physics(&gameplay_config.player),
             CharacterHopBody {
-                control_velocity: Vec3::ZERO,
                 knockback: body.knockback.0,
                 horizontal_velocity: body.horizontal_velocity.0,
                 vertical_velocity: body.vertical_velocity,
@@ -326,10 +324,10 @@ impl PortalSet {
         // Rotating an upright body more than 30 degrees needs the shorter hull
         // at the exit. Preserve its centre, as with an airborne manual duck.
         if !body.stance.crouched
-            && traverse_vector(&hop.entry, &hop.exit, Vec3::Y).y.abs() < std::f32::consts::FRAC_PI_6.cos()
+            && traverse_vector(&hop.entry, &hop.exit, Vec3::Y).y.abs() < PLAYER_CROUCH_PORTAL_TILT.cos()
         {
             let old = body.stance.physics(&gameplay_config.player);
-            let crouched = crate::protocol::PlayerStance {
+            let crouched = PlayerStance {
                 crouched: true,
                 fraction: 1.0,
             }
@@ -484,7 +482,6 @@ impl PortalSet {
         knockback_cap: f32,
     ) -> Option<CharacterPortalHop> {
         let CharacterHopBody {
-            control_velocity,
             knockback,
             horizontal_velocity,
             vertical_velocity,
@@ -500,7 +497,7 @@ impl PortalSet {
         let center_offset = character_movement_center(Position::default(), physics);
         let center_to = to + center_offset;
         let portal_velocity = horizontal_velocity + Vec3::Y * vertical_velocity;
-        let velocity = control_velocity + knockback + portal_velocity;
+        let velocity = knockback + portal_velocity;
         for (entry_gate, exit_gate) in self.gates() {
             let entry = &entry_gate.frame;
             let exit = &exit_gate.frame;
@@ -523,7 +520,7 @@ impl PortalSet {
                 + exit.up * offset.dot(entry.up).clamp(-up_limit, up_limit)
                 + exit.normal * (-to_distance);
             let mapped_velocity = traverse_vector(entry, exit, velocity);
-            let mapped_portal_velocity = traverse_vector(entry, exit, portal_velocity + control_velocity);
+            let mapped_portal_velocity = traverse_vector(entry, exit, portal_velocity);
             let mapped_knockback = traverse_vector(entry, exit, knockback);
             return Some(CharacterPortalHop {
                 force_crouch: false,

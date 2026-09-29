@@ -190,6 +190,8 @@ pub const PLAYER_ANIMATION_BLEND_SECS: f32 = 0.12;
 pub const PLAYER_ANIMATION_TAKEOFF_BLEND_SECS: f32 = 0.04;
 pub const PLAYER_ANIMATION_WALK_SPEED: f32 = 3.0;
 pub const PLAYER_ANIMATION_RUN_SPEED: f32 = 5.0;
+// Ground speed above which the run clip replaces the walk clip.
+pub const PLAYER_ANIMATION_RUN_THRESHOLD_SPEED: f32 = (PLAYER_ANIMATION_WALK_SPEED + PLAYER_ANIMATION_RUN_SPEED) * 0.5;
 pub const PLAYER_ANIMATION_CLIMB_RUNGS_PER_CYCLE: f32 = 2.0;
 // Sole contacts sampled from player.glb; reverse playback contacts the forward lift-off phases.
 pub const PLAYER_FOOTSTEP_WALK_PHASES: &[f32] = &[0.03, 0.53];

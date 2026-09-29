@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::CollisionWorld,
-    protocol::{FaceYaw, FieldId, Position, SwitchState},
+    protocol::{FaceYaw, FieldId, PlayerStance, Position, SwitchState},
 };
 
 const AIM_DISTANCE: f32 = 1000.0;
@@ -18,9 +18,9 @@ pub fn camera_aim_system(
     mut aim: ResMut<CameraAim>,
     view: Res<CameraViewMode>,
     camera: Query<(&Transform, &Projection), With<MainCameraMarker>>,
-    local_player: Query<(&Position, &common::protocol::PlayerStance), With<LocalPlayerMarker>>,
+    local_player: Query<(&Position, &PlayerStance), With<LocalPlayerMarker>>,
     local_player_info: Res<LocalPlayerInfo>,
-    characters: Query<(&Position, &FaceYaw, Option<&common::protocol::PlayerStance>)>,
+    characters: Query<(&Position, &FaceYaw, Option<&PlayerStance>)>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
     me: Res<MyPlayerId>,

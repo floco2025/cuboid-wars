@@ -27,15 +27,12 @@ use crate::{
 };
 
 // The tick advances first so everything the step records carries the tick it
-// belongs to; the previous position is captured before movement so the
-// render-rate transform sync can interpolate; the report goes out after the
-// transit and before knockback decay.
+// belongs to; the report goes out after the transit and before knockback decay.
 pub fn local_simulation_plugin(app: &mut App) {
     app.add_systems(
         FixedUpdate,
         (
             server_tick_advance_system,
-            capture_previous_tick_position_system,
             carriers_advance_system,
             carried_portals_refresh_system,
             characters_movement_system,

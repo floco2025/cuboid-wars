@@ -291,7 +291,6 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
                 to,
                 physics,
                 CharacterHopBody {
-                    control_velocity: Vec3::ZERO,
                     knockback: Vec3::ZERO,
                     horizontal_velocity: Vec3::ZERO,
                     vertical_velocity: -3.0,
@@ -326,7 +325,6 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
                 to,
                 physics,
                 CharacterHopBody {
-                    control_velocity: Vec3::ZERO,
                     knockback: Vec3::ZERO,
                     horizontal_velocity: Vec3::ZERO,
                     vertical_velocity: -3.0,

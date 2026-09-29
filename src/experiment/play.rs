@@ -96,7 +96,9 @@ fn drive_viewer(world: &mut World) {
         }
     };
     let delta = world.resource::<Time<Real>>().delta();
-    let mut viewer = world.remove_non_send::<Viewer>().expect("experiment viewer");
+    let mut viewer = world
+        .remove_non_send::<Viewer>()
+        .expect("experiment viewer missing from the world");
     if menu_open {
         viewer.playback.pause();
     }
@@ -135,7 +137,7 @@ fn drive_viewer(world: &mut World) {
         .script
         .actions
         .get(executor.steps.len())
-        .map(|action| serde_json::to_string(action).expect("action JSON"))
+        .map(|action| serde_json::to_string(action).expect("experiment action failed to serialize"))
         .unwrap_or_else(|| "All actions executed".into());
     let last = executor
         .steps

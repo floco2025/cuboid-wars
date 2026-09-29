@@ -1,15 +1,16 @@
 use super::{
     geometry::character_movement_shape,
     movement::step_character_movement,
-    player_control::{accelerate_player, player_control_velocity},
+    player_control::{accelerate_player, player_control_velocity, player_move_speed},
     support::rider_carry,
 };
 use crate::{
     config::GameplayConfig,
+    constants::{CHARACTER_TERMINAL_VELOCITY, PLAYER_CROUCH_BLEND_SECS, PLAYER_CROUCH_SPEED_RATIO},
     map::Carriers,
     physics::{
         CharacterEnvironment, CharacterMovementResult, CharacterStep, CharacterSupport, CollisionWorld,
-        HorizontalVelocity, LadderMode, PortalSet, grounding_diagnostics, passable_fields,
+        HorizontalVelocity, LadderMode, PortalSet, grounding_diagnostics, passable_fields, portals::FunnelStep,
     },
     protocol::{FieldId, MapSettings, PlayerMoveIntent, PlayerStance, Position},
 };
@@ -43,18 +44,45 @@ pub struct PlayerStepResult {
     pub horizontal_velocity: Vec3,
     pub stance: PlayerStance,
     pub control_velocity: Vec3,
+    // The blast displacement the step applied; a blocked retry keeps only its vertical part.
+    pub external_displacement: Vec3,
 }
 
 // The same player policy runs for the rendered owner and the headless owner.
 // Character movement remains reusable by actors, which do not use this controller.
 pub fn step_player_movement(step: PlayerMovementStep<'_>) -> PlayerStepResult {
+    step_player(step, true)
+}
+
+// A body-blocked owner retries with vertical travel only: gravity, vertical
+// blast displacement, carrier riding, and stance, with neither locomotion nor
+// funnel capture and no horizontal velocity kept, so support and landing
+// outcomes describe the accepted position.
+pub fn step_player_movement_blocked(step: PlayerMovementStep<'_>) -> PlayerStepResult {
+    let mut result = step_player(
+        PlayerMovementStep {
+            horizontal_velocity: Vec3::ZERO,
+            external_displacement: step.external_displacement * Vec3::Y,
+            ..step
+        },
+        false,
+    );
+    result.horizontal_velocity = Vec3::ZERO;
+    result
+}
+
+fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResult {
     let passable = passable_fields(step.held_keys, step.open_fields);
     let body = &step.gameplay_config.player;
     let mut stance = step.stance;
     let old_physics = stance.physics(body);
     let cfg = &step.map_settings.movement;
     let gravity = step.map_settings.gravity_for(step.has_low_gravity);
-    let mut control = player_control_velocity(step.intent, cfg, step.has_speed, step.disabled);
+    let mut control = if locomotion {
+        player_control_velocity(step.intent, cfg, step.has_speed, step.disabled)
+    } else {
+        Vec3::ZERO
+    };
     let environment = CharacterEnvironment {
         ladder_mode: LadderMode::Automatic,
         collision_world: step.collision_world,
@@ -92,7 +120,7 @@ pub fn step_player_movement(step: PlayerMovementStep<'_>) -> PlayerStepResult {
     let crouch = step.intent.crouch && !step.disabled;
     let mut start = step.start;
     if crouch != stance.crouched {
-        let next_stance = crate::protocol::PlayerStance {
+        let next_stance = PlayerStance {
             crouched: crouch,
             ..stance
         };
@@ -115,24 +143,20 @@ pub fn step_player_movement(step: PlayerMovementStep<'_>) -> PlayerStepResult {
     }
     let target = if stance.crouched { 1.0 } else { 0.0 };
     stance.fraction = if grounded {
-        stance.fraction + (target - stance.fraction).clamp(-step.delta / 0.2, step.delta / 0.2)
+        let blend_step = step.delta / PLAYER_CROUCH_BLEND_SECS;
+        stance.fraction + (target - stance.fraction).clamp(-blend_step, blend_step)
     } else {
         target
     };
     let physics = stance.physics(body);
-    let speed = cfg.player.move_speed
-        * if step.has_speed {
-            cfg.player.move_speed_power_up
-        } else {
-            1.0
-        };
-    let mut wish = if step.disabled {
+    let mut wish = if step.disabled || !locomotion {
         Vec3::ZERO
     } else {
-        step.intent.wish_velocity(speed, !grounded)
+        step.intent
+            .wish_velocity(player_move_speed(&cfg.player, step.has_speed), !grounded)
     };
     if grounded && stance.crouched {
-        wish /= 3.0;
+        wish *= PLAYER_CROUCH_SPEED_RATIO;
     }
     let blast = step.external_displacement / step.delta;
     let mut velocity = accelerate_player(
@@ -144,8 +168,9 @@ pub fn step_player_movement(step: PlayerMovementStep<'_>) -> PlayerStepResult {
         &cfg.player,
         step.delta,
     );
-    let funnel = if !grounded && !step.disabled && step.intent.forward == 0.0 && step.intent.sideways == 0.0 {
-        step.portal_set.funnel_correction(crate::physics::portals::FunnelStep {
+    let steering = step.intent.forward != 0.0 || step.intent.sideways != 0.0;
+    let funnel = if locomotion && !grounded && !step.disabled && !steering {
+        step.portal_set.funnel_correction(FunnelStep {
             origin: start.into(),
             physics,
             velocity: (velocity + blast).with_y(step.vertical_velocity),
@@ -160,7 +185,7 @@ pub fn step_player_movement(step: PlayerMovementStep<'_>) -> PlayerStepResult {
     };
     // Intent, not momentum, decides whether a nearby ladder is being mounted.
     if grounded && stance.crouched {
-        control /= 3.0;
+        control *= PLAYER_CROUCH_SPEED_RATIO;
     }
     let mut movement = step_character_movement(
         CharacterStep {
@@ -178,8 +203,8 @@ pub fn step_player_movement(step: PlayerMovementStep<'_>) -> PlayerStepResult {
     );
     velocity += funnel.velocity_change;
     if movement.support == CharacterSupport::Airborne {
-        movement.vertical_velocity = (movement.vertical_velocity - gravity * step.delta * 0.5)
-            .max(-crate::constants::CHARACTER_TERMINAL_VELOCITY);
+        movement.vertical_velocity =
+            (movement.vertical_velocity - gravity * step.delta * 0.5).max(-CHARACTER_TERMINAL_VELOCITY);
     }
     let mut horizontal = HorizontalVelocity(velocity);
     horizontal.finish_step(&movement);
@@ -190,5 +215,6 @@ pub fn step_player_movement(step: PlayerMovementStep<'_>) -> PlayerStepResult {
         horizontal_velocity: velocity,
         stance,
         control_velocity: control,
+        external_displacement: step.external_displacement,
     }
 }

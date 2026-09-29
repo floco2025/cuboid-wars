@@ -2,10 +2,12 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::{CollisionWorld, character_hitbox_center},
-    protocol::{ActorId, ActorMarker, FieldId, Health, PlayerMarker, Position, SwitchState},
+    protocol::{ActorId, ActorMarker, FieldId, Health, PlayerId, PlayerMarker, Position, SwitchState},
 };
 
-use crate::{actors::ActorMap, characters::character_surface_distance, config::ServerGameplayConfig};
+use crate::{
+    actors::ActorMap, characters::character_surface_distance, config::ServerGameplayConfig, players::PlayerMap,
+};
 
 // A character where this tick left it.
 #[derive(Clone, Copy)]
@@ -18,12 +20,12 @@ pub(super) struct CharacterBody {
 pub(super) fn contact_explosions_system(
     mut health: Query<&mut Health, With<ActorMarker>>,
     actors: Res<ActorMap>,
-    player_map: Res<crate::players::PlayerMap>,
+    player_map: Res<PlayerMap>,
     gameplay: Res<GameplayConfig>,
     config: Res<ServerGameplayConfig>,
     collision: Res<CollisionWorld>,
     switch_state: Res<SwitchState>,
-    players: Query<(Entity, &Position, &common::protocol::PlayerId), With<PlayerMarker>>,
+    players: Query<(Entity, &Position, &PlayerId), With<PlayerMarker>>,
     actor_positions: Query<(Entity, &ActorId, &Position), With<ActorMarker>>,
 ) {
     let players: Vec<_> = players

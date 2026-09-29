@@ -1,5 +1,5 @@
 use super::beam::BeamContext;
-use crate::{characters::character_surface_distance, config::ActorAttackConfig};
+use crate::{actors::resources::AwarePlayer, characters::character_surface_distance, config::ActorAttackConfig};
 use bevy::prelude::Vec3;
 use common::{physics::character_hitbox_center, protocol::Position};
 
@@ -32,11 +32,7 @@ pub(super) fn covered(point: Vec3, threats: &[Position], context: &BeamContext<'
     })
 }
 
-pub(super) fn attack_position(
-    pos: Position,
-    target: crate::actors::resources::AwarePlayer,
-    context: &BeamContext<'_>,
-) -> bool {
+pub(super) fn attack_position(pos: Position, target: AwarePlayer, context: &BeamContext<'_>) -> bool {
     let character = &context.kind_config.character;
     let physics = character.physics();
     let target_physics = target.stance.adjust_physics(context.player_physics);

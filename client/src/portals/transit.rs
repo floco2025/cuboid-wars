@@ -9,7 +9,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::{CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity, PlayerHopBody, PortalSet},
-    protocol::{FaceYaw, MapSettings, PlayerMoveIntent, Position},
+    protocol::{FaceYaw, MapSettings, PlayerMoveIntent, PlayerStance, Position},
 };
 
 pub fn portal_transit_system(
@@ -28,7 +28,7 @@ pub fn portal_transit_system(
             &mut PlayerMoveIntent,
             &mut KnockbackVelocity,
             &mut HorizontalVelocity,
-            &mut common::protocol::PlayerStance,
+            &mut PlayerStance,
         ),
         With<LocalPlayerMarker>,
     >,

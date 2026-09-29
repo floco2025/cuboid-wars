@@ -15,4 +15,4 @@ pub use planning::{PlayerMove, plan_player_move};
 pub(crate) use planning::{PlayerMovementQuery, plan_player_moves};
 pub use reports::{LocalMovementReports, report_player_movement_system};
 pub use state::{PlayerMotionBundle, player_movement_state};
-pub use step::{PlayerMovementStep, momentum_displacement, step_player_movement};
+pub use step::{PlayerMovementStep, momentum_displacement, step_player_movement, step_player_movement_blocked};

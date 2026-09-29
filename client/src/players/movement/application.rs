@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use common::physics::CharacterSupport;
 
 use super::{
     feedback::bump,
@@ -19,11 +20,19 @@ pub(crate) fn apply_player_moves(
     query: &mut PlayerMovementQuery,
     planned_moves: &[PlayerMove],
 ) {
+    // A local body without a step this tick (dead) stays where it is, so the
+    // render lerp collapses onto its position instead of replaying the last step.
+    for (entity, _, position, mut previous_pos, .., is_local) in query.iter_mut() {
+        if is_local && !planned_moves.iter().any(|planned_move| planned_move.entity == entity) {
+            previous_pos.0 = *position;
+        }
+    }
     for planned_move in planned_moves {
         let Ok((
             _,
             _,
             mut client_pos,
+            mut previous_pos,
             _,
             mut motion,
             mut feedback_state,
@@ -41,17 +50,15 @@ pub(crate) fn apply_player_moves(
             continue;
         }
         let result = planned_move.result;
+        previous_pos.0 = planned_move.start;
         *client_pos = result.position;
         motion.0 = result.vertical_velocity;
         momentum.0 = planned_move.horizontal_velocity;
         *stance = planned_move.stance;
-        if planned_move.hits_character {
-            momentum.0 = Vec3::ZERO;
-        }
         animation_motion.record_step(
             planned_move.start,
             &result,
-            if result.support == common::physics::CharacterSupport::Ladder {
+            if result.support == CharacterSupport::Ladder {
                 planned_move.control_velocity
             } else {
                 planned_move.horizontal_velocity
@@ -60,7 +67,6 @@ pub(crate) fn apply_player_moves(
             delta,
         );
         commands.entity(planned_move.entity).insert((
-            crate::characters::PreviousTickPosition(planned_move.start),
             result.grounding,
             LocalMovementStep {
                 start: planned_move.start,

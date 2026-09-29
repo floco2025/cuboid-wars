@@ -13,7 +13,7 @@ use common::{
     config::GameplayConfig,
     map::Carriers,
     physics::{PortalFrame, PortalSet, character_movement_center, traverse_point, traverse_rotation},
-    protocol::{PlayerMarker, PortalEnd, PortalPairId},
+    protocol::{PlayerMarker, PlayerStance, PortalEnd, PortalPairId},
 };
 
 // A player's body as portals draw it: the model, its twin, hidden until the
@@ -93,15 +93,7 @@ pub(crate) fn portal_body_clipping_system(
     mut commands: Commands,
     world: PortalBodyWorld,
     mut materials: ClipMaterialAccess,
-    mut players: Query<
-        (
-            &Transform,
-            &mut PortalBody,
-            Has<LocalPlayerMarker>,
-            &common::protocol::PlayerStance,
-        ),
-        With<PlayerMarker>,
-    >,
+    mut players: Query<(&Transform, &mut PortalBody, Has<LocalPlayerMarker>, &PlayerStance), With<PlayerMarker>>,
     mut models: Query<&mut Transform, (With<CharacterModel>, Without<PortalTwinMarker>, Without<PlayerMarker>)>,
     mut twins: Query<(&mut Transform, &mut Visibility), (With<PortalTwinMarker>, Without<PlayerMarker>)>,
     children: Query<&Children>,
@@ -119,7 +111,7 @@ pub(crate) fn portal_body_clipping_system(
     for (player_transform, mut body, is_local, stance) in &mut players {
         let physics = stance.physics(&world.gameplay_config.player);
         let mut base = body.base;
-        base.scale.y *= 1.0 - 0.5 * stance.fraction;
+        base.scale.y *= stance.model_height_scale();
         let body_hidden = is_local && world.view_mode.is_first_person();
         let straddle = (!body_hidden)
             .then(|| {
