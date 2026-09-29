@@ -44,6 +44,7 @@ pub(crate) fn map_settings() -> MapSettings {
             player: PlayerMovementConfig {
                 move_speed: 4.0,
                 move_speed_power_up: 1.5,
+                move_speed_ladder: 0.4,
                 jump_speed: 12.0,
                 ground_acceleration: 40.0,
                 ground_deceleration: 16.0,
@@ -57,7 +58,6 @@ pub(crate) fn map_settings() -> MapSettings {
             projectile_speed: 30.0,
             gravity: 25.0,
             low_gravity: 5.0,
-            ladder_climb_ratio: 0.4,
             knockback: KnockbackConfig {
                 max_speed: 10.0,
                 up_speed: 4.0,

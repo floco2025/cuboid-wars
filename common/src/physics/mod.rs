@@ -8,12 +8,12 @@ mod world;
 pub use blast::{blast_falloff_at_distance, blast_hit, planar_shove, visible_blast_falloff};
 pub use characters::{
     CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep, CharacterSupport,
-    CharacterVerticalVelocity, GroundingDiagnostics, HorizontalVelocity, KnockbackVelocity, LadderMode,
+    CharacterVerticalVelocity, GroundingDiagnostics, HorizontalVelocity, KnockbackVelocity, LadderMode, PlayerJump,
     PlayerMovementStep, PlayerStepResult, accelerate_player, character_axis_separation, character_hitbox_center,
     character_hitbox_shape, character_move_plans_intersect, character_movement_center, character_movement_shape,
     character_paths_intersect, character_positions_intersect, grounding_diagnostics, knockback_decay_system,
-    player_control_velocity, player_jump_velocity, position_has_floor_support, step_character_movement,
-    step_player_movement, step_player_movement_blocked,
+    player_control_velocity, player_jump, position_has_floor_support, step_character_movement, step_player_movement,
+    step_player_movement_blocked,
 };
 pub use fields::passable_fields;
 pub use portals::{

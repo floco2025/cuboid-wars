@@ -13,8 +13,8 @@ use common::{
     map::Carriers,
     math::direction_from_yaw_pitch,
     physics::{
-        CharacterMovePlan, CharacterSupport, CollisionWorld, PlayerHopBody, PortalSet, passable_fields,
-        player_jump_velocity,
+        CharacterMovePlan, CharacterSupport, CollisionWorld, PlayerHopBody, PlayerJump, PortalSet, passable_fields,
+        player_jump,
     },
     protocol::*,
 };
@@ -99,22 +99,26 @@ impl Owner {
         let mut events = Vec::new();
         if jump {
             let passable = passable_fields(&player.life.held_keys, open);
-            let velocity = (!stunned && !self.motion.stance.crouched)
+            let jump = (!stunned && !self.motion.stance.crouched)
                 .then(|| {
-                    player_jump_velocity(
+                    player_jump(
+                        self.motion.support,
                         self.motion.vertical_velocity.0,
                         collision,
                         gameplay.player.physics(),
-                        settings.movement.player.jump_speed,
+                        &settings.movement,
+                        has_speed,
                         &self.position,
                         &passable,
                     )
                 })
                 .flatten();
-            if let Some(velocity) = velocity {
-                self.motion.vertical_velocity.0 = velocity;
+            match jump {
+                Some(PlayerJump::Rise(velocity)) => self.motion.vertical_velocity.0 = velocity,
+                Some(PlayerJump::Release(shove)) => self.motion.knockback.0 += shove,
+                None => {}
             }
-            events.push(json!({"kind": "jump", "accepted": velocity.is_some()}));
+            events.push(json!({"kind": "jump", "accepted": jump.is_some()}));
         }
         if self.motion.support == CharacterSupport::Ladder
             && let Some(ladder) = collision.ladder_volume_at(&self.position)

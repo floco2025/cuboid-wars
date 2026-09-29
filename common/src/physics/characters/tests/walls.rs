@@ -310,10 +310,19 @@ fn jumping_while_pushing_into_a_wall_still_rises() {
     );
     assert!(pressed.blocked, "the run-up never reached the wall");
 
-    let launch = player_jump_velocity(0.0, &collision_world, player_physics(), 12.0, &pos, &[]);
+    let launch = player_jump(
+        CharacterSupport::Ground,
+        0.0,
+        &collision_world,
+        player_physics(),
+        &test_movement(),
+        false,
+        &pos,
+        &[],
+    );
     assert_eq!(
         launch,
-        Some(12.0),
+        Some(PlayerJump::Rise(12.0)),
         "the jump was refused while pressed into the wall at {pos:?}"
     );
 
@@ -366,8 +375,17 @@ fn jumping_while_sliding_diagonally_along_a_wall_keeps_rising() {
         vertical_velocity = result.vertical_velocity;
     }
     assert_eq!(
-        player_jump_velocity(vertical_velocity, &collision_world, player_physics(), 12.0, &pos, &[]),
-        Some(12.0)
+        player_jump(
+            CharacterSupport::Ground,
+            vertical_velocity,
+            &collision_world,
+            player_physics(),
+            &test_movement(),
+            false,
+            &pos,
+            &[]
+        ),
+        Some(PlayerJump::Rise(12.0))
     );
 
     vertical_velocity = 12.0;

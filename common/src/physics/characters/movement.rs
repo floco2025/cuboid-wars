@@ -8,6 +8,7 @@ use rapier3d::{
 use super::{
     geometry::{character_movement_pose, character_movement_shape},
     ladder::{LadderMode, evaluate_ladder_interaction},
+    player_control::player_move_speed,
     support::{
         RiderCarry, character_ground_hit, grounding_diagnostics, position_has_floor_support, rider_carry,
         snap_character_to_ground,
@@ -15,10 +16,10 @@ use super::{
     types::{CharacterMovementResult, CharacterSupport},
 };
 use crate::{
-    config::CharacterPhysicsConfig,
+    config::{CharacterPhysicsConfig, MapMovementConfig},
     constants::{
         CHARACTER_CONTACT_OFFSET, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH,
-        CHARACTER_TERMINAL_VELOCITY,
+        CHARACTER_TERMINAL_VELOCITY, LADDER_VOLUME_DEPTH,
     },
     map::Carriers,
     math::from_rapier,
@@ -31,24 +32,41 @@ const CHARACTER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
 const CHARACTER_RESTING_MOVEMENT: f32 = 1e-5;
 
 #[must_use]
-pub fn player_jump_velocity(
+// What a jump request does, from the support the last step left the body with.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PlayerJump {
+    // Leaves the ground with this upward speed.
+    Rise(f32),
+    // Lets go of the ladder: a horizontal shove away from its face, no rise.
+    Release(Vec3),
+}
+
+// A held body lets go instead of rising, and a body airborne in the volume
+// gets no jump at all, so hopping cannot outclimb the ladder.
+#[must_use]
+pub fn player_jump(
+    support: CharacterSupport,
     vertical_velocity: f32,
     collision_world: &CollisionWorld,
     physics: CharacterPhysicsConfig,
-    jump_speed: f32,
+    movement: &MapMovementConfig,
+    has_speed: bool,
     pos: &Position,
     passable_fields: &[FieldId],
-) -> Option<f32> {
-    // Jumping is how a character detaches mid-climb, so it must work even
-    // while the ladder is supplying upward velocity.
-    let on_ladder = collision_world.ladder_volume_at(pos).is_some();
-    if !on_ladder
-        && (vertical_velocity > 0.0 || !position_has_floor_support(collision_world, pos, physics, passable_fields))
-    {
+) -> Option<PlayerJump> {
+    if support == CharacterSupport::Ladder {
+        let ladder = collision_world.ladder_volume_at(pos)?;
+        let clearance = (LADDER_VOLUME_DEPTH - ladder.offset_from_plane(pos.x, pos.z)).max(0.0);
+        // The shove decays like a blast, so it is at least what carries the body out of the volume.
+        let exit_speed = (2.0 * movement.knockback.deceleration * clearance).sqrt();
+        let ladder_speed = player_move_speed(&movement.player, has_speed) * movement.player.move_speed_ladder;
+        let away = Vec3::new(ladder.normal_x, 0.0, ladder.normal_z);
+        return Some(PlayerJump::Release(away * ladder_speed.max(exit_speed)));
+    }
+    if vertical_velocity > 0.0 || !position_has_floor_support(collision_world, pos, physics, passable_fields) {
         return None;
     }
-
-    Some(jump_speed)
+    Some(PlayerJump::Rise(movement.player.jump_speed))
 }
 
 // One fixed-tick request. Ladder decisions read only `control_velocity`;
@@ -72,7 +90,6 @@ pub struct CharacterEnvironment<'a> {
     pub gravity: f32,
     pub passable_fields: &'a [FieldId],
     pub physics: CharacterPhysicsConfig,
-    pub ladder_climb_ratio: f32,
     pub ladder_mode: LadderMode,
     // Portal pass-through: while the body overlaps a linked aperture, its
     // backing colliders are excluded from this step's collision and support
@@ -175,7 +192,6 @@ fn prepare_movement_request(
         step.control_velocity,
         step.delta,
         ground_probe.is_some(),
-        env.ladder_climb_ratio,
     );
     let ascending_ladder = ladder.is_ascending();
     // Climbing suppresses ground following: without this, the ground snap

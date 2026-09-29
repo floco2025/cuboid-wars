@@ -187,7 +187,6 @@ fn a_player_lands_on_the_terrain_and_walks_across_its_triangles() {
         physics: load_test_gameplay().expect("test gameplay rejected").player.physics(),
         gravity: 25.0,
         passable_fields: &[],
-        ladder_climb_ratio: 0.5,
         ladder_mode: LadderMode::Automatic,
         portals: None,
     };
@@ -324,7 +323,6 @@ fn a_step_on_the_grounds_touches_only_the_terrain_under_the_body() {
         physics,
         gravity: 25.0,
         passable_fields: &[],
-        ladder_climb_ratio: 0.5,
         ladder_mode: LadderMode::Automatic,
         portals: None,
     };

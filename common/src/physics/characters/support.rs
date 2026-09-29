@@ -160,7 +160,6 @@ pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shap
                     step.control_velocity,
                     step.delta,
                     grounded,
-                    env.ladder_climb_ratio,
                 )
                 .is_supported()
                 .then_some(carrier)

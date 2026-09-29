@@ -89,7 +89,6 @@ fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResu
         gravity: gravity * 0.5,
         passable_fields: &passable,
         physics: old_physics,
-        ladder_climb_ratio: cfg.ladder_climb_ratio,
         portals: Some(step.portal_set),
         carriers: step.carriers,
     };
@@ -117,6 +116,21 @@ fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResu
             &step.portal_set.collision_exclusions(step.start.into(), old_physics),
         )
         .supported;
+    // A body in a ladder's front volume moves at the ladder speed under direct
+    // control, like the climb itself: the ladder rules see the whole intent,
+    // there is no momentum to build or brake, and a dismount clears the
+    // volume before the ladder can catch the body again.
+    let on_ladder = !grounded
+        && step
+            .collision_world
+            .ladder_volume_at(&Position {
+                y: step.start.y,
+                ..support_position
+            })
+            .is_some();
+    if on_ladder {
+        control *= cfg.player.move_speed_ladder;
+    }
     let crouch = step.intent.crouch && !step.disabled;
     let mut start = step.start;
     if crouch != stance.crouched {
@@ -158,16 +172,23 @@ fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResu
     if grounded && stance.crouched {
         wish *= PLAYER_CROUCH_SPEED_RATIO;
     }
+    if on_ladder {
+        wish *= cfg.player.move_speed_ladder;
+    }
     let blast = step.external_displacement / step.delta;
-    let mut velocity = accelerate_player(
-        step.horizontal_velocity,
-        blast,
-        wish,
-        step.vertical_velocity,
-        grounded,
-        &cfg.player,
-        step.delta,
-    );
+    let mut velocity = if on_ladder {
+        wish
+    } else {
+        accelerate_player(
+            step.horizontal_velocity,
+            blast,
+            wish,
+            step.vertical_velocity,
+            grounded,
+            &cfg.player,
+            step.delta,
+        )
+    };
     let steering = step.intent.forward != 0.0 || step.intent.sideways != 0.0;
     let funnel = if locomotion && !grounded && !step.disabled && !steering {
         step.portal_set.funnel_correction(FunnelStep {

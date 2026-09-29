@@ -3,8 +3,12 @@ use crate::{
     celestial::{CelestialMapSettings, LocalTime, Season},
     config::gameplay::load_test_gameplay,
     config::{KnockbackConfig, MapGeometryConfig, MapMovementConfig, PlayerMovementConfig},
-    physics::{PlayerMovementStep, PortalSet, step_player_movement},
+    physics::{
+        CharacterSupport, KnockbackVelocity, PlayerJump, PlayerMovementStep, PortalSet, player_jump,
+        step_player_movement,
+    },
     protocol::{MapSettings, PlayerMoveIntent, PlayerStance, PortalMode},
+    test_geometry::LEVEL_HEIGHT,
 };
 use std::collections::HashMap;
 
@@ -30,6 +34,7 @@ pub(super) fn map_settings() -> MapSettings {
             player: PlayerMovementConfig {
                 move_speed: 4.375,
                 move_speed_power_up: 1.5,
+                move_speed_ladder: 0.6,
                 jump_speed: 5.809475,
                 ground_acceleration: 43.75,
                 ground_deceleration: 17.5,
@@ -43,7 +48,6 @@ pub(super) fn map_settings() -> MapSettings {
             projectile_speed: 30.0,
             gravity: 15.0,
             low_gravity: 5.0,
-            ladder_climb_ratio: 0.6,
             knockback: KnockbackConfig {
                 max_speed: 10.0,
                 up_speed: 4.0,
@@ -595,5 +599,178 @@ fn a_rising_carrier_uses_ground_acceleration_and_inherits_velocity_once_on_jump(
         (next.movement.vertical_velocity - (jumped.movement.vertical_velocity - settings.movement.gravity / 30.0))
             .abs()
             < 1e-4
+    );
+}
+
+fn ladder_layout() -> MapLayout {
+    MapLayout {
+        floors: vec![ladder_front_base_floor(), ladder_back_landing_floor()],
+        ladders: vec![test_ladder()],
+        ..Default::default()
+    }
+}
+
+// Air rates too weak to carry a body over the crest by air control alone.
+fn weak_air_settings() -> MapSettings {
+    let mut settings = map_settings();
+    settings.movement.player.air_acceleration = 5.0;
+    settings.movement.player.air_deceleration = 5.0;
+    settings.movement.player.air_lateral_deceleration = 5.0;
+    settings
+}
+
+// One intent held for a number of ticks; `jump` presses jump as the phase
+// begins, from the support the previous tick left.
+struct Phase {
+    intent: PlayerMoveIntent,
+    jump: bool,
+    ticks: usize,
+}
+
+fn hold(intent: PlayerMoveIntent, ticks: usize) -> Phase {
+    Phase {
+        intent,
+        jump: false,
+        ticks,
+    }
+}
+
+const TRACE_DELTA: f32 = 1.0 / 60.0;
+
+fn trace(
+    world: &CollisionWorld,
+    settings: &MapSettings,
+    start: Position,
+    phases: &[Phase],
+) -> Vec<(Position, CharacterSupport)> {
+    let gameplay = load_test_gameplay().expect("gameplay");
+    let carriers = Carriers::default();
+    let portals = PortalSet::default();
+    let mut pos = start;
+    let mut velocity = Vec3::ZERO;
+    let mut stance = PlayerStance::default();
+    let mut knockback = KnockbackVelocity::default();
+    let mut support = CharacterSupport::Airborne;
+    let mut out = Vec::new();
+    for phase in phases {
+        if phase.jump {
+            let jump = player_jump(
+                support,
+                velocity.y,
+                world,
+                gameplay.player.physics(),
+                &settings.movement,
+                false,
+                &pos,
+                &[],
+            );
+            match jump {
+                Some(PlayerJump::Rise(vertical)) => velocity.y = vertical,
+                Some(PlayerJump::Release(shove)) => knockback.0 += shove,
+                None => {}
+            }
+        }
+        for _ in 0..phase.ticks {
+            let step = step_player_movement(PlayerMovementStep {
+                start: pos,
+                vertical_velocity: velocity.y,
+                horizontal_velocity: velocity.with_y(0.0),
+                stance,
+                intent: phase.intent,
+                has_speed: false,
+                disabled: false,
+                delta: TRACE_DELTA,
+                has_low_gravity: false,
+                held_keys: &[],
+                open_fields: &[],
+                external_displacement: knockback.step(TRACE_DELTA),
+                collision_world: world,
+                map_settings: settings,
+                gameplay_config: &gameplay,
+                portal_set: &portals,
+                carriers: &carriers,
+            });
+            pos = step.movement.position;
+            velocity = step.horizontal_velocity.with_y(step.movement.vertical_velocity);
+            stance = step.stance;
+            support = step.movement.support;
+            knockback.decay(TRACE_DELTA, settings.movement.knockback.deceleration);
+            out.push((pos, support));
+        }
+    }
+    out
+}
+
+// Facing +Z into `test_ladder` from its front side, looking up.
+const CLIMB: PlayerMoveIntent = PlayerMoveIntent {
+    forward: 1.0,
+    pitch: 1.0,
+    ..PlayerMoveIntent::NONE
+};
+const LADDER_FOOT: Position = Position {
+    x: 0.0,
+    y: 0.0,
+    z: -0.6,
+};
+
+#[test]
+fn a_climber_steps_onto_the_landing_at_the_crest() {
+    let world = CollisionWorld::from_map_layout(&ladder_layout());
+    let trace = trace(&world, &weak_air_settings(), LADDER_FOOT, &[hold(CLIMB, 300)]);
+    assert!(trace.iter().any(|(_, support)| *support == CharacterSupport::Ladder));
+    assert!(
+        trace.iter().any(|(pos, support)| {
+            *support == CharacterSupport::Ground && pos.y > LEVEL_HEIGHT - 0.1 && pos.z > 0.3
+        }),
+        "never reached the landing: {:?}",
+        trace.last()
+    );
+}
+
+#[test]
+fn a_climber_dismounts_sideways_at_ladder_speed() {
+    let world = CollisionWorld::from_map_layout(&ladder_layout());
+    let sideways = PlayerMoveIntent {
+        sideways: 1.0,
+        ..PlayerMoveIntent::NONE
+    };
+    let trace = trace(
+        &world,
+        &weak_air_settings(),
+        LADDER_FOOT,
+        &[hold(CLIMB, 20), hold(sideways, 30)],
+    );
+    assert_eq!(trace[19].1, CharacterSupport::Ladder);
+    let (pos, support) = trace.last().expect("trace is empty");
+    assert!(
+        pos.x.abs() > 0.6 && *support != CharacterSupport::Ladder,
+        "{pos:?} {support:?}"
+    );
+}
+
+#[test]
+fn a_jump_on_a_ladder_lets_go_without_rising() {
+    let world = CollisionWorld::from_map_layout(&ladder_layout());
+    let let_go = Phase {
+        intent: PlayerMoveIntent::NONE,
+        jump: true,
+        ticks: 45,
+    };
+    let trace = trace(&world, &weak_air_settings(), LADDER_FOOT, &[hold(CLIMB, 20), let_go]);
+    assert_eq!(trace[19].1, CharacterSupport::Ladder);
+    // Letting go keeps only the climb velocity the body already carried.
+    let settings = weak_air_settings();
+    let ladder_speed = settings.movement.player.move_speed * settings.movement.player.move_speed_ladder;
+    let coasting = ladder_speed * ladder_speed / (2.0 * settings.movement.gravity);
+    let release_y = trace[19].0.y;
+    let highest = trace[20..].iter().map(|(pos, _)| pos.y).fold(f32::MIN, f32::max);
+    assert!(
+        highest <= release_y + coasting + 1e-3,
+        "rose from {release_y} to {highest}"
+    );
+    let (pos, support) = trace.last().expect("trace is empty");
+    assert!(
+        world.ladder_volume_at(pos).is_none() && *support != CharacterSupport::Ladder,
+        "{pos:?} {support:?}"
     );
 }

@@ -5,6 +5,7 @@ fn air_rates_allow_zero_and_reject_negative_or_nonfinite_values() {
     let valid = PlayerMovementConfig {
         move_speed: 9.0,
         move_speed_power_up: 1.5,
+        move_speed_ladder: 0.4,
         jump_speed: 12.0,
         ground_acceleration: 20.0,
         ground_deceleration: 30.0,

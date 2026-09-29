@@ -158,11 +158,11 @@ fn idle_climber_rides_the_ladder_through_stops_and_reversals() {
 #[test]
 fn descending_climber_moves_relative_to_the_ladder() {
     for phase in [30, 240] {
-        let mut climber = Climber::new(Vec3::new(27.0, 6.0, -12.0), phase, 1.5);
+        let mut climber = Climber::new(Vec3::new(27.0, 6.0, -12.0), phase, 2.2);
         for _ in 0..10 {
             let before = climber.local_position();
             let result = climber.step(Vec3::NEG_Z * CLIMB_SPEED);
-            let expected = before - Vec3::Y * CLIMB_SPEED * TEST_LADDER_CLIMB_RATIO * TICK_SECS;
+            let expected = before - Vec3::Y * CLIMB_SPEED * TICK_SECS;
             assert_eq!(result.support, CharacterSupport::Ladder);
             assert!(!result.crushed);
             assert!(

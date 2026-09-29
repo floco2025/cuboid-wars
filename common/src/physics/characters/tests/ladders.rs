@@ -60,7 +60,7 @@ fn pushing_toward_ladder_face_climbs_at_into_speed() {
     // 0.2 toward the face over delta 0.1 = 2 m/s into it.
     let step = ladder_step(&world, start, 0.0, start.x, -0.3);
 
-    let expected = 2.0 * TEST_LADDER_CLIMB_RATIO;
+    let expected = 2.0;
     assert!((step.vertical_velocity - expected).abs() < 1e-4);
     assert!(step.position.y > start.y);
     assert_eq!(step.support, CharacterSupport::Ladder);
@@ -124,7 +124,7 @@ fn external_displacement_does_not_change_climb_speed() {
 
     let step = ladder_step_with_external_displacement(&world, start, Vec3::Z * 2.0, Vec3::NEG_Z * 0.1);
 
-    let expected = 2.0 * TEST_LADDER_CLIMB_RATIO;
+    let expected = 2.0;
     assert!((step.vertical_velocity - expected).abs() < 1e-4);
 }
 
@@ -418,7 +418,7 @@ fn pressing_away_descends_at_input_speed() {
     // ascent rate and the horizontal motion is pinned to the hold line.
     let step = ladder_step(&world, start, 0.0, start.x, -0.7);
 
-    let expected = -2.0 * TEST_LADDER_CLIMB_RATIO;
+    let expected = -2.0;
     assert!((step.vertical_velocity - expected).abs() < 1e-4);
     assert!(step.position.y < start.y);
     assert!((step.position.z - (rail_plane_z() - player_hold_distance())).abs() < 0.01);
@@ -507,16 +507,58 @@ fn crest_above_the_top_landing_crosses_freely() {
 }
 
 #[test]
-fn jump_detaches_mid_climb() {
+fn jump_on_a_ladder_lets_go_with_a_shove_clear_of_it() {
+    let world = ladder_collision_world(&[], &[test_ladder()]);
+    let movement = test_movement();
+    let mut pos = Position {
+        x: 0.0,
+        y: 2.0,
+        z: rail_plane_z() - player_hold_distance(),
+    };
+    let jump = player_jump(
+        CharacterSupport::Ladder,
+        4.0,
+        &world,
+        player_physics(),
+        &movement,
+        false,
+        &pos,
+        &[],
+    );
+    let Some(PlayerJump::Release(shove)) = jump else {
+        panic!("a held climber's jump did not let go: {jump:?}");
+    };
+    assert_eq!(shove.y, 0.0);
+    assert!(shove.z < 0.0, "{shove:?}");
+    let mut knockback = KnockbackVelocity(shove);
+    while knockback.0 != Vec3::ZERO {
+        pos = ladder_step_with_external_displacement(&world, pos, Vec3::ZERO, knockback.step(0.1)).position;
+        knockback.decay(0.1, movement.knockback.deceleration);
+    }
+    assert!(world.ladder_volume_at(&pos).is_none(), "{pos:?}");
+}
+
+#[test]
+fn jump_refused_airborne_inside_ladder_volume() {
     let world = ladder_collision_world(&[], &[test_ladder()]);
     let pos = Position {
         x: 0.0,
         y: 2.0,
-        z: -0.5,
+        z: rail_plane_z() - player_hold_distance(),
     };
-    let vertical_velocity = player_jump_velocity(4.0, &world, player_physics(), 12.0, &pos, &[]);
-
-    assert_eq!(vertical_velocity, Some(12.0));
+    assert_eq!(
+        player_jump(
+            CharacterSupport::Airborne,
+            0.0,
+            &world,
+            player_physics(),
+            &test_movement(),
+            false,
+            &pos,
+            &[]
+        ),
+        None
+    );
 }
 
 #[test]
@@ -528,7 +570,16 @@ fn jump_refused_airborne_outside_ladder() {
         z: -3.0,
     };
     assert_eq!(
-        player_jump_velocity(0.0, &world, player_physics(), 12.0, &pos, &[]),
+        player_jump(
+            CharacterSupport::Airborne,
+            0.0,
+            &world,
+            player_physics(),
+            &test_movement(),
+            false,
+            &pos,
+            &[]
+        ),
         None
     );
 }
@@ -538,7 +589,16 @@ fn jump_refused_airborne_behind_ladder() {
     let world = ladder_collision_world(&[], &[test_ladder()]);
     let pos = Position { x: 0.0, y: 2.0, z: 0.4 };
     assert_eq!(
-        player_jump_velocity(0.0, &world, player_physics(), 12.0, &pos, &[]),
+        player_jump(
+            CharacterSupport::Airborne,
+            0.0,
+            &world,
+            player_physics(),
+            &test_movement(),
+            false,
+            &pos,
+            &[]
+        ),
         None
     );
 }

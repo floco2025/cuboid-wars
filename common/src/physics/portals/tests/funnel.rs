@@ -51,7 +51,6 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
         gravity: 25.0,
         passable_fields: &[],
         physics,
-        ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
         carriers: &Carriers::default(),
     };
@@ -142,7 +141,6 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
         gravity: 25.0,
         passable_fields: &[],
         physics,
-        ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
         carriers: &Carriers::default(),
     };
@@ -295,7 +293,6 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
         gravity: 25.0,
         passable_fields: &[],
         physics,
-        ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
         carriers: &Carriers::default(),
     };

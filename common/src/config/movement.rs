@@ -18,9 +18,6 @@ pub struct MapMovementConfig {
     // while the low-gravity power-up is active.
     pub gravity: f32,
     pub low_gravity: f32,
-    // Climb rate per unit of intent speed into (ascend) or away from
-    // (descend) the ladder face.
-    pub ladder_climb_ratio: f32,
     pub knockback: KnockbackConfig,
 }
 
@@ -30,6 +27,8 @@ pub struct PlayerMovementConfig {
     pub move_speed: f32,
     // Multiplies horizontal movement speed, never jump_speed or control rates.
     pub move_speed_power_up: f32,
+    // Speed in a ladder's front volume as a fraction of the move speed, the pickup included.
+    pub move_speed_ladder: f32,
     pub jump_speed: f32,
     // All control rates are m/s², independent of movement speed and pickups.
     // Zero air rates disable their respective input/braking effects.
@@ -65,7 +64,6 @@ impl MapMovementConfig {
         validate_positive_finite(self.projectile_speed, &format!("{path}.projectile_speed"))?;
         validate_positive_finite(self.gravity, &format!("{path}.gravity"))?;
         validate_non_negative_finite(self.low_gravity, &format!("{path}.low_gravity"))?;
-        validate_positive_finite(self.ladder_climb_ratio, &format!("{path}.ladder_climb_ratio"))?;
         self.knockback.validate(&format!("{path}.knockback"))
     }
 }
@@ -74,6 +72,7 @@ impl PlayerMovementConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.move_speed, &format!("{path}.move_speed"))?;
         validate_positive_finite(self.move_speed_power_up, &format!("{path}.move_speed_power_up"))?;
+        validate_positive_finite(self.move_speed_ladder, &format!("{path}.move_speed_ladder"))?;
         for (name, value) in [
             ("ground_acceleration", self.ground_acceleration),
             ("ground_deceleration", self.ground_deceleration),

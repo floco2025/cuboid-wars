@@ -24,7 +24,6 @@ use crate::{
 };
 
 pub(crate) const CAP: f32 = 22.5;
-pub(crate) const LADDER_CLIMB_RATIO: f32 = 0.4;
 pub(crate) const TILE: CarrierId = CarrierId(1);
 
 pub(crate) fn map_movement() -> MapMovementConfig {
@@ -32,6 +31,7 @@ pub(crate) fn map_movement() -> MapMovementConfig {
         player: PlayerMovementConfig {
             move_speed: 6.0,
             move_speed_power_up: 1.6,
+            move_speed_ladder: 0.4,
             jump_speed: 12.0,
             ground_acceleration: 60.0,
             ground_deceleration: 24.0,
@@ -45,7 +45,6 @@ pub(crate) fn map_movement() -> MapMovementConfig {
         projectile_speed: 90.0,
         gravity: 25.0,
         low_gravity: 5.0,
-        ladder_climb_ratio: LADDER_CLIMB_RATIO,
         knockback: KnockbackConfig {
             max_speed: 15.0,
             up_speed: 7.0,
@@ -412,7 +411,6 @@ pub(crate) fn run_ticks(
             gravity: 25.0,
             passable_fields: &[],
             physics,
-            ladder_climb_ratio: LADDER_CLIMB_RATIO,
             portals: Some(set),
             carriers,
         };

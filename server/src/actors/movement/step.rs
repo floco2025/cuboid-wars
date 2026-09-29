@@ -42,7 +42,6 @@ pub fn step_actor_movement(step: ActorMovementStep<'_>) -> CharacterMovementResu
             gravity: step.map_settings.movement.gravity,
             passable_fields: step.open_fields,
             physics: step.physics,
-            ladder_climb_ratio: step.map_settings.movement.ladder_climb_ratio,
             portals: None,
             carriers: step.carriers,
         },

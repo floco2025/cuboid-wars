@@ -21,6 +21,7 @@
     "low_gravity": 13.2,
     "player": {
       "move_speed": 5.1,
+      "move_speed_ladder": 0.45,
       "move_speed_power_up": 1.818,
       "air_acceleration": 0.0,
       "air_deceleration": 0.0,

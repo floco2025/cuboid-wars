@@ -99,7 +99,6 @@ pub(super) fn evaluate_ladder_interaction<'a>(
     control_velocity: Vec3,
     delta: f32,
     has_ground_support: bool,
-    climb_speed_ratio: f32,
 ) -> LadderInteraction<'a> {
     if mode == LadderMode::Disabled {
         return LadderInteraction::None;
@@ -124,7 +123,7 @@ pub(super) fn evaluate_ladder_interaction<'a>(
 
         let toward_plane = -(control_velocity.x * ladder.normal_x + control_velocity.z * ladder.normal_z);
         let aligned = toward_plane.abs() >= control_velocity.x.hypot(control_velocity.z) * LADDER_CLIMB_FACING_FRACTION;
-        (aligned && toward_plane.abs() >= LADDER_CLIMB_MIN_SPEED).then_some(toward_plane * climb_speed_ratio)
+        (aligned && toward_plane.abs() >= LADDER_CLIMB_MIN_SPEED).then_some(toward_plane)
     });
     let climb_velocity = ride_velocity.filter(|velocity| *velocity > 0.0);
     if let (Some(ladder), Some(vertical_velocity)) = (ladder, climb_velocity) {

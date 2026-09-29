@@ -1,9 +1,13 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
-    config::GameplayConfig,
-    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, passable_fields, player_jump_velocity},
+    config::{GameplayConfig, MapMovementConfig},
+    physics::{
+        CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, PlayerJump, passable_fields,
+        player_jump,
+    },
     protocol::{
-        FaceYaw, FieldId, MapSettings, PlayerId, PlayerMoveIntent, PlayerStance, PortalAccess, Position, SwitchState,
+        FaceYaw, FieldId, MapSettings, PlayerId, PlayerMoveIntent, PlayerStance, PortalAccess, Position, PowerUpKind,
+        SwitchState,
     },
 };
 use std::f32::consts::PI;
@@ -53,6 +57,7 @@ type LocalPlayerInputQuery<'w, 's> = Query<
         &'static mut PlayerMoveIntent,
         &'static mut FaceYaw,
         &'static mut CharacterVerticalVelocity,
+        &'static mut KnockbackVelocity,
         Option<&'static LocalMovementStep>,
         &'static PlayerStance,
     ),
@@ -86,7 +91,7 @@ pub fn input_movement_system(
 
     if camera_input.state.released || camera_input.console.open || camera_input.menu.open {
         if playback.is_none() {
-            for (_, mut input, _, _, _, _) in local_player_query.iter_mut() {
+            for (_, mut input, _, _, _, _, _) in local_player_query.iter_mut() {
                 *input = PlayerMoveIntent::NONE;
             }
         }
@@ -121,7 +126,10 @@ pub fn input_movement_system(
         &collision_world,
         &passable_fields(held_keys, &switch_state.open_fields),
         &gameplay_config,
-        map_settings.movement.player.jump_speed,
+        &map_settings.movement,
+        players
+            .get(&my_player_id.0)
+            .is_some_and(|info| info.power_up(PowerUpKind::Speed)),
         &mut local_player_query,
     );
 }
@@ -190,28 +198,33 @@ fn update_player_input_face_and_jump(
     collision_world: &CollisionWorld,
     passable_fields: &[FieldId],
     gameplay_config: &GameplayConfig,
-    jump_speed: f32,
+    movement: &MapMovementConfig,
+    has_speed: bool,
     local_player_query: &mut LocalPlayerInputQuery,
 ) {
-    for (pos, mut input, mut face_direction, mut motion, step, stance) in local_player_query.iter_mut() {
+    for (pos, mut input, mut face_direction, mut motion, mut knockback, step, stance) in local_player_query.iter_mut() {
         *input = move_intent;
         let ladder_yaw = step
             .filter(|step| step.support == CharacterSupport::Ladder)
             .and_then(|_| collision_world.ladder_volume_at(pos))
             .map(|ladder| (-ladder.normal_x).atan2(-ladder.normal_z));
         face_direction.0 = ladder_yaw.unwrap_or_else(|| movement_facing(move_intent, face_yaw, face_direction.0));
-        if jump_requested
-            && !stance.crouched
-            && let Some(vertical_velocity) = player_jump_velocity(
+        if jump_requested && !stance.crouched {
+            let jump = player_jump(
+                step.map_or(CharacterSupport::Airborne, |step| step.support),
                 motion.0,
                 collision_world,
                 gameplay_config.player.physics(),
-                jump_speed,
+                movement,
+                has_speed,
                 pos,
                 passable_fields,
-            )
-        {
-            motion.0 = vertical_velocity;
+            );
+            match jump {
+                Some(PlayerJump::Rise(vertical_velocity)) => motion.0 = vertical_velocity,
+                Some(PlayerJump::Release(shove)) => knockback.0 += shove,
+                None => {}
+            }
         }
     }
 }

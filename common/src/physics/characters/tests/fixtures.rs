@@ -7,14 +7,41 @@ pub(super) use crate::{
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
 use crate::{
-    config::gameplay::load_test_gameplay,
+    config::{KnockbackConfig, MapMovementConfig, PlayerMovementConfig, gameplay::load_test_gameplay},
     protocol::{Carrier, CarrierId, SwitchState},
 };
 pub(super) use bevy_math::Vec3;
+use std::collections::HashMap;
 
 pub(crate) const TEST_GRAVITY: f32 = 25.0;
-pub(crate) const TEST_LADDER_CLIMB_RATIO: f32 = 0.4;
 pub(crate) const TEST_PLAYER_SPEED: f32 = 9.0;
+
+pub(crate) fn test_movement() -> MapMovementConfig {
+    MapMovementConfig {
+        player: PlayerMovementConfig {
+            move_speed: TEST_PLAYER_SPEED,
+            move_speed_power_up: 1.5,
+            move_speed_ladder: 0.4,
+            jump_speed: 12.0,
+            ground_acceleration: 20.0,
+            ground_deceleration: 30.0,
+            ground_lateral_deceleration: 40.0,
+            air_acceleration: 5.0,
+            air_deceleration: 5.0,
+            air_lateral_deceleration: 5.0,
+        },
+        actors: HashMap::new(),
+        missile_speed: 16.0,
+        projectile_speed: 90.0,
+        gravity: TEST_GRAVITY,
+        low_gravity: 5.0,
+        knockback: KnockbackConfig {
+            max_speed: 15.0,
+            up_speed: 7.0,
+            deceleration: 35.0,
+        },
+    }
+}
 
 pub(crate) fn test_ramp() -> Ramp {
     Ramp {
@@ -354,7 +381,6 @@ pub(crate) fn test_environment<'a>(
         gravity: TEST_GRAVITY,
         passable_fields: &[],
         physics,
-        ladder_climb_ratio: TEST_LADDER_CLIMB_RATIO,
         ladder_mode,
         portals: None,
         carriers,

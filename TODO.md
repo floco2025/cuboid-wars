@@ -12,6 +12,8 @@
 
 - **Player stair stepping:** the movement replacement retains the shared capsule motor's existing step limit. Matching the scaled Source 0.45 m step needs an explicit capsule-aware step solver; increasing Rapier's autostep height alone stalled a 0.4 m step in the regression fixture. Keep actor traversal unchanged and check overhead clearance, narrow steps, and carrier contacts if extending player stepping.
 
+- **Common crate scope:** `common` should hold only what both the client and server run. The player step, its controller, and the funnel policy are owner-side code the server never calls (the headless experiment reaches them through the client's planner); move such code to the client unless the editor's PyO3 preview needs it without the Bevy client crate, and audit the rest of `common` the same way.
+
 - **Missile search cleanup:** every neighbour edge in `client/src/missiles/search.rs` repeats its node's start-overlap query through `sweep_clear`, about a third of the search budget; judge edges by travel alone and charge one query. `AirGraph::endpoint_candidates` probes every carrier grid at any distance; apply the reach gate `neighbors` uses. `MissileFlight.route_status`, `RouteStatus`, and `SearchBudget.used` are written in production and read only by tests, and `AirGraph::path` is a test helper in the production file.
 
 - **Dependency upgrades:** Recheck the `encase` family held at 0.12.1 in `Cargo.lock` once [Bevy's syn compatibility issue](https://github.com/bevyengine/bevy/issues/25844) is resolved; 0.12.2 fails to compile with Bevy 0.19.1. Renet's `crypto-common` dependency also pins `generic-array` to 0.14.7.
