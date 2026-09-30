@@ -126,10 +126,14 @@ class TakeoffTests(unittest.TestCase):
             air_control=False,
             shooter=takeoff.grid_point,
         )
-        flights = jump_preview(self.settings, request)
+        preview = jump_preview(self.settings, request)
+        flights = preview.flights
         self.assertEqual(tuple(flight.bit for flight in flights), SCENARIO_BITS)
+        # The body stands until its support ends a little past the edge, and leaves from there.
+        self.assertAlmostEqual(preview.reach, 0.3 * 0.5**0.5, places=3)
+        self.assertAlmostEqual(flights[0].path[0][0], 16.2 + preview.reach, places=3)
         # Speed 1 and jump 2 under gravity 2 come back down on the takeoff level 2 m out; the pickup doubles it.
-        reach = {flight.bit: flight.crossings[0].point[0] - 16.2 for flight in flights}
+        reach = {flight.bit: flight.crossings[0].point[0] - 16.2 - preview.reach for flight in flights}
         self.assertAlmostEqual(reach[NORMAL], 2, places=2)
         self.assertAlmostEqual(reach[SPEED], 4, places=2)
         self.assertAlmostEqual(reach[ANTI_GRAVITY], 4, places=2)
@@ -275,6 +279,10 @@ class LevelViewTests(unittest.TestCase):
         clear = self.flight(path, [(1, BEFORE_ENTRY, (24, 10), 1.0, 0.0), (0, BEFORE_ENTRY, (26, 10), 2.0, 1.0)])
         self.assertFalse(self.view(clear, 1).glyphs[0].supported)
         self.assertFalse(self.view(clear, 0).glyphs[0].blocked)
+        # The body's reach past a slab's edge lets a landing just beyond it count.
+        short = self.flight(path, [(1, BEFORE_ENTRY, (20.35, 10), 1.0, 0.0)])
+        self.assertFalse(self.view(short, 1).glyphs[0].supported)
+        self.assertTrue(level_view(short, 1, self.settings, self.footprints, 0.21).glyphs[0].supported)
 
     def test_regions_are_collected_for_the_viewed_level(self):
         square = [[0, 0], [1, 0], [1, 1], [0, 1]]

@@ -33,8 +33,8 @@ pub struct JumpRequest {
 }
 
 // The edge point a flight leaves from, heading `direction` at full speed and
-// with input released from then on. A step walks off it; a jump leaves the
-// ground `margin` seconds before it.
+// with input released from then on. A step walks off it, a jump leaves the
+// ground `margin` seconds before it, both from where the body's support ends.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TakeoffSpec {
@@ -54,6 +54,9 @@ pub struct PortalsSpec {
 #[derive(Debug, Serialize)]
 pub struct JumpPreview {
     pub scenarios: Vec<ScenarioPreview>,
+    // How far past a slab's edge the body still stands, in metres: a flight
+    // leaves that far beyond the takeoff edge and lands that close to a slab.
+    pub edge_reach: f64,
 }
 
 // How a flight met portal 1.
@@ -210,6 +213,7 @@ pub fn jump_preview(physics: &PreviewPhysics, request: &JumpRequest) -> Result<J
             .iter()
             .map(|&scenario| scenario_preview(physics, request, direction, scenario, pair.as_ref()))
             .collect(),
+        edge_reach: rounded(physics.edge_reach()),
     })
 }
 
@@ -226,7 +230,8 @@ fn scenario_preview(
         heights: &request.heights,
     };
     let takeoff = &request.takeoff;
-    let edge = Vec3::from_array(takeoff.point);
+    // Support ends a body's reach past the edge, and that is where the flight begins.
+    let edge = Vec3::from_array(takeoff.point) + direction * physics.edge_reach();
     let velocity = direction * air.speed();
     let origin = Origin {
         state: if takeoff.jumping {

@@ -88,15 +88,17 @@ class JumpPathWindowTests(WindowTestCase):
         self.assertIs(overlay.controls.parentWidget(), self.window.map_combo.parentWidget())
         self.assertEqual(overlay.kind.currentText(), "Jump")
         self.assertFalse(overlay.air_control.isChecked())
-        edge = overlay.takeoff.point(overlay.settings, overlay.footprints)
+        # Support ends a body's reach past the edge, and the flight leaves from there.
+        edge = overlay.takeoff.point(overlay.settings, overlay.footprints)[0] + overlay.reach
+        self.assertAlmostEqual(overlay.reach, 0.3 * 0.5**0.5, places=3)
         jump = overlay.free
-        # Hotel runs 9 m/s, so a jump 0.25 s early leaves the ground 2.25 m before the edge.
-        self.assertAlmostEqual(jump[0].path[0][0], edge[0] - 2.25, places=3)
+        # Hotel runs 9 m/s, so a jump 0.25 s early leaves the ground 2.25 m before that.
+        self.assertAlmostEqual(jump[0].path[0][0], edge - 2.25, places=3)
         overlay.margin.setValue(0.2)
-        self.assertAlmostEqual(overlay.free[0].path[0][0], edge[0] - 1.8, places=3)
+        self.assertAlmostEqual(overlay.free[0].path[0][0], edge - 1.8, places=3)
         overlay.kind.setCurrentText("Step")
         self.assertFalse(overlay.margin.isEnabled())
-        self.assertAlmostEqual(overlay.free[0].path[0][0], edge[0], places=3)
+        self.assertAlmostEqual(overlay.free[0].path[0][0], edge, places=3)
         self.assertLess(self.landing()[0], jump[0].crossings[-1].point[0] / overlay.settings.cell_size)
         self.assertFalse(overlay.free[0].range)
         self.assertIn("Step / Air control off", overlay.legend.text())

@@ -101,16 +101,21 @@ fn depth(polygon: &[[f64; 2]], point: [f64; 2]) -> f64 {
 
 #[test]
 fn a_jump_comes_down_on_its_own_level_where_each_scenario_carries_it() {
-    // No air braking: speed 1 and jump 2 at gravity 2 are airborne 2 s.
-    let scenarios = preview(&physics_with(0.0), &request([0.0; 3], true, &[0.0]));
+    // No air braking: speed 1 and jump 2 at gravity 2 are airborne 2 s. The
+    // body leaves where its support ends, a radius times sin 45° past the edge.
+    let physics = physics_with(0.0);
+    let reply = jump_preview(&physics, &request([0.0; 3], true, &[0.0])).expect("request is valid");
+    let edge = f64::from(physics.edge_reach());
+    assert!((edge - 0.3 * 0.5_f64.sqrt()).abs() < 1e-3 && (reply.edge_reach - edge).abs() < 1e-3);
+    let scenarios = reply.scenarios;
     let expected = [(2.0, 2.0), (2.0, 4.0), (4.0, 4.0), (4.0, 8.0)];
     assert_eq!(scenarios.len(), 4);
     for (scenario, (time, reach)) in scenarios.iter().zip(expected) {
         let landing = crossing(scenario, 0, Phase::BeforeEntry);
         assert!((landing.time - time).abs() < 2e-3, "{landing:?}");
-        assert!((landing.point[1] - reach).abs() < 2e-3, "{landing:?}");
+        assert!((landing.point[1] - edge - reach).abs() < 2e-3, "{landing:?}");
         assert_eq!(landing.point[0], 0.0);
-        assert_eq!(scenario.path[0], [0.0; 3]);
+        assert!((scenario.path[0][2] - edge).abs() < 1e-3, "{:?}", scenario.path[0]);
         assert_eq!(scenario.end, End::Below);
         assert!(scenario.hop.is_none() && scenario.entry.is_none());
     }
@@ -137,14 +142,15 @@ fn a_step_leaves_from_the_edge_and_a_jump_from_the_margin_before_it() {
     let step = &preview(&physics, &request([0.0, 5.0, 0.0], false, &[0.0, 5.0]))[0];
     assert_eq!(step.crossings.len(), 1, "{:?}", step.crossings);
     let landing = crossing(step, 0, Phase::BeforeEntry);
+    let edge = f64::from(physics.edge_reach());
     assert!((landing.time - 5.0_f64.sqrt()).abs() < 2e-3, "{landing:?}");
-    assert!((landing.point[1] - 5.0_f64.sqrt()).abs() < 2e-3, "{landing:?}");
+    assert!((landing.point[1] - edge - 5.0_f64.sqrt()).abs() < 2e-3, "{landing:?}");
 
     let mut early = request([0.0, 5.0, 0.0], true, &[0.0, 5.0]);
     early.takeoff.margin = 0.5;
     let jump = &preview(&physics, &early)[0];
-    assert_eq!(jump.path[0], [0.0, 5.0, -0.5]);
-    assert!((crossing(jump, 1, Phase::BeforeEntry).point[1] - 1.5).abs() < 2e-3);
+    assert!((jump.path[0][2] - (edge - 0.5)).abs() < 1e-3, "{:?}", jump.path[0]);
+    assert!((crossing(jump, 1, Phase::BeforeEntry).point[1] - edge - 1.5).abs() < 2e-3);
     assert!(crossing(jump, 0, Phase::BeforeEntry).time > 2.0);
 }
 
@@ -417,9 +423,10 @@ fn every_steered_capture_piece_has_a_flight_that_enters_its_portals_after_releas
             scenario: SCENARIOS[0],
             heights: &jump.heights,
         };
+        // The same origin the preview flies from: the edge plus the body's reach.
         let origin = Origin {
             state: PlayerFlightState {
-                position: Vec3::new(0.0, 8.0, 0.0),
+                position: Vec3::new(0.0, 8.0, physics.edge_reach()),
                 horizontal_velocity: Vec3::Z * air.speed(),
                 vertical_velocity: physics.player.jump_speed,
             },

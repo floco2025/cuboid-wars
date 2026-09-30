@@ -40,8 +40,9 @@ from .reach_markers import landing_line
 
 LIMITS = (
     "Flights run the game's own movement, portal funnel, and portal crossing per server tick, in open space. "
-    "The takeoff is the clicked point on a tile edge, heading straight out at full speed: Step walks off it, "
-    "Jump leaves the ground the margin before it. Input is released in the air. "
+    "The takeoff is the clicked point on a tile edge, heading straight out at full speed from where the body's "
+    "support ends, a fifth of a metre past the edge: Step walks off there, Jump leaves the ground the margin "
+    "before it. A landing counts that close to a slab too. Input is released in the air. "
     "A path is thick down to the floor of the level in view and thin once it has fallen past it. "
     "Landings show where the flight comes down on every level: ● safe, △ damage, × fatal at full health; "
     "hollow where no floor is under it, faded where a floor above catches the flight first. "
@@ -103,6 +104,7 @@ class JumpPathOverlay:
         self.error = None
         # Every power-up combination's flight with no portals, and through the placed pair.
         self.free = self.through = None
+        self.reach = 0.0
         self.issue = None
         self.preview = None
         self.statuses = {}
@@ -303,7 +305,8 @@ class JumpPathOverlay:
         )
         key = json.dumps(request, sort_keys=True)
         replies[key] = self._replies[key] if key in self._replies else jump_preview(self.settings, request)
-        return replies[key]
+        self.reach = replies[key].reach
+        return replies[key].flights
 
     def recompute(self):
         self.free = self.through = None
@@ -338,7 +341,7 @@ class JumpPathOverlay:
         if self.flight is None:
             return None
         if level not in self._views:
-            self._views[level] = level_view(self.flight, level, self.settings, self.footprints)
+            self._views[level] = level_view(self.flight, level, self.settings, self.footprints, self.reach)
         return self._views[level]
 
     # Capture regions belong to the free flight: shown until portal 1 is placed, and again while it is being moved.
@@ -372,7 +375,9 @@ class JumpPathOverlay:
         return min(((self.entry, 1), (self.exit, 2)), key=distance)
 
     def entry_outcome(self):
-        return entry_outcome(self.selected(self.through), self.footprints) if self.through is not None else None
+        if self.through is None:
+            return None
+        return entry_outcome(self.selected(self.through), self.footprints, self.reach)
 
     def prompt(self):
         if self.takeoff is None:

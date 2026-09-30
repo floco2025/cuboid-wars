@@ -5,6 +5,7 @@ use common::{
         CharacterPhysicsConfig, FallDamageConfig, HitboxConfig, MovementColliderConfig, PlayerMovementConfig,
         PortalFunnelConfig, PortalSize, validate_non_negative_finite, validate_positive_finite,
     },
+    constants::CHARACTER_MAX_SLOPE,
     physics::{PortalFrame, character_movement_center, player_move_speed, portal_placement_yaw},
     protocol::Position,
 };
@@ -94,6 +95,13 @@ impl PreviewPhysics {
                 bottom_offset: 0.0,
             },
         }
+    }
+
+    // How far past a slab's edge the body still stands on it: the game's
+    // ground probe takes the slab's corner for ground until the contact
+    // normal tilts past the slope limit, which the capsule's radius sets.
+    pub(super) fn edge_reach(&self) -> f32 {
+        self.body.radius() * CHARACTER_MAX_SLOPE.sin()
     }
 
     pub(super) fn centre_offset(&self) -> Vec3 {

@@ -148,9 +148,19 @@ class Flight:
         )
 
 
-def jump_preview(settings: JumpSettings, request: dict) -> tuple[Flight, ...]:
-    scenarios = call("jump_preview", settings.physics, request)["scenarios"]
-    return tuple(Flight.parse(bit, scenario) for bit, scenario in zip(SCENARIO_BITS, scenarios))
+# The flights of one request, one per power-up combination, and how far
+# past a slab's edge the body still stands: the flights leave that far beyond
+# the takeoff edge, and a landing counts that close to a slab.
+@dataclass(frozen=True)
+class Preview:
+    flights: tuple[Flight, ...]
+    reach: float
+
+
+def jump_preview(settings: JumpSettings, request: dict) -> Preview:
+    reply = call("jump_preview", settings.physics, request)
+    flights = tuple(Flight.parse(bit, scenario) for bit, scenario in zip(SCENARIO_BITS, reply["scenarios"]))
+    return Preview(flights, reply["edge_reach"])
 
 
 # A stretch of a flight's path, as (x, z): `inside` until it falls past the viewed level's floor.
@@ -298,11 +308,13 @@ def level_regions(flight: Flight, level: int) -> list[Region]:
     return regions
 
 
-def level_view(flight: Flight, level: int, settings: JumpSettings, footprints: FloorFootprints) -> LevelView:
+def level_view(
+    flight: Flight, level: int, settings: JumpSettings, footprints: FloorFootprints, reach: float = 0.0
+) -> LevelView:
     glyphs = []
     landed = False
     for crossing in flight.crossings:
-        supported = footprints.floor_under(crossing.level, *crossing.point)
+        supported = footprints.floor_under(crossing.level, *crossing.point, reach)
         if crossing.level == level:
             glyphs.append(Glyph(crossing.phase, crossing.point, crossing.damage, supported, blocked=landed))
         landed = landed or supported
@@ -311,11 +323,11 @@ def level_view(flight: Flight, level: int, settings: JumpSettings, footprints: F
 
 # What became of a flight's entry into portal 1: map_core's class, or
 # `blocked` when a floor catches the flight before it gets there.
-def entry_outcome(flight: Flight, footprints: FloorFootprints) -> str | None:
+def entry_outcome(flight: Flight, footprints: FloorFootprints, reach: float = 0.0) -> str | None:
     blocked = flight.hop_time is not None and any(
         crossing.phase == BEFORE_ENTRY
         and crossing.time < flight.hop_time
-        and footprints.floor_under(crossing.level, *crossing.point)
+        and footprints.floor_under(crossing.level, *crossing.point, reach)
         for crossing in flight.crossings
     )
     return "blocked" if blocked else flight.entry

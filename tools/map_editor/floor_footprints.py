@@ -75,19 +75,21 @@ class FloorFootprints:
         spans = [r for r in rectangles if r[1] - EDGE_SLACK <= z <= r[3] + EDGE_SLACK] or rectangles
         return (min(r[0] for r in spans) if side == "W" else max(r[2] for r in spans)), z
 
-    # The slab cell whose footprint holds a point in metres: its own cell's, or a neighbour's extension.
-    def supporting_cell(self, level: int, x: float, z: float) -> tuple[int, int] | None:
+    # The slab cell whose footprint holds a point in metres, or comes within
+    # `reach` of it: its own cell's, or a neighbour's extension.
+    def supporting_cell(self, level: int, x: float, z: float, reach: float = 0.0) -> tuple[int, int] | None:
         if not 0 <= level < len(self.cells):
             return None
         col, row = int(x // self.cell_size), int(z // self.cell_size)
+        slack = reach + EDGE_SLACK
         for dc, dr in ((0, 0), (-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, -1), (-1, 1), (1, 1)):
             cell = col + dc, row + dr
             if cell in self.cells[level] and any(
-                x0 - EDGE_SLACK <= x <= x1 + EDGE_SLACK and z0 - EDGE_SLACK <= z <= z1 + EDGE_SLACK
+                x0 - slack <= x <= x1 + slack and z0 - slack <= z <= z1 + slack
                 for x0, z0, x1, z1 in self.rectangles(level, *cell)
             ):
                 return cell
         return None
 
-    def floor_under(self, level: int, x: float, z: float) -> bool:
-        return self.supporting_cell(level, x, z) is not None
+    def floor_under(self, level: int, x: float, z: float, reach: float = 0.0) -> bool:
+        return self.supporting_cell(level, x, z, reach) is not None

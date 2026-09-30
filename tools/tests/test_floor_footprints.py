@@ -61,6 +61,8 @@ class FloorFootprintTests(unittest.TestCase):
         self.assertEqual(footprints.supporting_cell(0, 12.1, 10.0), (2, 2))
         self.assertEqual(footprints.supporting_cell(0, 7.85, 7.85), (2, 2))
         self.assertIsNone(footprints.supporting_cell(0, 12.3, 10.0))
+        self.assertEqual(footprints.supporting_cell(0, 12.3, 10.0, reach=0.2), (2, 2))
+        self.assertIsNone(footprints.supporting_cell(0, 12.5, 10.0, reach=0.2))
         self.assertIsNone(footprints.supporting_cell(1, 10.0, 10.0))
         self.assertTrue(footprints.floor_under(0, 12.2, 12.2))
         self.assertFalse(footprints.floor_under(0, -3.0, 10.0))
