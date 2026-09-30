@@ -35,4 +35,8 @@ fn physics_block_is_validated() {
     physics.funnel.capture_margin = -0.1;
     let error = physics.validate().expect_err("a negative margin is invalid");
     assert!(error.to_string().contains("funnel.capture_margin"), "{error}");
+    let mut physics = physics_with(0.0);
+    physics.funnel.capture_growth = -0.1;
+    let error = physics.validate().expect_err("a negative growth is invalid");
+    assert!(error.to_string().contains("funnel.capture_growth"), "{error}");
 }

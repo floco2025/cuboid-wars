@@ -280,7 +280,10 @@ fn compiled_wall_trim_blocks_portal_shots_through_the_storey_seam() {
                 width: 1.4,
                 height: 2.6,
             },
-            funnel: common::config::PortalFunnelConfig { capture_margin: 0.6 },
+            funnel: common::config::PortalFunnelConfig {
+                capture_margin: 0.6,
+                capture_growth: 1.0,
+            },
         },
         &world,
         &layout,

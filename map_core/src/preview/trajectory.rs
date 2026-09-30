@@ -83,8 +83,7 @@ pub(super) struct Crossing {
     pub time: f32,
     // Fraction of full health.
     pub damage: f32,
-    // The tick it happened in: the state it began with and where it moved the body.
-    pub from: Origin,
+    // Where the tick it happened in moved the body.
     pub arrived: Vec2,
 }
 
@@ -125,7 +124,6 @@ impl Flight {
                     point: feet.xz(),
                     time: origin.time,
                     damage: air.damage(-origin.state.vertical_velocity),
-                    from: origin,
                     arrived: feet.xz(),
                 });
             }
@@ -152,7 +150,7 @@ impl Air<'_> {
         .map_or(0.0, |damage| damage / self.physics.max_health)
     }
 
-    fn step(&self, state: PlayerFlightState, steering: Steering, gates: Option<&Gates<'_>>) -> PlayerFlightTick {
+    pub fn step(&self, state: PlayerFlightState, steering: Steering, gates: Option<&Gates<'_>>) -> PlayerFlightTick {
         let portals = gates.map(|gates| &gates.portals);
         let step = |wish| {
             step_player_flight(
@@ -272,7 +270,6 @@ impl Air<'_> {
                             point,
                             time: time + dt * fraction,
                             damage: self.damage(tick.impact_speed),
-                            from: Origin { state, time, phase },
                             arrived: to.xz(),
                         });
                     }

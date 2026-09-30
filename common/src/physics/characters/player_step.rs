@@ -198,6 +198,7 @@ fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResu
             physics,
             velocity: (velocity + blast).with_y(step.vertical_velocity),
             gravity,
+            brake: cfg.player.air_deceleration,
             delta: step.delta,
             config: step.gameplay_config.portals.funnel,
             world: step.collision_world,

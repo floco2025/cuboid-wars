@@ -118,6 +118,6 @@
   "portals": {
     "range": 100.0,
     "size": { "width": 1.4, "height": 2.6 },
-    "funnel": { "capture_margin": 0.6 }
+    "funnel": { "capture_margin": 0.6, "capture_growth": 1.0 }
   }
 }

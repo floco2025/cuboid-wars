@@ -250,9 +250,9 @@ ground friction/acceleration. The game retains its capsule collision and existin
 rules, fall damage, combat knockback cap/decay, and existing portal fit/crossing
 rules. Predictive funneling in `common/src/physics/portals/funnel.rs` derives
 correction from available time before rim contact, including gravity and terminal
-fall speed. It slides the body toward the aperture once per player step and
-never changes its velocity, so a crossing leaves at the angle it went in at. It
-assists airborne, approaching players
+fall speed, air braking included. It slides the body toward the aperture once
+per player step and never changes its velocity, so a crossing leaves at the
+angle it went in at. It assists airborne, approaching players
 without movement input on floor, ceiling, and standable ramp portals. Capture
 uses both current and predicted offsets; unrelated fly-bys and obstructed
 approaches are excluded. Moving portals use their current linear velocity.
@@ -263,8 +263,10 @@ fling helpers.
 Shared portal settings live under `weapons.portals` in gameplay JSON:
 `size.width` / `size.height` drive placement, overlap checks, aperture traversal,
 backing exclusions, rendering, and effects. `funnel.capture_margin` extends each
-aperture edge; zero disables assistance. There are no separate funnel
-acceleration, speed, or timing settings. Jump Path reads these settings and uses
+aperture edge at the moment of arrival and `funnel.capture_growth` adds to it for
+every second of flight still to go, so a long fall is caught from wider off;
+both zero disables assistance. There are no separate funnel acceleration or
+speed settings: the pull covers the remaining gap at an even rate. Jump Path reads these settings and uses
 the shared flight, funnel, and traversal code through `map_core::preview`.
 Its dashed capture outline combines valid steering-and-release captures; it does
 not fill gaps between sampled flights. The preview's remaining scope is in

@@ -207,7 +207,7 @@ fn capture_obeys_margin_input_approach_and_disabled_setting() {
     assert!(assisted.movement.position.x < pos.x);
     assert_eq!(assisted.horizontal_velocity, Vec3::ZERO);
     for (start, v, intent) in [
-        (Vec3::new(1.31, 3.0, 0.0).into(), falling, PlayerMoveIntent::NONE),
+        (Vec3::new(2.5, 3.0, 0.0).into(), falling, PlayerMoveIntent::NONE),
         (pos, -falling, PlayerMoveIntent::NONE),
         (
             pos,
@@ -220,8 +220,10 @@ fn capture_obeys_margin_input_approach_and_disabled_setting() {
     ] {
         let enabled = course.step(start, v, intent, 1.0 / 60.0);
         course.config.portals.funnel.capture_margin = 0.0;
+        course.config.portals.funnel.capture_growth = 0.0;
         let disabled = course.step(start, v, intent, 1.0 / 60.0);
         course.config.portals.funnel.capture_margin = 0.6;
+        course.config.portals.funnel.capture_growth = 1.0;
         assert_eq!(enabled.movement.position, disabled.movement.position);
         assert_eq!(enabled.horizontal_velocity, disabled.horizontal_velocity);
     }

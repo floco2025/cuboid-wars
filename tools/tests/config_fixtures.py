@@ -38,7 +38,9 @@ def gameplay():
         "player_fall": {"safe_distance": 8, "lethal_distance": 15},
         "combat": {"health": {"player": {"max": 500}}},
         "portals": "both",
-        "weapons": {"portals": {"size": {"width": 1.4, "height": 2.6}, "funnel": {"capture_margin": 0.6}}},
+        "weapons": {
+            "portals": {"size": {"width": 1.4, "height": 2.6}, "funnel": {"capture_margin": 0.6, "capture_growth": 1.0}}
+        },
     }
 
 

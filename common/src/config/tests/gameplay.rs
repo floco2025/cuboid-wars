@@ -108,5 +108,17 @@ fn portal_size_and_capture_settings_are_validated_after_bootstrap() {
     }
     let mut disabled = config.portals;
     disabled.funnel.capture_margin = 0.0;
-    disabled.validate("portals").expect("zero disables assistance");
+    disabled.validate("portals").expect("a zero margin is valid");
+    assert!(disabled.funnel.assists());
+    disabled.funnel.capture_growth = 0.0;
+    assert!(!disabled.funnel.assists());
+    disabled.validate("portals").expect("both zero disable assistance");
+    let mut bad = config.portals;
+    bad.funnel.capture_growth = -1.0;
+    assert!(
+        bad.validate("portals")
+            .expect_err("negative growth accepted")
+            .to_string()
+            .contains("funnel.capture_growth")
+    );
 }

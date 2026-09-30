@@ -36,6 +36,7 @@ PHYSICS_NUMBERS = (
     ("weapons.portals.size.width", False),
     ("weapons.portals.size.height", False),
     ("weapons.portals.funnel.capture_margin", True),
+    ("weapons.portals.funnel.capture_growth", True),
 )
 
 

@@ -26,7 +26,7 @@ def jump_physics(**overrides):
         "max_health": 100,
         "body": {"diameter": 0.6, "height": 1.8},
         "portal_size": {"width": 1.4, "height": 2.6},
-        "funnel": {"capture_margin": 0.6},
+        "funnel": {"capture_margin": 0.6, "capture_growth": 1.0},
     }
     for key, value in overrides.items():
         (player if key in player else physics)[key] = value

@@ -46,8 +46,8 @@ LIMITS = (
     "Landings show where the flight comes down on every level: ● safe, △ damage, × fatal at full health; "
     "hollow where no floor is under it, faded where a floor above catches the flight first. "
     "The solid outline holds the floor-portal centres that take the flight in, as portal 1 would be shot: "
-    "a portal draws a nearby flight in without changing its velocity, so it leaves portal 2 at the angle it "
-    "went into portal 1. "
+    "a portal draws a flight in from wider off the longer it still has to fall, without changing its velocity, "
+    "so it leaves portal 2 at the angle it went into portal 1. "
     "Air control adds the landings steering can reach (dotted) and the centres it can then enter (dashed), "
     "and a missed portal 1 is tried again steered at it. "
     "Floor portals may be centred anywhere and face the way their shooter (S1, S2) faces, initially the takeoff; "
@@ -108,6 +108,7 @@ class JumpPathOverlay:
         self.statuses = {}
         self._replies = {}
         self._views = {}
+        self._regions = {}
         self.clear_action = QAction("Clear Jump Path", window)
         self.clear_action.triggered.connect(self.clear)
         self.controls_action = QWidgetAction(window)
@@ -259,6 +260,7 @@ class JumpPathOverlay:
 
     def power_ups_changed(self):
         self._views = {}
+        self._regions = {}
         self.selection_changed()
 
     def use_takeoff(self):
@@ -307,6 +309,7 @@ class JumpPathOverlay:
         self.free = self.through = None
         self.issue = None
         self._views = {}
+        self._regions = {}
         self.margin.setEnabled(self.jumping)
         replies = {}
         if self.settings is not None:
@@ -342,14 +345,18 @@ class JumpPathOverlay:
     def regions(self, level):
         if self.free is None:
             return []
-        free = level_regions(self.selected(self.free), level)
-        if self.through is None:
-            return free
         placing = self.window.mode == MODE_JUMP_PATH and self.input_selector.currentData() in (
             "entry_floor",
             "entry_wall",
         )
-        return level_regions(self.selected(self.through), level) + (free if placing else [])
+        key = level, placing
+        if key not in self._regions:
+            free = level_regions(self.selected(self.free), level)
+            if self.through is None:
+                self._regions[key] = free
+            else:
+                self._regions[key] = level_regions(self.selected(self.through), level) + (free if placing else [])
+        return self._regions[key]
 
     # The portal a flight that falls back in goes into, and its number.
     def reentry(self):

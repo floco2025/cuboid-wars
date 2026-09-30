@@ -22,7 +22,7 @@ fn settings() -> Value {
         "player_fall": {"safe_distance": 8.0, "lethal_distance": 15.0},
         "combat": {"health": {"player": {"max": 500.0}}},
         "player": {"movement_collider": {"diameter": 0.6, "height": 1.8}, "eye_height": 1.6},
-        "weapons": {"portals": {"size": {"width": 1.4, "height": 2.6}, "funnel": {"capture_margin": 0.6}}},
+        "weapons": {"portals": {"size": {"width": 1.4, "height": 2.6}, "funnel": {"capture_margin": 0.6, "capture_growth": 1.0}}},
     })
 }
 
@@ -33,6 +33,7 @@ fn preview_physics_extracts_and_validates_the_settings_it_needs() {
     assert_eq!(physics["player"]["move_speed"], 9.0);
     assert_eq!(physics["portal_size"]["height"], 2.6);
     assert_eq!(physics["funnel"]["capture_margin"], 0.6);
+    assert_eq!(physics["funnel"]["capture_growth"], 1.0);
 
     let mut broken = settings();
     broken["movement"]["player"]["move_speed"] = json!(-1.0);

@@ -9,14 +9,25 @@ use crate::{
     protocol::FieldId,
 };
 
-// What the funnel judges a gate by: the body centre's vertical projection
-// onto the plane, relative to a point on it, now and when the capsule meets
-// the plane at the current horizontal velocity.
+// What the funnel judges a gate by: where on the plane, relative to a point
+// on it, the body centre's vertical projection will be when the capsule
+// meets the plane, how long that takes, and the horizontal drift on the way.
 #[derive(Debug, Clone, Copy)]
 pub struct FunnelPrediction {
-    pub offset: Vec3,
     pub arrival: Vec3,
     pub time: f32,
+    pub drift: Vec3,
+}
+
+// The motion a released body is judged and corrected by.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FunnelMotion {
+    // Relative to the gate.
+    pub velocity: Vec3,
+    pub gravity: f32,
+    // The air braking released input is under, in m/s², and the tick it is applied per.
+    pub brake: f32,
+    pub delta: f32,
 }
 
 // `None` while the body is behind the plane, moving away from it, or at an
@@ -26,25 +37,49 @@ pub(crate) fn funnel_prediction(
     normal: Vec3,
     body_center: Vec3,
     reach: f32,
-    relative: Vec3,
-    gravity: f32,
-    vertical: f32,
+    motion: FunnelMotion,
 ) -> Option<FunnelPrediction> {
     let offset = body_center - plane_point;
     let distance = offset.dot(normal);
-    let approach = relative.dot(normal);
-    if distance <= 0.0 || approach > 0.0 || (approach == 0.0 && gravity * normal.y <= 0.0) {
+    let approach = motion.velocity.dot(normal);
+    if distance <= 0.0 || approach > 0.0 || (approach == 0.0 && motion.gravity * normal.y <= 0.0) {
         return None;
     }
     let projected = offset - Vec3::Y * (distance / normal.y);
-    let time = arrival_time((distance - reach).max(0.0), relative, normal, gravity, vertical)?;
-    // Do not catch an unrelated fast fly-by just because it passes over the opening.
-    let future = projected + relative.with_y(0.0) * time;
+    let time = arrival_time(
+        (distance - reach).max(0.0),
+        motion.velocity,
+        normal,
+        motion.gravity,
+        motion.velocity.y,
+    )?;
+    let heading = motion.velocity.with_y(0.0);
+    let drift = heading.normalize_or_zero() * braked_travel(heading.length(), motion.brake, time, motion.delta);
+    let future = projected + drift;
     Some(FunnelPrediction {
-        offset: projected,
         arrival: future - Vec3::Y * (future.dot(normal) / normal.y),
         time,
+        drift,
     })
+}
+
+// How far a released body travels in `time` while air braking takes `brake`
+// off its speed each tick, as the motor does: every tick moves at the speed
+// braking left it, and the last one only as far as the time allows.
+fn braked_travel(speed: f32, brake: f32, time: f32, delta: f32) -> f32 {
+    if brake <= 0.0 || delta <= 0.0 {
+        return speed * time;
+    }
+    let mut travel = 0.0;
+    let mut speed = speed;
+    let mut left = time;
+    while left > 0.0 && speed > 0.0 {
+        let step = left.min(delta);
+        travel += speed * step;
+        speed -= brake * delta;
+        left -= step;
+    }
+    travel
 }
 
 // The funnel's prediction for a body over a level plane, as a floor portal
@@ -56,26 +91,31 @@ pub fn floor_funnel_prediction(
     physics: CharacterPhysicsConfig,
     velocity: Vec3,
     gravity: f32,
+    brake: f32,
+    delta: f32,
 ) -> Option<FunnelPrediction> {
     funnel_prediction(
         plane_point,
         Vec3::Y,
         character_movement_center(origin.into(), physics),
         body_support(&character_movement_shape(physics), Vec3::Y),
-        velocity,
-        gravity,
-        velocity.y,
+        FunnelMotion {
+            velocity,
+            gravity,
+            brake,
+            delta,
+        },
     )
 }
 
-// Capture is the aperture expanded by the authored margin, met both now and on arrival.
+// Capture is judged where the body will arrive: within the aperture grown by
+// the margin for the time it still has to fly. Aiming errors grow with the
+// flight, so the catch is widest from far away and narrows to the mouth.
 #[must_use]
-pub fn funnel_captures(frame: &PortalFrame, margin: f32, prediction: &FunnelPrediction) -> bool {
-    let inside = |offset: Vec3| {
-        offset.dot(frame.right).abs() <= frame.size.half_width() + margin
-            && offset.dot(frame.up).abs() <= frame.size.half_height() + margin
-    };
-    inside(prediction.offset) && inside(prediction.arrival)
+pub fn funnel_captures(frame: &PortalFrame, config: PortalFunnelConfig, prediction: &FunnelPrediction) -> bool {
+    let margin = config.margin_at(prediction.time);
+    prediction.arrival.dot(frame.right).abs() <= frame.size.half_width() + margin
+        && prediction.arrival.dot(frame.up).abs() <= frame.size.half_height() + margin
 }
 
 pub(crate) struct FunnelStep<'a> {
@@ -83,6 +123,8 @@ pub(crate) struct FunnelStep<'a> {
     pub physics: CharacterPhysicsConfig,
     pub velocity: Vec3,
     pub gravity: f32,
+    // Air braking on released input, which the prediction of the arrival includes.
+    pub brake: f32,
     pub delta: f32,
     pub config: PortalFunnelConfig,
     pub world: &'a CollisionWorld,
@@ -91,16 +133,17 @@ pub(crate) struct FunnelStep<'a> {
 
 impl PortalSet {
     // Called once by the airborne player policy, only without movement intent.
-    // Capture is the vertical projection onto a floor/ceiling/ramp aperture,
-    // expanded by the authored margin. A ballistic prediction supplies the
-    // time before the capsule meets the rim. The result is this tick's share
+    // Capture is the vertical projection of the body's arrival onto a
+    // floor/ceiling/ramp aperture, within the margin for the time left. A
+    // ballistic prediction supplies the time before the capsule meets the
+    // rim. The result is this tick's share
     // of the slide that lands the body on the aperture's centre by then. It
     // moves the body and never its velocity: what goes in at an angle leaves
     // the other end at that angle. Recompute from actual motion each tick; no
     // future physics ticks or per-player funnel state. Moving gates use their
     // current linear velocity.
     pub(crate) fn funnel_correction(&self, step: FunnelStep<'_>) -> Option<Vec3> {
-        if self.is_empty() || step.config.capture_margin <= 0.0 || step.delta <= 0.0 {
+        if self.is_empty() || !step.config.assists() || step.delta <= 0.0 {
             return None;
         }
         let center = character_movement_center(step.origin.into(), step.physics);
@@ -112,22 +155,24 @@ impl PortalSet {
             if normal.y.abs() <= PORTAL_STANDABLE_NORMAL_Y {
                 continue;
             }
-            let relative = step.velocity - gate.carry / step.delta;
             let reach = body_support(&shape, normal);
             let Some(prediction) = funnel_prediction(
                 frame.center,
                 normal,
                 center,
                 reach,
-                relative,
-                step.gravity,
-                step.velocity.y,
+                FunnelMotion {
+                    velocity: step.velocity - gate.carry / step.delta,
+                    gravity: step.gravity,
+                    brake: step.brake,
+                    delta: step.delta,
+                },
             ) else {
                 continue;
             };
             let time = prediction.time;
-            if !funnel_captures(frame, step.config.capture_margin, &prediction)
-                || best.as_ref().is_some_and(|(earlier, _, _)| *earlier <= time)
+            if !funnel_captures(frame, step.config, &prediction)
+                || best.as_ref().is_some_and(|(earlier, _)| *earlier <= time)
             {
                 continue;
             }
@@ -147,16 +192,15 @@ impl PortalSet {
             ) {
                 continue;
             }
-            best = Some((time, frame.center - center, gate.carry / step.delta));
+            best = Some((time, (frame.center - center).with_y(0.0) - prediction.drift));
         }
-        let (time, offset, carrier_velocity) = best?;
+        let (time, gap) = best?;
         // One tick is the shortest actionable deadline. A late near-miss can
         // still hit the rim; collision resolution always remains authoritative.
         let time = time.max(step.delta);
-        let relative = (step.velocity - carrier_velocity).with_y(0.0);
-        // Left alone the body drifts `relative * time` on the way down; the
-        // slide covers what then still separates it from the centre.
-        Some((offset.with_y(0.0) - relative * time) * (step.delta / time))
+        // Left alone the body drifts on the way down; the slide covers what
+        // then still separates it from the centre, at an even rate.
+        Some(gap * (step.delta / time))
     }
 }
 

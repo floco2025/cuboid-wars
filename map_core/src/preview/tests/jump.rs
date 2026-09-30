@@ -77,21 +77,26 @@ fn bounds(polygon: &[[f64; 2]]) -> ([f64; 2], [f64; 2]) {
         })
 }
 
-// How far inside a convex polygon a point is; negative outside.
+// How far inside a polygon a point is; negative outside. Any simple polygon.
 fn depth(polygon: &[[f64; 2]], point: [f64; 2]) -> f64 {
-    let turn: f64 = (0..polygon.len())
-        .map(|index| {
-            let (a, b) = (polygon[index], polygon[(index + 1) % polygon.len()]);
-            a[0] * b[1] - a[1] * b[0]
-        })
-        .sum();
-    (0..polygon.len())
-        .map(|index| {
-            let (a, b) = (polygon[index], polygon[(index + 1) % polygon.len()]);
-            let (edge, to) = ([b[0] - a[0], b[1] - a[1]], [point[0] - a[0], point[1] - a[1]]);
-            (edge[0] * to[1] - edge[1] * to[0]) * turn.signum() / edge[0].hypot(edge[1])
-        })
-        .fold(f64::INFINITY, f64::min)
+    let mut inside = false;
+    let mut nearest = f64::INFINITY;
+    for index in 0..polygon.len() {
+        let (a, b) = (polygon[index], polygon[(index + 1) % polygon.len()]);
+        if (a[1] > point[1]) != (b[1] > point[1]) {
+            let crossing = a[0] + (point[1] - a[1]) / (b[1] - a[1]) * (b[0] - a[0]);
+            inside ^= point[0] < crossing;
+        }
+        let (edge, to) = ([b[0] - a[0], b[1] - a[1]], [point[0] - a[0], point[1] - a[1]]);
+        let length = edge[0].hypot(edge[1]);
+        let along = if length > 0.0 {
+            ((edge[0] * to[0] + edge[1] * to[1]) / (length * length)).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        nearest = nearest.min((to[0] - along * edge[0]).hypot(to[1] - along * edge[1]));
+    }
+    if inside { nearest } else { -nearest }
 }
 
 #[test]
@@ -182,7 +187,8 @@ fn a_flight_gravity_never_brings_down_ends_at_the_time_cap() {
 
 #[test]
 fn capture_is_the_margin_rectangle_about_the_landing_split_at_the_quarter_wedges() {
-    let physics = physics_with(0.0);
+    let mut physics = physics_with(0.0);
+    physics.funnel.capture_growth = 0.0;
     let mut step = request([0.0, 5.0, 0.0], false, &[0.0, 5.0]);
     // Shot from far behind, every centre near the landing faces the same way.
     step.shooter = [0.0, -50.0];
@@ -198,8 +204,8 @@ fn capture_is_the_margin_rectangle_about_the_landing_split_at_the_quarter_wedges
         (low[0] + 1.3).abs() < 1e-3 && (high[0] - 1.3).abs() < 1e-3,
         "{low:?} {high:?}"
     );
-    assert!(high[1] > landing[1] + 1.8 && high[1] <= landing[1] + 1.9, "{high:?}");
-    assert!(low[1] > landing[1] - 1.9 && low[1] < landing[1] - 1.8, "{low:?}");
+    assert!((high[1] - (landing[1] + 1.9)).abs() < 5e-3, "{high:?}");
+    assert!((low[1] - (landing[1] - 1.9)).abs() < 5e-3, "{low:?}");
 
     // Shot from the takeoff, centres beside the landing face sideways and lie long that way.
     step.shooter = [0.0, 0.0];
@@ -218,10 +224,37 @@ fn capture_is_the_margin_rectangle_about_the_landing_split_at_the_quarter_wedges
     assert!(reach(0.0).1[0] <= 1.3 + 1e-3);
 }
 
+// A step off a 5 m ledge under gravity 2 takes about 2.24 s to come down, so
+// the catch at the top of the fall is 2.24 m wider than at the mouth.
+#[test]
+fn capture_widens_with_the_time_still_to_fall() {
+    let physics = physics_with(0.0);
+    let mut step = request([0.0, 5.0, 0.0], false, &[0.0, 5.0]);
+    step.shooter = [0.0, -50.0];
+    let scenario = &preview(&physics, &step)[0];
+    let landing = crossing(scenario, 0, Phase::BeforeEntry).point;
+    let pieces = capture_on(scenario, 0);
+    assert_eq!(pieces.len(), 1, "{pieces:?}");
+    let (low, high) = bounds(&pieces[0].polygon);
+    let fall = (2.0 * 5.0_f64 / 2.0).sqrt();
+    assert!(
+        (high[0] - (1.3 + fall)).abs() < 0.03 && (low[0] + 1.3 + fall).abs() < 0.03,
+        "{low:?} {high:?}"
+    );
+    assert!((high[1] - (landing[1] + 1.9 + fall)).abs() < 0.03, "{high:?}");
+    // A short drop is caught only a little wider than at the mouth.
+    let mut hop = request([0.0, 0.5, 0.0], false, &[0.0]);
+    hop.shooter = [0.0, -50.0];
+    let (low, high) = bounds(&capture_on(&preview(&physics, &hop)[0], 0)[0].polygon);
+    assert!(high[0] - low[0] < 2.6 + 2.0 * 0.75, "{low:?} {high:?}");
+    assert!(high[0] - low[0] > 2.6 + 2.0 * 0.6, "{low:?} {high:?}");
+}
+
 #[test]
 fn without_a_funnel_capture_is_the_aperture_the_body_sinks_through() {
     let mut physics = physics_with(0.0);
     physics.funnel.capture_margin = 0.0;
+    physics.funnel.capture_growth = 0.0;
     let mut step = request([0.0, 5.0, 0.0], false, &[0.0, 5.0]);
     step.shooter = [0.0, -50.0];
     let scenario = &preview(&physics, &step)[0];
@@ -238,21 +271,22 @@ fn without_a_funnel_capture_is_the_aperture_the_body_sinks_through() {
 #[test]
 fn capture_pieces_agree_with_flying_into_a_portal_at_every_centre() {
     let (mut inside, mut outside) = (0, 0);
-    for (margin, jumping, shooter) in [
-        (0.6, true, [0.0, 0.0]),
-        (0.6, false, [3.0, 4.0]),
-        (0.0, true, [0.0, 0.0]),
-        (0.0, false, [-2.0, 9.0]),
+    for (margin, growth, jumping, shooter) in [
+        (0.6, 1.0, true, [0.0, 0.0]),
+        (0.6, 0.0, false, [3.0, 4.0]),
+        (0.0, 0.0, true, [0.0, 0.0]),
+        (0.6, 1.0, false, [-2.0, 9.0]),
     ] {
         let mut physics = game_physics();
         physics.funnel.capture_margin = margin;
+        physics.funnel.capture_growth = growth;
         let mut takeoff = request([0.0, 8.0, 0.0], jumping, &[0.0, 8.0]);
         takeoff.takeoff.margin = 0.1;
         takeoff.shooter = shooter;
         let free = preview(&physics, &takeoff);
         let landing = crossing(&free[0], 0, Phase::BeforeEntry).point;
-        for column in -20..=20 {
-            for row in -20..=44 {
+        for column in -30..=30 {
+            for row in -30..=54 {
                 let centre = [
                     (landing[0] + f64::from(column) * 0.125) as f32,
                     (landing[1] + f64::from(row) * 0.125) as f32,
@@ -275,7 +309,7 @@ fn capture_pieces_agree_with_flying_into_a_portal_at_every_centre() {
                     let entered = matches!(flown.entry, Some(Entry::Direct | Entry::Funnel));
                     assert_eq!(
                         entered, expected,
-                        "margin {margin}, jumping {jumping}, centre {centre:?}: {:?}",
+                        "margin {margin}, growth {growth}, jumping {jumping}, centre {centre:?}: {:?}",
                         flown.entry
                     );
                     if entered {
@@ -332,15 +366,36 @@ fn steering_range_holds_the_released_landing_and_collapses_without_air_rates() {
         .expect("level 0 is crossed")
         .polygon;
     assert_eq!(range, &vec![landing]);
-    for margin in [0.0, 0.6] {
+    for (margin, growth) in [(0.0, 0.0), (0.6, 1.0)] {
         ballistic.funnel.capture_margin = margin;
-        for mut scenario in preview(&ballistic, &steered) {
-            scenario.capture.sort_by_key(|capture| capture.level);
-            scenario.capture_steered.sort_by_key(|capture| capture.level);
-            assert_eq!(
-                serde_json::to_value(&scenario.capture).expect("capture serialization failed"),
-                serde_json::to_value(&scenario.capture_steered).expect("steered capture serialization failed"),
-            );
+        ballistic.funnel.capture_growth = growth;
+        // The same regions, whichever way round their corners are listed.
+        let corners = |levels: &[LevelPieces]| {
+            let mut levels: Vec<(usize, Vec<(u64, Vec<[i64; 2]>)>)> = levels
+                .iter()
+                .map(|level| {
+                    let mut pieces: Vec<(u64, Vec<[i64; 2]>)> = level
+                        .pieces
+                        .iter()
+                        .map(|piece| {
+                            let mut polygon: Vec<[i64; 2]> = piece
+                                .polygon
+                                .iter()
+                                .map(|point| point.map(|value| (value * 1000.0).round() as i64))
+                                .collect();
+                            polygon.sort();
+                            ((piece.yaw * 1000.0).round() as u64, polygon)
+                        })
+                        .collect();
+                    pieces.sort();
+                    (level.level, pieces)
+                })
+                .collect();
+            levels.sort();
+            levels
+        };
+        for scenario in preview(&ballistic, &steered) {
+            assert_eq!(corners(&scenario.capture), corners(&scenario.capture_steered));
         }
     }
 
@@ -351,9 +406,10 @@ fn steering_range_holds_the_released_landing_and_collapses_without_air_rates() {
 
 #[test]
 fn every_steered_capture_piece_has_a_flight_that_enters_its_portals_after_release() {
-    for margin in [0.0, 0.6] {
+    for (margin, growth) in [(0.0, 0.0), (0.6, 1.0)] {
         let mut physics = game_physics();
         physics.funnel.capture_margin = margin;
+        physics.funnel.capture_growth = growth;
         let mut jump = request([0.0, 8.0, 0.0], true, &[0.0]);
         jump.air_control = true;
         let air = Air {
@@ -374,26 +430,38 @@ fn every_steered_capture_piece_has_a_flight_that_enters_its_portals_after_releas
             let (sin, cos) = (index as f32 * TAU / PREVIEW_STEERING_DIRECTIONS as f32).sin_cos();
             Steering::Constant(Vec3::new(sin, 0.0, cos) * air.speed())
         });
-        let releases: Vec<_> = wishes
+        // Releasing at any tick of any steered flight.
+        let releases: Vec<Origin> = wishes
             .chain([Steering::Released])
             .flat_map(|steering| {
-                air.fly(origin, steering, None)
-                    .crossings
-                    .into_iter()
-                    .map(|crossing| crossing.from)
+                let mut ticks = Vec::new();
+                let mut release = origin;
+                while release.state.position.y > -1.0 {
+                    ticks.push(release);
+                    release.state = air.step(release.state, steering, None).state;
+                    release.time += physics.tick();
+                }
+                ticks
             })
             .collect();
         let scenarios = preview(&physics, &jump);
         let pieces = &scenarios[0].capture_steered[0].pieces;
         assert!(!pieces.is_empty());
+        // Every grid point well inside a piece, the pieces being no longer convex.
+        let mut checked = 0;
         for piece in pieces {
-            let points: Vec<_> = piece
-                .polygon
-                .iter()
-                .map(|point| Vec2::new(point[0] as f32, point[1] as f32))
-                .collect();
-            let middle = points.iter().sum::<Vec2>() / points.len() as f32;
-            for point in points.iter().map(|point| middle.lerp(*point, 0.9)) {
+            let (low, high) = bounds(&piece.polygon);
+            let steps = |from: f64, to: f64| {
+                (0..)
+                    .map(move |step| from + f64::from(step) * 0.5)
+                    .take_while(move |at| *at <= to)
+            };
+            for point in steps(low[0], high[0]).flat_map(|x| steps(low[1], high[1]).map(move |z| [x, z])) {
+                if depth(&piece.polygon, point) < 0.05 {
+                    continue;
+                }
+                checked += 1;
+                let point = Vec2::new(point[0] as f32, point[1] as f32);
                 let entry = SurfaceSpec {
                     yaw: point.x.atan2(point.y),
                     ..floor_portal(point.x, 0.0, point.y)
@@ -408,6 +476,7 @@ fn every_steered_capture_piece_has_a_flight_that_enters_its_portals_after_releas
                 );
             }
         }
+        assert!(checked > 20, "{checked} points checked at margin {margin}");
     }
 }
 
@@ -425,8 +494,8 @@ fn an_entry_is_direct_funnelled_steered_or_missed() {
     assert_eq!(entry_at(0.0, 0.0, false).entry, Some(Entry::Direct));
     assert_eq!(entry_at(1.0, 0.0, false).entry, Some(Entry::Funnel));
 
-    // Just past the far edge of the capture region the body lands in front of the portal.
-    let missed = entry_at(0.0, 2.2, false);
+    // Past the far edge of the capture region the body lands in front of the portal.
+    let missed = entry_at(0.0, 3.5, false);
     assert_eq!(missed.entry, Some(Entry::Missed));
     assert!(missed.hop.is_none());
     assert_eq!(missed.path, free.path);
@@ -435,7 +504,7 @@ fn an_entry_is_direct_funnelled_steered_or_missed() {
         crossing(free, 0, Phase::BeforeEntry).point
     );
 
-    let steered = entry_at(0.0, 2.2, true);
+    let steered = entry_at(0.0, 3.5, true);
     assert_eq!(steered.entry, Some(Entry::Steered));
     assert!(steered.hop.is_some());
     assert_ne!(steered.path, free.path);

@@ -63,7 +63,8 @@ impl PreviewPhysics {
         self.body.validate("player.movement_collider")?;
         validate_positive_finite(self.portal_size.width, "weapons.portals.size.width")?;
         validate_positive_finite(self.portal_size.height, "weapons.portals.size.height")?;
-        validate_non_negative_finite(self.funnel.capture_margin, "weapons.portals.funnel.capture_margin")
+        validate_non_negative_finite(self.funnel.capture_margin, "weapons.portals.funnel.capture_margin")?;
+        validate_non_negative_finite(self.funnel.capture_growth, "weapons.portals.funnel.capture_growth")
     }
 
     pub(super) fn tick(&self) -> f32 {

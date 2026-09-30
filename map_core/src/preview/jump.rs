@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     physics::{PreviewPhysics, SCENARIOS, Scenario, SurfaceSpec},
-    regions::{Piece, capture, steering_regions},
+    regions::{Piece, captures, steering_regions},
     trajectory::{Air, End, Flight, Gates, Origin, Outcome, Phase, Steering},
 };
 
@@ -248,16 +248,9 @@ fn scenario_preview(
     let shooter = Vec2::from_array(request.shooter);
     let Some(pair) = pair else {
         let flight = air.fly(origin, Steering::Released, None);
-        let capture = flight
-            .crossings
-            .iter()
-            .map(|crossing| {
-                let centre = flight
-                    .centres
-                    .iter()
-                    .find_map(|(level, point)| (*level == crossing.level).then_some(*point));
-                level_pieces(crossing.level, capture(&air, crossing, centre, shooter))
-            })
+        let capture = captures(&air, origin, shooter)
+            .into_iter()
+            .map(|(level, pieces)| level_pieces(level, pieces))
             .filter(|level| !level.pieces.is_empty())
             .collect();
         let regions = if request.air_control {
@@ -280,7 +273,13 @@ fn scenario_preview(
     let released = air.fly(origin, Steering::Released, Some(&gates));
     let (flight, entry) = match released.outcome {
         Outcome::Entered => {
-            let plain = pair.gates(physics, PortalFunnelConfig { capture_margin: 0.0 });
+            let plain = pair.gates(
+                physics,
+                PortalFunnelConfig {
+                    capture_margin: 0.0,
+                    capture_growth: 0.0,
+                },
+            );
             let unaided = air.fly(origin, Steering::Released, Some(&plain)).outcome == Outcome::Entered;
             (released, if unaided { Entry::Direct } else { Entry::Funnel })
         }

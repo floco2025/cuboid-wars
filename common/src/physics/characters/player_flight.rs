@@ -61,6 +61,7 @@ pub fn step_player_flight(
             physics: portals.body,
             velocity: horizontal.with_y(state.vertical_velocity),
             gravity,
+            brake: player.air_deceleration,
             delta,
             config: portals.funnel,
             world: portals.world,
@@ -117,7 +118,15 @@ pub fn flight_funnel_prediction(
     plane_point: Vec3,
 ) -> Option<FunnelPrediction> {
     let velocity = released_velocity(state, Vec3::ZERO, player, delta).with_y(state.vertical_velocity);
-    floor_funnel_prediction(plane_point, state.position, body, velocity, gravity)
+    floor_funnel_prediction(
+        plane_point,
+        state.position,
+        body,
+        velocity,
+        gravity,
+        player.air_deceleration,
+        delta,
+    )
 }
 
 fn released_velocity(state: PlayerFlightState, wish: Vec3, player: &PlayerMovementConfig, delta: f32) -> Vec3 {
