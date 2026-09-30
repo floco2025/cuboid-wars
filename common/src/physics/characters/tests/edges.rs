@@ -36,6 +36,7 @@ fn stable_capsule_overhang_remains_supported_without_forced_slide() {
     assert!(
         player_jump(
             CharacterSupport::Ground,
+            PlayerMoveIntent::NONE,
             velocity,
             &world,
             player_physics(),
@@ -73,6 +74,7 @@ fn steep_capsule_edge_contact_slides_off_and_falls() {
     assert!(
         player_jump(
             CharacterSupport::Airborne,
+            PlayerMoveIntent::NONE,
             velocity,
             &world,
             player_physics(),

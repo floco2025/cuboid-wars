@@ -81,8 +81,11 @@ impl LadderInteraction<'_> {
         physics: CharacterPhysicsConfig,
     ) -> (f32, f32) {
         let (target_x, target_z) = match self {
+            // Descending ignores control's away component but never pulls the
+            // body back in, so a shove that moved it out is not undone.
             Self::Descending { ladder, .. } => {
-                ladder.with_plane_offset(target_x, target_z, ladder_hold_standoff(physics))
+                let held_at = ladder_hold_standoff(physics).max(ladder.offset_from_plane(start.x, start.z));
+                ladder.with_plane_offset(target_x, target_z, held_at)
             }
             Self::None | Self::Holding | Self::Ascending { .. } => (target_x, target_z),
         };
@@ -173,7 +176,9 @@ fn clamp_move_at_ladder_plane(
     if ladder.offset_from_plane(start.x, start.z) <= 0.0 {
         return (target_x, target_z);
     }
-    let standoff = ladder_hold_standoff(physics);
+    // A body already inside the standoff is not sprung back out, so a shove
+    // pressing it toward the rungs keeps the ground it gained.
+    let standoff = ladder_hold_standoff(physics).min(ladder.offset_from_plane(start.x, start.z));
     if ladder.offset_from_plane(target_x, target_z) >= standoff {
         return (target_x, target_z);
     }

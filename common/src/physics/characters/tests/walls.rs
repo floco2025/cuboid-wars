@@ -312,6 +312,7 @@ fn jumping_while_pushing_into_a_wall_still_rises() {
 
     let launch = player_jump(
         CharacterSupport::Ground,
+        PlayerMoveIntent::NONE,
         0.0,
         &collision_world,
         player_physics(),
@@ -377,6 +378,7 @@ fn jumping_while_sliding_diagonally_along_a_wall_keeps_rising() {
     assert_eq!(
         player_jump(
             CharacterSupport::Ground,
+            PlayerMoveIntent::NONE,
             vertical_velocity,
             &collision_world,
             player_physics(),

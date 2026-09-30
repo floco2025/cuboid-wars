@@ -3,7 +3,7 @@ pub(super) use crate::{
     config::CharacterPhysicsConfig,
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{Floor, Ladder, MapLayout, Position, Ramp, RampDirection, RampShape, Wall},
+    protocol::{Floor, Ladder, MapLayout, PlayerMoveIntent, Position, Ramp, RampDirection, RampShape, Wall},
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
 use crate::{

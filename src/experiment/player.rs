@@ -103,6 +103,7 @@ impl Owner {
                 .then(|| {
                     player_jump(
                         self.motion.support,
+                        self.motion.move_intent,
                         self.motion.vertical_velocity.0,
                         collision,
                         gameplay.player.physics(),

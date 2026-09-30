@@ -212,6 +212,7 @@ fn update_player_input_face_and_jump(
         if jump_requested && !stance.crouched {
             let jump = player_jump(
                 step.map_or(CharacterSupport::Airborne, |step| step.support),
+                move_intent,
                 motion.0,
                 collision_world,
                 gameplay_config.player.physics(),

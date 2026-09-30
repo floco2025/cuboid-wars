@@ -171,6 +171,23 @@ impl LadderVolume {
         let shift = offset - self.offset_from_plane(x, z);
         (self.normal_x.mul_add(shift, x), self.normal_z.mul_add(shift, z))
     }
+
+    // Horizontal distance from `pos` to the volume's boundary along `direction`.
+    #[must_use]
+    pub fn exit_distance(&self, pos: &Position, direction: Vec3) -> f32 {
+        let mut distance = f32::INFINITY;
+        for (at, along, min, max) in [
+            (pos.x, direction.x, self.min.x, self.max.x),
+            (pos.z, direction.z, self.min.z, self.max.z),
+        ] {
+            if along > 0.0 {
+                distance = distance.min((max - at) / along);
+            } else if along < 0.0 {
+                distance = distance.min((min - at) / along);
+            }
+        }
+        distance.max(0.0)
+    }
 }
 
 impl CollisionWorld {

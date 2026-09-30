@@ -163,11 +163,13 @@ fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResu
         target
     };
     let physics = stance.physics(body);
+    // A held climber is not flying: its wish matches its control exactly, so
+    // nothing but a shove reaches the motor as external displacement.
     let mut wish = if step.disabled || !locomotion {
         Vec3::ZERO
     } else {
         step.intent
-            .wish_velocity(player_move_speed(&cfg.player, step.has_speed), !grounded)
+            .wish_velocity(player_move_speed(&cfg.player, step.has_speed), !grounded && !on_ladder)
     };
     if grounded && stance.crouched {
         wish *= PLAYER_CROUCH_SPEED_RATIO;
@@ -190,7 +192,7 @@ fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResu
         )
     };
     let steering = step.intent.forward != 0.0 || step.intent.sideways != 0.0;
-    let funnel = if locomotion && !grounded && !step.disabled && !steering {
+    let funnel = if locomotion && !grounded && !on_ladder && !step.disabled && !steering {
         step.portal_set.funnel_correction(FunnelStep {
             origin: start.into(),
             physics,

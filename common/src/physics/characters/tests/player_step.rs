@@ -656,6 +656,7 @@ fn trace(
         if phase.jump {
             let jump = player_jump(
                 support,
+                phase.intent,
                 velocity.y,
                 world,
                 gameplay.player.physics(),
@@ -768,6 +769,67 @@ fn a_jump_on_a_ladder_lets_go_without_rising() {
         highest <= release_y + coasting + 1e-3,
         "rose from {release_y} to {highest}"
     );
+    let (pos, support) = trace.last().expect("trace is empty");
+    assert!(
+        world.ladder_volume_at(pos).is_none() && *support != CharacterSupport::Ladder,
+        "{pos:?} {support:?}"
+    );
+}
+
+#[test]
+fn a_forward_jump_lands_on_the_landing_behind_the_ladder() {
+    let layout = MapLayout {
+        floors: vec![ladder_front_base_floor(), ladder_back_landing_floor()],
+        ladders: vec![test_ladder_two_storey()],
+        ..Default::default()
+    };
+    let world = CollisionWorld::from_map_layout(&layout);
+    let step_through = Phase {
+        intent: PlayerMoveIntent::moving(0.0),
+        jump: true,
+        ticks: 60,
+    };
+    let trace = trace(
+        &world,
+        &weak_air_settings(),
+        LADDER_FOOT,
+        &[hold(CLIMB, 120), step_through],
+    );
+    let (release, support) = trace[119];
+    assert!(
+        support == CharacterSupport::Ladder && release.y > LEVEL_HEIGHT,
+        "{release:?} {support:?}"
+    );
+    assert!(
+        trace[120..].iter().any(|(pos, support)| {
+            *support == CharacterSupport::Ground && pos.z > 0.0 && (pos.y - LEVEL_HEIGHT).abs() < 0.05
+        }),
+        "never landed behind the ladder: {:?}",
+        trace.last()
+    );
+}
+
+#[test]
+fn a_jump_while_descending_still_lets_go() {
+    let world = CollisionWorld::from_map_layout(&ladder_layout());
+    let descend = PlayerMoveIntent {
+        forward: -1.0,
+        ..PlayerMoveIntent::NONE
+    };
+    let let_go = Phase {
+        intent: descend,
+        jump: true,
+        ticks: 45,
+    };
+    // The climb velocity coasts out before the descent starts.
+    let phases = [
+        hold(CLIMB, 40),
+        hold(PlayerMoveIntent::NONE, 15),
+        hold(descend, 5),
+        let_go,
+    ];
+    let trace = trace(&world, &weak_air_settings(), LADDER_FOOT, &phases);
+    assert_eq!(trace[59].1, CharacterSupport::Ladder);
     let (pos, support) = trace.last().expect("trace is empty");
     assert!(
         world.ladder_volume_at(pos).is_none() && *support != CharacterSupport::Ladder,

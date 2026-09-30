@@ -19,12 +19,12 @@ use crate::{
     config::{CharacterPhysicsConfig, MapMovementConfig},
     constants::{
         CHARACTER_CONTACT_OFFSET, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH,
-        CHARACTER_TERMINAL_VELOCITY, LADDER_VOLUME_DEPTH,
+        CHARACTER_TERMINAL_VELOCITY,
     },
     map::Carriers,
     math::from_rapier,
     physics::{PortalSet, world::CollisionWorld},
-    protocol::{CarrierId, FieldId, Position},
+    protocol::{CarrierId, FieldId, PlayerMoveIntent, Position},
 };
 
 const CHARACTER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
@@ -41,11 +41,13 @@ pub enum PlayerJump {
     Release(Vec3),
 }
 
-// A held body lets go instead of rising, and a body airborne in the volume
-// gets no jump at all, so hopping cannot outclimb the ladder.
+// A held body lets go instead of rising, shoved the way it is pushing (away
+// from the face by default, forward through the rungs), and a body airborne
+// in the volume gets no jump at all, so hopping cannot outclimb the ladder.
 #[must_use]
 pub fn player_jump(
     support: CharacterSupport,
+    intent: PlayerMoveIntent,
     vertical_velocity: f32,
     collision_world: &CollisionWorld,
     physics: CharacterPhysicsConfig,
@@ -56,12 +58,12 @@ pub fn player_jump(
 ) -> Option<PlayerJump> {
     if support == CharacterSupport::Ladder {
         let ladder = collision_world.ladder_volume_at(pos)?;
-        let clearance = (LADDER_VOLUME_DEPTH - ladder.offset_from_plane(pos.x, pos.z)).max(0.0);
-        // The shove decays like a blast, so it is at least what carries the body out of the volume.
-        let exit_speed = (2.0 * movement.knockback.deceleration * clearance).sqrt();
-        let ladder_speed = player_move_speed(&movement.player, has_speed) * movement.player.move_speed_ladder;
         let away = Vec3::new(ladder.normal_x, 0.0, ladder.normal_z);
-        return Some(PlayerJump::Release(away * ladder_speed.max(exit_speed)));
+        let direction = intent.wish_velocity(1.0, false).try_normalize().unwrap_or(away);
+        // The shove decays like a blast, so it is at least what carries the body out of the volume.
+        let exit_speed = (2.0 * movement.knockback.deceleration * ladder.exit_distance(pos, direction)).sqrt();
+        let ladder_speed = player_move_speed(&movement.player, has_speed) * movement.player.move_speed_ladder;
+        return Some(PlayerJump::Release(direction * ladder_speed.max(exit_speed)));
     }
     if vertical_velocity > 0.0 || !position_has_floor_support(collision_world, pos, physics, passable_fields) {
         return None;
@@ -214,18 +216,24 @@ fn prepare_movement_request(
     } else {
         Vec3::ZERO
     };
-    let target_x = step.control_velocity.x.mul_add(step.delta, start_pos.x)
-        + step.external_displacement.x
-        + carry_xz.x
-        + ladder_funnel.x;
-    let target_z = step.control_velocity.z.mul_add(step.delta, start_pos.z)
-        + step.external_displacement.z
-        + carry_xz.z
-        + ladder_funnel.z;
-    let (target_x, target_z) = if matches!(env.ladder_mode, LadderMode::Automatic | LadderMode::Climb) {
-        ladder.constrain_target(&ladder_pos, target_x, target_z, collision_world, physics)
+    let control_x = step.control_velocity.x.mul_add(step.delta, start_pos.x) + carry_xz.x + ladder_funnel.x;
+    let control_z = step.control_velocity.z.mul_add(step.delta, start_pos.z) + carry_xz.z + ladder_funnel.z;
+    let external = step.external_displacement;
+    let (target_x, target_z) = if !matches!(env.ladder_mode, LadderMode::Automatic | LadderMode::Climb) {
+        (control_x + external.x, control_z + external.z)
+    } else if ladder.is_supported() {
+        // A shove moves a held body freely, so letting go or a blast can carry
+        // it through the rungs; a walker's whole move stays fenced.
+        let (x, z) = ladder.constrain_target(&ladder_pos, control_x, control_z, collision_world, physics);
+        (x + external.x, z + external.z)
     } else {
-        (target_x, target_z)
+        ladder.constrain_target(
+            &ladder_pos,
+            control_x + external.x,
+            control_z + external.z,
+            collision_world,
+            physics,
+        )
     };
     let requested_target = Position {
         x: target_x,

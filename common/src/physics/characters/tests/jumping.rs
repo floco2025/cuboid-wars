@@ -10,6 +10,7 @@ fn supported_player_can_start_jump() {
     assert_eq!(
         player_jump(
             CharacterSupport::Ground,
+            PlayerMoveIntent::NONE,
             0.0,
             &collision_world,
             player_physics(),
@@ -31,6 +32,7 @@ fn airborne_player_cannot_start_jump() {
     assert_eq!(
         player_jump(
             CharacterSupport::Airborne,
+            PlayerMoveIntent::NONE,
             0.0,
             &collision_world,
             player_physics(),
@@ -50,6 +52,7 @@ fn upward_jump_velocity_moves_player_above_support() {
     let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
     let Some(PlayerJump::Rise(motion)) = player_jump(
         CharacterSupport::Ground,
+        PlayerMoveIntent::NONE,
         0.0,
         &collision_world,
         player_physics(),
@@ -251,6 +254,7 @@ fn a_bridge_its_key_passes_is_no_floor_to_jump_from() {
         let passable = passable_fields(held_keys, &[]);
         player_jump(
             CharacterSupport::Ground,
+            PlayerMoveIntent::NONE,
             0.0,
             &collision_world,
             player_physics(),
