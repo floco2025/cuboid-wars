@@ -104,11 +104,21 @@ fn corridor_reach(shape: &Capsule, frame: &PortalFrame) -> f32 {
     body_support(shape, frame.normal) + TRANSIT_MARGIN
 }
 
+// A body passing through a carried aperture: the carrier, and how far the
+// feet are in front of the gate's plane (behind it when negative).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Transit {
+    pub carrier: CarrierId,
+    pub feet_distance: f32,
+}
+
 pub struct PlayerHopBody<'a> {
     pub stance: PlayerStance,
     pub knockback: &'a KnockbackVelocity,
     pub horizontal_velocity: &'a HorizontalVelocity,
     pub vertical_velocity: f32,
+    // The velocity the ride gives a grounded body on top of its own.
+    pub carried: Vec3,
     pub yaw: f32,
 }
 
@@ -117,6 +127,8 @@ pub struct CharacterHopBody {
     pub knockback: Vec3,
     pub horizontal_velocity: Vec3,
     pub vertical_velocity: f32,
+    // The velocity the ride gives a grounded body on top of its own.
+    pub carried: Vec3,
     pub yaw: f32,
 }
 
@@ -309,6 +321,7 @@ impl PortalSet {
         gameplay_config: &GameplayConfig,
         movement: &MapMovementConfig,
         body: PlayerHopBody<'_>,
+        delta: f32,
     ) -> Option<CharacterPortalHop> {
         let mut hop = self.character_hop(
             from,
@@ -318,9 +331,11 @@ impl PortalSet {
                 knockback: body.knockback.0,
                 horizontal_velocity: body.horizontal_velocity.0,
                 vertical_velocity: body.vertical_velocity,
+                carried: body.carried,
                 yaw: body.yaw,
             },
             PORTAL_KNOCKBACK_CARRY_FACTOR * movement.knockback.max_speed,
+            delta,
         )?;
         // Rotating an upright body more than 30 degrees needs the shorter hull
         // at the exit. Preserve its centre, as with an airborne manual duck.
@@ -369,17 +384,12 @@ impl PortalSet {
         excluded
     }
 
-    // The carrier whose aperture a body is passing through, with the gate's
-    // backing: the body's center is inside a carried gate's rectangle and
-    // within the transit margin of its plane. Bounded in front, unlike
-    // `collision_exclusions`, so a jumper above the carrier is not taken
-    // along.
+    // The carried aperture a body is passing through: the body's center is
+    // inside a carried gate's rectangle and within the transit margin of
+    // its plane. Bounded in front, unlike `collision_exclusions`, so a
+    // jumper above the carrier is not taken along.
     #[must_use]
-    pub fn transit_carrier(
-        &self,
-        origin: Vec3,
-        physics: CharacterPhysicsConfig,
-    ) -> Option<(CarrierId, &[ColliderHandle])> {
+    pub(crate) fn transit(&self, origin: Vec3, physics: CharacterPhysicsConfig) -> Option<Transit> {
         let shape = character_movement_shape(physics);
         let center = character_movement_center(origin.into(), physics);
         self.gates().find_map(|(gate, _)| {
@@ -389,8 +399,10 @@ impl PortalSet {
             let offset = center - gate.frame.center;
             let reach = corridor_reach(&shape, &gate.frame);
             let distance = offset.dot(gate.frame.normal);
-            (distance > -reach && distance <= reach && in_character_aperture(offset, &gate.frame))
-                .then_some((gate.portal.carrier, gate.backing.as_slice()))
+            (distance > -reach && distance <= reach && in_character_aperture(offset, &gate.frame)).then_some(Transit {
+                carrier: gate.portal.carrier,
+                feet_distance: (origin - gate.frame.center).dot(gate.frame.normal),
+            })
         })
     }
 
@@ -472,7 +484,10 @@ impl PortalSet {
     // the body stays inside the exit aperture; this is also what lets a
     // steering player escape a fall chain) and penetration carried — and so
     // does velocity, split into vertical velocity, blast knockback, and
-    // airborne momentum.
+    // airborne momentum. A pair links two frames: the velocity the body has
+    // relative to the entry's carrier is the velocity it has relative to the
+    // exit's, turned through the pair. `delta` is the tick the gates' carry
+    // was measured over.
     #[must_use]
     pub fn character_hop(
         &self,
@@ -481,11 +496,13 @@ impl PortalSet {
         physics: CharacterPhysicsConfig,
         body: CharacterHopBody,
         knockback_cap: f32,
+        delta: f32,
     ) -> Option<CharacterPortalHop> {
         let CharacterHopBody {
             knockback,
             horizontal_velocity,
             vertical_velocity,
+            carried,
             yaw,
         } = body;
         // A crossing is continuous motion; a jump no single tick of movement
@@ -497,8 +514,10 @@ impl PortalSet {
         let shape = character_movement_shape(physics);
         let center_offset = character_movement_center(Position::default(), physics);
         let center_to = to + center_offset;
-        let portal_velocity = horizontal_velocity + Vec3::Y * vertical_velocity;
-        let velocity = knockback + portal_velocity;
+        let portal_velocity = horizontal_velocity + carried + Vec3::Y * vertical_velocity;
+        let carrier_velocity = |gate: &PortalGate| {
+            if delta > 0.0 { gate.carry / delta } else { Vec3::ZERO }
+        };
         for (entry_gate, exit_gate) in self.gates() {
             let entry = &entry_gate.frame;
             let exit = &exit_gate.frame;
@@ -520,9 +539,10 @@ impl PortalSet {
                 + exit.right * (-offset.dot(entry.right)).clamp(-across_limit, across_limit)
                 + exit.up * offset.dot(entry.up).clamp(-up_limit, up_limit)
                 + exit.normal * (-to_distance);
-            let mapped_velocity = traverse_vector(entry, exit, velocity);
-            let mapped_portal_velocity = traverse_vector(entry, exit, portal_velocity);
+            let relative = portal_velocity - carrier_velocity(entry_gate);
+            let mapped_portal_velocity = traverse_vector(entry, exit, relative) + carrier_velocity(exit_gate);
             let mapped_knockback = traverse_vector(entry, exit, knockback);
+            let mapped_velocity = mapped_portal_velocity + mapped_knockback;
             return Some(CharacterPortalHop {
                 force_crouch: false,
                 origin: exit_center - center_offset,

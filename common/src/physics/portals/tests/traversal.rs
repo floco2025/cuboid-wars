@@ -104,9 +104,11 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: control,
                 vertical_velocity: 0.0,
+                carried: Vec3::ZERO,
                 yaw: PI,
             },
             CAP,
+            TICK_SECS,
         )
         .expect("same-wall entry did not hop");
     let mut position = Position::default();
@@ -138,9 +140,11 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
                 knockback: hop.knockback,
                 horizontal_velocity: hop.horizontal_velocity + next_control,
                 vertical_velocity: hop.vertical_velocity,
+                carried: Vec3::ZERO,
                 yaw: hop.yaw,
             },
             CAP,
+            TICK_SECS
         )
         .is_none()
     );
@@ -204,9 +208,11 @@ fn falling_into_floor_portal_carries_out_of_wall_as_horizontal_velocity() {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -10.0,
+                carried: Vec3::ZERO,
                 yaw: 0.0,
             },
             CAP,
+            TICK_SECS,
         )
         .expect("fall through a floor portal did not trigger");
     assert!(hop.vertical_velocity.abs() < 1e-4);
@@ -226,9 +232,11 @@ fn walking_into_wall_portal_exits_floor_portal_upward() {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::new(0.0, 0.0, -6.0),
                 vertical_velocity: 0.0,
+                carried: Vec3::ZERO,
                 yaw: PI,
             },
             CAP,
+            TICK_SECS,
         )
         .expect("walk through a wall portal did not trigger");
     // Control maps into the vertical write but not either momentum carry.
@@ -261,8 +269,10 @@ fn falling_into_floor_portal_exits_ramp_at_its_normal_angle() {
                 knockback: &KnockbackVelocity::default(),
                 horizontal_velocity: &HorizontalVelocity::default(),
                 vertical_velocity: -10.0,
+                carried: Vec3::ZERO,
                 yaw: 0.0,
             },
+            TICK_SECS,
         )
         .expect("floor-to-ramp portal crossing missing");
     let exit_velocity = hop.horizontal_velocity + hop.knockback + Vec3::Y * hop.vertical_velocity;
@@ -285,9 +295,11 @@ fn crossing_the_plane_triggers_and_carries_penetration() {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::new(0.0, 0.0, -6.0),
                 vertical_velocity: 0.0,
+                carried: Vec3::ZERO,
                 yaw: PI,
             },
             CAP,
+            TICK_SECS,
         )
         .expect("crossing did not trigger");
     // The exit continues in front of the paired plane by the same
@@ -306,9 +318,11 @@ fn approaching_without_crossing_does_not_trigger() {
             knockback: Vec3::ZERO,
             horizontal_velocity: Vec3::new(0.0, 0.0, -6.0),
             vertical_velocity: 0.0,
+            carried: Vec3::ZERO,
             yaw: PI,
         },
         CAP,
+        TICK_SECS,
     );
     assert!(hop.is_none());
 }
@@ -324,9 +338,11 @@ fn crossing_from_behind_does_not_trigger() {
             knockback: Vec3::ZERO,
             horizontal_velocity: Vec3::new(0.0, 0.0, 1.0),
             vertical_velocity: 0.0,
+            carried: Vec3::ZERO,
             yaw: 0.0,
         },
         CAP,
+        TICK_SECS,
     );
     assert!(hop.is_none());
 }
@@ -342,9 +358,11 @@ fn crossing_outside_the_aperture_does_not_trigger() {
             knockback: Vec3::ZERO,
             horizontal_velocity: Vec3::new(0.0, 0.0, -6.0),
             vertical_velocity: 0.0,
+            carried: Vec3::ZERO,
             yaw: PI,
         },
         CAP,
+        TICK_SECS,
     );
     assert!(hop.is_none());
 }
@@ -362,9 +380,11 @@ fn off_center_crossing_uses_the_full_rectangle() {
             knockback: Vec3::ZERO,
             horizontal_velocity: Vec3::new(0.0, 0.0, -6.0),
             vertical_velocity: 0.0,
+            carried: Vec3::ZERO,
             yaw: PI,
         },
         CAP,
+        TICK_SECS,
     );
     assert!(hop.is_some());
 }
@@ -381,9 +401,11 @@ fn knockback_carry_is_capped() {
                 knockback: Vec3::X * 50.0,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -1.0,
+                carried: Vec3::ZERO,
                 yaw: 0.0,
             },
             CAP,
+            TICK_SECS,
         )
         .expect("fall through a floor portal did not trigger");
     assert!((hop.knockback.length() - CAP).abs() < 1e-4);
@@ -401,9 +423,11 @@ fn an_external_teleport_is_not_a_crossing() {
             knockback: Vec3::ZERO,
             horizontal_velocity: Vec3::ZERO,
             vertical_velocity: 0.0,
+            carried: Vec3::ZERO,
             yaw: PI,
         },
         CAP,
+        TICK_SECS,
     );
     assert!(hop.is_none());
 }
@@ -443,9 +467,11 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: inside_move,
                 vertical_velocity: 0.0,
+                carried: Vec3::ZERO,
                 yaw: PI,
             },
             CAP,
+            TICK_SECS
         )
         .is_some()
     );
@@ -466,9 +492,11 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: outside_move,
                 vertical_velocity: 0.0,
+                carried: Vec3::ZERO,
                 yaw: PI,
             },
             CAP,
+            TICK_SECS
         )
         .is_none()
     );

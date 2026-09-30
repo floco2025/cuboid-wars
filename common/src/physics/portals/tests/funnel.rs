@@ -1,5 +1,6 @@
 use super::*;
 use crate::constants::CHARACTER_TERMINAL_VELOCITY;
+use crate::constants::TICK_SECS;
 
 // Mirrors one server tick: the movement step (portal backing excluded,
 // so the body sinks straight through), then the crossing check between
@@ -81,9 +82,11 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity,
+                carried: Vec3::ZERO,
                 yaw: 0.0,
             },
             22.5,
+            TICK_SECS,
         ) {
             entry_speeds.push(-vertical_velocity);
             pos = hop.origin.into();
@@ -171,9 +174,11 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity,
+                carried: Vec3::ZERO,
                 yaw: 0.0,
             },
             22.5,
+            TICK_SECS,
         ) {
             entry_speeds.push(-vertical_velocity);
             pos = hop.origin.into();
@@ -218,9 +223,11 @@ fn aperture_offset_carries_through_an_opposing_pair() {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -5.0,
+                carried: Vec3::ZERO,
                 yaw: 0.0,
             },
             CAP,
+            TICK_SECS,
         )
         .expect("offset crossing did not trigger");
     assert!((hop.origin.x - 10.0).abs() < 1e-4);
@@ -245,9 +252,11 @@ fn carried_offset_is_clamped_to_the_exit_aperture() {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -5.0,
+                carried: Vec3::ZERO,
                 yaw: 0.0,
             },
             CAP,
+            TICK_SECS,
         )
         .expect("edge crossing did not trigger");
     let limit = PORTAL_HALF_WIDTH - physics.movement_collider.radius();
@@ -329,9 +338,11 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: control,
                 vertical_velocity,
+                carried: Vec3::ZERO,
                 yaw: 0.0,
             },
             22.5,
+            TICK_SECS,
         ) {
             pos = hop.origin.into();
             vertical_velocity = hop.vertical_velocity;

@@ -267,8 +267,10 @@ fn assert_flights_match(gates: &Gates, start: PlayerFlightState, heading: Option
                         knockback: &KnockbackVelocity::default(),
                         horizontal_velocity: &HorizontalVelocity(horizontal),
                         vertical_velocity: vertical,
+                        carried: step.movement.carried(),
                         yaw: 0.0,
                     },
+                    DELTA,
                 );
                 if let Some(hop) = &hop {
                     pos = hop.origin.into();

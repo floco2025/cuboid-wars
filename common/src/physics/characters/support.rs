@@ -109,32 +109,47 @@ pub(super) struct RiderCarry {
 
 // A body standing on a carrier follows it by the ride rule
 // (`supporting_carrier`); a body on a carried ladder follows the ladder's
-// carrier. A body passing through an aperture mounted on a carrier follows
-// that carrier instead, until it crosses: the ride rule lets go the tick
-// the feet leave the surface, and a fast carrier would pull the aperture
-// out from under a sinking body. In transit the carrier's velocity is not
-// reported, so a rising floor does not pump the fall and the slide is not
-// gathered as momentum; the body exits the pair with carrier-relative
-// velocity. A body in the corridor that another carrier supports (standing
-// under a lift's ceiling portal) stays put, and the plane reaching it is
-// what the relative crossing test catches; the portal's own carrier
-// supporting it (its floor in front of its wall portal) is still the ride.
+// carrier. In the corridor of a carried aperture the ride rule applies
+// only to a body that ended the last tick standing: on that carrier in
+// front of its wall portal, or on top of a floor portal it sinks into
+// this tick, once the motor excludes the backing. The sink is a departure
+// like any other and takes the carrier's motion into the body's own
+// velocity, so a body already in the air here is on its own: its velocity
+// keeps it with a sliding aperture and nothing is added twice. The probe
+// alone cannot tell a stand from a body falling into the hole or rising
+// out of it, which pass within its reach too; a stand has its feet in
+// front of the plane and no vertical velocity, since a landing zeroes it
+// (`finish_character_movement`) and standing never adds any. A jump on the
+// very tick a body would sink leaves without the ride. The gate's carrier
+// is the frame an unsupported body's position is reported in.
 pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shape: &Capsule) -> RiderCarry {
     let transit = env
         .portals
-        .and_then(|portals| portals.transit_carrier(Vec3::from(step.start), env.physics));
+        .and_then(|portals| portals.transit(Vec3::from(step.start), env.physics));
     let carrier = match transit {
-        Some((carrier, backing)) => {
-            let supported_elsewhere = character_ground_hit(
-                env.collision_world,
-                shape,
-                &step.start,
-                env.passable_fields,
-                backing,
-                env.physics,
-            )
-            .is_some_and(|hit| hit.carrier != carrier);
-            (!supported_elsewhere).then_some(carrier)
+        Some(transit) => {
+            let standing = (step.vertical_velocity == 0.0 && transit.feet_distance > -CHARACTER_CONTACT_OFFSET)
+                .then(|| {
+                    supporting_carrier(
+                        env.collision_world,
+                        shape,
+                        &step.start,
+                        env.passable_fields,
+                        env.physics,
+                        env.carriers,
+                    )
+                })
+                .flatten();
+            match standing {
+                Some(supporting) => Some(supporting),
+                None => {
+                    return RiderCarry {
+                        carrier: transit.carrier,
+                        displacement: Vec3::ZERO,
+                        floor_velocity: Vec3::ZERO,
+                    };
+                }
+            }
         }
         None if env.carriers.is_static() => None,
         None => env
@@ -179,7 +194,7 @@ pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shap
     RiderCarry {
         carrier: carrier.unwrap_or(CarrierId::WORLD),
         displacement,
-        floor_velocity: if transit.is_some() || step.delta <= 0.0 {
+        floor_velocity: if step.delta <= 0.0 {
             Vec3::ZERO
         } else {
             displacement / step.delta

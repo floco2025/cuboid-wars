@@ -436,9 +436,11 @@ pub(crate) fn run_ticks(
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity,
+                carried: Vec3::ZERO,
                 yaw: 0.0,
             },
             CAP,
+            TICK_SECS,
         ) {
             return (Some((tick, hop)), pos, support);
         }

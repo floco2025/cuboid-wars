@@ -22,6 +22,8 @@ pub struct LocalMovementStep {
     pub impact_speed: f32,
     pub carrier: CarrierId,
     pub support: CharacterSupport,
+    // The velocity the ride gave a grounded body on top of its own this tick.
+    pub carried: Vec3,
 }
 
 pub(crate) fn report_move_outcomes_system(

@@ -836,3 +836,215 @@ fn a_jump_while_descending_still_lets_go() {
         "{pos:?} {support:?}"
     );
 }
+
+// Walking off a sliding tile into its own floor portal: the tile's motion
+// goes with the body as it sinks, so it keeps pace with the aperture, and
+// comes off again at the crossing, since it is motion relative to the
+// entry, not to the static exit.
+#[test]
+fn a_walk_into_a_sliding_tiles_portal_sinks_with_the_tile_and_leaves_its_speed_behind() {
+    use crate::{
+        physics::PlayerHopBody,
+        protocol::{CarrierId, Portal, PortalEnd, PortalPairId},
+    };
+    let (carrier, floor) = slider();
+    let layout = MapLayout {
+        carriers: vec![carrier],
+        floors: vec![floor],
+        ..Default::default()
+    };
+    let gameplay = load_test_gameplay().expect("gameplay");
+    let settings = map_settings();
+    let portal = |end, pos: Vec3, normal: Vec3, carrier| Portal {
+        pair: PortalPairId(1),
+        end,
+        pos: pos.into(),
+        nx: normal.x,
+        ny: normal.y,
+        nz: normal.z,
+        yaw: 0.0,
+        carrier,
+    };
+    // On the tile, a step short of the aperture, walking toward it.
+    let mut pos = Position {
+        x: 4.0 * 10.0 / 60.0,
+        y: 0.0,
+        z: 1.45,
+    };
+    let (mut vertical, mut horizontal, mut stance) = (0.0, Vec3::ZERO, PlayerStance::default());
+    let mut sinking: Vec<f32> = Vec::new();
+    for tick in 10..40u32 {
+        let (world, carriers) = world_at(&layout, tick);
+        let set = PortalSet::rebuild(
+            &[
+                portal(PortalEnd::A, Vec3::ZERO, Vec3::Y, TILE),
+                portal(PortalEnd::B, Vec3::new(0.0, 8.0, 20.0), Vec3::NEG_Y, CarrierId::WORLD),
+            ],
+            &world,
+            &carriers,
+            gameplay.portals.size,
+        );
+        let step = step_player_movement(PlayerMovementStep {
+            start: pos,
+            vertical_velocity: vertical,
+            horizontal_velocity: horizontal,
+            stance,
+            intent: PlayerMoveIntent {
+                forward: -1.0,
+                ..PlayerMoveIntent::NONE
+            },
+            has_speed: false,
+            disabled: false,
+            delta: 1.0 / 30.0,
+            has_low_gravity: false,
+            held_keys: &[],
+            open_fields: &[],
+            external_displacement: Vec3::ZERO,
+            collision_world: &world,
+            map_settings: &settings,
+            gameplay_config: &gameplay,
+            portal_set: &set,
+            carriers: &carriers,
+        });
+        pos = step.movement.position;
+        vertical = step.movement.vertical_velocity;
+        horizontal = step.horizontal_velocity;
+        stance = step.stance;
+        if step.movement.support == CharacterSupport::Airborne {
+            sinking.push(pos.x - carriers.pose(TILE).translation.x);
+            assert!((horizontal.x - 2.0).abs() < 1e-3, "tick {tick}: {horizontal}");
+        }
+        if let Some(hop) = set.player_hop(
+            step.start.into(),
+            pos.into(),
+            &gameplay,
+            &settings.movement,
+            PlayerHopBody {
+                stance,
+                knockback: &KnockbackVelocity::default(),
+                horizontal_velocity: &HorizontalVelocity(horizontal),
+                vertical_velocity: vertical,
+                carried: step.movement.carried(),
+                yaw: 0.0,
+            },
+            1.0 / 30.0,
+        ) {
+            assert!(sinking.len() >= 2, "{sinking:?}");
+            let drift = sinking
+                .iter()
+                .fold(0.0_f32, |worst, rel| worst.max((rel - sinking[0]).abs()));
+            assert!(drift < 1e-3, "drifted across the aperture: {sinking:?}");
+            let walk = settings.movement.player.move_speed;
+            assert!((hop.horizontal_velocity.length() - walk).abs() < 1e-3, "{hop:?}");
+            return;
+        }
+    }
+    panic!("never crossed the tile's aperture: {pos:?}");
+}
+
+// Released flight over the slider's floor portal, from `feet` at tick 10:
+// per tick, the position relative to the tile, horizontal velocity, and
+// vertical velocity after the step.
+fn slider_portal_flight(feet: Position, vertical: f32, horizontal: Vec3, ticks: u32) -> Vec<(Vec3, Vec3, f32)> {
+    use crate::protocol::{CarrierId, Portal, PortalEnd, PortalPairId};
+    let (carrier, floor) = slider();
+    let layout = MapLayout {
+        carriers: vec![carrier],
+        floors: vec![floor],
+        ..Default::default()
+    };
+    let gameplay = load_test_gameplay().expect("gameplay");
+    let settings = map_settings();
+    let portal = |end, pos: Vec3, normal: Vec3, carrier| Portal {
+        pair: PortalPairId(1),
+        end,
+        pos: pos.into(),
+        nx: normal.x,
+        ny: normal.y,
+        nz: normal.z,
+        yaw: 0.0,
+        carrier,
+    };
+    let (mut pos, mut vertical, mut horizontal, mut stance) = (feet, vertical, horizontal, PlayerStance::default());
+    let mut trace = Vec::new();
+    for tick in 10..10 + ticks {
+        let (world, carriers) = world_at(&layout, tick);
+        let set = PortalSet::rebuild(
+            &[
+                portal(PortalEnd::A, Vec3::new(0.0, 8.0, 20.0), Vec3::NEG_Y, CarrierId::WORLD),
+                portal(PortalEnd::B, Vec3::ZERO, Vec3::Y, TILE),
+            ],
+            &world,
+            &carriers,
+            gameplay.portals.size,
+        );
+        let step = step_player_movement(PlayerMovementStep {
+            start: pos,
+            vertical_velocity: vertical,
+            horizontal_velocity: horizontal,
+            stance,
+            intent: PlayerMoveIntent::NONE,
+            has_speed: false,
+            disabled: false,
+            delta: 1.0 / 30.0,
+            has_low_gravity: false,
+            held_keys: &[],
+            open_fields: &[],
+            external_displacement: Vec3::ZERO,
+            collision_world: &world,
+            map_settings: &settings,
+            gameplay_config: &gameplay,
+            portal_set: &set,
+            carriers: &carriers,
+        });
+        pos = step.movement.position;
+        vertical = step.movement.vertical_velocity;
+        horizontal = step.horizontal_velocity;
+        stance = step.stance;
+        assert_eq!(
+            step.movement.support,
+            CharacterSupport::Airborne,
+            "tick {tick}: {pos:?}"
+        );
+        trace.push((Vec3::from(pos) - carriers.pose(TILE).translation, horizontal, vertical));
+    }
+    trace
+}
+
+// A body coming up out of the tile's floor portal already moves with the
+// tile; passing the top of the slab must not carry it a second time.
+#[test]
+fn rising_out_of_a_sliding_tiles_portal_is_not_carried_again() {
+    let feet = Position {
+        x: 10.0 * 4.0 / 60.0,
+        y: -0.85,
+        z: 0.0,
+    };
+    let trace = slider_portal_flight(feet, 6.0, Vec3::X * 2.0, 16);
+    let (first, ..) = trace[0];
+    let top = trace.iter().map(|(rel, ..)| rel.y).fold(f32::MIN, f32::max);
+    assert!(
+        top > 0.3 && trace.last().is_some_and(|(rel, ..)| rel.y < top),
+        "{trace:?}"
+    );
+    for (rel, horizontal, _) in &trace {
+        assert!((horizontal - Vec3::X * 2.0).length() < 1e-3, "{trace:?}");
+        assert!((rel.x - first.x).abs() < 1e-3 && rel.z.abs() < 1e-3, "{trace:?}");
+    }
+}
+
+// A body dropping into the tile's floor portal from the air never stood on
+// the tile and takes none of its motion.
+#[test]
+fn dropping_into_a_sliding_tiles_portal_takes_none_of_its_motion() {
+    let feet = Position {
+        x: 10.0 * 4.0 / 60.0,
+        y: 0.25,
+        z: 0.0,
+    };
+    let trace = slider_portal_flight(feet, -1.0, Vec3::ZERO, 8);
+    assert!(trace.last().is_some_and(|(rel, ..)| rel.y < -0.1), "{trace:?}");
+    for (_, horizontal, _) in &trace {
+        assert!(horizontal.length() < 1e-3, "{trace:?}");
+    }
+}

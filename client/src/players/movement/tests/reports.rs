@@ -15,6 +15,7 @@ fn step(carrier: CarrierId, support: CharacterSupport) -> LocalMovementStep {
         impact_speed: 0.0,
         carrier,
         support,
+        carried: Vec3::ZERO,
     }
 }
 

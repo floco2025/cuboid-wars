@@ -3,11 +3,11 @@ use bevy::prelude::*;
 use crate::{
     cameras::MainCameraMarker,
     characters::PreviousTickPosition,
-    players::{LocalPlayerInfo, LocalPlayerMarker, eye_position},
+    players::{LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, eye_position},
     portals::apply_portal_view,
 };
 use common::{
-    config::GameplayConfig,
+    config::{GameplayConfig, NetworkConfig},
     physics::{CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity, PlayerHopBody, PortalSet},
     protocol::{FaceYaw, MapSettings, PlayerMoveIntent, PlayerStance, Position},
 };
@@ -17,6 +17,7 @@ pub fn portal_transit_system(
     portal_set: Res<PortalSet>,
     gameplay_config: Res<GameplayConfig>,
     map_settings: Res<MapSettings>,
+    network: Res<NetworkConfig>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
     cameras: Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     mut query: Query<
@@ -29,6 +30,7 @@ pub fn portal_transit_system(
             &mut KnockbackVelocity,
             &mut HorizontalVelocity,
             &mut PlayerStance,
+            Option<&LocalMovementStep>,
         ),
         With<LocalPlayerMarker>,
     >,
@@ -45,6 +47,7 @@ pub fn portal_transit_system(
         mut knockback,
         mut momentum,
         mut stance,
+        step,
     ) in &mut query
     {
         let Some(hop) = portal_set.player_hop(
@@ -57,8 +60,10 @@ pub fn portal_transit_system(
                 knockback: &knockback,
                 horizontal_velocity: &momentum,
                 vertical_velocity: vertical_velocity.0,
+                carried: step.map_or(Vec3::ZERO, |step| step.carried),
                 yaw: face_yaw.0,
             },
+            network.tick_duration().as_secs_f32(),
         ) else {
             continue;
         };

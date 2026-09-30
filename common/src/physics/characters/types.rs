@@ -34,6 +34,18 @@ pub struct CharacterMovementResult {
     pub crushed: bool,
 }
 
+impl CharacterMovementResult {
+    // The ride a body still standing on a carrier has on top of its own
+    // velocity; a body that left it took the ride into its own velocity.
+    pub fn carried(&self) -> Vec3 {
+        if self.support == CharacterSupport::Ground {
+            self.floor_velocity
+        } else {
+            Vec3::ZERO
+        }
+    }
+}
+
 #[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
 pub struct GroundingDiagnostics {
     pub origin: Vec3,

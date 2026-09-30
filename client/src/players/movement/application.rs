@@ -62,6 +62,7 @@ pub(crate) fn apply_player_moves(
                 impact_speed: result.impact_speed,
                 carrier: result.carrier,
                 support: result.support,
+                carried: result.carried(),
             },
         ));
         if let Some(state) = player.feedback.as_mut() {

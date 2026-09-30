@@ -88,6 +88,7 @@ fn input_app() -> (App, Entity, Entity) {
                 impact_speed: 0.0,
                 carrier: CarrierId::WORLD,
                 support: CharacterSupport::Ground,
+                carried: Vec3::ZERO,
             },
         ))
         .id();

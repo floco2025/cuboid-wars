@@ -187,8 +187,10 @@ impl Owner {
                 knockback: &self.motion.knockback,
                 horizontal_velocity: &self.motion.horizontal_velocity,
                 vertical_velocity: self.motion.vertical_velocity.0,
+                carried: result.carried(),
                 yaw: self.motion.face_yaw.0,
             },
+            delta,
         ) {
             let entrance = self.position;
             let before = self.velocity();
@@ -222,6 +224,7 @@ impl Owner {
             impact_speed: result.impact_speed,
             carrier: result.carrier,
             support: result.support,
+            carried: result.carried(),
         };
         let outcomes = collect_move_outcomes(
             &self.position,

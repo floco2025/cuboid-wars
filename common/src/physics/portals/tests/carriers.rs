@@ -1,7 +1,8 @@
 use std::f32::consts::FRAC_PI_2;
 
 use super::*;
-use crate::map::carrier_offset_at;
+use crate::constants::TICK_SECS;
+use crate::{map::carrier_offset_at, physics::character_movement_center};
 
 #[test]
 fn a_shot_at_a_carrier_floor_places_the_portal_on_the_carrier() {
@@ -294,9 +295,11 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
                     knockback: Vec3::ZERO,
                     horizontal_velocity: Vec3::ZERO,
                     vertical_velocity: -3.0,
+                    carried: Vec3::ZERO,
                     yaw: 0.0,
                 },
                 CAP,
+                TICK_SECS
             )
             .is_some(),
         "the rising plane's crossing was missed"
@@ -328,9 +331,11 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
                     knockback: Vec3::ZERO,
                     horizontal_velocity: Vec3::ZERO,
                     vertical_velocity: -3.0,
+                    carried: Vec3::ZERO,
                     yaw: 0.0,
                 },
                 CAP,
+                TICK_SECS
             )
             .is_none()
     );
@@ -378,4 +383,94 @@ fn a_static_portal_ignores_a_carrier_floor_passing_behind_it() {
         excluded.iter().all(|handle| world.carrier_of(*handle).is_world()),
         "the passing tile was taken as backing"
     );
+}
+
+// A pair links two frames: what the body has relative to the entry's carrier
+// it has relative to the exit's, turned through the pair.
+#[test]
+fn velocity_relative_to_the_entrys_carrier_is_velocity_relative_to_the_exits() {
+    let layout = tile_wall_layout(false);
+    let (world, carriers) = tile_world(&layout, 10);
+    let size = crate::config::gameplay::load_test_gameplay()
+        .expect("fixture gameplay")
+        .portals
+        .size;
+    let physics = player_physics();
+    let centre = character_movement_center(Position::default(), physics);
+    let tile = tile_center(&carriers);
+    let slide = carriers.displacement(TILE) / TICK_SECS;
+    assert!((slide - Vec3::X * 2.0).length() < 1e-3, "{slide}");
+
+    // Into the sliding floor portal, out of the static wall: a body falling
+    // along with the tile leaves the wall straight, at its fall speed alone.
+    let set = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers, size);
+    let sink = |set: &PortalSet, horizontal: Vec3, carried: Vec3| {
+        let from = tile - centre + Vec3::Y * 0.05 - carriers.displacement(TILE);
+        let to = tile - centre - Vec3::Y * 0.05;
+        set.character_hop(
+            from,
+            to,
+            physics,
+            CharacterHopBody {
+                knockback: Vec3::ZERO,
+                horizontal_velocity: horizontal,
+                vertical_velocity: -5.0,
+                carried,
+                yaw: 0.0,
+            },
+            CAP,
+            TICK_SECS,
+        )
+        .expect("the body did not cross the tile's aperture")
+    };
+    let along = sink(&set, slide, Vec3::ZERO);
+    assert!((along.horizontal_velocity - Vec3::Z * 5.0).length() < 1e-3, "{along:?}");
+    assert!(along.vertical_velocity.abs() < 1e-3, "{along:?}");
+    // The same whether the body carries that motion itself or its ride does.
+    let ridden = sink(&set, Vec3::ZERO, slide);
+    assert!(
+        (ridden.horizontal_velocity - along.horizontal_velocity).length() < 1e-3,
+        "{ridden:?}"
+    );
+    // One falling straight down in the world drifts 2 m/s relative to the
+    // tile, and that drift comes out of the wall sideways.
+    let still = sink(&set, Vec3::ZERO, Vec3::ZERO);
+    assert!((still.horizontal_velocity.x.abs() - 2.0).abs() < 1e-3, "{still:?}");
+    assert!((still.horizontal_velocity.z - 5.0).abs() < 1e-3, "{still:?}");
+
+    // Into the static wall, out of the sliding floor portal: the tile's motion is added on the way out.
+    let set = PortalSet::rebuild(
+        &[
+            Portal {
+                end: PortalEnd::A,
+                ..wall_portal()
+            },
+            Portal {
+                end: PortalEnd::B,
+                ..carried_portal(0.0)
+            },
+        ],
+        &world,
+        &carriers,
+        size,
+    );
+    let wall = Vec3::new(0.0, 1.6, -9.85);
+    let hop = set
+        .character_hop(
+            wall - centre + Vec3::Z * 0.05,
+            wall - centre - Vec3::Z * 0.05,
+            physics,
+            CharacterHopBody {
+                knockback: Vec3::ZERO,
+                horizontal_velocity: Vec3::NEG_Z * 4.0,
+                vertical_velocity: 0.0,
+                carried: Vec3::ZERO,
+                yaw: 0.0,
+            },
+            CAP,
+            TICK_SECS,
+        )
+        .expect("the body did not cross the wall's aperture");
+    assert!((hop.horizontal_velocity - slide).length() < 1e-3, "{hop:?}");
+    assert!((hop.vertical_velocity - 4.0).abs() < 1e-3, "{hop:?}");
 }

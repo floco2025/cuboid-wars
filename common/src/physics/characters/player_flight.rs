@@ -81,9 +81,11 @@ pub fn step_player_flight(
                 knockback: Vec3::ZERO,
                 horizontal_velocity: horizontal,
                 vertical_velocity: vertical,
+                carried: Vec3::ZERO,
                 yaw: 0.0,
             },
             0.0,
+            delta,
         )
     });
     PlayerFlightTick {

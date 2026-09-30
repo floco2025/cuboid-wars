@@ -133,8 +133,10 @@ impl Course {
                     knockback: &KnockbackVelocity::default(),
                     horizontal_velocity: &HorizontalVelocity(velocity.with_y(0.0)),
                     vertical_velocity: velocity.y,
+                    carried: step.movement.carried(),
                     yaw: 0.0,
                 },
+                1.0 / hz as f32,
             ) {
                 pos = hop.origin.into();
                 velocity = hop.horizontal_velocity.with_y(hop.vertical_velocity);

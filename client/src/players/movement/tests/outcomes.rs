@@ -28,6 +28,7 @@ fn app(layout: MapLayout) -> (App, Entity, Receiver<ClientMessage>) {
                 impact_speed: 0.0,
                 carrier: CarrierId::WORLD,
                 support: CharacterSupport::Airborne,
+                carried: Vec3::ZERO,
             },
         ))
         .id();
