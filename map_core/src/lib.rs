@@ -3,6 +3,7 @@ mod authoring;
 mod diagnostics;
 pub mod geometry;
 pub mod load;
+mod preview;
 pub mod schema;
 pub mod settings;
 mod transforms;

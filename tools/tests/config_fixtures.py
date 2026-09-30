@@ -17,15 +17,28 @@ def gameplay():
             for kind in ("single_shot", "multi_shot", "portal_gun", "speed", "low_gravity")
         },
         "geometry": {"grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3},
+        "network": {"server_hz": 30, "update_hz": 30, "snapshot_hz": 4},
         "movement": {
             "gravity": 25,
             "low_gravity": 5,
-            "player": {"walk_speed": 6, "run_speed": 9, "move_speed_power_up": 1.5, "jump_speed": 12},
+            "player": {
+                "move_speed": 9,
+                "move_speed_power_up": 1.5,
+                "move_speed_ladder": 0.267,
+                "jump_speed": 12,
+                "ground_acceleration": 20,
+                "ground_deceleration": 30,
+                "ground_lateral_deceleration": 40,
+                "air_acceleration": 5,
+                "air_deceleration": 5,
+                "air_lateral_deceleration": 5,
+            },
+            "knockback": {"max_speed": 15, "up_speed": 7, "deceleration": 35},
         },
         "player_fall": {"safe_distance": 8, "lethal_distance": 15},
         "combat": {"health": {"player": {"max": 500}}},
         "portals": "both",
-        "weapons": {"portals": {"size": {"width": 1.4, "height": 2.6}}},
+        "weapons": {"portals": {"size": {"width": 1.4, "height": 2.6}, "funnel": {"capture_margin": 0.6}}},
     }
 
 

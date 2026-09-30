@@ -234,9 +234,9 @@ class WindowTestCase(unittest.TestCase):
                 widget.editingFinished.emit()
 
     def click(self, col, row):
+        self.click_at(col + 0.5, row + 0.5)
+
+    # A click at a point in grid units.
+    def click_at(self, x, z):
         size = self.window.canvas.cell_size()
-        QTest.mouseClick(
-            self.window.canvas,
-            Qt.MouseButton.LeftButton,
-            pos=QPoint(round((col + 0.5) * size), round((row + 0.5) * size)),
-        )
+        QTest.mouseClick(self.window.canvas, Qt.MouseButton.LeftButton, pos=QPoint(round(x * size), round(z * size)))

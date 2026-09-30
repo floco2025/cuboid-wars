@@ -2,12 +2,14 @@ use bevy::prelude::*;
 
 use crate::{
     actors::{ActorCharacter, ActorLanding, ActorMap},
-    characters::{FALL_DAMAGE_EMIT_THRESHOLD, fall_damage_for_distance, fall_distance_for_speed},
     combat::{PendingExplosions, apply_damage, kill_actor},
     config::{FallDamageConfigs, ServerGameplayConfig},
     players::PlayerMap,
 };
-use common::protocol::{ActorId, ActorMarker, Health, MapSettings, Position};
+use common::{
+    physics::{fall_distance_for_speed, landing_damage},
+    protocol::{ActorId, ActorMarker, Health, MapSettings, Position},
+};
 
 // Ground actors take the map's `actor_fall` damage on landing; a lethal
 // landing credits nobody, like a crush.
@@ -30,11 +32,11 @@ pub fn actors_fall_damage_system(
             continue;
         };
         let max_health = server_gameplay_config.combat.health.expect_actor(&info.spawn_kind).max;
-        let fall_distance = fall_distance_for_speed(landing.0, map_settings.movement.gravity);
-        let damage = fall_damage_for_distance(fall_distance, &fall.actor, max_health);
-        if damage < FALL_DAMAGE_EMIT_THRESHOLD {
+        let normal_gravity = map_settings.movement.gravity;
+        let Some(damage) = landing_damage(landing.0, normal_gravity, &fall.actor, max_health) else {
             continue;
-        }
+        };
+        let fall_distance = fall_distance_for_speed(landing.0, normal_gravity);
         apply_damage(&mut health, damage);
         if health.0 > 0.0 {
             continue;

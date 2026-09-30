@@ -91,13 +91,13 @@ class RunTimeOverlay:
             self.legend.setText(f"Run Time unavailable: {escape(self.error)}")
             return
         self.legend.setText(
-            f'<span style="color: {RUN_COLOR}">Run {self.settings.run_speed:.1f} m/s</span> &nbsp; '
-            f'<span style="color: {SPEED_COLOR}">Run + Speed {self.settings.boosted_speed:.1f} m/s</span> &nbsp; '
+            f'<span style="color: {RUN_COLOR}">Move {self.settings.move_speed:.1f} m/s</span> &nbsp; '
+            f'<span style="color: {SPEED_COLOR}">Move + Speed {self.settings.boosted_speed:.1f} m/s</span> &nbsp; '
             "seconds between cell centres"
         )
         self.legend.setToolTip(
             "Straight-line time from the origin's centre to each cell's centre on the origin's level, "
-            "at run speed and with the speed power-up. "
+            "at full move speed and with the speed power-up; the run-up to full speed is not modelled. "
             "Ignores walls, obstacles, ramps, ladders, jumps, and platform motion."
         )
 

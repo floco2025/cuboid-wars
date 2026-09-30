@@ -3,7 +3,9 @@ import unittest
 
 from map_editor.core import call
 from map_editor.geometry import normalized_wall, rects_overlap, zone_rect
+from map_editor.jump_settings import JumpSettings
 from map_editor.normalization import edge_key
+from map_editor.portal_surfaces import PortalSurface
 from map_editor.transforms import record_levels, record_rect
 
 RECORDS = [
@@ -49,6 +51,46 @@ class CoreParityTests(unittest.TestCase):
         for a in rects:
             for b in rects:
                 self.assertEqual(rects_overlap(a, b), call("rects_overlap", a, b))
+
+    def test_python_portal_frames_match_map_core(self):
+        physics = {
+            "server_hz": 30,
+            "gravity": 25,
+            "low_gravity": 5,
+            "player": {
+                "move_speed": 9,
+                "move_speed_power_up": 1.5,
+                "move_speed_ladder": 0.3,
+                "jump_speed": 12,
+                "ground_acceleration": 20,
+                "ground_deceleration": 30,
+                "ground_lateral_deceleration": 40,
+                "air_acceleration": 5,
+                "air_deceleration": 5,
+                "air_lateral_deceleration": 5,
+            },
+            "player_fall": {"safe_distance": 8, "lethal_distance": 15},
+            "max_health": 500,
+            "body": {"diameter": 0.6, "height": 1.8},
+            "portal_size": {"width": 1.4, "height": 2.6},
+            "funnel": {"capture_margin": 0.6},
+        }
+        settings = JumpSettings(3.4, 4.4, 0.3, physics)
+        shooter = (5.2, 5.7)
+        surfaces = [
+            PortalSurface.floor_at(level, x, z).placed_from(shooter)
+            for level in (0, 2)
+            for x in (3.5, 5.25, 8.9)
+            for z in (2.1, 5.75, 9.5)
+        ]
+        surfaces += [PortalSurface(1, 4, 4, face) for face in ("north", "south", "west", "east")]
+        for surface in surfaces:
+            with self.subTest(surface=surface):
+                frame = surface.frame(settings)
+                native = call("portal_frame", surface.spec(settings), physics)
+                for axis in ("center", "normal", "up", "right"):
+                    for expected, actual in zip(getattr(frame, axis), native[axis]):
+                        self.assertAlmostEqual(expected, actual, places=4)
 
 
 if __name__ == "__main__":

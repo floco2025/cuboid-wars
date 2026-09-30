@@ -1,6 +1,7 @@
-from math import hypot
-
 from .core import call
+
+# Rectangle edges this close to a point still hold it.
+EDGE_SLACK = 1e-6
 
 
 def slab_cells(data: dict) -> list[set[tuple[int, int]]]:
@@ -24,11 +25,19 @@ class FloorFootprints:
         self.landings = ramp_landing_edges(data)
         self.cell_size = cell_size
         self.pad = wall_thickness / 2
+        self._rectangles = {}
 
-    def rectangles(self, level: int, col: int, row: int, extra_cells=()) -> list[tuple[float, float, float, float]]:
+    # The slab a floor on this cell has, or would have: its neighbours decide the extensions.
+    def rectangles(self, level: int, col: int, row: int) -> list[tuple[float, float, float, float]]:
+        key = level, col, row
+        if key not in self._rectangles:
+            self._rectangles[key] = self._slab(level, col, row)
+        return self._rectangles[key]
+
+    def _slab(self, level: int, col: int, row: int) -> list[tuple[float, float, float, float]]:
         occupied = self.cells[level]
         neighbors = {
-            name: (col + dc, row + dr) in occupied or (col + dc, row + dr) in extra_cells
+            name: (col + dc, row + dr) in occupied
             for name, dc, dr in (
                 ("w", -1, 0),
                 ("e", 1, 0),
@@ -54,13 +63,31 @@ class FloorFootprints:
         bounds = (col * self.cell_size, row * self.cell_size, (col + 1) * self.cell_size, (row + 1) * self.cell_size)
         return list(map(tuple, call("floor_rectangles", bounds, self.pad, neighbors, landings)))
 
-    def distance(self, origin: tuple[int, int, int], target: tuple[int, int, int]) -> float:
-        # Only these two hypothetical floors exist; other highlighted empty cells must not suppress their extensions.
-        same_level = origin[0] == target[0]
-        source = self.rectangles(*origin, extra_cells=(target[1:],) if same_level else ())
-        destination = self.rectangles(*target, extra_cells=(origin[1:],) if same_level else ())
-        return min(
-            hypot(max(0, a[0] - b[2], b[0] - a[2]), max(0, a[1] - b[3], b[1] - a[3]))
-            for a in source
-            for b in destination
-        )
+    # The point, in metres, on the slab's real edge `along` (0 to 1) the cell's `side`:
+    # past the grid line where the slab extends over an exposed edge.
+    def edge_point(self, level: int, col: int, row: int, side: str, along: float) -> tuple[float, float]:
+        rectangles = self.rectangles(level, col, row)
+        if side in "NS":
+            x = (col + along) * self.cell_size
+            spans = [r for r in rectangles if r[0] - EDGE_SLACK <= x <= r[2] + EDGE_SLACK] or rectangles
+            return x, min(r[1] for r in spans) if side == "N" else max(r[3] for r in spans)
+        z = (row + along) * self.cell_size
+        spans = [r for r in rectangles if r[1] - EDGE_SLACK <= z <= r[3] + EDGE_SLACK] or rectangles
+        return (min(r[0] for r in spans) if side == "W" else max(r[2] for r in spans)), z
+
+    # The slab cell whose footprint holds a point in metres: its own cell's, or a neighbour's extension.
+    def supporting_cell(self, level: int, x: float, z: float) -> tuple[int, int] | None:
+        if not 0 <= level < len(self.cells):
+            return None
+        col, row = int(x // self.cell_size), int(z // self.cell_size)
+        for dc, dr in ((0, 0), (-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, -1), (-1, 1), (1, 1)):
+            cell = col + dc, row + dr
+            if cell in self.cells[level] and any(
+                x0 - EDGE_SLACK <= x <= x1 + EDGE_SLACK and z0 - EDGE_SLACK <= z <= z1 + EDGE_SLACK
+                for x0, z0, x1, z1 in self.rectangles(level, *cell)
+            ):
+                return cell
+        return None
+
+    def floor_under(self, level: int, x: float, z: float) -> bool:
+        return self.supporting_cell(level, x, z) is not None

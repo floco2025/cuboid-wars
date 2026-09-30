@@ -35,8 +35,7 @@ from .erase_tools import EraseMixin
 from .file_actions import FileActionsMixin
 from .issues import IssuesDialog
 from .items import ItemsMixin
-from .jump_reach_overlay import JumpReachOverlay
-from .portal_jump_overlay import PortalJumpOverlay
+from .jump_path_overlay import JumpPathOverlay
 from .ladders import LaddersMixin
 from .lights import LightsMixin
 from .nested_definitions import NestedDefinitionsMixin
@@ -182,9 +181,8 @@ class EditorWindow(
         self.tool_palette.raise_()
         self.tool_settings = ToolSettings(self)
 
-        self.jump_reach = JumpReachOverlay(self)
+        self.jump_path = JumpPathOverlay(self)
         self.run_time = RunTimeOverlay(self)
-        self.portal_jump = PortalJumpOverlay(self)
         self.build_menus()
         self.build_toolbar()
         self.doc.changed.connect(self._on_document_changed)
@@ -320,8 +318,7 @@ class EditorWindow(
 
     def adopt_map(self, map_name: str) -> None:
         self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
-        self.jump_reach.reload_settings()
-        self.portal_jump.reload_settings()
+        self.jump_path.reload_settings()
         self.run_time.reload_settings()
         self.clear_selection()
         self.current_level = 0
@@ -418,8 +415,7 @@ class EditorWindow(
         self.roam_extensions_action.toggled.connect(self.set_roam_extensions)
         view_menu.addAction(self.roam_extensions_action)
         self.canvas_shortcut(self.roam_extensions_action)
-        view_menu.addAction(self.jump_reach.clear_action)
-        view_menu.addAction(self.portal_jump.clear_action)
+        view_menu.addAction(self.jump_path.clear_action)
         view_menu.addAction(self.run_time.clear_action)
 
         help_menu = self.menuBar().addMenu("&Help")
@@ -464,15 +460,12 @@ class EditorWindow(
         tool_settings_action = toolbar.addWidget(self.tool_settings)
         self.tool_settings.available_changed.connect(tool_settings_action.setVisible)
         tool_settings_action.setVisible(False)
-        toolbar.addAction(self.jump_reach.controls_action)
-        toolbar.addAction(self.portal_jump.controls_action)
+        toolbar.addAction(self.jump_path.controls_action)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
         self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.jump_reach.toolbar)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.jump_path.toolbar)
         self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.run_time.toolbar)
-        self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.portal_jump.toolbar)
 
     # === State updates & UI refresh ===
 
@@ -521,8 +514,7 @@ class EditorWindow(
         self.setWindowTitle(f"Cuboid Wars Editor - {file_name}{suffix}")
         self.dependencies.watch(self.catalog_map)
         self.tool_settings.refresh()
-        self.jump_reach.refresh()
-        self.portal_jump.refresh()
+        self.jump_path.refresh()
         self.run_time.refresh()
         self.refresh_inspection()
 
@@ -580,8 +572,7 @@ class EditorWindow(
         self.canvas.update()
         self.update_selection_actions()
         self.tool_settings.refresh()
-        self.jump_reach.refresh()
-        self.portal_jump.refresh()
+        self.jump_path.refresh()
         self.run_time.refresh()
 
     def set_roam_extensions(self, enabled: bool) -> None:

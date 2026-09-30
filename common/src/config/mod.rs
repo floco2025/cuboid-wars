@@ -1,6 +1,7 @@
 mod actors;
 mod characters;
 mod death;
+mod falling;
 pub mod gameplay;
 mod geometry;
 mod missiles;
@@ -14,6 +15,7 @@ mod validation;
 pub use actors::{ActorGameplayConfig, ActorLocomotion};
 pub use characters::{CharacterGameplayConfig, CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig};
 pub use death::DeathTrigger;
+pub use falling::FallDamageConfig;
 pub use gameplay::{
     ActorGameplayBootstrap, GameplayBootstrap, GameplayConfig, MissilesGameplayBootstrap, PlayerGameplayBootstrap,
 };

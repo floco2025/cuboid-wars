@@ -204,8 +204,9 @@ fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResu
             passable_fields: &passable,
         })
     } else {
-        Default::default()
-    };
+        None
+    }
+    .unwrap_or_default();
     // Intent, not momentum, decides whether a nearby ladder is being mounted.
     if grounded && stance.crouched {
         control *= PLAYER_CROUCH_SPEED_RATIO;
@@ -215,7 +216,7 @@ fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResu
             start,
             vertical_velocity: step.vertical_velocity,
             control_velocity: control,
-            external_displacement: (velocity - control) * step.delta + step.external_displacement + funnel.displacement,
+            external_displacement: (velocity - control) * step.delta + step.external_displacement + funnel,
             delta: step.delta,
         },
         &CharacterEnvironment {
@@ -224,7 +225,6 @@ fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResu
             ..environment
         },
     );
-    velocity += funnel.velocity_change;
     if movement.support == CharacterSupport::Airborne {
         movement.vertical_velocity =
             (movement.vertical_velocity - gravity * step.delta * 0.5).max(-CHARACTER_TERMINAL_VELOCITY);

@@ -69,7 +69,7 @@ impl MapMovementConfig {
 }
 
 impl PlayerMovementConfig {
-    fn validate(&self, path: &str) -> Result<()> {
+    pub fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.move_speed, &format!("{path}.move_speed"))?;
         validate_positive_finite(self.move_speed_power_up, &format!("{path}.move_speed_power_up"))?;
         validate_positive_finite(self.move_speed_ladder, &format!("{path}.move_speed_ladder"))?;

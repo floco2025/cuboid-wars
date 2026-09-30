@@ -1,11 +1,89 @@
-"""Portal candidates and face permissions in the active geometry; backing size is assumed."""
+"""Portal surfaces and face permissions in the active geometry; backing size is assumed."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from math import atan2, ceil, floor, pi
 
-from .floor_footprints import FloorFootprints
 from .geometry import ramp_cells_on_level
+from .jump_settings import JumpSettings
 from .normalization import expand_face_materials
-from .portal_jump import PortalSurface
+
+# The drawn rim is this much larger than the aperture, and it is the rim that rests on a wall's base.
+PORTAL_RIM_SCALE = 1.06
+WALL_NORMALS = {"north": (0, 0, -1), "south": (0, 0, 1), "west": (-1, 0, 0), "east": (1, 0, 0)}
+# A floor portal's in-plane up by `turn`.
+FLOOR_UPS = ((0, 0, -1), (1, 0, 0), (0, 0, 1), (-1, 0, 0))
+Vec3 = tuple[float, float, float]
+
+
+@dataclass(frozen=True)
+class PortalFrame:
+    center: Vec3
+    normal: Vec3
+    up: Vec3
+    right: Vec3
+
+
+# A floor portal lies anywhere on its cell, `offset` from the cell's corner in
+# cells; a wall portal is centred on its cell edge with its rim on the wall's base.
+@dataclass(frozen=True)
+class PortalSurface:
+    level: int
+    col: int
+    row: int
+    face: str = "floor"
+    turn: int = 0
+    offset: tuple[float, float] = (0.5, 0.5)
+
+    @classmethod
+    def floor_at(cls, level: int, x: float, z: float) -> "PortalSurface":
+        col, row = floor(x), floor(z)
+        return cls(level, col, row, offset=(x - col, z - row))
+
+    # The centre in grid units.
+    @property
+    def grid_center(self) -> tuple[float, float]:
+        if self.face == "floor":
+            return self.col + self.offset[0], self.row + self.offset[1]
+        horizontal = self.face in ("north", "south")
+        return self.col + (0.5 if horizontal else 0), self.row + (0 if horizontal else 0.5)
+
+    # A floor portal's long axis follows the quarter turn its shooter, a point in grid units, faces.
+    def placed_from(self, shooter: tuple[float, float]) -> "PortalSurface":
+        if self.face != "floor":
+            return self
+        x, z = self.grid_center
+        # Match placement.rs::portal_placement_yaw, including Rust's ties away from zero.
+        quarter_turns = atan2(x - shooter[0], z - shooter[1]) / (pi / 2)
+        snapped = floor(quarter_turns + 0.5) if quarter_turns >= 0 else ceil(quarter_turns - 0.5)
+        return replace(self, turn=(2 - snapped) % 4)
+
+    def frame(self, settings: JumpSettings) -> PortalFrame:
+        size, y = settings.cell_size, settings.floor_height(self.level)
+        x, z = self.grid_center
+        if self.face == "floor":
+            center = (x * size, y, z * size)
+            normal = (0, 1, 0)
+            up = FLOOR_UPS[self.turn % 4]
+        else:
+            normal = WALL_NORMALS[self.face]
+            center = (
+                x * size + normal[0] * settings.wall_thickness / 2,
+                y + settings.portal_half_height * PORTAL_RIM_SCALE,
+                z * size + normal[2] * settings.wall_thickness / 2,
+            )
+            up = (0, 1, 0)
+        right = (
+            up[1] * normal[2] - up[2] * normal[1],
+            up[2] * normal[0] - up[0] * normal[2],
+            up[0] * normal[1] - up[1] * normal[0],
+        )
+        return PortalFrame(center, normal, up, right)
+
+    # The surface as map_core places it: floor turns become the placement yaw the game snaps.
+    def spec(self, settings: JumpSettings) -> dict:
+        frame = self.frame(settings)
+        yaw = (2 - self.turn % 4) * (pi / 2) if self.face == "floor" else 0.0
+        return {"center": list(frame.center), "normal": list(frame.normal), "yaw": yaw}
 
 
 @dataclass(frozen=True)
@@ -23,10 +101,8 @@ class SurfaceStatus:
 
 
 class PortalSurfaces:
-    def __init__(self, data, settings, textures):
-        self.data, self.settings, self.textures = data, settings, textures
-        m = settings.movement
-        self.footprints = FloorFootprints(data, m.cell_size, m.wall_thickness)
+    def __init__(self, data, textures):
+        self.data, self.textures = data, textures
         self.floors = []
         self.terrain = []
         self.walls = []
@@ -49,20 +125,7 @@ class PortalSurfaces:
     def allows(self, record, face):
         return self.textures.get(expand_face_materials(record)[face], False)
 
-    def candidates(self, level):
-        cols, rows = self.data["grid_cols"], self.data["grid_rows"]
-        for row in range(rows):
-            for col in range(cols):
-                yield PortalSurface(level, col, row)
-        for row in range(rows + 1):
-            for col in range(cols):
-                for face in ("north", "south"):
-                    yield PortalSurface(level, col, row, face)
-        for row in range(rows):
-            for col in range(cols + 1):
-                for face in ("west", "east"):
-                    yield PortalSurface(level, col, row, face)
-
+    # Judged by the cell under the centre; the aperture may reach past it.
     def status(self, surface):
         level, col, row = surface.level, surface.col, surface.row
         if surface.face == "floor":
@@ -81,26 +144,31 @@ class PortalSurfaces:
                 return SurfaceStatus(False, "Wall face material does not allow portals")
         return SurfaceStatus(record is None)
 
-    def pick(self, level, x, z, tolerance):
-        cols, rows = self.data["grid_cols"], self.data["grid_rows"]
-        col, row = int(x // 1), int(z // 1)
-        dx, dz = abs(x - round(x)), abs(z - round(z))
-        if min(dx, dz) <= min(tolerance, 0.25):
-            if dz <= dx and 0 <= col < cols and 0 <= round(z) <= rows:
-                return PortalSurface(level, col, round(z), "north" if z < round(z) else "south")
-            if 0 <= round(x) <= cols and 0 <= row < rows:
-                return PortalSurface(level, round(x), row, "west" if x < round(x) else "east")
-        if 0 <= col < cols and 0 <= row < rows:
-            return PortalSurface(level, col, row)
+    # A floor portal is centred on the point itself, grid lines and corners included.
+    def pick_floor(self, level, x, z):
+        if 0 <= x < self.data["grid_cols"] and 0 <= z < self.data["grid_rows"]:
+            return PortalSurface.floor_at(level, x, z)
         return None
+
+    # A wall portal takes the nearest grid edge, on the face the point is on.
+    def pick_wall(self, level, x, z):
+        cols, rows = self.data["grid_cols"], self.data["grid_rows"]
+        col, row = floor(x), floor(z)
+        horizontal = PortalSurface(level, col, round(z), "north" if z < round(z) else "south")
+        vertical = PortalSurface(level, round(x), row, "west" if x < round(x) else "east")
+        candidates = [
+            (abs(z - round(z)), 0 <= col < cols and 0 <= round(z) <= rows, horizontal),
+            (abs(x - round(x)), 0 <= round(x) <= cols and 0 <= row < rows, vertical),
+        ]
+        return next((surface for _, inside, surface in sorted(candidates, key=lambda c: c[0]) if inside), None)
 
 
 def portals_overlap(a, b, settings):
     frames = [surface.frame(settings) for surface in (a, b)]
     bounds = [
         [
-            settings.half_width * abs(frame.right[i])
-            + settings.half_height * abs(frame.up[i])
+            settings.portal_half_width * abs(frame.right[i])
+            + settings.portal_half_height * abs(frame.up[i])
             + 0.05 * abs(frame.normal[i])
             for i in range(3)
         ]

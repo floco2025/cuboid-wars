@@ -8,7 +8,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QComboBox, QMenu, QSpinBox, QStatusBar
 
 from editor_fixtures import WindowTestCase
-from map_editor.constants import MODE_ACTOR_SPAWN_ZONE, MODE_CHECKPOINT, MODE_ERASE, MODE_JUMP_REACH
+from map_editor.constants import MODE_ACTOR_SPAWN_ZONE, MODE_CHECKPOINT, MODE_ERASE, MODE_JUMP_PATH
 from map_editor.transforms import insert_level_data
 from map_editor.types import ZoneRef
 from map_editor.viewport import Viewport
@@ -43,8 +43,8 @@ class EditorNavigationTests(WindowTestCase):
             QTest.keyClick(control, Qt.Key.Key_PageDown)
             self.assertEqual(window.current_level, 0)
             self.assertEqual(count.value(), 2)
-        window.set_mode(MODE_JUMP_REACH)
-        margin = window.jump_reach.margin
+        window.set_mode(MODE_JUMP_PATH)
+        margin = window.jump_path.margin
         margin.setFocus()
         self.app.processEvents()
         QTest.keyClick(margin, Qt.Key.Key_PageUp)

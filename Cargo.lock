@@ -3778,6 +3778,7 @@ name = "map_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bevy_math",
  "common",
  "serde",
  "serde_json",

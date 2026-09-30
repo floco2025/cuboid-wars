@@ -1,13 +1,13 @@
-use super::*;
-use bevy::prelude::*;
-use common::{
-    config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
+use crate::{
+    config::{CharacterPhysicsConfig, FallDamageConfig, HitboxConfig, MovementColliderConfig},
     map::Carriers,
     physics::{
-        CharacterEnvironment, CharacterStep, CharacterSupport, CollisionWorld, LadderMode, step_character_movement,
+        CharacterEnvironment, CharacterStep, CharacterSupport, CollisionWorld, LadderMode, fall_damage_for_distance,
+        fall_distance_for_speed, landing_damage, step_character_movement,
     },
     protocol::{CarrierId, Floor, MapLayout, Position},
 };
+use bevy_math::Vec3;
 
 const TEST_GRAVITY: f32 = 25.0;
 
@@ -31,7 +31,7 @@ fn simulated_tall_fall_reaches_lethal_damage_without_low_gravity() {
             level: 0,
             carrier: CarrierId::WORLD,
         }],
-        ..default()
+        ..Default::default()
     });
     let carriers = Carriers::default();
     for gravity in [24.0, 13.2] {
@@ -55,7 +55,10 @@ fn simulated_tall_fall_reaches_lethal_damage_without_low_gravity() {
             ladder_mode: LadderMode::Automatic,
             portals: None,
         };
-        let mut pos = Position { y: 21.6, ..default() };
+        let mut pos = Position {
+            y: 21.6,
+            ..Default::default()
+        };
         let mut vertical_velocity = 0.0;
         let mut impact = None;
         for _ in 0..300 {
@@ -112,6 +115,16 @@ fn fall_damage_lerps_midpoint() {
 #[test]
 fn fall_damage_saturates_past_lethal() {
     assert_eq!(fall_damage_for_distance(100.0, &thresholds(4.0, 12.0), 100.0), 100.0);
+}
+
+#[test]
+fn landing_damage_is_none_below_the_emit_threshold() {
+    let fall = thresholds(4.0, 12.0);
+    let speed = (2.0_f32 * TEST_GRAVITY * 4.04).sqrt();
+    assert_eq!(landing_damage(speed, TEST_GRAVITY, &fall, 100.0), None);
+    let damage = landing_damage(speed, TEST_GRAVITY, &fall, 1000.0).expect("a 5 hp landing is not soft");
+    assert!((damage - 5.0).abs() < 0.05, "{damage}");
+    assert_eq!(landing_damage(0.0, TEST_GRAVITY, &fall, 100.0), None);
 }
 
 #[test]

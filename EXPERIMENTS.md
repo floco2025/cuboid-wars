@@ -82,9 +82,10 @@ funneling remain active. Hotel inherits the defaults without a map override.
 `move_speed_power_up` is a multiplier (1.5 by default: 9 becomes 13.5 m/s),
 independent of `jump_speed` and all acceleration/deceleration rates.
 
-**Known stage boundary:** editor reach previews still implement the old movement
-formulas and read the removed walk/run settings, so those tools need stage 2
-before they are usable with the new configuration. Generated-course route assertions currently fail; their scripts and
+**Known stage boundary:** the editor's Jump Path preview runs the shared Rust
+movement, funnel, and portal hop through `map_core::preview` (open air,
+full-speed takeoff, released input, optional steering ranges); the remaining
+preview scope is in TODO.md. Generated-course route assertions currently fail; their scripts and
 walkthroughs describe the previous movement. Keep the assertions visible until
 stage 4 retunes the courses; do not weaken them to accept failed routes.
 
@@ -281,8 +282,9 @@ ground friction/acceleration. The game retains its capsule collision and existin
 rules, fall damage, combat knockback cap/decay, and existing portal fit/crossing
 rules. Predictive funneling in `common/src/physics/portals/funnel.rs` derives
 correction from available time before rim contact, including gravity and terminal
-fall speed. It corrects horizontal position and velocity once per player step,
-without changing vertical momentum. It assists airborne, approaching players
+fall speed. It slides the body toward the aperture once per player step and
+never changes its velocity, so a crossing leaves at the angle it went in at. It
+assists airborne, approaching players
 without movement input on floor, ceiling, and standable ramp portals. Capture
 uses both current and predicted offsets; unrelated fly-bys and obstructed
 approaches are excluded. Moving portals use their current linear velocity.
@@ -293,7 +295,7 @@ fling helpers.
 Shared portal settings live under `weapons.portals` in gameplay JSON:
 `size.width` / `size.height` default to **1.4 / 2.6 m** and drive placement,
 overlap checks, aperture traversal, backing exclusions, rendering, and effects.
-`funnel.capture_margin` currently defaults to **0.8 m** beyond each aperture edge; zero
+`funnel.capture_margin` currently defaults to **0.6 m** beyond each aperture edge; zero
 disables assistance. There are no separate funnel acceleration, speed, or timing
 settings. The editor reads portal dimensions mechanically; its movement-preview
 replacement still belongs to stage 2. The renamed `ground_lateral_deceleration`

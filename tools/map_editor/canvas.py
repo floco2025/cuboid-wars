@@ -13,7 +13,6 @@ from .constants import (
     MODE_FLOOR_MATERIAL,
     MODE_LADDER,
     MODE_LIGHT,
-    MODE_PORTAL_JUMP,
     MODE_WALL_MATERIAL,
 )
 from .catalogs import field_entries
@@ -238,9 +237,8 @@ class Canvas(CanvasPaintingMixin, QWidget):
 
     def _clear_hover(self) -> None:
         changed = self.hover_target is not None or self.hover_cell is not None
-        portal_jump = getattr(self.window, "portal_jump", None)
-        if portal_jump is not None and portal_jump.preview is not None:
-            portal_jump.preview = None
+        jump_path = getattr(self.window, "jump_path", None)
+        if jump_path is not None and jump_path.clear_hover():
             changed = True
         self.hover_kind = None
         self.hover_target = None
@@ -252,15 +250,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
 
     def _update_cell_hover(self, pos) -> None:
         cell = self.point_to_cell(pos)
-        portal = self.window.portal_jump
-        key = portal.input_selector.currentData()
-        preview = (
-            portal.pick(self.grid_position(pos), key)
-            if self.window.mode == MODE_PORTAL_JUMP and key in ("entry", "exit")
-            else None
-        )
-        preview_changed = preview != portal.preview
-        portal.preview = preview
+        preview_changed = self.window.jump_path.hover(self.grid_position(pos))
         self._show_hover_label(self._element_hover_text(pos), pos)
         edge_side = None
         if self.window.mode in (MODE_LADDER, MODE_LIGHT) and cell is not None:
@@ -324,12 +314,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
 
     def _show_hover_label(self, tooltip: str | None, pos) -> None:
         cell = self.point_to_cell(pos)
-        guides = (self.window.jump_reach, self.window.run_time) if cell is not None else ()
-        portal_text = self.window.portal_jump.hover_text(self.grid_position(pos))
-        tooltip = (
-            "\n".join(part for part in (tooltip, portal_text, *(guide.hover_text(*cell) for guide in guides)) if part)
-            or None
-        )
+        parts = [tooltip, self.window.jump_path.hover_text(self.grid_position(pos))]
+        if cell is not None:
+            parts.append(self.window.run_time.hover_text(*cell))
+        tooltip = "\n".join(part for part in parts if part) or None
         if tooltip is not None:
             self._hover_label.setText(tooltip)
             metrics = self._hover_label.fontMetrics()

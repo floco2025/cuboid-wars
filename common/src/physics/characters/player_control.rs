@@ -7,7 +7,7 @@ use bevy_math::Vec3;
 
 // Horizontal target speed; the speed pickup scales it.
 #[must_use]
-pub(super) fn player_move_speed(cfg: &PlayerMovementConfig, has_speed: bool) -> f32 {
+pub fn player_move_speed(cfg: &PlayerMovementConfig, has_speed: bool) -> f32 {
     cfg.move_speed * if has_speed { cfg.move_speed_power_up } else { 1.0 }
 }
 

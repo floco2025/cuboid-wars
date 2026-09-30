@@ -204,10 +204,14 @@ impl Tuning<'_> {
             &format!("{movement_path}.actors"),
         )?;
         self.movement.validate(&movement_path)?;
-        self.player_fall
-            .validate(&format!("{prefix}player_fall"), self.movement.gravity)?;
-        self.actor_fall
-            .validate(&format!("{prefix}actor_fall"), self.movement.gravity)?;
+        for (name, fall) in [("player_fall", self.player_fall), ("actor_fall", self.actor_fall)] {
+            let path = format!("{prefix}{name}");
+            fall.validate(&path)?;
+            if let Some(warning) = fall.terminal_velocity_warning(&path, self.movement.gravity) {
+                // Configuration loads before the log plugin is installed.
+                eprintln!("warning: {warning}");
+            }
+        }
         self.combat.validate(self.actors, &format!("{prefix}combat"))?;
         self.power_ups.validate(&format!("{prefix}power_ups"))
     }

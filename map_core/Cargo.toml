@@ -9,6 +9,7 @@ workspace = true
 [dependencies]
 common.workspace = true
 anyhow.workspace = true
+bevy_math = "0.19"
 serde.workspace = true
 # Editable documents keep their authored key order through every operation.
 serde_json = { workspace = true, features = ["preserve_order"] }

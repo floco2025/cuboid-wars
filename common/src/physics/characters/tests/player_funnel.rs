@@ -203,7 +203,9 @@ fn capture_obeys_margin_input_approach_and_disabled_setting() {
     let pos = Position::from(Vec3::new(0.8, 3.0, 0.3));
     let falling = Vec3::Y * -5.0;
     let assisted = course.step(pos, falling, PlayerMoveIntent::NONE, 1.0 / 60.0);
-    assert!(assisted.horizontal_velocity.x < 0.0 && assisted.movement.position.x < pos.x);
+    // The pull moves the body toward the centre and leaves its velocity alone.
+    assert!(assisted.movement.position.x < pos.x);
+    assert_eq!(assisted.horizontal_velocity, Vec3::ZERO);
     for (start, v, intent) in [
         (Vec3::new(1.31, 3.0, 0.0).into(), falling, PlayerMoveIntent::NONE),
         (pos, -falling, PlayerMoveIntent::NONE),
@@ -252,7 +254,7 @@ fn a_floor_between_the_player_and_portal_prevents_capture() {
 }
 
 #[test]
-fn capture_is_independent_of_movement_tuning_and_brakes_lateral_drift() {
+fn capture_is_independent_of_movement_tuning_and_keeps_the_drift() {
     let mut course = Course::from_layout(MapLayout::default(), Vec3::new(20.0, 4.0, 0.0));
     let start = Vec3::new(0.9, 3.0, -0.5).into();
     let velocity = Vec3::new(-0.6, -10.0, 0.3);
@@ -262,9 +264,17 @@ fn capture_is_independent_of_movement_tuning_and_brakes_lateral_drift() {
     let b = course.step(start, velocity, PlayerMoveIntent::NONE, 1.0 / 60.0);
     assert_eq!(a.movement.position, b.movement.position);
     assert_eq!(a.horizontal_velocity, b.horizontal_velocity);
-    let (hops, pos, velocity) = course.fall(start.into(), velocity, 60, 60 * 4, usize::MAX);
-    assert!(hops > 0, "{pos:?}");
-    assert!(velocity.with_y(0.0).length() < 1.0, "{velocity:?}");
+    // With nothing braking it in the air, the sideways speed a body falls in
+    // with is the sideways speed it leaves the other portal with.
+    course.settings.movement.player.air_acceleration = 0.0;
+    course.settings.movement.player.air_deceleration = 0.0;
+    course.settings.movement.player.air_lateral_deceleration = 0.0;
+    let (hops, pos, left) = course.fall(start.into(), velocity, 60, 60 * 4, usize::MAX);
+    assert_eq!(hops, 1, "{pos:?}");
+    assert!(
+        (left.with_y(0.0).length() - velocity.with_y(0.0).length()).abs() < 1e-3,
+        "{left:?}"
+    );
 }
 
 #[test]

@@ -86,7 +86,8 @@ fn in_aperture(offset_from_center: Vec3, frame: &PortalFrame) -> bool {
 // sits well below a wall portal's center, where the oval narrows laterally
 // to a sliver of the visible width. The forgiving gate keeps the whole
 // drawn width walkable; projectiles keep the exact oval.
-fn in_character_aperture(offset_from_center: Vec3, frame: &PortalFrame) -> bool {
+#[must_use]
+pub fn in_character_aperture(offset_from_center: Vec3, frame: &PortalFrame) -> bool {
     offset_from_center.dot(frame.right).abs() <= frame.size.half_width()
         && offset_from_center.dot(frame.up).abs() <= frame.size.half_height()
 }

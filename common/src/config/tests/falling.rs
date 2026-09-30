@@ -1,4 +1,5 @@
 use super::*;
+use crate::constants::CHARACTER_TERMINAL_VELOCITY;
 
 #[test]
 fn terminal_velocity_warning_only_flags_unreachable_lethal_speeds() {
@@ -19,8 +20,8 @@ fn terminal_velocity_warning_only_flags_unreachable_lethal_speeds() {
             assert!(warning.contains(&format!("{lethal_speed:.2} m/s")));
             assert!(warning.contains(&format!("terminal velocity ({CHARACTER_TERMINAL_VELOCITY} m/s)")));
         }
-        fall.validate(path, 1.0)
-            .expect("unreachable lethal falls should warn, not reject the map");
+        fall.validate(path)
+            .expect("unreachable lethal falls warn instead of rejecting the map");
     }
 }
 

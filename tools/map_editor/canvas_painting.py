@@ -164,9 +164,8 @@ class CanvasPaintingMixin:
         # Lights sit on top of wall lines so the markers stay visible.
         self.paint_lights(painter, level, cell)
         self._paint_pending_auto_lights(painter, cell, level_idx)
-        self.window.jump_reach.paint(painter, cell)
         self.window.run_time.paint(painter, cell)
-        self.window.portal_jump.paint(painter, cell)
+        self.window.jump_path.paint(painter, cell)
         # Hover passes draw last so they sit on top of everything else. The
         # highlight + ghost paths fire on disjoint mode sets and don't
         # overlap.

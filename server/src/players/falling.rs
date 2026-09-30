@@ -2,7 +2,6 @@ use bevy::prelude::*;
 
 use super::{Invincibility, PlayerMap, place_player_body, player_spawn_destination, start_destination};
 use crate::{
-    characters::{FALL_DAMAGE_EMIT_THRESHOLD, fall_damage_for_distance, fall_distance_for_speed},
     combat::{DeathSource, PendingExplosions, apply_damage, kill_player},
     config::{FallDamageConfigs, ServerGameplayConfig},
     map::MapConfig,
@@ -12,7 +11,7 @@ use common::{
     config::GameplayConfig,
     constants::CHARACTER_FALL_DEATH_Y,
     map::Carriers,
-    physics::CollisionWorld,
+    physics::{CollisionWorld, fall_distance_for_speed, landing_damage},
     protocol::{
         Health, MapLayout, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, SPlayerSoftLanding,
         ServerMessage, ServerTick,
@@ -154,9 +153,8 @@ pub fn players_fall_damage_system(
                 break;
             }
             let pos = &impact.pos;
-            let fall_distance = fall_distance_for_speed(impact.impact_speed, map_settings.movement.gravity);
-            let damage = fall_damage_for_distance(fall_distance, &fall.player, max_health);
-            if damage < FALL_DAMAGE_EMIT_THRESHOLD {
+            let normal_gravity = map_settings.movement.gravity;
+            let Some(damage) = landing_damage(impact.impact_speed, normal_gravity, &fall.player, max_health) else {
                 if impact.impact_speed > 0.0
                     && let Some(info) = players.get(id)
                 {
@@ -169,7 +167,8 @@ pub fn players_fall_damage_system(
                         }));
                 }
                 continue;
-            }
+            };
+            let fall_distance = fall_distance_for_speed(impact.impact_speed, normal_gravity);
             if !invincible {
                 apply_damage(&mut health, damage);
             }

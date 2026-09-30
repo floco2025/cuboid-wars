@@ -17,7 +17,7 @@ class PowerUpCatalogTests(ConfigTestCase):
         path = map_settings_path("hotel")
         settings = load_map_settings("hotel")
         settings["power_ups"]["single_shot"] = {"mode": "always"}
-        path.write_text(json.dumps(settings))
+        path.write_text(json.dumps({key: value for key, value in settings.items() if key != "network"}))
         self.assertEqual(
             MapCatalogs.load("hotel").pickup_types, tuple(kind for kind in ITEM_TYPES if kind != "single_shot")
         )
@@ -61,7 +61,7 @@ class AlwaysPowerUpEditorTests(WindowTestCase):
         path = map_settings_path("hotel")
         settings = load_map_settings("hotel")
         settings["power_ups"]["single_shot"] = {"mode": "always"}
-        path.write_text(json.dumps(settings))
+        path.write_text(json.dumps({key: value for key, value in settings.items() if key != "network"}))
         window.adopt_map("hotel")
         self.assertNotIn("single_shot", window.pickup_types)
         self.assertNotEqual(window.recent_item_type, "single_shot")

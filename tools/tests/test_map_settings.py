@@ -64,7 +64,7 @@ class MapSettingsTests(ConfigTestCase):
                 {
                     "default_map": "hotel",
                     "maps": ["hotel"],
-                    "movement": {"gravity": 25, "player": {"run_speed": 9}},
+                    "movement": {"gravity": 25, "player": {"move_speed": 9}},
                     "power_ups": {"speed": {"mode": "pickup", "duration_secs": 30}},
                 }
             )
@@ -78,7 +78,7 @@ class MapSettingsTests(ConfigTestCase):
         self.assertEqual(
             load_map_settings("hotel"),
             {
-                "movement": {"gravity": 24, "player": {"run_speed": 9}},
+                "movement": {"gravity": 24, "player": {"move_speed": 9}},
                 "power_ups": {"speed": {"mode": "always"}},
                 **content,
             },

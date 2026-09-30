@@ -20,10 +20,10 @@ class RunTimeTests(unittest.TestCase):
     def test_invalid_fields_name_the_source_and_field(self):
         settings = {
             "geometry": {"grid_cell_size": 2},
-            "movement": {"player": {"run_speed": 4, "move_speed_power_up": 1.5}},
+            "movement": {"player": {"move_speed": 4, "move_speed_power_up": 1.5}},
         }
         self.assertEqual(RunSettings.from_settings(settings, "settings.json"), self.settings)
-        for path in ("geometry.grid_cell_size", "movement.player.run_speed", "movement.player.move_speed_power_up"):
+        for path in ("geometry.grid_cell_size", "movement.player.move_speed", "movement.player.move_speed_power_up"):
             with self.subTest(path=path):
                 invalid = copy.deepcopy(settings)
                 section, *keys = path.split(".")
@@ -49,8 +49,8 @@ class RunTimeWindowTests(WindowTestCase):
         self.assertEqual(overlay.hover_text(2, 2), "Run Time origin")
         self.assertEqual(overlay.hover_text(5, 2), "Run Time: 1.13 s run, 0.76 s with speed")
         self.assertTrue(overlay.toolbar.isVisible())
-        self.assertIn("Run 9.0 m/s", overlay.legend.text())
-        self.assertIn("Run + Speed 13.5 m/s", overlay.legend.text())
+        self.assertIn("Move 9.0 m/s", overlay.legend.text())
+        self.assertIn("Move + Speed 13.5 m/s", overlay.legend.text())
         self.assertEqual(self.window.doc.root_data, before)
         self.assertFalse(self.window.dirty)
         self.click(4, 3)
@@ -86,15 +86,15 @@ class RunTimeWindowTests(WindowTestCase):
         self.select_origin()
         overlay = self.window.run_time
         settings = load_map_settings("hotel")
-        settings["movement"]["player"]["run_speed"] = 18
+        settings["movement"]["player"]["move_speed"] = 18
         with patch("map_editor.run_time_overlay.load_map_settings", return_value=settings):
             self.window.reload_dependencies()
         self.assertEqual(overlay.hover_text(5, 2), "Run Time: 0.57 s run, 0.38 s with speed")
-        settings["movement"]["player"]["run_speed"] = None
+        settings["movement"]["player"]["move_speed"] = None
         with patch("map_editor.run_time_overlay.load_map_settings", return_value=settings):
             self.window.reload_dependencies()
         self.assertIsNone(overlay.hover_text(5, 2))
-        self.assertIn("movement.player.run_speed", overlay.legend.text())
+        self.assertIn("movement.player.move_speed", overlay.legend.text())
         self.window.reload_dependencies()
         self.assertIsNone(overlay.error)
         self.assertEqual(overlay.hover_text(5, 2), "Run Time: 1.13 s run, 0.76 s with speed")

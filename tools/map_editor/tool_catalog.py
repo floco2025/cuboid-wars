@@ -55,8 +55,7 @@ TOOL_GROUPS = (
     (
         "Measure",
         (
-            Tool(c.MODE_JUMP_REACH, "Jump reach"),
-            Tool(c.MODE_PORTAL_JUMP, "Portal jump"),
+            Tool(c.MODE_JUMP_PATH, "Jump path"),
             Tool(c.MODE_RUN_TIME, "Run time"),
         ),
     ),

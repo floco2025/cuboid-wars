@@ -129,7 +129,8 @@ pub fn compute_portal_placement(
 // it to quarter turns keeps a hand-placed floor/ceiling pair from
 // precessing the mapped offset — and the traveler's view — a little on
 // every pass of a fall loop. Wall yaws pass through: their frames ignore it.
-fn portal_placement_yaw(normal: Vec3, face_yaw: f32) -> f32 {
+#[must_use]
+pub fn portal_placement_yaw(normal: Vec3, face_yaw: f32) -> f32 {
     if PortalFrame::up_is_degenerate(normal) {
         (face_yaw / FRAC_PI_2).round() * FRAC_PI_2
     } else {

@@ -91,7 +91,9 @@ def call(operation, *args):
 # The canvas asks for a record's cells and levels once per record on every mouse
 # move, which no boundary crossing is cheap enough for; those few helpers read
 # coordinates in Python the way map_core's `int` does, and
-# tests/test_core_parity.py holds them to the Rust results.
+# tests/test_core_parity.py holds them to the Rust results. The same goes for
+# the drawing geometry of `portal_surfaces.PortalSurface` (`frame`, `placed_from`),
+# held to map_core's `portal_frame`.
 def grid_int(value) -> int:
     if type(value) is int:
         return value
