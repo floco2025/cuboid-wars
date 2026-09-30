@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use crossbeam_channel::{Receiver, unbounded};
 
-use super::{PendingExplosions, damage::*};
+use super::{PendingExplosion, PendingExplosions, damage::*};
 use crate::{
     actors::{ActorInfo, ActorMap},
     config::{
@@ -16,7 +16,10 @@ use crate::{
 };
 use common::{
     celestial::CelestialCycleSettings,
-    protocol::{ActorId, CarrierId, Health, PlayerId, PortalMode, Position, PowerUpKind, SPlayerDeath, ServerMessage},
+    protocol::{
+        ActorId, CarrierId, Health, PlayerDeathEffect, PlayerId, PortalMode, Position, PowerUpKind, SPlayerDeath,
+        ServerMessage,
+    },
 };
 
 fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> Receiver<ServerMessage> {
@@ -348,6 +351,56 @@ fn kill_player_broadcasts_player_death() {
         }
         other => panic!("unexpected message: {other:?}"),
     }
+}
+
+#[test]
+fn crouched_death_keeps_the_blast_and_cue_at_the_body_center_after_life_reset() {
+    let mut world = World::new();
+    let entity = world.spawn_empty().id();
+    let mut players = PlayerMap::default();
+    let id = PlayerId(7);
+    let mut receiver = logged_in_player(&mut players, id, "Player");
+    players
+        .get_mut(&id)
+        .expect("victim missing")
+        .life
+        .movement
+        .stance
+        .crouched = true;
+    let mut config = server_gameplay_config();
+    config.player.gameplay.hitbox.height = 2.0;
+    config.player.gameplay.hitbox.bottom_offset = 0.1;
+    let pos = Position { x: 2.0, y: 3.0, z: 4.0 };
+    let expected = Vec3::new(2.0, 3.6, 4.0);
+    let mut queue = bevy::ecs::world::CommandQueue::default();
+    let mut pending = PendingExplosions::default();
+    kill_player(
+        &mut Commands::new(&mut queue, &world),
+        &mut players,
+        id,
+        entity,
+        pos,
+        2.0,
+        DeathSource::Admin,
+        &config,
+        &mut pending,
+    );
+    queue.apply(&mut world);
+
+    let victim = players.get(&id).expect("victim missing");
+    assert!(victim.is_dead());
+    assert!(!victim.stance().crouched);
+    let Some(PendingExplosion::Player { source_id, center }) = pending.0.pop_front() else {
+        panic!("player death blast missing");
+    };
+    assert_eq!(source_id, id);
+    assert!(center.distance(expected) < 1e-6);
+    let death = next_player_death(&mut receiver);
+    assert_eq!(death.pos, pos);
+    let PlayerDeathEffect::Explosion { center } = death.effect else {
+        panic!("death explosion effect missing");
+    };
+    assert!(Vec3::from(center).distance(expected) < 1e-6);
 }
 
 #[test]

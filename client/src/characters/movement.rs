@@ -12,7 +12,7 @@ use common::{
     protocol::{ActorId, ActorMarker, MapSettings, PlayerMarker, Position, SwitchState},
 };
 
-pub fn characters_movement_system(
+pub(crate) fn characters_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,

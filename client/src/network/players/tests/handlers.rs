@@ -87,7 +87,9 @@ fn player_info(entity: Entity, name: &str) -> PlayerInfo {
 fn death_and_group_respawn_hide_the_player_with_the_matching_banner() {
     for snapshot_first in [false, true] {
         for effect in [
-            PlayerDeathEffect::Explosion,
+            PlayerDeathEffect::Explosion {
+                center: Position::default(),
+            },
             PlayerDeathEffect::VoidFall,
             PlayerDeathEffect::GroupRespawn,
         ] {

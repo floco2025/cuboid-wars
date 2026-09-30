@@ -342,15 +342,14 @@ class JumpPathOverlay:
     def regions(self, level):
         if self.free is None:
             return []
-        apex = tuple(value * self.settings.cell_size for value in self.shooter("entry"))
-        free = level_regions(self.selected(self.free), level, apex)
+        free = level_regions(self.selected(self.free), level)
         if self.through is None:
             return free
         placing = self.window.mode == MODE_JUMP_PATH and self.input_selector.currentData() in (
             "entry_floor",
             "entry_wall",
         )
-        return level_regions(self.selected(self.through), level, apex) + (free if placing else [])
+        return level_regions(self.selected(self.through), level) + (free if placing else [])
 
     # The portal a flight that falls back in goes into, and its number.
     def reentry(self):

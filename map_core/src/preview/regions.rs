@@ -5,7 +5,7 @@ use common::physics::{PortalFrame, flight_funnel_prediction};
 
 use super::{
     jump::PREVIEW_STEERING_DIRECTIONS,
-    polygons::{Rectangle, area, clip, convex_hull, minkowski_sum, yaw_wedge},
+    polygons::{Rectangle, area, clip, convex_hull, yaw_wedge},
     trajectory::{Air, Crossing, Origin, Steering},
 };
 
@@ -13,7 +13,7 @@ use super::{
 const MIN_PIECE_AREA: f32 = 1e-4;
 
 // The part of a region a floor portal shot from one quarter turn covers.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(super) struct Piece {
     pub yaw: f32,
     pub polygon: Vec<Vec2>,
@@ -54,7 +54,7 @@ pub(super) fn capture(air: &Air<'_>, crossing: &Crossing, centre: Option<Vec2>, 
     let margin = physics.funnel.capture_margin;
     let (first, second) = if margin > 0.0 {
         let Some(prediction) = flight_funnel_prediction(
-            crossing.from,
+            crossing.from.state,
             &physics.player,
             air.gravity(),
             physics.tick(),
@@ -75,19 +75,18 @@ pub(super) fn capture(air: &Air<'_>, crossing: &Crossing, centre: Option<Vec2>, 
     })
 }
 
-// Steer roughly, release, and the funnel finishes: every centre within the
-// capture rectangle of a point steering can come down on.
-pub(super) fn steered_capture(air: &Air<'_>, range: &[Vec2], shooter: Vec2) -> Vec<Piece> {
-    quarter_pieces(air, air.physics.funnel.capture_margin, shooter, |aperture| {
-        minkowski_sum(range, aperture)
-    })
+pub(super) struct SteeringRegion {
+    pub level: usize,
+    pub landings: Vec<Vec2>,
+    pub capture: Vec<Piece>,
 }
 
 // Where steering can bring a flight down on each level: the hull of the
 // crossings of input held in each of a ring of fixed directions, and of
 // released input. An inner estimate, since input may also change mid-flight.
-pub(super) fn steering_range(air: &Air<'_>, origin: Origin) -> Vec<(usize, Vec<Vec2>)> {
+pub(super) fn steering_regions(air: &Air<'_>, origin: Origin, shooter: Option<Vec2>) -> Vec<SteeringRegion> {
     let mut points: Vec<Vec<Vec2>> = vec![Vec::new(); air.heights.len()];
+    let mut captures: Vec<Vec<Piece>> = vec![Vec::new(); air.heights.len()];
     let wishes = (0..PREVIEW_STEERING_DIRECTIONS).map(|index| {
         let (sin, cos) = (index as f32 * TAU / PREVIEW_STEERING_DIRECTIONS as f32).sin_cos();
         Steering::Constant(Vec3::new(sin, 0.0, cos) * air.speed())
@@ -96,13 +95,37 @@ pub(super) fn steering_range(air: &Air<'_>, origin: Origin) -> Vec<(usize, Vec<V
         for crossing in air.fly(origin, steering, None).crossings {
             if crossing.phase == origin.phase {
                 points[crossing.level].push(crossing.point);
+                if let Some(shooter) = shooter {
+                    let released = air.fly(crossing.from, Steering::Released, None);
+                    if let Some(landing) = released
+                        .crossings
+                        .iter()
+                        .find(|landing| landing.level == crossing.level)
+                    {
+                        let centre = released
+                            .centres
+                            .iter()
+                            .find_map(|(level, point)| (*level == crossing.level).then_some(*point));
+                        // Keep the union: a hull would invent captures between sampled flights.
+                        for piece in capture(air, landing, centre, shooter) {
+                            if !captures[crossing.level].contains(&piece) {
+                                captures[crossing.level].push(piece);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
     points
         .into_iter()
+        .zip(captures)
         .enumerate()
-        .filter(|(_, points)| !points.is_empty())
-        .map(|(level, points)| (level, convex_hull(&points)))
+        .filter(|(_, (points, _))| !points.is_empty())
+        .map(|(level, (points, capture))| SteeringRegion {
+            level,
+            landings: convex_hull(&points),
+            capture,
+        })
         .collect()
 }

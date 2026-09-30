@@ -7,7 +7,7 @@ use common::protocol::{ActorId, MissileBlastHit, PlayerId, Position};
 pub enum PendingExplosion {
     Player {
         source_id: PlayerId,
-        pos: Position,
+        center: Vec3,
     },
     Actor {
         source_id: ActorId,
@@ -28,8 +28,8 @@ pub enum PendingExplosion {
 pub struct PendingExplosions(pub VecDeque<PendingExplosion>);
 
 impl PendingExplosions {
-    pub fn push_player(&mut self, source_id: PlayerId, pos: Position) {
-        self.0.push_back(PendingExplosion::Player { source_id, pos });
+    pub fn push_player(&mut self, source_id: PlayerId, center: Vec3) {
+        self.0.push_back(PendingExplosion::Player { source_id, center });
     }
 
     pub fn push_actor(&mut self, source_id: ActorId, source_entity: Entity, spawn_kind: String, pos: Position) {

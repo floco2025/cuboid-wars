@@ -61,15 +61,6 @@ fn clipping_keeps_the_part_inside_every_half_plane() {
 }
 
 #[test]
-fn minkowski_sum_grows_a_shape_by_the_rectangle() {
-    let rectangle = upright(Vec2::new(50.0, 50.0), 0.5, 1.0);
-    let around_point = minkowski_sum(&[Vec2::new(3.0, 4.0)], &rectangle);
-    assert!((area(&around_point) - 2.0).abs() < 1e-5, "{around_point:?}");
-    let along_run = minkowski_sum(&[Vec2::ZERO, Vec2::new(3.0, 0.0)], &rectangle);
-    assert!((area(&along_run) - (2.0 + 3.0 * 2.0)).abs() < 1e-5, "{along_run:?}");
-}
-
-#[test]
 fn a_yaw_wedge_is_the_quarter_of_directions_that_snap_to_it() {
     let apex = Vec2::new(1.0, -2.0);
     let inside = |yaw: f32, point: Vec2| yaw_wedge(apex, yaw).iter().all(|plane| plane.excess(point) <= 0.0);

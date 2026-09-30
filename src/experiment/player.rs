@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use client::{
     players::{
         LocalMovementReports, LocalMovementStep, PlayerMotionBundle, PlayerMovementStep, collect_move_outcomes,
-        momentum_displacement, plan_player_move, player_movement_state,
+        plan_player_move, player_movement_state,
     },
     portals::portal_view_transition,
 };
@@ -157,7 +157,7 @@ impl Owner {
                 has_low_gravity: player.has(PowerUpKind::LowGravity),
                 held_keys: &player.life.held_keys,
                 open_fields: open,
-                external_displacement: momentum_displacement(Some(&self.motion.knockback), delta),
+                external_displacement: self.motion.knockback.step(delta),
                 collision_world: collision,
                 map_settings: settings,
                 gameplay_config: gameplay,

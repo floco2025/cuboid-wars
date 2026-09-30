@@ -429,13 +429,13 @@ fn a_group_death_resets_teammates_once_and_respawns_everyone_together() {
             _ => {}
         }
     }
-    assert_eq!(
-        effects,
+    assert!(matches!(
+        effects.as_slice(),
         [
-            (PlayerId(1), PlayerDeathEffect::Explosion),
+            (PlayerId(1), PlayerDeathEffect::Explosion { .. }),
             (PlayerId(2), PlayerDeathEffect::GroupRespawn)
         ]
-    );
+    ));
     assert_eq!(feed_count, 1);
     assert!(
         !app.world_mut()

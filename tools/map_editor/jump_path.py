@@ -2,7 +2,7 @@
 map_core flies, and its reply arranged for one viewed level."""
 
 from dataclasses import dataclass
-from math import floor
+from math import floor, hypot
 
 from .core import call
 from .floor_footprints import FloorFootprints
@@ -224,42 +224,75 @@ def path_runs(flight: Flight, level: int, level_height: float) -> list[PathRun]:
     return runs
 
 
-# The outline of polygons that tile one region. A capture region comes as a
-# piece per quarter turn, cut along the diagonals through the place the
-# portal is shot from; where two pieces meet on a diagonal the cut is inside
-# the region, so only the stretches a single piece covers are kept.
-def outline_segments(polygons, apex: tuple[float, float]) -> list:
+def _covered_interval(a, b, polygon, keep_shared):
+    low, high = 0.0, 1.0
+    dx, dz = b[0] - a[0], b[1] - a[1]
+    for index, p in enumerate(polygon):
+        q = polygon[(index + 1) % len(polygon)]
+        ex, ez = q[0] - p[0], q[1] - p[1]
+        length = hypot(ex, ez)
+        if length <= ON_LINE:
+            continue
+        before = (ex * (a[1] - p[1]) - ez * (a[0] - p[0])) / length
+        after = (ex * (b[1] - p[1]) - ez * (b[0] - p[0])) / length
+        if abs(before) <= ON_LINE and abs(after) <= ON_LINE:
+            # Coincident outer edges are drawn once; opposite edges are inside the union.
+            if keep_shared and ex * dx + ez * dz > 0:
+                return None
+            continue
+        if before < 0 and after < 0:
+            return None
+        if before < 0:
+            low = max(low, before / (before - after))
+        elif after < 0:
+            high = min(high, before / (before - after))
+        if high <= low:
+            return None
+    return low, high
+
+
+def outline_segments(polygons) -> list:
+    polygons = list(dict.fromkeys(tuple(polygon) for polygon in polygons))
+    for index, polygon in enumerate(polygons):
+        area = sum(a[0] * b[1] - a[1] * b[0] for a, b in zip(polygon, polygon[1:] + polygon[:1]))
+        if area < 0:
+            polygons[index] = tuple(reversed(polygon))
     segments = []
-    cuts = {1: [], -1: []}
-    for polygon in polygons:
+    for index, polygon in enumerate(polygons):
         # Two points are one stroke, not a stroke there and back.
-        for index, a in enumerate(polygon if len(polygon) > 2 else polygon[:-1]):
-            b = polygon[(index + 1) % len(polygon)]
-            (ax, az), (bx, bz) = ((x - apex[0], z - apex[1]) for x, z in (a, b))
-            for slope, cut in cuts.items():
-                if abs(az - slope * ax) <= ON_LINE and abs(bz - slope * bx) <= ON_LINE:
-                    cut.append((min(ax, bx), max(ax, bx)))
+        for edge, a in enumerate(polygon if len(polygon) > 2 else polygon[:-1]):
+            b = polygon[(edge + 1) % len(polygon)]
+            visible = [(0.0, 1.0)]
+            for other, cover in enumerate(polygons):
+                if other == index or len(cover) < 3:
+                    continue
+                covered = _covered_interval(a, b, cover, keep_shared=other > index)
+                if covered is None:
+                    continue
+                low, high = covered
+                visible = [
+                    interval
+                    for start, stop in visible
+                    for interval in ((start, min(stop, low)), (max(start, high), stop))
+                    if interval[1] > interval[0]
+                ]
+                if not visible:
                     break
-            else:
-                segments.append((a, b))
-    for slope, cut in cuts.items():
-        ends = sorted({end for stretch in cut for end in stretch})
-        for low, high in zip(ends, ends[1:]):
-            middle = (low + high) / 2
-            if high - low > ON_LINE and sum(a <= middle <= b for a, b in cut) % 2:
-                segments.append(((apex[0] + low, apex[1] + slope * low), (apex[0] + high, apex[1] + slope * high)))
+            dx, dz = b[0] - a[0], b[1] - a[1]
+            for start, stop in visible:
+                if (stop - start) * hypot(dx, dz) > ON_LINE:
+                    segments.append(((a[0] + start * dx, a[1] + start * dz), (a[0] + stop * dx, a[1] + stop * dz)))
     return segments
 
 
-# `apex` is where portal 1 is shot from, in metres.
-def level_regions(flight: Flight, level: int, apex: tuple[float, float]) -> list[Region]:
+def level_regions(flight: Flight, level: int) -> list[Region]:
     regions = []
     for kind, outlines in (
         ("capture", flight.capture),
         ("capture_steered", flight.capture_steered),
         ("range", {**flight.range, **flight.exit_range}),
     ):
-        segments = outline_segments(outlines.get(level, ()), apex)
+        segments = outline_segments(outlines.get(level, ()))
         if segments:
             regions.append(Region(kind, tuple(segments)))
     return regions

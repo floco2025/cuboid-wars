@@ -8,8 +8,9 @@ use crate::{
     players::PlayerMap,
     quests::{QuestBoard, QuestCatalog, QuestEvent, record_event},
 };
-use common::protocol::{
-    ActorId, Health, PlayerDeathEffect, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage,
+use common::{
+    physics::character_hitbox_center,
+    protocol::{ActorId, Health, PlayerDeathEffect, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage},
 };
 
 pub fn apply_damage(health: &mut Health, amount: f32) {
@@ -100,11 +101,12 @@ pub fn kill_player(
     pending_explosions: &mut PendingExplosions,
 ) {
     let killer = kill_credit(&source, id, players);
-    let Some(generation) = players
-        .get(&id)
-        .filter(|info| !info.is_dead())
-        .map(|info| info.session.generation)
-    else {
+    let Some((generation, center)) = players.get(&id).filter(|info| !info.is_dead()).map(|info| {
+        (
+            info.session.generation,
+            character_hitbox_center(pos, info.stance().physics(&server_gameplay_config.player.gameplay)),
+        )
+    }) else {
         return;
     };
     if !players.begin_respawn(id, respawn_secs) {
@@ -122,7 +124,7 @@ pub fn kill_player(
     // reach nothing, and the cue tells clients to show nothing.
     let explodes = !matches!(source, DeathSource::Void);
     if explodes {
-        pending_explosions.push_player(id, pos);
+        pending_explosions.push_player(id, center);
     }
     commands.entity(entity).despawn();
     // Snapshot the post-death scores so the cue carries the early-apply
@@ -139,7 +141,7 @@ pub fn kill_player(
             victim_score,
             killer_score,
             effect: if explodes {
-                PlayerDeathEffect::Explosion
+                PlayerDeathEffect::Explosion { center: center.into() }
             } else {
                 PlayerDeathEffect::VoidFall
             },

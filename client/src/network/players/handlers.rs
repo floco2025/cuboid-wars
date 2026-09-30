@@ -23,7 +23,7 @@ pub(in crate::network) fn handle_player_death_message(
         return;
     }
     // Keep audio outside the state handler so its unit test does not need an asset server.
-    if message.effect == PlayerDeathEffect::Explosion {
+    if let PlayerDeathEffect::Explosion { center } = message.effect {
         play_explosion_sound(
             commands,
             &context.assets.asset_server,
@@ -36,7 +36,7 @@ pub(in crate::network) fn handle_player_death_message(
         // For the local player the fireball's backfaces are culled, so the
         // first-person camera inside the sphere sees shards/ring/light rather
         // than an orange screen wash.
-        spawn_player_explosion(commands, &mut context.explosion_ctx(), message.pos);
+        spawn_player_explosion(commands, &mut context.explosion_ctx(), message.pos, center);
     } else if message.effect == PlayerDeathEffect::VoidFall && message.id == my_player_id {
         play_sound(
             commands,

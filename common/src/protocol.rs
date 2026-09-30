@@ -530,9 +530,9 @@ pub struct SPlayerDeath {
     pub effect: PlayerDeathEffect,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
 pub enum PlayerDeathEffect {
-    Explosion,
+    Explosion { center: Position },
     VoidFall,
     GroupRespawn,
 }

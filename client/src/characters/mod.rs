@@ -16,7 +16,7 @@ pub use components::PreviousTickPosition;
 pub(crate) use inspection::refresh_grounding_debug_system;
 pub use inspection::{character_bounds_sync_system, grounding_debug_system, spawn_character_bounds};
 pub use model::{CharacterModel, character_models_attach_system, load_character_model, model_transform};
-pub use movement::characters_movement_system;
+pub(crate) use movement::characters_movement_system;
 pub use plugin::{character_sync_plugin, local_simulation_plugin};
 pub(crate) use remote_pose::rendered_carrier_position;
 pub use resources::{BoundsMode, MaxHealth, health_ratio};

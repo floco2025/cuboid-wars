@@ -22,7 +22,7 @@ pub use effects::{
 pub(crate) use footsteps::footsteps_plugin;
 pub use movement::{
     LocalMovementReports, LocalMovementStep, PlayerMotionBundle, PlayerMove, PlayerMovementStep, collect_move_outcomes,
-    momentum_displacement, plan_player_move, player_movement_state, report_player_movement_system,
+    plan_player_move, player_movement_state, report_player_movement_system,
 };
 pub(crate) use movement::{
     PlayerMovementQuery, apply_player_moves, interpolate_remote_players_system, plan_player_moves,

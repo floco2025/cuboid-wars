@@ -176,7 +176,7 @@ fn surviving_actor_receives_blast_knockback() {
     let actor = spawn_actor(&mut app, ActorId(1), 1.0, 1_000.0);
     app.world_mut()
         .resource_mut::<PendingExplosions>()
-        .push_player(PlayerId(9), Position::default());
+        .push_player(PlayerId(9), Vec3::ZERO);
 
     app.update();
 
@@ -249,7 +249,7 @@ fn turret_takes_blast_damage_without_knockback() {
     });
     app.world_mut()
         .resource_mut::<PendingExplosions>()
-        .push_player(PlayerId(9), Position::default());
+        .push_player(PlayerId(9), Vec3::ZERO);
     app.update();
     assert!(
         app.world()

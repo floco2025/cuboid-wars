@@ -62,7 +62,9 @@ fn unreliable_lane_messages_fit_one_packet() {
             killer: Some(PlayerId(2)),
             victim_score: -1000,
             killer_score: Some(200),
-            effect: PlayerDeathEffect::Explosion,
+            effect: PlayerDeathEffect::Explosion {
+                center: Position::default(),
+            },
         }),
         ServerMessage::ProjectileShot(SProjectileShot {
             id: PlayerId(1),

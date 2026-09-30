@@ -198,9 +198,9 @@ pub fn explosions_system(mut context: ExplosionContext) {
 
 fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &ServerGameplayConfig) -> BlastSpec {
     match pending {
-        PendingExplosion::Player { source_id, pos } => BlastSpec {
+        PendingExplosion::Player { source_id, center } => BlastSpec {
             source: BlastSource::Player(source_id),
-            center: character_hitbox_center(pos, gameplay.player.physics()),
+            center,
             excluded_actor: None,
             damage: server.combat.damage.player_blast,
             killer: None,

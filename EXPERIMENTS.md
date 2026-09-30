@@ -21,20 +21,20 @@ right point. More platforms and repeated jumps alone are insufficient.
 
 ## Current handoff: movement first, Hotel playtest
 
-The rollout is deliberately staged. **Stage 1 implements the new movement model;
-Hotel playtesting and tuning are in progress.** Stop for movement feedback before proceeding:
+The rollout is deliberately staged. **The movement model and the editor's Jump Path
+tool are implemented; Hotel playtesting and manual Obby editing continue.**
+Generated-course retuning follows that feedback:
 
 1. Replace movement and integrate input, crouching, cameras, hitboxes, networking,
    portal traversal, and the shared headless owner. Map changes in this stage are
    initially mechanical only: `walk_speed` becomes `move_speed`, `run_speed`
    disappears, and scripts no longer have a `run` flag. Shared movement defaults
    are then tuned through Hotel playtesting. Layouts and route timings stay intact.
-2. After the Hotel playtest, update the editor to use the same Rust movement and
-   traversal code. Batch complete trajectory simulations across PyO3 instead of
-   making a Python/Rust call each tick. Derive entry velocity from the authored
-   takeoff and route, rotate it through the portals, and show released-input and
-   held-W reach when they differ. Include ramp exits, crouching, pickups, erasers,
-   switches, and carriers in the simulation; profile repeated previews.
+2. Jump Path batches complete open-air trajectories through PyO3 using the shared
+   Rust movement, funnel, and portal hop. It shows released-input landings,
+   optional steering ranges, and floor/wall portal flights. Run-up, ramps,
+   crouching, mid-flight pickups and erasers, switches, and carriers remain in
+   the preview follow-ups in [TODO.md](TODO.md).
 3. The user will adapt **Obby manually**, using those editor tools. Do not change
    Obby's layout or retune its movement overrides on their behalf.
 4. Retune the generated maps and their experiment scripts/tests for the accepted
@@ -54,33 +54,21 @@ and held, strafing, stairs/ramps, low-ceiling crouching, and moving platforms.
 Then compare portal flings with W released and held along the outgoing velocity.
 There are no separate air-control rules before and after a portal.
 
-The first Hotel playtest found excessive sideways carry when turning on the
-ground, slow travel, and low-gravity jumps that could no longer reach the roof.
-The initial reference tuning reduced normal speed from 6 to 4.375 m/s and
-low-gravity jump rise from about 14.4 to 3.4 m. The shared normal speed is now
-**9 m/s**, the former run speed; Hotel inherits it without a map override. At
-the user's request, shared defaults restore both former jump arcs: 12 m/s takeoff with
-25 m/s² ordinary gravity or 5 m/s² low gravity. Ground control now separates
-acceleration, braking, and sideways grip, allowing slow starts with fast stops.
-Ground and air now share this model and use direct m/s² rates; the former always-on ground friction and minimum
-braking speed have been removed. Persistent velocity and directional air control
-remain the movement model. Repeat the
-Hotel playtest for ground grip, travel pace, and ground-to-roof boosted jumps;
-these tuning changes have not yet been confirmed by a human playtest.
+Hotel playtesting has driven changes to travel speed, ground grip, and jump
+arcs. Hotel inherits its movement from `movement` in
+[gameplay.json](config/server/gameplay.json); use that block for current speed,
+jump, gravity, and acceleration/braking values. Ground and air share the same
+controller with independently configured rates in m/s². Travel pace,
+ground-to-roof jumps, and portal flings still need human confirmation.
 
-Air acceleration now targets the available movement speed: 9 m/s by default,
-including Hotel, scaled by speed pickups. The former separate air cap and
-high-speed world-axis input restriction were removed after the Hotel playtest.
-Air acceleration no longer multiplies movement speed: the default 20 means
-20 m/s², matching ground acceleration. Default air stopping and lateral braking
-match ground at 30 and 40 m/s² respectively. Releasing input brakes horizontal
-motion, and changing direction removes unwanted sideways drift. A launch above
-the requested speed also slows toward that speed while input is held. Setting
-both air braking rates to zero preserves momentum; Obby additionally sets air
-acceleration to zero, disabling manual air steering. Gravity and automatic portal
-funneling remain active. Hotel inherits the defaults without a map override.
-`move_speed_power_up` is a multiplier (1.5 by default: 9 becomes 13.5 m/s),
-independent of `jump_speed` and all acceleration/deceleration rates.
+Air acceleration targets the available movement speed, including speed pickups.
+Releasing input brakes horizontal motion, and changing direction removes unwanted
+sideways drift. A launch above the requested speed slows toward that speed while
+input is held. Setting both air braking rates to zero preserves momentum;
+[Obby](config/server/maps/obby/settings.json) also sets air acceleration to zero,
+disabling manual air steering. Gravity and automatic portal funneling remain
+active. `move_speed_power_up` multiplies horizontal target speed, independently
+of `jump_speed` and all acceleration/deceleration rates.
 
 **Known stage boundary:** the editor's Jump Path preview runs the shared Rust
 movement, funnel, and portal hop through `map_core::preview` (open air,
@@ -89,13 +77,9 @@ preview scope is in TODO.md. Generated-course route assertions currently fail; t
 walkthroughs describe the previous movement. Keep the assertions visible until
 stage 4 retunes the courses; do not weaken them to accept failed routes.
 
-Validation after independent air braking, matching ground/air units, and the
-movement-speed multiplier rename: the client (544), common physics/types (382), server (687), map core (23),
-and 34 runner/CLI tests pass; all 483 editor tests pass. Nineteen old
-Movement, Relay, and Choices route assertions fail and remain enabled, including
-one additional Relay timing assertion under the new ground controller. Runner
-fixtures now pin movement rates so subsequent Hotel tuning does not change their
-expectations. Shared regressions cover slow acceleration with fast stopping at
+The canonical Rust and editor test commands are in
+[AGENTS.md](AGENTS.md#build-run-lint-format). Runner fixtures pin movement rates
+so subsequent Hotel tuning does not change their expectations. Shared regressions cover slow acceleration with fast stopping at
 30/60/120 Hz, independent sideways grip, braking before reversal, gradual slowing
 to lower ground targets, stationary takeoffs followed by forward input,
 movement-speed limits with pickups, equal physical rates across ground and air,
@@ -107,7 +91,7 @@ misaligned loops, steering release, obstructed approaches, moving/sloping gates,
 and independence from movement tuning at 30/60/120 Hz. Graphical pacing,
 continuous playback, pause/resume, reset, and input isolation are covered separately.
 A bootstrap regression constructs portal and fizzle assets from received sizes
-without a preinstalled gameplay resource. Formatting and workspace Clippy pass.
+without a preinstalled gameplay resource.
 
 ## Design decisions to preserve
 
@@ -219,28 +203,14 @@ that extra velocity immediately. We replaced this with persistent horizontal
 velocity and Portal-inspired air acceleration. Portal traversal rotates actual velocity
 once. The same air controller then operates everywhere.
 
-The reference profile scales Source units by 0.025 m (a 72-unit standing hull
-becomes 1.8 m). Hotel feedback led to faster ground response and restored the
-game's previous normal speed and jump arcs. Defaults live in
-`config/server/gameplay.json`; existing course overrides keep their authored
-numbers until their later retuning stage.
-
-| Quantity | Default |
-| --- | --- |
-| Normal movement speed (including Hotel) | 9 m/s, the former run speed |
-| Movement speed pickup multiplier (`move_speed_power_up`) | 1.5, giving 13.5 m/s; jump speed is unchanged |
-| Gravity | 25 m/s² |
-| Low gravity | 5 m/s² |
-| Jump impulse | 12 m/s, approximately 2.88 m of rise (14.4 m with low gravity) |
-| Ground acceleration | 20 m/s²; 0 to 9 m/s in 0.45 s |
-| Ground deceleration | 30 m/s²; 9 m/s to rest in 0.3 s |
-| Ground lateral deceleration | 40 m/s², removing velocity perpendicular to input |
-| Air acceleration | 20 m/s², reduced to one quarter near the upward apex |
-| Air deceleration | 30 m/s², braking release, reversal, and speed above the input target |
-| Air lateral deceleration | 40 m/s², removing velocity perpendicular to input |
-| Directional air speed limit | Requested movement speed, including speed pickups |
-| Standing / crouched collision height | 1.8 / 0.9 m |
-| Crouched ground speed | One third of normal speed |
+The reference profile scales Source units by 0.025 m. Hotel feedback led to
+independent ground and air response. Current movement defaults live in
+`movement.player`, `movement.gravity`, and `movement.low_gravity` in
+[gameplay.json](config/server/gameplay.json); player body dimensions live in its
+`player` block. Crouch policy lives in
+[the player constants](common/src/constants.rs). Each map's `settings.json`
+overrides those defaults; generated courses keep their authored numbers until
+their later retuning stage.
 
 The air limit applies to the projection of velocity onto the requested direction,
 not total speed. Aligned input does not accelerate an already faster launch;
@@ -264,9 +234,7 @@ zero stopping/lateral braking allows coasting, while opposite input can still
 brake through acceleration; all three zero leave horizontal motion untouched by
 input. Obby sets all three to zero. Combat knockback retains its separate decay
 and participates in the air acceleration limit without passive braking storing
-an opposing velocity. Ground values and the air acceleration number were retained
-at the user's request; interpreting air acceleration as m/s² makes it weaker than
-the previous multiplier. No takeoff or steering velocity history is tracked.
+an opposing velocity. No takeoff or steering velocity history is tracked.
 
 `common/src/physics/characters/player_step.rs` owns player policy over the shared
 collision motor, and `player_control.rs` owns acceleration. The rendered owner
@@ -293,14 +261,14 @@ not guaranteed to be captured. It does not use Portal 2's gaze or map-specific
 fling helpers.
 
 Shared portal settings live under `weapons.portals` in gameplay JSON:
-`size.width` / `size.height` default to **1.4 / 2.6 m** and drive placement,
-overlap checks, aperture traversal, backing exclusions, rendering, and effects.
-`funnel.capture_margin` currently defaults to **0.6 m** beyond each aperture edge; zero
-disables assistance. There are no separate funnel acceleration, speed, or timing
-settings. The editor reads portal dimensions mechanically; its movement-preview
-replacement still belongs to stage 2. The renamed `ground_lateral_deceleration`
-remains independently tunable, as does `air_lateral_deceleration`.
-Left/right strafe clip selection was also corrected.
+`size.width` / `size.height` drive placement, overlap checks, aperture traversal,
+backing exclusions, rendering, and effects. `funnel.capture_margin` extends each
+aperture edge; zero disables assistance. There are no separate funnel
+acceleration, speed, or timing settings. Jump Path reads these settings and uses
+the shared flight, funnel, and traversal code through `map_core::preview`.
+Its dashed capture outline combines valid steering-and-release captures; it does
+not fill gaps between sampled flights. The preview's remaining scope is in
+[TODO.md](TODO.md).
 
 Crouch presentation currently
 blends camera height and model height; it does not add a new authored animation.

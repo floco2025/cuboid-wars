@@ -84,7 +84,7 @@ pub(super) struct Crossing {
     // Fraction of full health.
     pub damage: f32,
     // The tick it happened in: the state it began with and where it moved the body.
-    pub from: PlayerFlightState,
+    pub from: Origin,
     pub arrived: Vec2,
 }
 
@@ -125,7 +125,7 @@ impl Flight {
                     point: feet.xz(),
                     time: origin.time,
                     damage: air.damage(-origin.state.vertical_velocity),
-                    from: origin.state,
+                    from: origin,
                     arrived: feet.xz(),
                 });
             }
@@ -256,7 +256,8 @@ impl Air<'_> {
             let tick = self.step(state, steering, gates);
             let (from, to) = (state.position, tick.arrived);
             for (level, &height) in self.heights.iter().enumerate() {
-                if from.y <= height && to.y > height {
+                // Launching from a floor is not passing through its underside.
+                if from.y <= height && to.y > height && !(time == origin.time && from.y == height) {
                     rises[level] = Some(from.lerp(to, (height - from.y) / (to.y - from.y)).xz());
                 }
                 if from.y > height && to.y <= height && !flight.crossed(level, phase) {
@@ -271,7 +272,7 @@ impl Air<'_> {
                             point,
                             time: time + dt * fraction,
                             damage: self.damage(tick.impact_speed),
-                            from: state,
+                            from: Origin { state, time, phase },
                             arrived: to.xz(),
                         });
                     }

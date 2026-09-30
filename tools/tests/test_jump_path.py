@@ -284,31 +284,54 @@ class LevelViewTests(unittest.TestCase):
             capture_steered=[{"level": 1, "pieces": [{"yaw": 0, "polygon": square}]}],
             range=[{"level": 0, "polygon": square[:2]}],
         )
-        lower = level_regions(flight, 0, (50, 50))
+        lower = level_regions(flight, 0)
         self.assertEqual([region.kind for region in lower], ["capture", "range"])
-        self.assertEqual(len(lower[0].segments), 8)
+        self.assertEqual(len(lower[0].segments), 4)
         self.assertEqual(lower[0].segments[0], ((0, 0), (1, 0)))
         self.assertEqual(lower[1].segments, (((0, 0), (1, 0)),))
-        self.assertEqual([region.kind for region in level_regions(flight, 1, (50, 50))], ["capture_steered"])
-        self.assertEqual(level_regions(flight, 2, (50, 50)), [])
+        self.assertEqual([region.kind for region in level_regions(flight, 1)], ["capture_steered"])
+        self.assertEqual(level_regions(flight, 2), [])
 
     def test_a_run_is_one_stroke_and_a_point_is_none(self):
-        self.assertEqual(outline_segments([((0, 0), (1, 0))], (50, 50)), [((0, 0), (1, 0))])
-        self.assertEqual(outline_segments([((3, 4),)], (50, 50)), [])
+        self.assertEqual(outline_segments([((0, 0), (1, 0))]), [((0, 0), (1, 0))])
+        self.assertEqual(outline_segments([((3, 4),)]), [])
+
+    def test_overlapping_capture_pieces_draw_only_the_union_boundary(self):
+        first = ((0, 0), (2, 0), (2, 2), (0, 2))
+        second = ((1, 1), (3, 1), (3, 3), (1, 3))
+        for pieces in ([first, second], [first, tuple(reversed(second)), first]):
+            segments = outline_segments(pieces)
+            self.assertEqual(len(segments), 8)
+            length = sum(((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5 for a, b in segments)
+            self.assertAlmostEqual(length, 12)
+            for a, b in segments:
+                x, z = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+                self.assertFalse(0 < x < 2 and 0 < z < 2)
+                self.assertFalse(1 < x < 3 and 1 < z < 3)
+
+    def test_capture_union_keeps_gaps_and_removes_contained_pieces(self):
+        left = ((0, 0), (2, 0), (2, 2), (0, 2))
+        right = ((3, 0), (5, 0), (5, 2), (3, 2))
+        inside = ((0.5, 0.5), (1.5, 0.5), (1.5, 1.5), (0.5, 1.5))
+        self.assertEqual(outline_segments([left, inside]), outline_segments([left]))
+        self.assertEqual(len(outline_segments([left, right])), 8)
+        adjacent = tuple((x + 2, z) for x, z in left)
+        segments = outline_segments([left, adjacent])
+        self.assertFalse(any(a[0] == b[0] == 2 for a, b in segments))
 
     def test_pieces_cut_along_a_diagonal_through_the_shooter_outline_as_one_region(self):
         # Two quarter-turn pieces meet on the diagonal from the shooter at (1, 1):
         # one covers it from 2 to 5, the other from 3 to 6.
         east = ((2, 2), (5, 5), (5, 1), (2, 1))
         south = ((3, 3), (3, 7), (6, 7), (6, 6))
-        segments = outline_segments([east, south], (1, 1))
+        segments = outline_segments([east, south])
         diagonal = sorted(
-            segment for segment in segments if segment[0][0] - segment[0][1] == 0 == segment[1][0] - segment[1][1]
+            tuple(sorted(segment))
+            for segment in segments
+            if segment[0][0] - segment[0][1] == 0 == segment[1][0] - segment[1][1]
         )
         self.assertEqual(diagonal, [((2, 2), (3, 3)), ((5, 5), (6, 6))])
         self.assertEqual(len(segments), 3 + 3 + 2)
-        # Shot from elsewhere, the same edges are ordinary outline.
-        self.assertEqual(len(outline_segments([east, south], (0, 3))), 8)
 
     def test_an_entry_is_blocked_by_a_floor_the_flight_meets_first(self):
         path = [(16, 5, 10), (18, 5, 10), (20, 0, 10)]

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     physics::{PreviewPhysics, SCENARIOS, Scenario, SurfaceSpec},
-    regions::{Piece, capture, steered_capture, steering_range},
+    regions::{Piece, capture, steering_regions},
     trajectory::{Air, End, Flight, Gates, Origin, Outcome, Phase, Steering},
 };
 
@@ -260,19 +260,19 @@ fn scenario_preview(
             })
             .filter(|level| !level.pieces.is_empty())
             .collect();
-        let range = if request.air_control {
-            steering_range(&air, origin)
+        let regions = if request.air_control {
+            steering_regions(&air, origin, Some(shooter))
         } else {
             Vec::new()
         };
         return ScenarioPreview {
             capture,
-            capture_steered: range
+            capture_steered: regions
                 .iter()
-                .map(|(level, hull)| level_pieces(*level, steered_capture(&air, hull, shooter)))
+                .map(|region| level_pieces(region.level, region.capture.clone()))
                 .filter(|level| !level.pieces.is_empty())
                 .collect(),
-            range: level_polygons(range),
+            range: level_polygons(regions.into_iter().map(|region| (region.level, region.landings))),
             ..scenario_path(&flight, None)
         };
     };
@@ -298,7 +298,11 @@ fn scenario_preview(
     };
     // A flight that falls back into a portal lands only where it is steered.
     let exit_range = match flight.exit {
-        Some(exit) if request.air_control || flight.end == End::Reentered => level_polygons(steering_range(&air, exit)),
+        Some(exit) if request.air_control || flight.end == End::Reentered => level_polygons(
+            steering_regions(&air, exit, None)
+                .into_iter()
+                .map(|region| (region.level, region.landings)),
+        ),
         _ => Vec::new(),
     };
     ScenarioPreview {
@@ -325,7 +329,7 @@ fn scenario_path(flight: &Flight, entry: Option<Entry>) -> ScenarioPreview {
                 phase: crossing.phase,
                 point: crossing.point.to_array().map(rounded),
                 time: rounded(crossing.time),
-                damage: rounded(crossing.damage),
+                damage: f64::from(crossing.damage),
             })
             .collect(),
         entry,
@@ -336,7 +340,7 @@ fn scenario_path(flight: &Flight, entry: Option<Entry>) -> ScenarioPreview {
     }
 }
 
-fn level_polygons(hulls: Vec<(usize, Vec<Vec2>)>) -> Vec<LevelPolygon> {
+fn level_polygons(hulls: impl IntoIterator<Item = (usize, Vec<Vec2>)>) -> Vec<LevelPolygon> {
     hulls
         .into_iter()
         .map(|(level, hull)| LevelPolygon {

@@ -91,9 +91,8 @@ pub fn spawn_actor_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCt
     );
 }
 
-pub fn spawn_player_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, pos: Position) {
+pub fn spawn_player_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, pos: Position, center: Position) {
     let surfaces = ctx.surfaces();
-    let player_physics = ctx.gameplay_config.player.physics();
     let blast_radius = (ctx.blast_radii.player > 0.0).then_some(ctx.blast_radii.player);
     spawn_explosion(
         commands,
@@ -102,7 +101,7 @@ pub fn spawn_player_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnC
         ctx.budget,
         ctx.explosion_assets,
         ExplosionSpec {
-            center: Vec3::new(pos.x, player_physics.hitbox_center_y(pos.y), pos.z),
+            center: center.into(),
             ground_y: pos.y,
             fireball_diameter: blast_radius.map_or(EXPLOSION_FALLBACK_FIREBALL_DIAMETER, |radius| {
                 2.0 * radius * EXPLOSION_FIREBALL_BLAST_DIAMETER_FACTOR

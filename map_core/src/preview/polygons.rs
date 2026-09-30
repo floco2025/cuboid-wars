@@ -102,17 +102,6 @@ pub(super) fn clip(polygon: &[Vec2], planes: &[HalfPlane]) -> Vec<Vec2> {
     polygon
 }
 
-// Every point within the rectangle's extents of the polygon; only the
-// rectangle's axes and half sizes are read.
-pub(super) fn minkowski_sum(polygon: &[Vec2], rectangle: &Rectangle) -> Vec<Vec2> {
-    let corners = rectangle.at(Vec2::ZERO).corners();
-    let points: Vec<Vec2> = polygon
-        .iter()
-        .flat_map(|&point| corners.map(|corner| point + corner))
-        .collect();
-    convex_hull(&points)
-}
-
 // The quarter of the plane, seen from `apex`, whose directions snap to `yaw`
 // under the game's quarter-turn placement rule. Points are `(x, z)`.
 pub(super) fn yaw_wedge(apex: Vec2, yaw: f32) -> [HalfPlane; 2] {

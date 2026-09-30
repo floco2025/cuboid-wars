@@ -1,4 +1,4 @@
-use std::f32::consts::FRAC_PI_2;
+use std::f32::consts::{FRAC_PI_2, TAU};
 
 use super::{
     super::test_fixtures::{game_physics, physics_with},
@@ -112,6 +112,21 @@ fn a_jump_comes_down_on_its_own_level_where_each_scenario_carries_it() {
 }
 
 #[test]
+fn a_braked_jump_returns_to_its_takeoff_floor_but_cannot_land_above_a_ceiling() {
+    let mut physics = game_physics();
+    physics.player.move_speed = 1.0;
+    physics.player.air_deceleration = 60.0;
+    let mut jump = request([0.0; 3], true, &[0.0, 0.5]);
+    jump.takeoff.margin = 0.1;
+    for scenario in preview(&physics, &jump) {
+        let landing = crossing(&scenario, 0, Phase::BeforeEntry);
+        assert_eq!(landing.point, [scenario.path[0][0], scenario.path[0][2]]);
+        assert!(scenario.crossings.iter().all(|crossing| crossing.level == 0));
+        assert!(!capture_on(&scenario, 0).is_empty());
+    }
+}
+
+#[test]
 fn a_step_leaves_from_the_edge_and_a_jump_from_the_margin_before_it() {
     let physics = physics_with(0.0);
     let step = &preview(&physics, &request([0.0, 5.0, 0.0], false, &[0.0, 5.0]))[0];
@@ -137,6 +152,21 @@ fn damage_uses_the_normal_gravity_drop() {
     // Half gravity lands like a 6.5 m drop, between safe 4 and lethal 12.
     assert!((crossing(&lethal[2], 0, Phase::BeforeEntry).damage - 0.3125).abs() < 0.02);
     assert_eq!(crossing(&fall(3.0)[0], 0, Phase::BeforeEntry).damage, 0.0);
+}
+
+#[test]
+fn near_lethal_fall_damage_keeps_its_survival_classification() {
+    let mut physics = physics_with(0.0);
+    physics.player_fall.lethal_distance = 9.9235;
+    let fall = request([0.0, 10.0, 0.0], false, &[0.0]);
+    let scenarios = preview(&physics, &fall);
+    let damage = crossing(&scenarios[0], 0, Phase::BeforeEntry).damage;
+    assert!((0.9995..1.0).contains(&damage), "{damage}");
+    physics.player_fall.lethal_distance = 9.92;
+    assert_eq!(
+        crossing(&preview(&physics, &fall)[0], 0, Phase::BeforeEntry).damage,
+        1.0
+    );
 }
 
 #[test]
@@ -282,8 +312,12 @@ fn steering_range_holds_the_released_landing_and_collapses_without_air_rates() {
         .find(|level| level.level == 0)
         .expect("level 0")
         .pieces;
-    let forward = caught.iter().find(|piece| piece.yaw == 0.0).expect("a forward piece");
-    assert!(bounds(&forward.polygon).1[1] > bounds(range).1[1] + 1.8);
+    let forward = caught
+        .iter()
+        .filter(|piece| piece.yaw == 0.0)
+        .map(|piece| bounds(&piece.polygon).1[1])
+        .fold(f64::NEG_INFINITY, f64::max);
+    assert!(forward > bounds(range).1[1] + 1.0);
 
     let mut ballistic = game_physics();
     ballistic.player.air_acceleration = 0.0;
@@ -298,10 +332,83 @@ fn steering_range_holds_the_released_landing_and_collapses_without_air_rates() {
         .expect("level 0 is crossed")
         .polygon;
     assert_eq!(range, &vec![landing]);
+    for margin in [0.0, 0.6] {
+        ballistic.funnel.capture_margin = margin;
+        for mut scenario in preview(&ballistic, &steered) {
+            scenario.capture.sort_by_key(|capture| capture.level);
+            scenario.capture_steered.sort_by_key(|capture| capture.level);
+            assert_eq!(
+                serde_json::to_value(&scenario.capture).expect("capture serialization failed"),
+                serde_json::to_value(&scenario.capture_steered).expect("steered capture serialization failed"),
+            );
+        }
+    }
 
     steered.air_control = false;
     let scenario = &preview(&game_physics(), &steered)[0];
     assert!(scenario.range.is_empty() && scenario.capture_steered.is_empty());
+}
+
+#[test]
+fn every_steered_capture_piece_has_a_flight_that_enters_its_portals_after_release() {
+    for margin in [0.0, 0.6] {
+        let mut physics = game_physics();
+        physics.funnel.capture_margin = margin;
+        let mut jump = request([0.0, 8.0, 0.0], true, &[0.0]);
+        jump.air_control = true;
+        let air = Air {
+            physics: &physics,
+            scenario: SCENARIOS[0],
+            heights: &jump.heights,
+        };
+        let origin = Origin {
+            state: PlayerFlightState {
+                position: Vec3::new(0.0, 8.0, 0.0),
+                horizontal_velocity: Vec3::Z * air.speed(),
+                vertical_velocity: physics.player.jump_speed,
+            },
+            time: 0.0,
+            phase: Phase::BeforeEntry,
+        };
+        let wishes = (0..PREVIEW_STEERING_DIRECTIONS).map(|index| {
+            let (sin, cos) = (index as f32 * TAU / PREVIEW_STEERING_DIRECTIONS as f32).sin_cos();
+            Steering::Constant(Vec3::new(sin, 0.0, cos) * air.speed())
+        });
+        let releases: Vec<_> = wishes
+            .chain([Steering::Released])
+            .flat_map(|steering| {
+                air.fly(origin, steering, None)
+                    .crossings
+                    .into_iter()
+                    .map(|crossing| crossing.from)
+            })
+            .collect();
+        let scenarios = preview(&physics, &jump);
+        let pieces = &scenarios[0].capture_steered[0].pieces;
+        assert!(!pieces.is_empty());
+        for piece in pieces {
+            let points: Vec<_> = piece
+                .polygon
+                .iter()
+                .map(|point| Vec2::new(point[0] as f32, point[1] as f32))
+                .collect();
+            let middle = points.iter().sum::<Vec2>() / points.len() as f32;
+            for point in points.iter().map(|point| middle.lerp(*point, 0.9)) {
+                let entry = SurfaceSpec {
+                    yaw: point.x.atan2(point.y),
+                    ..floor_portal(point.x, 0.0, point.y)
+                };
+                let pair = Pair::new(&physics, &PortalsSpec { entry, exit: None });
+                let gates = pair.gates(&physics, physics.funnel);
+                assert!(
+                    releases.iter().any(|&release| {
+                        air.fly(release, Steering::Released, Some(&gates)).outcome == Outcome::Entered
+                    }),
+                    "uncapturable portal at {point:?}, margin {margin}"
+                );
+            }
+        }
+    }
 }
 
 #[test]

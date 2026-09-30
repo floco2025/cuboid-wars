@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{ecs::query::QueryData, prelude::*};
 use common::{
     config::GameplayConfig,
     map::Carriers,
@@ -12,7 +12,7 @@ use common::{
     },
 };
 
-use super::{PlayerMovementStep, momentum_displacement, step_player_movement, step_player_movement_blocked};
+use super::{PlayerMovementStep, step_player_movement, step_player_movement_blocked};
 use crate::{
     characters::PreviousTickPosition,
     players::{BumpFeedbackState, LocalPlayerMarker, PlayerAnimationMotion, PlayerMap},
@@ -46,43 +46,29 @@ pub(crate) fn plan_player_moves(
         return Vec::new();
     }
     let mut blockers = actors.to_vec();
-    blockers.extend(query.iter().filter(|(.., is_local)| !is_local).map(
-        |(entity, _, position, _, _, motion, _, _, _, _, stance, _)| {
-            CharacterMovePlan::stationary(entity, *position, motion.0, stance.physics(&gameplay_config.player))
-        },
-    ));
+    blockers.extend(query.iter().filter(|player| !player.is_local).map(|player| {
+        CharacterMovePlan::stationary(
+            player.entity,
+            *player.position,
+            player.vertical_velocity.0,
+            player.stance.physics(&gameplay_config.player),
+        )
+    }));
     let mut moves = Vec::new();
-    for (
-        entity,
-        player_id,
-        client_pos,
-        _,
-        move_intent,
-        motion,
-        _,
-        knockback,
-        horizontal_velocity,
-        _,
-        stance,
-        is_local,
-    ) in query.iter()
-    {
-        if !is_local {
-            continue;
-        }
-        let info = players.get(player_id);
+    for player in query.iter().filter(|player| player.is_local) {
+        let info = players.get(player.id);
         let has_speed_power_up = info.is_some_and(|i| i.power_up(PowerUpKind::Speed));
         let has_low_gravity = info.is_some_and(|i| i.power_up(PowerUpKind::LowGravity));
         let movement_disabled = info.is_some_and(|i| i.stunned);
         let held_keys: &[FieldId] = info.map_or(&[], |i| i.held_keys.as_slice());
 
-        let external_displacement = momentum_displacement(Some(knockback), delta);
+        let external_displacement = player.knockback.step(delta);
         let request = PlayerMovementStep {
-            start: *client_pos,
-            vertical_velocity: motion.0,
-            horizontal_velocity: horizontal_velocity.0,
-            stance: *stance,
-            intent: *move_intent,
+            start: *player.position,
+            vertical_velocity: player.vertical_velocity.0,
+            horizontal_velocity: player.horizontal_velocity.0,
+            stance: *player.stance,
+            intent: *player.intent,
             has_speed: has_speed_power_up,
             disabled: movement_disabled,
             delta,
@@ -96,7 +82,7 @@ pub(crate) fn plan_player_moves(
             portal_set,
             carriers,
         };
-        moves.push(plan_player_move(entity, request, &blockers));
+        moves.push(plan_player_move(player.entity, request, &blockers));
     }
     moves
 }
@@ -151,25 +137,24 @@ fn overlapping_character<'a>(
         .find(|other| other.entity != candidate.entity && character_move_plans_intersect(candidate, other))
 }
 
-pub(crate) type PlayerMovementQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static PlayerId,
-        &'static mut Position,
-        &'static mut PreviousTickPosition,
-        &'static PlayerMoveIntent,
-        &'static mut CharacterVerticalVelocity,
-        Option<&'static mut BumpFeedbackState>,
-        &'static KnockbackVelocity,
-        &'static mut HorizontalVelocity,
-        &'static mut PlayerAnimationMotion,
-        &'static mut PlayerStance,
-        Has<LocalPlayerMarker>,
-    ),
-    (With<PlayerMarker>, Without<ActorMarker>),
->;
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub(crate) struct PlayerMovement {
+    pub entity: Entity,
+    pub id: &'static PlayerId,
+    pub position: &'static mut Position,
+    pub previous_position: &'static mut PreviousTickPosition,
+    pub intent: &'static PlayerMoveIntent,
+    pub vertical_velocity: &'static mut CharacterVerticalVelocity,
+    pub feedback: Option<&'static mut BumpFeedbackState>,
+    pub knockback: &'static KnockbackVelocity,
+    pub horizontal_velocity: &'static mut HorizontalVelocity,
+    pub animation: &'static mut PlayerAnimationMotion,
+    pub stance: &'static mut PlayerStance,
+    pub is_local: Has<LocalPlayerMarker>,
+}
+
+pub(crate) type PlayerMovementQuery<'w, 's> = Query<'w, 's, PlayerMovement, (With<PlayerMarker>, Without<ActorMarker>)>;
 
 #[cfg(test)]
 #[path = "tests/planning.rs"]

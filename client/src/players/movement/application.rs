@@ -22,40 +22,28 @@ pub(crate) fn apply_player_moves(
 ) {
     // A local body without a step this tick (dead) stays where it is, so the
     // render lerp collapses onto its position instead of replaying the last step.
-    for (entity, _, position, mut previous_pos, .., is_local) in query.iter_mut() {
-        if is_local && !planned_moves.iter().any(|planned_move| planned_move.entity == entity) {
-            previous_pos.0 = *position;
+    for mut player in query.iter_mut().filter(|player| player.is_local) {
+        if !planned_moves
+            .iter()
+            .any(|planned_move| planned_move.entity == player.entity)
+        {
+            player.previous_position.0 = *player.position;
         }
     }
     for planned_move in planned_moves {
-        let Ok((
-            _,
-            _,
-            mut client_pos,
-            mut previous_pos,
-            _,
-            mut motion,
-            mut feedback_state,
-            _,
-            mut momentum,
-            mut animation_motion,
-            mut stance,
-            is_local,
-        )) = query.get_mut(planned_move.entity)
-        else {
+        let Ok(mut player) = query.get_mut(planned_move.entity) else {
             continue;
         };
-
-        if !is_local {
+        if !player.is_local {
             continue;
         }
         let result = planned_move.result;
-        previous_pos.0 = planned_move.start;
-        *client_pos = result.position;
-        motion.0 = result.vertical_velocity;
-        momentum.0 = planned_move.horizontal_velocity;
-        *stance = planned_move.stance;
-        animation_motion.record_step(
+        player.previous_position.0 = planned_move.start;
+        *player.position = result.position;
+        player.vertical_velocity.0 = result.vertical_velocity;
+        player.horizontal_velocity.0 = planned_move.horizontal_velocity;
+        *player.stance = planned_move.stance;
+        player.animation.record_step(
             planned_move.start,
             &result,
             if result.support == CharacterSupport::Ladder {
@@ -76,7 +64,7 @@ pub(crate) fn apply_player_moves(
                 support: result.support,
             },
         ));
-        if let Some(state) = feedback_state.as_mut() {
+        if let Some(state) = player.feedback.as_mut() {
             if planned_move.hits_character || result.blocked {
                 bump(
                     commands,
