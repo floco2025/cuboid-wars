@@ -3,7 +3,7 @@ use common::protocol::{ActorId, Position};
 
 use crate::actors::{ActorInfo, ActorMap};
 
-use super::query::ActorMovementQuery;
+use super::query::FreeActorQuery;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(super) struct ActorPlanOrder {
@@ -12,16 +12,13 @@ pub(super) struct ActorPlanOrder {
     pub(super) id: ActorId,
 }
 
-pub(super) fn sorted_actor_plan_order(query: &ActorMovementQuery, actors: &ActorMap) -> Vec<ActorPlanOrder> {
+pub(super) fn sorted_actor_plan_order(query: &FreeActorQuery, actors: &ActorMap) -> Vec<ActorPlanOrder> {
     let mut order: Vec<ActorPlanOrder> = query
         .iter()
-        .map(|(entity, id, _, pos, _, _, _, _, _, _, _, _)| {
-            let info = actors.get(id);
-            ActorPlanOrder {
-                entity,
-                route_distance: actor_route_distance(pos, info),
-                id: *id,
-            }
+        .map(|actor| ActorPlanOrder {
+            entity: actor.entity,
+            route_distance: actor_route_distance(actor.position, actors.get(actor.id)),
+            id: *actor.id,
         })
         .collect();
     sort_actor_plan_order(&mut order);

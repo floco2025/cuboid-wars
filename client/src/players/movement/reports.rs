@@ -1,28 +1,22 @@
-use bevy::prelude::*;
 use common::{
     config::{NetworkConfig, UpdateCadence},
     map::Carriers,
-    physics::{CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity},
-    protocol::{
-        CMove, CarrierId, ClientMessage, FaceYaw, PlayerGeneration, PlayerMoveIntent, PlayerMovementState,
-        PlayerStance, Position,
-    },
+    protocol::{CMove, CarrierId, PlayerGeneration, PlayerMovementState, Position},
 };
 
-use super::{outcomes::LocalMovementStep, player_movement_state};
-use crate::{
-    network::ClientToServerChannel,
-    players::{LocalPlayerInfo, LocalPlayerMarker},
-};
-
+// What the owner has told the server about its body: the sequence its
+// reports run on, the crossing it is in, and the cadences its periodic
+// reports keep.
 #[derive(Default)]
 pub struct LocalMovementReports {
-    pub(super) generation: PlayerGeneration,
+    pub generation: PlayerGeneration,
     seq: u32,
     portal_crossing: u32,
     last_carrier: Option<CarrierId>,
     pub(super) crossing_entrance: Option<Position>,
     pub(super) void_reported: bool,
+    cadence: Option<UpdateCadence>,
+    eraser_cadence: Option<UpdateCadence>,
 }
 
 impl LocalMovementReports {
@@ -45,7 +39,7 @@ impl LocalMovementReports {
 
     pub fn movement_report(
         &mut self,
-        cadence: &mut UpdateCadence,
+        network: &NetworkConfig,
         mut movement: PlayerMovementState,
         motor_carrier: CarrierId,
         carriers: &Carriers,
@@ -56,7 +50,7 @@ impl LocalMovementReports {
         } else {
             motor_carrier
         };
-        if !self.report_due(cadence, carrier) {
+        if !self.report_due(network, carrier) {
             return None;
         }
         movement.carrier = carrier;
@@ -70,50 +64,25 @@ impl LocalMovementReports {
     }
 
     // A new body reports at once through the carrier change, so the cadence keeps its phase across bodies.
-    fn report_due(&mut self, cadence: &mut UpdateCadence, carrier: CarrierId) -> bool {
+    fn report_due(&mut self, network: &NetworkConfig, carrier: CarrierId) -> bool {
         // Observers time samples by simulation steps, including steps with no report.
         self.seq = self.seq.wrapping_add(1);
-        let periodic = cadence.ready();
+        let periodic = self.cadence.get_or_insert_with(|| network.update_cadence()).ready();
         let changed_carrier = self.last_carrier != Some(carrier);
         self.last_carrier = Some(carrier);
         self.crossing_entrance.take().is_some() || changed_carrier || periodic
     }
-}
 
-pub fn report_player_movement_system(
-    to_server: Res<ClientToServerChannel>,
-    network: Res<NetworkConfig>,
-    mut cadence: Local<Option<UpdateCadence>>,
-    carriers: Res<Carriers>,
-    mut local: ResMut<LocalPlayerInfo>,
-    query: Query<
-        (
-            &Position,
-            &PlayerMoveIntent,
-            &FaceYaw,
-            &CharacterVerticalVelocity,
-            &HorizontalVelocity,
-            &KnockbackVelocity,
-            &LocalMovementStep,
-            &PlayerStance,
-        ),
-        With<LocalPlayerMarker>,
-    >,
-) {
-    if local.is_dead {
-        return;
-    }
-    let Ok((pos, intent, yaw, vertical, momentum, knockback, step, stance)) = query.single() else {
-        return;
-    };
-    let movement = player_movement_state(*pos, *intent, yaw, vertical, momentum, knockback, step.support, *stance);
-    if let Some(report) = local.reports.movement_report(
-        cadence.get_or_insert_with(|| network.update_cadence()),
-        movement,
-        step.carrier,
-        &carriers,
-    ) {
-        to_server.send(ClientMessage::Move(report));
+    // Whether eraser contact is reported this tick: at once on entry, then at
+    // the movement cadence while it lasts.
+    pub(super) fn erase_due(&mut self, contact: bool, network: &NetworkConfig) -> bool {
+        if !contact {
+            self.eraser_cadence = None;
+            return false;
+        }
+        self.eraser_cadence
+            .get_or_insert_with(|| network.update_cadence())
+            .ready()
     }
 }
 

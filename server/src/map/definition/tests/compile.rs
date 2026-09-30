@@ -1,6 +1,6 @@
 use super::*;
 use crate::actors::{
-    TraversalEnvironment, TraversalExecutor, TraversalStatus,
+    ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus,
     navigation::surface::SurfaceMesh,
     test_kinds::{self, CONTACT, CONTACT_BEAM},
 };
@@ -144,13 +144,14 @@ fn walk_ramp_route(
     let route = mesh
         .route(start, target, 1.0)
         .unwrap_or_else(|error| panic!("ramp route {start:?} -> {target:?}: {error:?}"));
-    let mut executor = TraversalExecutor::new(start, physics, 3.0, &env);
+    let mut executor = TraversalExecutor::new(physics, 3.0);
+    let mut body = ActorBody::standing(start);
     executor.set_route(route);
     for _ in 0..1200 {
-        executor.step(&env);
+        executor.step(&env, &mut body);
         assert!(
-            !world.character_penetrates_solid(&executor.movement.position, physics, &[]),
-            "actor penetrates ramp: {executor:?}"
+            !world.character_penetrates_solid(&body.position, physics, &[]),
+            "actor penetrates ramp: {executor:?} {body:?}"
         );
         if executor.status == TraversalStatus::Reached {
             break;
@@ -162,7 +163,7 @@ fn walk_ramp_route(
         "actor stuck on ramp: {executor:?}"
     );
     assert!(
-        executor.movement.position.distance_sq(&target) < 0.5,
+        body.position.distance_sq(&target) < 0.5,
         "actor missed ramp landing: {executor:?}"
     );
 }

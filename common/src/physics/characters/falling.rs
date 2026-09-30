@@ -6,7 +6,7 @@ use crate::config::FallDamageConfig;
 // The lerp produces near-zero damage just past `safe_distance` from float
 // and tick noise; without this gate every tiny step off a curb would
 // wiggle the player's camera and scratch an actor.
-pub const FALL_DAMAGE_EMIT_THRESHOLD: f32 = 1.0;
+const FALL_DAMAGE_EMIT_THRESHOLD: f32 = 1.0;
 
 // Express impact energy as a normal-gravity drop so map distance thresholds retain their meaning.
 #[must_use]
@@ -17,7 +17,7 @@ pub fn fall_distance_for_speed(impact_speed: f32, normal_gravity: f32) -> f32 {
 // Lerp damage between `safe_distance` (0 dmg) and `lethal_distance`
 // (full health), clamping the falloff beyond the lethal endpoint.
 #[must_use]
-pub fn fall_damage_for_distance(distance: f32, fall: &FallDamageConfig, max_health: f32) -> f32 {
+pub(super) fn fall_damage_for_distance(distance: f32, fall: &FallDamageConfig, max_health: f32) -> f32 {
     f32::inverse_lerp(fall.safe_distance, fall.lethal_distance, distance).clamp(0.0, 1.0) * max_health
 }
 

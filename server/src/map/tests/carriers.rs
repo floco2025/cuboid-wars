@@ -72,8 +72,9 @@ fn every_carrier_carries_a_standing_player_through_its_cycle() {
                 CharacterStep {
                     start: pos,
                     vertical_velocity,
-                    control_velocity: Vec3::ZERO,
-                    external_displacement: Vec3::ZERO,
+                    intent_velocity: Vec3::ZERO,
+                    velocity: Vec3::ZERO,
+                    displacement: Vec3::ZERO,
                     delta: TICK_SECS,
                 },
                 &CharacterEnvironment {

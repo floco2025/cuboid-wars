@@ -1,7 +1,7 @@
 use crate::config::fixtures;
 use crate::{
     actors::{ActorMap, SurfaceActorMoves},
-    characters::characters_movement_system,
+    characters::flying_actors_movement_system,
     network::collect_player_moves,
     players::{PlayerInfo, PlayerMap, PlayerStateQuery, apply_player_movement_system, queue_player_movement},
 };
@@ -38,7 +38,7 @@ fn movement_app(layout: MapLayout) -> (App, Entity) {
             (
                 server_tick_advance_system,
                 apply_player_movement_system,
-                characters_movement_system,
+                flying_actors_movement_system,
                 knockback_decay_system::<With<ActorMarker>>,
             )
                 .chain(),

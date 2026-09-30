@@ -99,17 +99,17 @@ pub(super) fn evaluate_ladder_interaction<'a>(
     mode: LadderMode,
     start: &Position,
     start_vertical_velocity: f32,
-    control_velocity: Vec3,
+    intent_velocity: Vec3,
     delta: f32,
     has_ground_support: bool,
 ) -> LadderInteraction<'a> {
     if mode == LadderMode::Disabled {
         return LadderInteraction::None;
     }
-    let control_velocity = if mode == LadderMode::Exit {
+    let intent_velocity = if mode == LadderMode::Exit {
         Vec3::ZERO
     } else {
-        control_velocity
+        intent_velocity
     };
     // Actors can stop or reverse on a rung immediately; players retain their jump momentum.
     let start_vertical_velocity = if mode == LadderMode::Automatic {
@@ -124,8 +124,8 @@ pub(super) fn evaluate_ladder_interaction<'a>(
             return None;
         }
 
-        let toward_plane = -(control_velocity.x * ladder.normal_x + control_velocity.z * ladder.normal_z);
-        let aligned = toward_plane.abs() >= control_velocity.x.hypot(control_velocity.z) * LADDER_CLIMB_FACING_FRACTION;
+        let toward_plane = -(intent_velocity.x * ladder.normal_x + intent_velocity.z * ladder.normal_z);
+        let aligned = toward_plane.abs() >= intent_velocity.x.hypot(intent_velocity.z) * LADDER_CLIMB_FACING_FRACTION;
         (aligned && toward_plane.abs() >= LADDER_CLIMB_MIN_SPEED).then_some(toward_plane)
     });
     let climb_velocity = ride_velocity.filter(|velocity| *velocity > 0.0);

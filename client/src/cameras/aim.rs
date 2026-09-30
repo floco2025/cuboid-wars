@@ -3,7 +3,7 @@ use crate::{
     actors::ActorMap,
     characters::ball_character_hit,
     constants::{CAMERA_MAX_PITCH, CROSSHAIR_THIRD_PERSON_HEIGHT},
-    players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
+    players::{CrouchBlend, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
 };
 use bevy::prelude::*;
 use common::{
@@ -18,7 +18,7 @@ pub fn camera_aim_system(
     mut aim: ResMut<CameraAim>,
     view: Res<CameraViewMode>,
     camera: Query<(&Transform, &Projection), With<MainCameraMarker>>,
-    local_player: Query<(&Position, &PlayerStance), With<LocalPlayerMarker>>,
+    local_player: Query<(&Position, &CrouchBlend), With<LocalPlayerMarker>>,
     local_player_info: Res<LocalPlayerInfo>,
     characters: Query<(&Position, &FaceYaw, Option<&PlayerStance>)>,
     players: Res<PlayerMap>,
@@ -28,13 +28,13 @@ pub fn camera_aim_system(
     config: Res<GameplayConfig>,
     switch_state: Res<SwitchState>,
 ) {
-    let Ok((position, stance)) = local_player.single() else {
+    let Ok((position, crouch)) = local_player.single() else {
         return;
     };
     let Ok((camera, Projection::Perspective(projection))) = camera.single() else {
         return;
     };
-    let eye = Vec3::new(position.x, position.y + stance.eye_height(&config.player), position.z);
+    let eye = Vec3::new(position.x, position.y + crouch.eye_height(&config.player), position.z);
     let crosshair_height_offset = if view.is_first_person() {
         0.0
     } else {

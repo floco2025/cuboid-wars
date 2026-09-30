@@ -100,8 +100,9 @@ impl Climber {
             CharacterStep {
                 start: self.position,
                 vertical_velocity: self.vertical_velocity,
-                control_velocity,
-                external_displacement: self.momentum.step(TICK_SECS),
+                intent_velocity: control_velocity,
+                velocity: control_velocity + self.momentum.0,
+                displacement: Vec3::ZERO,
                 delta: TICK_SECS,
             },
             &test_environment(&self.world, &self.carriers, self.physics, ladder_mode),

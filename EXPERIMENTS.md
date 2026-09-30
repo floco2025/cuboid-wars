@@ -496,7 +496,7 @@ movement sets body heading and portal crossings transform the aim.
 The JSON contains `initial` state and a `steps` array. Every step records the
 action, its result, events, and resulting state. Player state includes the owner's
 position, the last position adopted by the server, vertical and horizontal velocity,
-crouched stance and its blend fraction,
+crouched stance,
 knockback, support, health, equipment (including `speed` and `low_gravity`), and checkpoint. These positions can differ
 at lower movement report rates; the owner remains authoritative for its motion.
 `active_switches` and `open_fields` contain authored names: an open field is off,

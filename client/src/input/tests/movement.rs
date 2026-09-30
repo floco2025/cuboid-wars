@@ -14,22 +14,26 @@ use bevy::{
 use common::{
     config::NetworkConfig,
     map::Carriers,
-    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, HorizontalVelocity, KnockbackVelocity},
+    physics::{
+        CharacterSupport, CharacterVerticalVelocity, CollisionWorld, HorizontalVelocity, KnockbackVelocity, PortalSet,
+    },
     protocol::{
-        CarrierId, ClientMessage, FaceYaw, Floor, Ladder, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess,
-        PortalPairId, Position,
+        CarrierId, ClientMessage, FaceYaw, Floor, Ladder, MapLayout, PlayerId, PlayerMarker, PlayerMoveIntent,
+        PortalAccess, PortalPairId, Position,
     },
 };
 
 use super::{WeaponMode, plugin::movement_input_plugin};
 use crate::{
     cameras::{CameraInputState, CameraViewMode, FollowCamera},
+    characters::PreviousTickPosition,
     config::ClientSettings,
     constants::{INPUT_ZOOM_PIXELS_PER_LINE, INPUT_ZOOM_SENSITIVITY_BASE},
     map::LevelFocusEnabled,
     network::ClientToServerChannel,
     players::{
-        LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap, report_player_movement_system,
+        CrouchBlend, JumpRequested, LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap,
+        local_player_movement_system,
     },
     schedule::{ClientSet, configure_client_sets},
     test_fixtures,
@@ -82,13 +86,14 @@ fn input_app() -> (App, Entity, Entity) {
             common::protocol::PlayerStance::default(),
             HorizontalVelocity::default(),
             KnockbackVelocity::default(),
+            CharacterSupport::Ground,
+            JumpRequested::default(),
             LocalMovementStep {
-                start: Position::default(),
-                crushed: false,
-                impact_speed: 0.0,
-                carrier: CarrierId::WORLD,
-                support: CharacterSupport::Ground,
-                carried: Vec3::ZERO,
+                result: common::physics::CharacterMovementResult {
+                    support: CharacterSupport::Ground,
+                    ..default()
+                },
+                ..default()
             },
         ))
         .id();
@@ -96,7 +101,7 @@ fn input_app() -> (App, Entity, Entity) {
 }
 
 #[derive(Resource, Default)]
-struct FixedInputs(Vec<(PlayerMoveIntent, f32, f32)>);
+struct FixedInputs(Vec<(PlayerMoveIntent, f32, bool)>);
 
 fn fixed_input_app() -> (App, Entity, Entity) {
     let (mut app, player, window) = input_app();
@@ -117,12 +122,12 @@ fn fixed_input_app() -> (App, Entity, Entity) {
             ..default()
         }))
         .init_resource::<FixedInputs>()
+        // Stands in for the owner's tick: records and spends the jump request.
         .add_systems(
             FixedUpdate,
-            |players: Query<(&PlayerMoveIntent, &FaceYaw, &CharacterVerticalVelocity)>,
-             mut inputs: ResMut<FixedInputs>| {
-                for (intent, facing, velocity) in &players {
-                    inputs.0.push((*intent, facing.0, velocity.0));
+            |mut players: Query<(&PlayerMoveIntent, &FaceYaw, &mut JumpRequested)>, mut inputs: ResMut<FixedInputs>| {
+                for (intent, facing, mut jump) in &mut players {
+                    inputs.0.push((*intent, facing.0, std::mem::take(&mut jump.0)));
                 }
             },
         );
@@ -205,7 +210,7 @@ fn opening_an_overlay_blocks_movement_and_jump_before_catchup() {
         assert!(
             inputs
                 .iter()
-                .all(|(intent, _, velocity)| intent.direction().is_none() && *velocity == 0.0)
+                .all(|(intent, _, jump)| intent.direction().is_none() && !jump)
         );
     }
 }
@@ -214,40 +219,25 @@ fn opening_an_overlay_blocks_movement_and_jump_before_catchup() {
 fn jump_survives_a_frame_without_steps_and_is_not_reapplied_during_catchup() {
     let (mut app, player, _) = fixed_input_app();
     app.world_mut()
-        .resource_mut::<common::protocol::MapSettings>()
-        .movement
-        .player
-        .jump_speed = 12.0;
-    app.world_mut()
         .resource_mut::<ButtonInput<KeyCode>>()
         .press(KeyCode::Space);
     app.update();
     assert!(app.world().resource::<FixedInputs>().0.is_empty());
-    assert_eq!(
+    assert!(
         app.world()
-            .get::<CharacterVerticalVelocity>(player)
-            .expect("jump velocity missing")
-            .0,
-        12.0
+            .get::<JumpRequested>(player)
+            .expect("jump request missing")
+            .0
     );
 
-    // A fixed consumer clears the impulse so a repeated input write is observable.
-    app.add_systems(
-        FixedPostUpdate,
-        |mut velocities: Query<&mut CharacterVerticalVelocity>| {
-            for mut velocity in &mut velocities {
-                velocity.0 = 0.0;
-            }
-        },
-    );
     app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear();
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(100)));
     app.update();
     app.update();
     let inputs = &app.world().resource::<FixedInputs>().0;
     assert!(inputs.len() >= 5);
-    assert_eq!(inputs[0].2, 12.0);
-    assert!(inputs[1..].iter().all(|(_, _, velocity)| *velocity == 0.0));
+    assert!(inputs[0].2, "the first step spends the request");
+    assert!(inputs[1..].iter().all(|(_, _, jump)| !jump));
 }
 
 #[test]
@@ -287,6 +277,7 @@ fn climbing_faces_the_ladder_during_ascent_descent_and_hold_without_turning_the_
             app.world_mut()
                 .get_mut::<LocalMovementStep>(player)
                 .expect("player movement step missing")
+                .result
                 .support = CharacterSupport::Ladder;
             for (key, velocity) in [(Some(KeyCode::KeyW), 2.0), (Some(KeyCode::KeyS), -2.0), (None, 0.0)] {
                 app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset_all();
@@ -306,6 +297,7 @@ fn climbing_faces_the_ladder_during_ascent_descent_and_hold_without_turning_the_
             app.world_mut()
                 .get_mut::<LocalMovementStep>(player)
                 .expect("player movement step missing")
+                .result
                 .support = CharacterSupport::Ground;
             app.world_mut()
                 .resource_mut::<ButtonInput<KeyCode>>()
@@ -576,7 +568,16 @@ fn unlocked_firing_faces_view_without_changing_movement_or_lock_and_commits_faci
         app.insert_resource(ClientToServerChannel::new(sender))
             .insert_resource(weapon)
             .insert_resource(access)
-            .add_systems(Update, report_player_movement_system);
+            .init_resource::<Time>()
+            .init_resource::<PortalSet>()
+            .init_resource::<crate::actors::ActorMap>()
+            .add_systems(Update, local_player_movement_system);
+        app.world_mut().entity_mut(player).insert((
+            PlayerId(1),
+            PlayerMarker,
+            PreviousTickPosition(Position::default()),
+            CrouchBlend::default(),
+        ));
         app.world_mut().resource_mut::<FollowCamera>().locked = false;
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -750,42 +751,22 @@ fn playback_mouse_look_does_not_change_scripted_movement_facing_or_jump() {
         PlayerMoveIntent::moving(1.0)
     );
     assert_eq!(app.world().get::<FaceYaw>(player).expect("facing").0, 1.0);
-    assert_eq!(
-        app.world()
-            .get::<CharacterVerticalVelocity>(player)
-            .expect("vertical velocity")
-            .0,
-        4.0
-    );
+    assert!(!app.world().get::<JumpRequested>(player).expect("jump request").0);
 }
 
 #[test]
-fn ctrl_requests_crouch_shift_does_not_sprint_and_a_crouched_body_cannot_jump() {
+fn ctrl_requests_crouch_and_shift_does_not_sprint() {
     let (mut app, player, _) = fixed_input_app();
-    app.world_mut()
-        .entity_mut(player)
-        .insert(common::protocol::PlayerStance {
-            crouched: true,
-            fraction: 1.0,
-        });
     {
         let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
         keys.press(KeyCode::KeyW);
         keys.press(KeyCode::ControlLeft);
         keys.press(KeyCode::ShiftLeft);
-        keys.press(KeyCode::Space);
     }
     app.update();
     let intent = *app.world().get::<PlayerMoveIntent>(player).expect("intent");
     assert!(intent.crouch);
     assert_eq!(intent.forward, 1.0);
-    assert_eq!(
-        app.world()
-            .get::<CharacterVerticalVelocity>(player)
-            .expect("velocity")
-            .0,
-        0.0
-    );
     app.world_mut()
         .resource_mut::<ButtonInput<KeyCode>>()
         .release(KeyCode::ShiftLeft);

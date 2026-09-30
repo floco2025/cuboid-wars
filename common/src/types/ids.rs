@@ -20,7 +20,7 @@ pub struct PortalPairId(pub u32);
 // Which rigid group of map records a thing belongs to. `WORLD` is the map
 // itself, which never moves; `CarrierId(n)` for n >= 1 names
 // `MapLayout.carriers[n - 1]`.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encode, Decode)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Encode, Decode)]
 pub struct CarrierId(pub u16);
 
 impl CarrierId {

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::animation::{PlayerAnimationMotion, PlayerModel, player_animation_setup_system};
-use super::{BumpFeedbackState, RemotePlayerMotion};
+use super::{BumpFeedbackState, CrouchBlend, JumpRequested, LocalMovementStep, RemotePlayerMotion};
 use crate::{
     cameras::LocalPlayerLabelMarker,
     characters::{PreviousTickPosition, load_character_model, model_transform, spawn_character_bounds},
@@ -10,7 +10,6 @@ use crate::{
         LABEL_PLAYER_BAR_WIDTH, LABEL_PLAYER_NAME_GAP, LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH,
     },
     network::SampleTiming,
-    players::PlayerMotionBundle,
     portals::{PortalBody, PortalTwinMarker},
     ui::floating_labels::{
         LABEL_RENDER_FRAMES, LabelCamera, setup_label_texture, spawn_floating_health_bar, spawn_floating_player_label,
@@ -19,8 +18,56 @@ use crate::{
 use common::{
     config::GameplayConfig,
     map::Carriers,
-    protocol::{Health, Player, PlayerId, PlayerMarker, Position},
+    physics::{CharacterSupport, CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity},
+    protocol::{
+        CarrierId, FaceYaw, Health, Player, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState,
+        PlayerStance, Position,
+    },
 };
+
+// A movement state's components other than its position.
+#[derive(Bundle)]
+pub struct PlayerMotionBundle {
+    pub move_intent: PlayerMoveIntent,
+    pub face_yaw: FaceYaw,
+    pub vertical_velocity: CharacterVerticalVelocity,
+    pub horizontal_velocity: HorizontalVelocity,
+    pub knockback: KnockbackVelocity,
+    pub support: CharacterSupport,
+    pub stance: PlayerStance,
+}
+
+impl PlayerMotionBundle {
+    // The state a report carries, in world space.
+    #[must_use]
+    pub fn movement_state(&self, pos: Position) -> PlayerMovementState {
+        PlayerMovementState {
+            carrier: CarrierId::WORLD,
+            pos,
+            move_intent: self.move_intent,
+            vertical_velocity: self.vertical_velocity.0,
+            face_yaw: self.face_yaw.0,
+            horizontal_velocity: self.horizontal_velocity.0.to_array(),
+            knockback: self.knockback.0.to_array(),
+            support: self.support,
+            stance: self.stance,
+        }
+    }
+}
+
+impl From<&PlayerMovementState> for PlayerMotionBundle {
+    fn from(movement: &PlayerMovementState) -> Self {
+        Self {
+            move_intent: movement.move_intent,
+            face_yaw: FaceYaw(movement.face_yaw),
+            vertical_velocity: CharacterVerticalVelocity(movement.vertical_velocity),
+            horizontal_velocity: HorizontalVelocity(movement.horizontal_velocity()),
+            knockback: KnockbackVelocity(movement.knockback()),
+            support: movement.support,
+            stance: movement.stance,
+        }
+    }
+}
 
 // Marks the local-player entity (the player you control). Spawned by
 // `spawn_player` when `is_local` is true; queried by input, camera, UI,
@@ -107,13 +154,17 @@ pub fn spawn_player(
             },
             PreviousTickPosition(position),
             PlayerAnimationMotion::default(),
+            CrouchBlend::settled(player.movement.stance),
         ))
         .id();
 
     if is_local {
-        commands
-            .entity(entity)
-            .insert((LocalPlayerMarker, BumpFeedbackState::default()));
+        commands.entity(entity).insert((
+            LocalPlayerMarker,
+            BumpFeedbackState::default(),
+            LocalMovementStep::default(),
+            JumpRequested::default(),
+        ));
     } else {
         commands
             .entity(entity)

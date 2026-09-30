@@ -490,7 +490,7 @@ fn jumping_rider_takes_the_tile_velocity() {
 #[test]
 fn a_takeoff_takes_the_tile_velocity_at_most_once() {
     let (carrier, floor) = slider();
-    // 2.2 m/s is carried twice: grounded after the first tick, airborne
+    // 1.4 m/s is carried twice: grounded after the first tick, airborne
     // after the second.
     for takeoff_speed in [0.5, 1.0, 1.4, 1.8, 2.2, 2.6, 3.0, 6.0, 12.0] {
         let mut pos = Position::default();
@@ -503,8 +503,9 @@ fn a_takeoff_takes_the_tile_velocity_at_most_once() {
                 CharacterStep {
                     start: pos,
                     vertical_velocity,
-                    control_velocity: Vec3::ZERO,
-                    external_displacement: momentum.step(TICK_SECS),
+                    intent_velocity: Vec3::ZERO,
+                    velocity: momentum.0,
+                    displacement: Vec3::ZERO,
                     delta: TICK_SECS,
                 },
                 &test_environment(&world, &carriers, player_physics(), LadderMode::Automatic),
@@ -526,7 +527,7 @@ fn a_takeoff_takes_the_tile_velocity_at_most_once() {
                 );
             }
         }
-        assert_eq!(took_off, takeoff_speed >= 2.2, "takeoff {takeoff_speed}");
+        assert_eq!(took_off, takeoff_speed >= 1.4, "takeoff {takeoff_speed}");
     }
 }
 

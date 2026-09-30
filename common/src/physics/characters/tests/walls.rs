@@ -59,8 +59,9 @@ fn falling_against_stacked_wall_seams_preserves_speed_until_the_floor() {
                 CharacterStep {
                     start: pos,
                     vertical_velocity: velocity,
-                    control_velocity: Vec3::X * speed,
-                    external_displacement: Vec3::ZERO,
+                    intent_velocity: Vec3::X * speed,
+                    velocity: Vec3::X * speed,
+                    displacement: Vec3::ZERO,
                     delta,
                 },
                 &env,
@@ -83,8 +84,12 @@ fn falling_against_stacked_wall_seams_preserves_speed_until_the_floor() {
                 landed = true;
                 break;
             }
-            let expected_velocity = (velocity - env.gravity * delta).max(-CHARACTER_TERMINAL_VELOCITY);
-            assert_eq!(result.vertical_velocity, expected_velocity, "tick {tick}: {result:?}");
+            let half = |velocity: f32| (velocity - env.gravity * delta * 0.5).max(-CHARACTER_TERMINAL_VELOCITY);
+            let expected_velocity = half(half(velocity));
+            assert!(
+                (result.vertical_velocity - expected_velocity).abs() < 1e-5,
+                "tick {tick}: {result:?}"
+            );
             assert_eq!(result.impact_speed, 0.0, "tick {tick}: {result:?}");
             pos = result.position;
             velocity = result.vertical_velocity;
@@ -248,8 +253,9 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
             CharacterStep {
                 start: pos,
                 vertical_velocity: motion,
-                control_velocity: velocity,
-                external_displacement: Vec3::ZERO,
+                intent_velocity: velocity,
+                velocity,
+                displacement: Vec3::ZERO,
                 delta,
             },
             LadderMode::Automatic,
@@ -357,8 +363,9 @@ fn jumping_while_sliding_diagonally_along_a_wall_keeps_rising() {
             CharacterStep {
                 start: pos,
                 vertical_velocity,
-                control_velocity: Vec3::new(9.0, 0.0, 9.0),
-                external_displacement: Vec3::ZERO,
+                intent_velocity: Vec3::new(9.0, 0.0, 9.0),
+                velocity: Vec3::new(9.0, 0.0, 9.0),
+                displacement: Vec3::ZERO,
                 delta,
             },
             LadderMode::Automatic,
@@ -432,8 +439,9 @@ fn running_across_flat_floor_tiles_keeps_its_speed() {
                         CharacterStep {
                             start: pos,
                             vertical_velocity: vy,
-                            control_velocity: Vec3::Z * speed,
-                            external_displacement: Vec3::ZERO,
+                            intent_velocity: Vec3::Z * speed,
+                            velocity: Vec3::Z * speed,
+                            displacement: Vec3::ZERO,
                             delta: 1.0 / 30.0,
                         },
                         LadderMode::Automatic,

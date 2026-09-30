@@ -172,7 +172,7 @@ pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shap
                     env.ladder_mode,
                     &step.start,
                     step.vertical_velocity,
-                    step.control_velocity,
+                    step.intent_velocity,
                     step.delta,
                     grounded,
                 )

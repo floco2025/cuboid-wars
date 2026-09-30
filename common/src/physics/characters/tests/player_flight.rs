@@ -97,7 +97,7 @@ fn open_air_flight_matches_the_player_step_tick_for_tick() {
                         has_low_gravity,
                         held_keys: &[],
                         open_fields: &[],
-                        external_displacement: Vec3::ZERO,
+                        knockback_displacement: Vec3::ZERO,
                         collision_world: &world,
                         map_settings: &settings,
                         gameplay_config: &gameplay,
@@ -246,7 +246,7 @@ fn assert_flights_match(gates: &Gates, start: PlayerFlightState, heading: Option
                     has_low_gravity,
                     held_keys: &[],
                     open_fields: &[],
-                    external_displacement: Vec3::ZERO,
+                    knockback_displacement: Vec3::ZERO,
                     collision_world: &gates.world,
                     map_settings: &settings,
                     gameplay_config: &gates.gameplay,
@@ -277,10 +277,7 @@ fn assert_flights_match(gates: &Gates, start: PlayerFlightState, heading: Option
                     horizontal = hop.horizontal_velocity;
                     vertical = hop.vertical_velocity;
                     if hop.force_crouch {
-                        stance = PlayerStance {
-                            crouched: true,
-                            fraction: 1.0,
-                        };
+                        stance = PlayerStance { crouched: true };
                     }
                 }
                 let flown_tick = step_player_flight(

@@ -202,8 +202,9 @@ fn a_player_lands_on_the_terrain_and_walks_across_its_triangles() {
             CharacterStep {
                 start: pos,
                 vertical_velocity: velocity,
-                control_velocity: Vec3::Z * 4.0,
-                external_displacement: Vec3::ZERO,
+                intent_velocity: Vec3::Z * 4.0,
+                velocity: Vec3::Z * 4.0,
+                displacement: Vec3::ZERO,
                 delta: 1.0 / 30.0,
             },
             &environment,
@@ -340,8 +341,9 @@ fn a_step_on_the_grounds_touches_only_the_terrain_under_the_body() {
             CharacterStep {
                 start: pos,
                 vertical_velocity: velocity,
-                control_velocity: Vec3::new(0.7, 0.0, 0.7) * 6.0,
-                external_displacement: Vec3::ZERO,
+                intent_velocity: Vec3::new(0.7, 0.0, 0.7) * 6.0,
+                velocity: Vec3::new(0.7, 0.0, 0.7) * 6.0,
+                displacement: Vec3::ZERO,
                 delta: 1.0 / 30.0,
             },
             &environment,

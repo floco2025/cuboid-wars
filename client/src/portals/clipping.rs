@@ -7,7 +7,7 @@ use crate::{
     characters::CharacterModel,
     constants::PORTAL_VIEW_BLEND_SECS,
     materials::{PortalClipMaterial, portal_clip_material},
-    players::{LocalPlayerMarker, PlayerAnimationPlayback},
+    players::{CrouchBlend, LocalPlayerMarker, PlayerAnimationPlayback},
 };
 use common::{
     config::GameplayConfig,
@@ -93,7 +93,16 @@ pub(crate) fn portal_body_clipping_system(
     mut commands: Commands,
     world: PortalBodyWorld,
     mut materials: ClipMaterialAccess,
-    mut players: Query<(&Transform, &mut PortalBody, Has<LocalPlayerMarker>, &PlayerStance), With<PlayerMarker>>,
+    mut players: Query<
+        (
+            &Transform,
+            &mut PortalBody,
+            Has<LocalPlayerMarker>,
+            &PlayerStance,
+            &CrouchBlend,
+        ),
+        With<PlayerMarker>,
+    >,
     mut models: Query<&mut Transform, (With<CharacterModel>, Without<PortalTwinMarker>, Without<PlayerMarker>)>,
     mut twins: Query<(&mut Transform, &mut Visibility), (With<PortalTwinMarker>, Without<PlayerMarker>)>,
     children: Query<&Children>,
@@ -108,10 +117,10 @@ pub(crate) fn portal_body_clipping_system(
     >,
 ) {
     let alpha = world.fixed_time.overstep_fraction();
-    for (player_transform, mut body, is_local, stance) in &mut players {
+    for (player_transform, mut body, is_local, stance, crouch) in &mut players {
         let physics = stance.physics(&world.gameplay_config.player);
         let mut base = body.base;
-        base.scale.y *= stance.model_height_scale();
+        base.scale.y *= crouch.model_height_scale();
         let body_hidden = is_local && world.view_mode.is_first_person();
         let straddle = (!body_hidden)
             .then(|| {

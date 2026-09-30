@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::*;
-use crate::{characters::characters_movement_system, items::item_collection_system, schedule::ServerSet};
+use crate::{characters::flying_actors_movement_system, items::item_collection_system, schedule::ServerSet};
 
 pub fn players_plugin(app: &mut App) {
     app.add_systems(
@@ -10,7 +10,7 @@ pub fn players_plugin(app: &mut App) {
             players_status_timers_system.in_set(ServerSet::Prepare),
             apply_player_movement_system
                 .in_set(ServerSet::Movement)
-                .before(characters_movement_system),
+                .before(flying_actors_movement_system),
             (players_fall_damage_system, players_fatal_outcomes_system)
                 .chain_ignore_deferred()
                 .in_set(ServerSet::CombatDamage),

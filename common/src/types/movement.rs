@@ -5,7 +5,7 @@ use bincode::{Decode, Encode};
 use super::{CarrierId, Position};
 use crate::{
     config::{CharacterGameplayConfig, CharacterPhysicsConfig},
-    constants::{PLAYER_AIR_STEER_PITCH, PLAYER_CROUCH_EYE_RATIO, PLAYER_CROUCH_HULL_RATIO},
+    constants::{PLAYER_AIR_STEER_PITCH, PLAYER_CROUCH_HULL_RATIO},
     physics::CharacterSupport,
 };
 
@@ -60,11 +60,10 @@ impl PlayerMoveIntent {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Component, Encode, Decode)]
+// The hull the body has; the pose and camera blend toward it on the client.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Component, Encode, Decode)]
 pub struct PlayerStance {
     pub crouched: bool,
-    // Camera/pose blend; the collision hull changes only at an accepted transition.
-    pub fraction: f32,
 }
 
 impl PlayerStance {
@@ -78,19 +77,6 @@ impl PlayerStance {
             physics.hitbox.height *= PLAYER_CROUCH_HULL_RATIO;
         }
         physics
-    }
-
-    pub fn eye_height(self, config: &CharacterGameplayConfig) -> f32 {
-        config.eye_height() * self.blend(PLAYER_CROUCH_EYE_RATIO)
-    }
-
-    // Vertical scale of the rendered model, following the hull through the blend.
-    pub fn model_height_scale(self) -> f32 {
-        self.blend(PLAYER_CROUCH_HULL_RATIO)
-    }
-
-    fn blend(self, crouched: f32) -> f32 {
-        1.0 - self.fraction * (1.0 - crouched)
     }
 }
 
@@ -193,10 +179,7 @@ impl PlayerMovementState {
             vertical_velocity,
             face_yaw,
             horizontal_velocity: [0.0; 3],
-            stance: PlayerStance {
-                crouched: false,
-                fraction: 0.0,
-            },
+            stance: PlayerStance { crouched: false },
             knockback: [0.0; 3],
             support: CharacterSupport::Airborne,
         }
@@ -210,10 +193,18 @@ impl PlayerMovementState {
     }
 
     #[must_use]
+    pub fn horizontal_velocity(&self) -> Vec3 {
+        Vec3::from_array(self.horizontal_velocity)
+    }
+
+    #[must_use]
+    pub fn knockback(&self) -> Vec3 {
+        Vec3::from_array(self.knockback)
+    }
+
+    #[must_use]
     pub fn is_finite(&self) -> bool {
-        self.stance.fraction.is_finite()
-            && (0.0..=1.0).contains(&self.stance.fraction)
-            && self.pos.is_finite()
+        self.pos.is_finite()
             && self.move_intent.is_finite()
             && self.vertical_velocity.is_finite()
             && self.face_yaw.is_finite()

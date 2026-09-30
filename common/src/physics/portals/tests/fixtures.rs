@@ -419,8 +419,9 @@ pub(crate) fn run_ticks(
             CharacterStep {
                 start: pos,
                 vertical_velocity,
-                control_velocity: Vec3::ZERO,
-                external_displacement: Vec3::ZERO,
+                intent_velocity: Vec3::ZERO,
+                velocity: Vec3::ZERO,
+                displacement: Vec3::ZERO,
                 delta: TICK_SECS,
             },
             &env,

@@ -134,8 +134,9 @@ fn capsule_keeps_walking_from_level_ground_onto_a_shallow_terrain_slope() {
             CharacterStep {
                 start: pos,
                 vertical_velocity,
-                control_velocity: Vec3::new(1.6342_f32.sin() * 8.0, 0.0, 1.6342_f32.cos() * 8.0),
-                external_displacement: Vec3::ZERO,
+                intent_velocity: Vec3::new(1.6342_f32.sin() * 8.0, 0.0, 1.6342_f32.cos() * 8.0),
+                velocity: Vec3::new(1.6342_f32.sin() * 8.0, 0.0, 1.6342_f32.cos() * 8.0),
+                displacement: Vec3::ZERO,
                 delta: 1.0 / 30.0,
             },
             &env,

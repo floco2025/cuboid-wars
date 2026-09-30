@@ -46,10 +46,6 @@ impl KnockbackVelocity {
 pub struct HorizontalVelocity(pub Vec3);
 
 impl HorizontalVelocity {
-    pub fn step(&self, delta: f32) -> Vec3 {
-        self.0 * delta
-    }
-
     pub fn finish_step(&mut self, movement: &super::CharacterMovementResult) {
         if movement.support == super::CharacterSupport::Airborne {
             self.0 += movement.floor_velocity.with_y(0.0);

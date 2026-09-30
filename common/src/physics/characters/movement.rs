@@ -8,7 +8,7 @@ use rapier3d::{
 use super::{
     geometry::{character_movement_pose, character_movement_shape},
     ladder::{LadderMode, evaluate_ladder_interaction},
-    support::{RiderCarry, character_ground_hit, grounding_diagnostics, rider_carry, snap_character_to_ground},
+    support::{character_ground_hit, grounding_diagnostics, rider_carry, snap_character_to_ground},
     types::{CharacterMovementResult, CharacterSupport},
 };
 use crate::{
@@ -19,7 +19,10 @@ use crate::{
     },
     map::Carriers,
     math::from_rapier,
-    physics::{PortalSet, world::CollisionWorld},
+    physics::{
+        PortalSet,
+        world::{CollisionWorld, LadderVolume},
+    },
     protocol::{CarrierId, FieldId, Position},
 };
 
@@ -27,15 +30,16 @@ const CHARACTER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
 // Rapier's own zero-length threshold for a character move.
 const CHARACTER_RESTING_MOVEMENT: f32 = 1e-5;
 
-// One fixed-tick request. Ladder decisions read only `control_velocity`;
-// knockback and portal momentum ride `external_displacement` so they can move
-// the body without impersonating player/actor intent.
+// One fixed-tick request. Ladder decisions read only `intent_velocity`, so
+// a shove or a launch can move the body without impersonating what it means
+// to do; `displacement` is motion that is not a velocity at all.
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterStep {
     pub start: Position,
     pub vertical_velocity: f32,
-    pub control_velocity: Vec3,
-    pub external_displacement: Vec3,
+    pub intent_velocity: Vec3,
+    pub velocity: Vec3,
+    pub displacement: Vec3,
     pub delta: f32,
 }
 
@@ -58,25 +62,73 @@ pub struct CharacterEnvironment<'a> {
     pub carriers: &'a Carriers,
 }
 
+// What the motor learns about the body before it moves, probed once where
+// the carrier ride puts it this tick: the carrier colliders already sit at
+// this tick's pose, so a probe at the previous position would start inside
+// a lift. The player policy reads the same answers, so the two never
+// disagree about a stand.
+pub struct CharacterStart<'a> {
+    pub carrier: CarrierId,
+    pub carry: Vec3,
+    pub floor_velocity: Vec3,
+    // The aperture backing the body may pass through this tick.
+    pub exclusions: Vec<ColliderHandle>,
+    pub grounded: bool,
+    pub ladder: Option<&'a LadderVolume>,
+}
+
+impl<'a> CharacterStart<'a> {
+    #[must_use]
+    pub fn probe(step: &CharacterStep, env: &CharacterEnvironment<'a>) -> Self {
+        let shape = character_movement_shape(env.physics);
+        let carry = rider_carry(step, env, &shape);
+        let carried = Position::from(Vec3::from(step.start) + carry.displacement);
+        let exclusions = env.portals.map_or_else(Vec::new, |portals| {
+            portals.collision_exclusions(carried.into(), env.physics)
+        });
+        let grounded = step.vertical_velocity <= 0.0
+            && character_ground_hit(
+                env.collision_world,
+                &shape,
+                &carried,
+                env.passable_fields,
+                &exclusions,
+                env.physics,
+            )
+            .is_some();
+        let ladder = env
+            .collision_world
+            .ladder_volume_at(&carried)
+            .filter(|_| env.ladder_mode != LadderMode::Disabled);
+        Self {
+            carrier: carry.carrier,
+            carry: carry.displacement,
+            floor_velocity: carry.floor_velocity,
+            exclusions,
+            grounded,
+            ladder,
+        }
+    }
+}
+
 #[must_use]
 pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) -> CharacterMovementResult {
+    step_character_movement_from(&CharacterStart::probe(&step, env), step, env)
+}
+
+// The step from a start already probed. The body follows the carrier's rise
+// or drop before the move; the horizontal part rides the move instead, so a
+// wall still blocks a body the carrier pushes into it.
+#[must_use]
+pub fn step_character_movement_from(
+    start: &CharacterStart<'_>,
+    step: CharacterStep,
+    env: &CharacterEnvironment,
+) -> CharacterMovementResult {
     let shape = character_movement_shape(env.physics);
-    let RiderCarry {
-        carrier,
-        displacement: carry,
-        floor_velocity,
-    } = rider_carry(&step, env, &shape);
-    // The carrier's colliders already sit at this tick's pose, and a probe
-    // that starts inside a collider finds no ground, so the body follows the
-    // carrier's rise or drop before anything probes. The horizontal part
-    // rides the move instead, so a wall still blocks a body the carrier
-    // pushes into it.
     let mut step = step;
-    step.start.y += carry.y;
-    let support_excluded = env.portals.map_or_else(Vec::new, |portals| {
-        portals.collision_exclusions(Vec3::from(step.start), env.physics)
-    });
-    let request = prepare_movement_request(step, env, carry, &support_excluded, &shape);
+    step.start.y += start.carry.y;
+    let request = prepare_movement_request(step, env, start);
     let movement_excluded = env.portals.map_or_else(Vec::new, |portals| {
         portals.movement_collision_exclusions(
             Vec3::from(step.start),
@@ -85,15 +137,16 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         )
     });
     let collision = resolve_character_collision(step, env, &movement_excluded, &shape, &request);
-    finish_character_movement(
-        step,
-        env,
-        &movement_excluded,
-        request,
-        collision,
-        carrier,
-        floor_velocity,
-    )
+    finish_character_movement(step, env, &movement_excluded, request, collision, start)
+}
+
+// Where a body that does not walk this tick goes: its ride, its shove, and
+// its fall, unresolved against the world. A stand-in for a body whose own
+// move is not decided yet.
+#[must_use]
+pub fn character_passive_motion(step: &CharacterStep, env: &CharacterEnvironment) -> Vec3 {
+    let carry = rider_carry(step, env, &character_movement_shape(env.physics)).displacement;
+    carry + step.displacement + Vec3::Y * (step.vertical_velocity * step.delta)
 }
 
 struct MovementRequest {
@@ -103,7 +156,6 @@ struct MovementRequest {
     requested_total: Vector,
     carried: Vector,
     can_follow_ground: bool,
-    started_grounded: bool,
     ascending_ladder: bool,
     ladder_supported: bool,
     // A carrier moved the body vertically before the request.
@@ -113,43 +165,26 @@ struct MovementRequest {
 fn prepare_movement_request(
     step: CharacterStep,
     env: &CharacterEnvironment,
-    carry: Vec3,
-    excluded_colliders: &[ColliderHandle],
-    shape: &Capsule,
+    start: &CharacterStart<'_>,
 ) -> MovementRequest {
-    let carry_xz = carry.with_y(0.0);
+    let carry_xz = start.carry.with_y(0.0);
     let start_pos = &step.start;
     let collision_world = env.collision_world;
-    let passable_fields = env.passable_fields;
     let physics = env.physics;
 
-    let ground_probe = if step.vertical_velocity <= 0.0 {
-        character_ground_hit(
-            collision_world,
-            shape,
-            start_pos,
-            passable_fields,
-            excluded_colliders,
-            physics,
-        )
-    } else {
-        None
-    };
     let ladder_pos = Position {
         x: start_pos.x + carry_xz.x,
         z: start_pos.z + carry_xz.z,
         ..*start_pos
     };
     let ladder = evaluate_ladder_interaction(
-        collision_world
-            .ladder_volume_at(&ladder_pos)
-            .filter(|_| env.ladder_mode != LadderMode::Disabled),
+        start.ladder,
         env.ladder_mode,
         &ladder_pos,
         step.vertical_velocity,
-        step.control_velocity,
+        step.intent_velocity,
         step.delta,
-        ground_probe.is_some(),
+        start.grounded,
     );
     let ascending_ladder = ladder.is_ascending();
     // Climbing suppresses ground following: without this, the ground snap
@@ -157,13 +192,15 @@ fn prepare_movement_request(
     let can_follow_ground = step.vertical_velocity <= 0.0
         && !ascending_ladder
         && !(matches!(env.ladder_mode, LadderMode::Climb | LadderMode::Exit) && ladder.is_supported());
+    // Gravity is integrated in two half-steps, the second after the move in
+    // `finish_character_movement`, so the move uses the tick's mean velocity.
     let next_vertical_velocity = if let Some(vertical_velocity) = ladder.vertical_velocity() {
         vertical_velocity
-    } else if ground_probe.is_some() {
+    } else if start.grounded {
         // Ground support balances gravity; repeatedly casting into it amplifies capsule contact noise.
         0.0
     } else {
-        (step.vertical_velocity - env.gravity * step.delta).max(-CHARACTER_TERMINAL_VELOCITY)
+        fall(step.vertical_velocity, env.gravity, step.delta)
     };
 
     // Actor mount waypoints align them; pulling adjacent climbers together can stop both moves.
@@ -172,21 +209,21 @@ fn prepare_movement_request(
     } else {
         Vec3::ZERO
     };
-    let control_x = step.control_velocity.x.mul_add(step.delta, start_pos.x) + carry_xz.x + ladder_funnel.x;
-    let control_z = step.control_velocity.z.mul_add(step.delta, start_pos.z) + carry_xz.z + ladder_funnel.z;
-    let external = step.external_displacement;
+    let travel_x = step.velocity.x.mul_add(step.delta, start_pos.x) + carry_xz.x + ladder_funnel.x;
+    let travel_z = step.velocity.z.mul_add(step.delta, start_pos.z) + carry_xz.z + ladder_funnel.z;
+    let displacement = step.displacement;
     let (target_x, target_z) = if !matches!(env.ladder_mode, LadderMode::Automatic | LadderMode::Climb) {
-        (control_x + external.x, control_z + external.z)
+        (travel_x + displacement.x, travel_z + displacement.z)
     } else if ladder.is_supported() {
         // A shove moves a held body freely, so letting go or a blast can carry
         // it through the rungs; a walker's whole move stays fenced.
-        let (x, z) = ladder.constrain_target(&ladder_pos, control_x, control_z, collision_world, physics);
-        (x + external.x, z + external.z)
+        let (x, z) = ladder.constrain_target(&ladder_pos, travel_x, travel_z, collision_world, physics);
+        (x + displacement.x, z + displacement.z)
     } else {
         ladder.constrain_target(
             &ladder_pos,
-            control_x + external.x,
-            control_z + external.z,
+            travel_x + displacement.x,
+            travel_z + displacement.z,
             collision_world,
             physics,
         )
@@ -208,11 +245,15 @@ fn prepare_movement_request(
         requested_total: requested_horizontal_move + requested_vertical_move,
         carried,
         can_follow_ground,
-        started_grounded: ground_probe.is_some(),
         ascending_ladder,
         ladder_supported: ladder.is_supported(),
-        lifted: carry.y != 0.0,
+        lifted: start.carry.y != 0.0,
     }
+}
+
+// Half a tick of gravity, held at the terminal fall speed.
+fn fall(vertical_velocity: f32, gravity: f32, delta: f32) -> f32 {
+    (vertical_velocity - gravity * delta * 0.5).max(-CHARACTER_TERMINAL_VELOCITY)
 }
 
 struct CharacterCollisionResult {
@@ -314,15 +355,14 @@ fn finish_character_movement(
     excluded_colliders: &[ColliderHandle],
     request: MovementRequest,
     collision: CharacterCollisionResult,
-    carrier: CarrierId,
-    floor_velocity: Vec3,
+    start: &CharacterStart<'_>,
 ) -> CharacterMovementResult {
     let mut resolved = Position {
         x: step.start.x + collision.translation.x,
         y: step.start.y + collision.translation.y,
         z: step.start.z + collision.translation.z,
     };
-    if request.can_follow_ground && request.started_grounded {
+    if request.can_follow_ground && start.grounded {
         snap_character_to_ground(
             env.collision_world,
             &mut resolved,
@@ -380,7 +420,7 @@ fn finish_character_movement(
     // Leaving a tile keeps its rise or drop: a jump off a rising lift goes
     // higher, the way it does off a real one.
     if support == CharacterSupport::Airborne {
-        vertical_velocity += floor_velocity.y;
+        vertical_velocity = fall(vertical_velocity + start.floor_velocity.y, env.gravity, step.delta);
     }
     // A carrier moving into a body the collision could not push clear
     // (a lift descending onto a body on the floor) leaves the body inside
@@ -404,8 +444,8 @@ fn finish_character_movement(
         impact_speed,
         support,
         blocked,
-        carrier,
-        floor_velocity,
+        carrier: start.carrier,
+        floor_velocity: start.floor_velocity,
         lifted: request.lifted,
         crushed,
     }

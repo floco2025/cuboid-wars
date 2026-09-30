@@ -3,14 +3,6 @@ use crate::physics::{CharacterMovementResult, CharacterSupport};
 use crate::protocol::CarrierId;
 
 #[test]
-fn horizontal_velocity_does_not_decay_between_airborne_steps() {
-    let momentum = HorizontalVelocity(Vec3::new(3.0, 0.0, -6.0));
-
-    assert_eq!(momentum.step(0.1), Vec3::new(0.3, 0.0, -0.6));
-    assert_eq!(momentum.step(0.1), Vec3::new(0.3, 0.0, -0.6));
-}
-
-#[test]
 fn landing_preserves_horizontal_velocity_and_wall_contact_clips_only_into_wall() {
     let airborne = CharacterMovementResult {
         contact_normals: [Vec3::ZERO; 5],

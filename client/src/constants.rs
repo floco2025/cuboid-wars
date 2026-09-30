@@ -186,6 +186,10 @@ pub const SAMPLE_BUFFER_MAX_SAMPLES: usize = 64;
 // per second and can never spin. ~12 rad/s ⇒ a 180° turn takes ~0.26 s.
 pub const CHARACTER_VISUAL_TURN_MAX_SPEED: f32 = 12.0;
 
+// Crouched eye height as a fraction of the standing eye height.
+pub const PLAYER_CROUCH_EYE_RATIO: f32 = 28.0 / 64.0;
+// Seconds a grounded crouch blend takes; an airborne duck is instant.
+pub const PLAYER_CROUCH_BLEND_SECS: f32 = 0.2;
 pub const PLAYER_ANIMATION_BLEND_SECS: f32 = 0.12;
 pub const PLAYER_ANIMATION_TAKEOFF_BLEND_SECS: f32 = 0.04;
 pub const PLAYER_ANIMATION_WALK_SPEED: f32 = 3.0;

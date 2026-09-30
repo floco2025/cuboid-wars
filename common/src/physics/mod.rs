@@ -7,15 +7,15 @@ mod world;
 
 pub use blast::{blast_falloff_at_distance, blast_hit, planar_shove, visible_blast_falloff};
 pub use characters::{
-    CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep, CharacterSupport,
-    CharacterVerticalVelocity, FALL_DAMAGE_EMIT_THRESHOLD, GroundingDiagnostics, HorizontalVelocity, KnockbackVelocity,
-    LadderMode, PlayerFlightPortals, PlayerFlightState, PlayerFlightTick, PlayerJump, PlayerMovementStep,
-    PlayerStepResult, accelerate_player, character_axis_separation, character_hitbox_center, character_hitbox_shape,
-    character_move_plans_intersect, character_movement_center, character_movement_shape, character_paths_intersect,
-    character_positions_intersect, fall_damage_for_distance, fall_distance_for_speed, flight_funnel_prediction,
+    CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStart, CharacterStep, CharacterSupport,
+    CharacterVerticalVelocity, GroundingDiagnostics, HorizontalVelocity, KnockbackVelocity, LadderMode,
+    PlayerFlightPortals, PlayerFlightState, PlayerFlightTick, PlayerJump, PlayerMovementStep, PlayerStepResult,
+    PlayerWish, accelerate_player, character_axis_separation, character_hitbox_center, character_hitbox_shape,
+    character_move_plans_intersect, character_movement_center, character_movement_shape, character_passive_motion,
+    character_paths_intersect, character_positions_intersect, fall_distance_for_speed, flight_funnel_prediction,
     grounding_diagnostics, knockback_decay_system, landing_damage, player_control_velocity, player_jump,
-    player_move_speed, position_has_floor_support, step_character_movement, step_player_flight, step_player_movement,
-    step_player_movement_blocked,
+    player_move_speed, player_wish_velocity, position_has_floor_support, step_character_movement,
+    step_character_movement_from, step_player_flight, step_player_movement, step_player_movement_blocked,
 };
 pub use fields::passable_fields;
 pub use portals::{

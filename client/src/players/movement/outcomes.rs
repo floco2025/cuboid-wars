@@ -1,62 +1,27 @@
 use bevy::prelude::*;
 use common::{
-    config::{CharacterPhysicsConfig, GameplayConfig, NetworkConfig, UpdateCadence},
+    config::{CharacterPhysicsConfig, NetworkConfig},
     constants::CHARACTER_FALL_DEATH_Y,
     map::Carriers,
-    physics::{CharacterSupport, CollisionWorld},
-    protocol::{CMoveOutcome, CarrierId, ClientMessage, MoveOutcome, PlayerStance, Position},
+    physics::{CharacterMovementResult, CollisionWorld},
+    protocol::{MoveOutcome, Position},
 };
 
 use super::LocalMovementReports;
 
-use crate::{
-    network::ClientToServerChannel,
-    players::{LocalPlayerInfo, LocalPlayerMarker},
-};
-
-// What the motor decided this tick, for the systems that report it.
-#[derive(Component)]
+// What the owner's last tick decided, for everything that reports or shows it.
+#[derive(Component, Debug, Clone, Copy, Default)]
 pub struct LocalMovementStep {
     pub start: Position,
-    pub crushed: bool,
-    pub impact_speed: f32,
-    pub carrier: CarrierId,
-    pub support: CharacterSupport,
-    // The velocity the ride gave a grounded body on top of its own this tick.
-    pub carried: Vec3,
-}
-
-pub(crate) fn report_move_outcomes_system(
-    to_server: Res<ClientToServerChannel>,
-    mut local: ResMut<LocalPlayerInfo>,
-    collision: Res<CollisionWorld>,
-    carriers: Res<Carriers>,
-    gameplay: Res<GameplayConfig>,
-    network: Res<NetworkConfig>,
-    mut eraser_cadence: Local<Option<UpdateCadence>>,
-    query: Query<(&Position, &LocalMovementStep, &PlayerStance), With<LocalPlayerMarker>>,
-) {
-    if local.is_dead {
-        return;
-    }
-    let Ok((pos, step, stance)) = query.single() else {
-        return;
-    };
-    for event in collect_move_outcomes(
-        pos,
-        step,
-        stance.physics(&gameplay.player),
-        &collision,
-        &carriers,
-        &mut local.reports,
-        &mut eraser_cadence,
-        &network,
-    ) {
-        to_server.send(ClientMessage::MoveOutcome(CMoveOutcome {
-            generation: local.reports.generation,
-            event,
-        }));
-    }
+    pub result: CharacterMovementResult,
+    // The step's own horizontal velocity, before any crossing mapped it.
+    pub horizontal_velocity: Vec3,
+    // What the player asked for, which animation measures travel against.
+    pub intent_velocity: Vec3,
+    // The blast shove the step applied.
+    pub knockback_displacement: Vec3,
+    // Another body rejected the move and the retry stands in for it.
+    pub hits_character: bool,
 }
 
 pub fn collect_move_outcomes(
@@ -66,12 +31,11 @@ pub fn collect_move_outcomes(
     collision: &CollisionWorld,
     carriers: &Carriers,
     reports: &mut LocalMovementReports,
-    eraser_cadence: &mut Option<UpdateCadence>,
     network: &NetworkConfig,
 ) -> Vec<MoveOutcome> {
     let mut outcomes = Vec::new();
-    let crossing = reports.crossing_entrance.as_ref();
-    let sweep_end = crossing.copied().unwrap_or(*pos);
+    let crossing = reports.crossing_entrance;
+    let sweep_end = crossing.unwrap_or(*pos);
     let touching = collision
         .character_eraser_contacts(pos, pos, physics, Some(carriers))
         .next()
@@ -83,21 +47,16 @@ pub fn collect_move_outcomes(
     // A pickup update can arrive after contact, so the client inventory cannot
     // gate erasure: standing in a field keeps reporting, at the movement
     // cadence, and entry restarts that cadence so it is reported at once.
-    let contact = touching || swept;
-    let erase_due = contact && eraser_cadence.get_or_insert_with(|| network.update_cadence()).ready();
-    if !contact {
-        *eraser_cadence = None;
-    }
-    if erase_due {
+    if reports.erase_due(touching || swept, network) {
         outcomes.push(MoveOutcome::EraseEquipment);
     }
-    if crossing.is_none() && step.impact_speed > 0.0 {
+    if crossing.is_none() && step.result.impact_speed > 0.0 {
         outcomes.push(MoveOutcome::Landed {
             pos: *pos,
-            impact_speed: step.impact_speed,
+            impact_speed: step.result.impact_speed,
         });
     }
-    if crossing.is_none() && step.crushed {
+    if crossing.is_none() && step.result.crushed {
         outcomes.push(MoveOutcome::Crushed { pos: *pos });
     }
     if pos.y < CHARACTER_FALL_DEATH_Y && !reports.void_reported {

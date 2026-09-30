@@ -19,14 +19,7 @@ fn a_search_cut_short_by_the_ticks_leftover_budget_is_deferred_and_keeps_its_rou
         carrier: CarrierId::WORLD,
         position: Position { x, y: 3.0, z: 0.0 },
     };
-    let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
-    let mut executor = TraversalExecutor::new(start, physics, 3.0, &env);
+    let mut executor = TraversalExecutor::new(physics, 3.0);
     let mut agent = SurfaceAgent {
         goal: Some(goal(4.5)),
         ..Default::default()
@@ -77,7 +70,8 @@ fn a_deferred_retry_stops_pending_once_its_cause_clears() {
     };
     for status in [TraversalStatus::Blocked, TraversalStatus::LostSupport] {
         for budget in [0, 1] {
-            let mut executor = TraversalExecutor::new(start, physics, 3.0, &env);
+            let mut executor = TraversalExecutor::new(physics, 3.0);
+            let mut body = ActorBody::standing(start);
             let mut agent = SurfaceAgent {
                 goal: Some(SurfaceGoal {
                     carrier: CarrierId::WORLD,
@@ -102,9 +96,9 @@ fn a_deferred_retry_stops_pending_once_its_cause_clears() {
             assert_eq!(executor.actions, route);
 
             // The retained route recovers before another search gets a turn.
-            executor.step(&env);
+            executor.step(&env, &mut body);
             assert_eq!(executor.status, TraversalStatus::Moving);
-            let position = executor.movement.position;
+            let position = body.position;
             planner.update(
                 &mut agent,
                 &mut executor,
@@ -117,7 +111,7 @@ fn a_deferred_retry_stops_pending_once_its_cause_clears() {
             assert!(!agent.pending, "nothing is requested once the route moves again");
             for _ in 0..1800 {
                 planner.budget = TICK_SEARCH_VISITS;
-                let position = executor.movement.position;
+                let position = body.position;
                 planner.update(
                     &mut agent,
                     &mut executor,
@@ -127,7 +121,7 @@ fn a_deferred_retry_stops_pending_once_its_cause_clears() {
                     false,
                     None,
                 );
-                executor.step(&env);
+                executor.step(&env, &mut body);
                 if executor.status == TraversalStatus::Reached {
                     break;
                 }

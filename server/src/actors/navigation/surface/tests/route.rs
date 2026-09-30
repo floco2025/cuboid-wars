@@ -107,7 +107,7 @@ fn smoothed_routes_go_around_obstacles_without_cutting_clearance() {
 
 #[test]
 fn smoothing_preserves_the_ramp_route_between_stacked_surfaces() {
-    use crate::actors::movement::traversal::{TraversalEnvironment, TraversalExecutor, TraversalStatus};
+    use crate::actors::movement::traversal::{ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus};
     use common::map::Carriers;
     let config = fixtures::config();
     let generated = fixtures::generate("fixture", 30, &config.settings).expect("ramp scene");
@@ -139,12 +139,13 @@ fn smoothing_preserves_the_ramp_route_between_stacked_surfaces() {
         open: &[],
         delta: 1.0 / 30.0,
     };
-    let mut actor = TraversalExecutor::new(start, physics, 3.0, &env);
+    let mut actor = TraversalExecutor::new(physics, 3.0);
+    let mut body = ActorBody::standing(start);
     actor.set_route(route);
     for _ in 0..1200 {
-        actor.step(&env);
+        actor.step(&env, &mut body);
         assert!(
-            !world.character_penetrates_solid(&actor.movement.position, physics, &[]),
+            !world.character_penetrates_solid(&body.position, physics, &[]),
             "{actor:?}"
         );
         if actor.status == TraversalStatus::Reached {
@@ -152,12 +153,12 @@ fn smoothing_preserves_the_ramp_route_between_stacked_surfaces() {
         }
     }
     assert_eq!(actor.status, TraversalStatus::Reached, "{actor:?}");
-    assert!(actor.movement.position.distance_sq(&goal) < 0.1, "{actor:?}");
+    assert!(body.position.distance_sq(&goal) < 0.1, "{actor:?}");
 }
 
 #[test]
 fn smoothed_obstacle_routes_remain_executable_with_bounded_turning() {
-    use crate::actors::movement::traversal::{TraversalEnvironment, TraversalExecutor, TraversalStatus};
+    use crate::actors::movement::traversal::{ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus};
     use common::{map::Carriers, math::angle_delta_radians};
     let (mesh, world) = obstacle_scene();
     let config = fixtures::config();
@@ -181,14 +182,15 @@ fn smoothed_obstacle_routes_remain_executable_with_bounded_turning() {
             y: 0.0,
             z: 0.0,
         };
-        let mut actor = TraversalExecutor::new(start, physics, 8.0, &env);
+        let mut actor = TraversalExecutor::new(physics, 8.0);
+        let mut body = ActorBody::standing(start);
         actor.set_route(mesh.route(start, goal, 0.3).expect("obstacle route"));
         for _ in 0..300 {
             let previous = actor.facing;
-            actor.step(&env);
+            actor.step(&env, &mut body);
             assert!(angle_delta_radians(actor.facing, previous).abs() <= std::f32::consts::TAU * env.delta + 1e-5);
             assert!(
-                !world.character_penetrates_solid(&actor.movement.position, physics, &[]),
+                !world.character_penetrates_solid(&body.position, physics, &[]),
                 "{actor:?}"
             );
             if actor.status == TraversalStatus::Reached {
@@ -196,13 +198,13 @@ fn smoothed_obstacle_routes_remain_executable_with_bounded_turning() {
             }
         }
         assert_eq!(actor.status, TraversalStatus::Reached, "{actor:?}");
-        assert!(actor.movement.position.distance_sq(&goal) < 0.1, "{actor:?}");
+        assert!(body.position.distance_sq(&goal) < 0.1, "{actor:?}");
     }
 }
 
 #[test]
 fn exhausting_the_smoothing_budget_keeps_the_found_route_executable() {
-    use crate::actors::movement::traversal::{TraversalEnvironment, TraversalExecutor, TraversalStatus};
+    use crate::actors::movement::traversal::{ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus};
     use common::map::Carriers;
     let (mesh, world) = obstacle_scene();
     let start = Position {
@@ -227,12 +229,13 @@ fn exhausting_the_smoothing_budget_keeps_the_found_route_executable() {
         open: &[],
         delta: 1.0 / 30.0,
     };
-    let mut actor = TraversalExecutor::new(start, physics, 3.0, &env);
+    let mut actor = TraversalExecutor::new(physics, 3.0);
+    let mut body = ActorBody::standing(start);
     actor.set_route(route);
     for _ in 0..600 {
-        actor.step(&env);
+        actor.step(&env, &mut body);
         assert!(
-            !world.character_penetrates_solid(&actor.movement.position, physics, &[]),
+            !world.character_penetrates_solid(&body.position, physics, &[]),
             "{actor:?}"
         );
         if actor.status == TraversalStatus::Reached {
@@ -240,5 +243,5 @@ fn exhausting_the_smoothing_budget_keeps_the_found_route_executable() {
         }
     }
     assert_eq!(actor.status, TraversalStatus::Reached, "{actor:?}");
-    assert!(actor.movement.position.distance_sq(&goal) < 0.1, "{actor:?}");
+    assert!(body.position.distance_sq(&goal) < 0.1, "{actor:?}");
 }

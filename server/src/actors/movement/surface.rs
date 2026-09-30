@@ -2,23 +2,23 @@ use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 use common::{
-    config::{ActorMovementConfig, CharacterPhysicsConfig},
+    config::CharacterPhysicsConfig,
     map::Carriers,
     physics::{
-        CharacterMovePlan, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
-        character_positions_intersect,
+        CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterSupport, CollisionWorld, LadderMode,
+        character_passive_motion, character_positions_intersect,
     },
-    protocol::{ActorId, ActorMoveIntent, CarrierId, FaceYaw, MapSettings, Position, ServerTick, SwitchState},
+    protocol::{ActorId, CarrierId, MapSettings, Position, ServerTick, SwitchState},
 };
 
 use super::{
-    ActorMovementStep, blocking_character_move_plan,
+    blocking_character_move_plan,
+    query::{SurfaceActor, SurfaceActorItem},
     roaming::route_stays_home,
-    step_actor_movement,
-    traversal::{BodyBlocker, TraversalAction, TraversalEnvironment, TraversalExecutor, TraversalStatus},
+    traversal::{ActorBody, BodyBlocker, TraversalAction, TraversalEnvironment, TraversalExecutor, TraversalStatus},
 };
 use crate::actors::{
-    ActorCharacter, ActorCrushed, ActorLanding, ActorMap, ActorMode, SurfaceActorMoves,
+    ActorCharacter, ActorMap, ActorMode, SurfaceActorMoves,
     navigation::{
         ActorTerritories, ActorTerritory,
         surface::{ROUTE_SEARCH_VISITS, RouteFailure, SurfaceNavigation},
@@ -192,22 +192,8 @@ pub(crate) fn surface_actors_movement_system(
     territories: Res<ActorTerritories>,
     mut actors: ResMut<ActorMap>,
     mut moves: ResMut<SurfaceActorMoves>,
-    other_query: Query<(Entity, &ActorId, &Position, &ActorCharacter), Without<SurfaceAgent>>,
-    mut query: Query<(
-        Entity,
-        &ActorId,
-        &ActorCharacter,
-        &ActorMovementConfig,
-        &mut SurfaceAgent,
-        &mut Position,
-        &mut CharacterVerticalVelocity,
-        &mut CharacterSupport,
-        &mut ActorMoveIntent,
-        &mut FaceYaw,
-        &mut ActorCrushed,
-        &mut ActorLanding,
-        Option<&KnockbackVelocity>,
-    )>,
+    other_query: Query<(Entity, &Position, &ActorCharacter), Without<SurfaceAgent>>,
+    mut query: Query<SurfaceActor>,
 ) {
     let delta = time.delta_secs();
     if delta <= 0.0 {
@@ -223,75 +209,81 @@ pub(crate) fn surface_actors_movement_system(
     };
     let neighbors: Vec<_> = query
         .iter()
-        .map(|(_, id, character, _, _, position, _, support, ..)| (*id, *position, character.0.physics(), *support))
+        .map(|actor| (*actor.id, *actor.position, actor.character.0.physics(), *actor.support))
         .collect();
     // Reserve passive motion before admitting voluntary moves. Riders share
     // their carrier's displacement; treating unprocessed riders as stationary
     // would make a platform push them into one another's previous positions.
     let mut body_moves: Vec<_> = query
         .iter()
-        .map(
-            |(entity, id, character, _, _, position, velocity, support, intent, _, _, _, knockback)| {
-                let physics = character.0.physics();
-                let lift = knockback.map_or(Vec3::ZERO, |v| v.step(delta) * Vec3::Y);
-                // Nothing but its own walk moves a body at rest on the world.
-                if *support == CharacterSupport::Ground
-                    && velocity.0 == 0.0
-                    && lift == Vec3::ZERO
-                    && actors.get(id).is_some_and(|info| info.carrier == CarrierId::WORLD)
-                {
-                    return CharacterMovePlan::stationary(entity, *position, 0.0, physics);
-                }
-                let intent = intent.holding_ladder();
-                let movement = step_actor_movement(ActorMovementStep {
-                    start: *position,
-                    vertical_velocity: velocity.0,
-                    intent,
-                    external_displacement: lift,
-                    delta,
-                    can_use_ladders: intent.uses_ladders(),
-                    physics,
-                    open_fields: env.open,
+        .map(|actor| {
+            let physics = actor.character.0.physics();
+            let lift = actor.knockback.map_or(Vec3::ZERO, |v| v.step(delta) * Vec3::Y);
+            let held = *actor.support == CharacterSupport::Ladder;
+            // Nothing but its own walk moves a body at rest on the world.
+            if *actor.support == CharacterSupport::Ground
+                && actor.vertical_velocity.0 == 0.0
+                && lift == Vec3::ZERO
+                && actors
+                    .get(actor.id)
+                    .is_some_and(|info| info.carrier == CarrierId::WORLD)
+            {
+                return CharacterMovePlan::stationary(actor.entity, *actor.position, 0.0, physics);
+            }
+            let step = CharacterStep {
+                start: *actor.position,
+                vertical_velocity: if held { 0.0 } else { actor.vertical_velocity.0 },
+                intent_velocity: Vec3::ZERO,
+                velocity: Vec3::ZERO,
+                displacement: lift,
+                delta,
+            };
+            let passive = character_passive_motion(
+                &step,
+                &CharacterEnvironment {
                     collision_world: &collision,
-                    map_settings: &settings,
+                    gravity: settings.movement.gravity,
+                    passable_fields: env.open,
+                    physics,
+                    ladder_mode: LadderMode::Disabled,
+                    portals: None,
                     carriers: &carriers,
-                });
-                CharacterMovePlan::from_movement_result(entity, *position, movement, physics)
-            },
-        )
+                },
+            );
+            let target = Position::from(Vec3::from(*actor.position) + passive);
+            CharacterMovePlan::from_target(actor.entity, *actor.position, target, 0.0, physics, false)
+        })
         .collect();
     let movers = body_moves.len();
-    body_moves.extend(other_query.iter().map(|(entity, id, position, character)| {
-        let target = actors
-            .get(id)
-            .and_then(|info| info.anchor)
-            .map_or(*position, |anchor| anchor.world_position(&carriers));
-        CharacterMovePlan::from_target(entity, *position, target, 0.0, character.0.physics(), false)
+    // Anchored actors are already placed for this tick; flying ones move afterwards.
+    body_moves.extend(other_query.iter().map(|(entity, position, character)| {
+        CharacterMovePlan::stationary(entity, *position, 0.0, character.0.physics())
     }));
     let standoffs: Vec<_> = query
         .iter()
-        .filter_map(|(entity, _, _, _, agent, ..)| Some((entity, agent.executor.as_ref()?.standoff()?)))
+        .filter_map(|actor| Some((actor.entity, actor.agent.executor.as_ref()?.standoff()?)))
         .collect();
     // Whoever is on a ladder holds it, then whoever was admitted last tick.
     let mut occupancy = BTreeMap::new();
-    for (_, id, _, _, agent, _, _, support, ..) in &query {
-        if *support == CharacterSupport::Ladder
-            && let Some(ladder) = agent
+    for actor in &query {
+        if *actor.support == CharacterSupport::Ladder
+            && let Some(ladder) = actor
+                .agent
                 .executor
                 .as_ref()
                 .and_then(|executor| executor.actions.front())
                 .and_then(|action| action.ladder())
         {
-            occupancy.entry(ladder).or_insert(*id);
+            occupancy.entry(ladder).or_insert(*actor.id);
         }
     }
-    for (_, id, _, _, agent, ..) in &query {
-        if let Some(ladder) = agent.ladder_claim {
-            occupancy.entry(ladder).or_insert(*id);
+    for actor in &query {
+        if let Some(ladder) = actor.agent.ladder_claim {
+            occupancy.entry(ladder).or_insert(*actor.id);
         }
     }
     let mut ordered: Vec<_> = query.iter_mut().collect();
-    ordered.sort_by_key(|(_, id, ..)| id.0);
+    ordered.sort_by_key(|actor| actor.id.0);
     if !ordered.is_empty() {
         let rotation = tick.0 as usize % ordered.len();
         ordered.rotate_left(rotation);
@@ -301,21 +293,21 @@ pub(crate) fn surface_actors_movement_system(
         carriers: &carriers,
         budget: TICK_SEARCH_VISITS,
     };
-    for (
+    for SurfaceActorItem {
         entity,
         id,
         character,
         speeds,
         mut agent,
         mut position,
-        mut velocity,
+        mut vertical_velocity,
         mut support,
         mut intent,
         mut facing,
         mut crushed,
         mut landing,
         knockback,
-    ) in ordered
+    } in ordered
     {
         let Some(info) = actors.get_mut(id) else {
             continue;
@@ -330,10 +322,12 @@ pub(crate) fn surface_actors_movement_system(
         let mut executor = agent
             .executor
             .take()
-            .unwrap_or_else(|| TraversalExecutor::new(*position, physics, speed, &env));
-        executor.movement.position = *position;
-        executor.movement.vertical_velocity = velocity.0;
-        executor.movement.support = *support;
+            .unwrap_or_else(|| TraversalExecutor::new(physics, speed));
+        let body = ActorBody {
+            position: *position,
+            vertical_velocity: vertical_velocity.0,
+            support: *support,
+        };
         executor.speed = speed;
         executor.facing = facing.0;
         agent.retry_secs = (agent.retry_secs - delta).max(0.0);
@@ -371,14 +365,15 @@ pub(crate) fn surface_actors_movement_system(
             agent.passing = Some((other, STANDOFF_PASS_SECS));
         }
         let passing = agent.passing.map(|(other, _)| other);
-        executor.step_with_avoidance(
+        let movement = executor.step_with_avoidance(
             &env,
+            body,
             knockback.map_or(Vec3::ZERO, |v| v.step(delta)),
             avoidance,
             waiting,
             home,
-            |movement| {
-                let candidate = CharacterMovePlan::from_movement_result(entity, *position, *movement, physics);
+            |target| {
+                let candidate = CharacterMovePlan::from_target(entity, *position, target, 0.0, physics, false);
                 let others = body_moves.iter().filter(|other| Some(other.entity) != passing);
                 blocking_character_move_plan(&candidate, others).map(|other| BodyBlocker {
                     entity: other.entity,
@@ -401,7 +396,6 @@ pub(crate) fn surface_actors_movement_system(
             }
             _ => {}
         }
-        let movement = executor.movement;
         let plan = CharacterMovePlan::from_movement_result(entity, *position, movement, physics);
         if let Some((other, secs)) = agent.passing {
             let secs = secs - delta;
@@ -419,7 +413,7 @@ pub(crate) fn surface_actors_movement_system(
         // Overlap in peaceful mode is accepted; revisit if a moving ground
         // kind without a contact attack is introduced.
         *position = movement.position;
-        velocity.0 = movement.vertical_velocity;
+        vertical_velocity.0 = movement.vertical_velocity;
         *support = movement.support;
         *intent = executor.intent;
         if let Some(direction) = intent.direction() {

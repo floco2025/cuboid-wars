@@ -353,8 +353,9 @@ pub(crate) fn ride(
         CharacterStep {
             start,
             vertical_velocity,
-            control_velocity,
-            external_displacement: Vec3::ZERO,
+            intent_velocity: control_velocity,
+            velocity: control_velocity,
+            displacement: Vec3::ZERO,
             delta,
         },
         &test_environment(world, carriers, player_physics(), LadderMode::Automatic),
@@ -405,8 +406,9 @@ pub(crate) fn character_step_toward(
     CharacterStep {
         start,
         vertical_velocity,
-        control_velocity: Vec3::new((target_x - start.x) / delta, 0.0, (target_z - start.z) / delta),
-        external_displacement: Vec3::ZERO,
+        intent_velocity: Vec3::new((target_x - start.x) / delta, 0.0, (target_z - start.z) / delta),
+        velocity: Vec3::new((target_x - start.x) / delta, 0.0, (target_z - start.z) / delta),
+        displacement: Vec3::ZERO,
         delta,
     }
 }

@@ -1,4 +1,4 @@
-use super::super::{ActorMovementQuery, apply_actor_moves, plan_actor_moves};
+use super::anchored_actors_placement_system;
 use crate::{
     actors::{
         ActorMap, ActorSpawner, PendingActorSpawn, PendingActorSpawns, actors_pending_spawn_system,
@@ -15,31 +15,6 @@ use common::{
         ActorAnchor, ActorId, ActorMoveIntent, Carrier, CarrierId, MapLayout, Position, ServerTick, SwitchState,
     },
 };
-
-fn step(
-    world: Res<CollisionWorld>,
-    switch_state: Res<SwitchState>,
-    carriers: Res<Carriers>,
-    actors: Res<ActorMap>,
-    mut query: ActorMovementQuery,
-) {
-    let starts = query
-        .iter()
-        .map(|(entity, _, _, pos, _, _, _, _, _, _, _, character)| (entity, *pos, character.0.physics()))
-        .collect::<Vec<_>>();
-    let mut planned = Vec::new();
-    plan_actor_moves(
-        1.0 / 30.0,
-        &world,
-        &switch_state,
-        &carriers,
-        &actors,
-        &starts,
-        &mut query,
-        &mut planned,
-    );
-    apply_actor_moves(&mut query, &actors, &planned, &world, &switch_state.open_fields);
-}
 
 #[test]
 fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
@@ -90,7 +65,10 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
             reserved_tick: 0,
             due_tick: 0,
         }]))
-        .add_systems(Update, (actors_pending_spawn_system, step).chain());
+        .add_systems(
+            Update,
+            (actors_pending_spawn_system, anchored_actors_placement_system).chain(),
+        );
     let id = ActorId(1);
     app.update();
     let actor = app.world().resource::<ActorMap>().get(&id).expect("turret missing");

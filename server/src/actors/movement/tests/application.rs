@@ -1,13 +1,13 @@
 use super::*;
 use crate::actors::{
-    ActorCharacter, ActorCrushed, ActorInfo, ActorLanding,
+    ActorCharacter, ActorCrushed, ActorLanding,
     test_kinds::{self, CONTACT},
 };
 use bevy::{ecs::system::SystemState, prelude::*};
 use common::{
     config::ActorLocomotion,
     physics::{CharacterSupport, CharacterVerticalVelocity},
-    protocol::{ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, MapLayout, Position},
+    protocol::{ActorId, ActorMarker, ActorMoveIntent, FaceYaw, MapLayout, Position},
 };
 
 #[test]
@@ -31,19 +31,17 @@ fn rejected_flying_step_does_not_apply_its_vertical_velocity_or_crush_result() {
             ActorCharacter(character),
         ))
         .id();
-    let mut actors = ActorMap::default();
-    actors.insert(ActorId(1), ActorInfo::new(entity, 0, CONTACT.into(), CarrierId::WORLD));
     let target = Position { y: 2.0, ..start };
     let plans = [
         CharacterMovePlan::from_target(entity, start, target, 20.0, physics, true),
         CharacterMovePlan::stationary(Entity::from_bits(999), target, 0.0, physics),
     ];
-    let mut state = SystemState::<ActorMovementQuery>::new(&mut ecs);
+    let mut state = SystemState::<FreeActorQuery>::new(&mut ecs);
     let mut query = state.get_mut(&mut ecs).expect("movement query invalid");
-    apply_actor_moves(
+    apply_flying_moves(
         &mut query,
-        &actors,
-        &plans,
+        &plans[1..],
+        &plans[..1],
         &CollisionWorld::from_map_layout(&MapLayout::default()),
         &[],
     );
@@ -77,8 +75,6 @@ fn an_applied_step_records_its_landing_speed_until_the_next_step() {
             ActorCharacter(character),
         ))
         .id();
-    let mut actors = ActorMap::default();
-    actors.insert(ActorId(1), ActorInfo::new(entity, 0, CONTACT.into(), CarrierId::WORLD));
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
     let landed = Position::default();
     let landing = CharacterMovePlan {
@@ -92,10 +88,10 @@ fn an_applied_step_records_its_landing_speed_until_the_next_step() {
         crushed: false,
     };
     let standing = CharacterMovePlan::stationary(entity, landed, 0.0, physics);
-    let mut state = SystemState::<ActorMovementQuery>::new(&mut ecs);
+    let mut state = SystemState::<FreeActorQuery>::new(&mut ecs);
     for (plan, expected_landing) in [(landing, 9.0), (standing, 0.0)] {
         let mut query = state.get_mut(&mut ecs).expect("movement query invalid");
-        apply_actor_moves(&mut query, &actors, &[plan], &world, &[]);
+        apply_flying_moves(&mut query, &[], &[plan], &world, &[]);
         assert_eq!(*ecs.get::<Position>(entity).expect("actor position missing"), landed);
         assert_eq!(
             ecs.get::<ActorLanding>(entity).expect("actor landing missing").0,

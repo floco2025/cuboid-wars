@@ -247,8 +247,9 @@ fn a_sliding_wall_pushes_actor_bodies_too() {
                 CharacterStep {
                     start: pos,
                     vertical_velocity: 0.0,
-                    control_velocity: Vec3::NEG_X * 9.0,
-                    external_displacement: Vec3::ZERO,
+                    intent_velocity: Vec3::NEG_X * 9.0,
+                    velocity: Vec3::NEG_X * 9.0,
+                    displacement: Vec3::ZERO,
                     delta: TICK_SECS,
                 },
                 &test_environment(&world, &carriers, physics, LadderMode::Automatic),

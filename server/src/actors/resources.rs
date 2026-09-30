@@ -15,18 +15,18 @@ use common::{
 use super::navigation::air::FlightState;
 
 // Whether this tick's movement left the actor inside a carrier's geometry;
-// written by `apply_actor_moves`, read by `actors_removal_system`.
+// written by the movement systems, read by `actors_removal_system`.
 #[derive(Component, Default)]
 pub struct ActorCrushed(pub bool);
 
 // The downward speed this tick's movement landed the actor with, zero when
-// it did not land; written by `apply_actor_moves`, read by
+// it did not land; written by the movement systems, read by
 // `actors_fall_damage_system`.
 #[derive(Component, Default)]
 pub struct ActorLanding(pub f32);
 
 // This tick's accepted ground actor moves; written by
-// `surface_actors_movement_system`, read by `characters_movement_system`,
+// `surface_actors_movement_system`, read by `flying_actors_movement_system`,
 // whose flying plans sweep against them.
 #[derive(Resource, Default)]
 pub struct SurfaceActorMoves(pub Vec<CharacterMovePlan>);

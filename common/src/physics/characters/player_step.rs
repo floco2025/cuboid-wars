@@ -1,16 +1,13 @@
 use super::{
-    geometry::character_movement_shape,
-    movement::step_character_movement,
-    player_control::{accelerate_player, player_control_velocity, player_move_speed},
-    support::rider_carry,
+    movement::{CharacterStart, step_character_movement_from},
+    player_control::{PlayerWish, accelerate_player, player_wish_velocity},
 };
 use crate::{
     config::GameplayConfig,
-    constants::{CHARACTER_TERMINAL_VELOCITY, PLAYER_CROUCH_BLEND_SECS, PLAYER_CROUCH_SPEED_RATIO},
     map::Carriers,
     physics::{
-        CharacterEnvironment, CharacterMovementResult, CharacterStep, CharacterSupport, CollisionWorld,
-        HorizontalVelocity, LadderMode, PortalSet, grounding_diagnostics, passable_fields, portals::FunnelStep,
+        CharacterEnvironment, CharacterMovementResult, CharacterStep, CollisionWorld, HorizontalVelocity, LadderMode,
+        PortalSet, passable_fields, portals::FunnelStep,
     },
     protocol::{FieldId, MapSettings, PlayerMoveIntent, PlayerStance, Position},
 };
@@ -29,8 +26,8 @@ pub struct PlayerMovementStep<'a> {
     pub has_low_gravity: bool,
     pub held_keys: &'a [FieldId],
     pub open_fields: &'a [FieldId],
-    // Blast displacement only. Ordinary and portal velocity share horizontal_velocity.
-    pub external_displacement: Vec3,
+    // The blast shove this tick. Ordinary and portal velocity share horizontal_velocity.
+    pub knockback_displacement: Vec3,
     pub collision_world: &'a CollisionWorld,
     pub map_settings: &'a MapSettings,
     pub gameplay_config: &'a GameplayConfig,
@@ -43,142 +40,114 @@ pub struct PlayerStepResult {
     pub movement: CharacterMovementResult,
     pub horizontal_velocity: Vec3,
     pub stance: PlayerStance,
-    pub control_velocity: Vec3,
-    // The blast displacement the step applied; a blocked retry keeps only its vertical part.
-    pub external_displacement: Vec3,
+    // What the player asked for, which animation measures travel against.
+    pub intent_velocity: Vec3,
+    // The blast shove the step applied; a blocked retry keeps only its vertical part.
+    pub knockback_displacement: Vec3,
 }
 
 // The same player policy runs for the rendered owner and the headless owner.
 // Character movement remains reusable by actors, which do not use this controller.
 pub fn step_player_movement(step: PlayerMovementStep<'_>) -> PlayerStepResult {
-    step_player(step, true)
+    step_player(step, false)
 }
 
-// A body-blocked owner retries with vertical travel only: gravity, vertical
-// blast displacement, carrier riding, and stance, with neither locomotion nor
-// funnel capture and no horizontal velocity kept, so support and landing
-// outcomes describe the accepted position.
-pub fn step_player_movement_blocked(step: PlayerMovementStep<'_>) -> PlayerStepResult {
+// A body-blocked owner retries with what the body it hit leaves it: with
+// `along`, the unit direction from that body, the velocity into it is
+// removed and the rest kept, as a wall contact does; without one, vertical
+// travel alone. Neither locomotion nor the funnel act, so support and
+// landing outcomes describe the accepted position.
+pub fn step_player_movement_blocked(step: PlayerMovementStep<'_>, along: Option<Vec3>) -> PlayerStepResult {
+    let keep = |velocity: Vec3| along.map_or(Vec3::ZERO, |normal| velocity - normal * velocity.dot(normal).min(0.0));
+    let shove = step.knockback_displacement;
     let mut result = step_player(
         PlayerMovementStep {
-            horizontal_velocity: Vec3::ZERO,
-            external_displacement: step.external_displacement * Vec3::Y,
+            horizontal_velocity: keep(step.horizontal_velocity),
+            knockback_displacement: keep(shove.with_y(0.0)) + shove * Vec3::Y,
             ..step
         },
-        false,
+        true,
     );
-    result.horizontal_velocity = Vec3::ZERO;
+    result.horizontal_velocity = keep(result.horizontal_velocity);
     result
 }
 
-fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResult {
+// `blocked` is the body-blocked retry: no locomotion and no funnel.
+fn step_player(step: PlayerMovementStep<'_>, blocked: bool) -> PlayerStepResult {
     let passable = passable_fields(step.held_keys, step.open_fields);
     let body = &step.gameplay_config.player;
     let mut stance = step.stance;
-    let old_physics = stance.physics(body);
     let cfg = &step.map_settings.movement;
     let gravity = step.map_settings.gravity_for(step.has_low_gravity);
-    let mut control = if locomotion {
-        player_control_velocity(step.intent, cfg, step.has_speed, step.disabled)
-    } else {
-        Vec3::ZERO
-    };
-    let environment = CharacterEnvironment {
+    let blast = step.knockback_displacement / step.delta;
+    let environment = |physics| CharacterEnvironment {
         ladder_mode: LadderMode::Automatic,
         collision_world: step.collision_world,
-        gravity: gravity * 0.5,
+        gravity,
         passable_fields: &passable,
-        physics: old_physics,
+        physics,
         portals: Some(step.portal_set),
         carriers: step.carriers,
     };
-    let carry = rider_carry(
-        &CharacterStep {
-            start: step.start,
-            vertical_velocity: step.vertical_velocity,
-            control_velocity: control,
-            external_displacement: step.external_displacement,
-            delta: step.delta,
-        },
-        &environment,
-        &character_movement_shape(old_physics),
-    );
-    // Carrier colliders have already moved. Probe where their rider is carried,
-    // not inside the lift at its previous pose.
-    let support_position = Position::from(Vec3::from(step.start) + carry.displacement);
-
-    let grounded = step.vertical_velocity <= 0.0
-        && grounding_diagnostics(
-            step.collision_world,
-            &support_position,
-            old_physics,
-            &passable,
-            &step.portal_set.collision_exclusions(step.start.into(), old_physics),
+    let probe = |start: Position, physics| {
+        CharacterStart::probe(
+            &CharacterStep {
+                start,
+                vertical_velocity: step.vertical_velocity,
+                intent_velocity: Vec3::ZERO,
+                velocity: Vec3::ZERO,
+                displacement: Vec3::ZERO,
+                delta: step.delta,
+            },
+            &environment(physics),
         )
-        .supported;
-    // A body in a ladder's front volume moves at the ladder speed under direct
-    // control, like the climb itself: the ladder rules see the whole intent,
-    // there is no momentum to build or brake, and a dismount clears the
-    // volume before the ladder can catch the body again.
-    let on_ladder = !grounded
-        && step
-            .collision_world
-            .ladder_volume_at(&Position {
-                y: step.start.y,
-                ..support_position
-            })
-            .is_some();
-    if on_ladder {
-        control *= cfg.player.move_speed_ladder;
-    }
-    let crouch = step.intent.crouch && !step.disabled;
+    };
+    let mut physics = stance.physics(body);
     let mut start = step.start;
+    let mut probed = probe(start, physics);
+    let crouch = step.intent.crouch && !step.disabled;
     if crouch != stance.crouched {
-        let next_stance = PlayerStance {
-            crouched: crouch,
-            ..stance
-        };
+        let next_stance = PlayerStance { crouched: crouch };
         let next_physics = next_stance.physics(body);
         let mut candidate = start;
         // Air ducking changes the hull about its centre; grounded ducking keeps feet planted.
-        if !grounded {
-            candidate.y += (old_physics.movement_collider.height - next_physics.movement_collider.height) * 0.5;
+        if !probed.grounded {
+            candidate.y += (physics.movement_collider.height - next_physics.movement_collider.height) * 0.5;
         }
         if crouch
             || !step.collision_world.character_penetrates_solid(
-                &Position::from(Vec3::from(candidate) + carry.displacement),
+                &Position::from(Vec3::from(candidate) + probed.carry),
                 next_physics,
                 &passable,
             )
         {
             stance = next_stance;
             start = candidate;
+            physics = next_physics;
+            // The hull changed under the probe; the same rules judge the new one.
+            probed = probe(start, physics);
         }
     }
-    let target = if stance.crouched { 1.0 } else { 0.0 };
-    stance.fraction = if grounded {
-        let blend_step = step.delta / PLAYER_CROUCH_BLEND_SECS;
-        stance.fraction + (target - stance.fraction).clamp(-blend_step, blend_step)
-    } else {
-        target
-    };
-    let physics = stance.physics(body);
-    // A held climber is not flying: its wish matches its control exactly, so
-    // nothing but a shove reaches the motor as external displacement.
-    let mut wish = if step.disabled || !locomotion {
-        Vec3::ZERO
-    } else {
-        step.intent
-            .wish_velocity(player_move_speed(&cfg.player, step.has_speed), !grounded && !on_ladder)
-    };
-    if grounded && stance.crouched {
-        wish *= PLAYER_CROUCH_SPEED_RATIO;
-    }
-    if on_ladder {
-        wish *= cfg.player.move_speed_ladder;
-    }
-    let blast = step.external_displacement / step.delta;
-    let mut velocity = if on_ladder {
+    let grounded = probed.grounded;
+    // A body in a ladder's front volume moves at the ladder speed under direct
+    // control, like the climb itself: the ladder rules see the whole intent,
+    // there is no momentum to build or brake, and a dismount clears the
+    // volume before the ladder can catch the body again.
+    let on_ladder = !grounded && probed.ladder.is_some();
+    let wish = player_wish_velocity(
+        step.intent,
+        &cfg.player,
+        PlayerWish {
+            has_speed: step.has_speed,
+            disabled: step.disabled || blocked,
+            airborne: !grounded,
+            crouched: stance.crouched,
+            on_ladder,
+        },
+    );
+    // A held climber is not flying: its wish is its velocity exactly, so
+    // nothing but a shove reaches the motor as displacement.
+    let velocity = if on_ladder {
         wish
     } else {
         accelerate_player(
@@ -192,7 +161,7 @@ fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResu
         )
     };
     let steering = step.intent.forward != 0.0 || step.intent.sideways != 0.0;
-    let funnel = if locomotion && !grounded && !on_ladder && !step.disabled && !steering {
+    let funnel = if !blocked && !grounded && !on_ladder && !step.disabled && !steering {
         step.portal_set.funnel_correction(FunnelStep {
             origin: start.into(),
             physics,
@@ -208,37 +177,26 @@ fn step_player(step: PlayerMovementStep<'_>, locomotion: bool) -> PlayerStepResu
         None
     }
     .unwrap_or_default();
-    // Intent, not momentum, decides whether a nearby ladder is being mounted.
-    if grounded && stance.crouched {
-        control *= PLAYER_CROUCH_SPEED_RATIO;
-    }
-    let mut movement = step_character_movement(
+    let movement = step_character_movement_from(
+        &probed,
         CharacterStep {
             start,
             vertical_velocity: step.vertical_velocity,
-            control_velocity: control,
-            external_displacement: (velocity - control) * step.delta + step.external_displacement + funnel,
+            intent_velocity: wish,
+            velocity,
+            displacement: step.knockback_displacement + funnel,
             delta: step.delta,
         },
-        &CharacterEnvironment {
-            // The generic motor applies half gravity before movement. Finish below.
-            physics,
-            ..environment
-        },
+        &environment(physics),
     );
-    if movement.support == CharacterSupport::Airborne {
-        movement.vertical_velocity =
-            (movement.vertical_velocity - gravity * step.delta * 0.5).max(-CHARACTER_TERMINAL_VELOCITY);
-    }
     let mut horizontal = HorizontalVelocity(velocity);
     horizontal.finish_step(&movement);
-    velocity = horizontal.0;
     PlayerStepResult {
         start,
         movement,
-        horizontal_velocity: velocity,
+        horizontal_velocity: horizontal.0,
         stance,
-        control_velocity: control,
-        external_displacement: step.external_displacement,
+        intent_velocity: wish,
+        knockback_displacement: step.knockback_displacement,
     }
 }

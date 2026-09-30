@@ -7,8 +7,9 @@ fn step_at_edge(world: &CollisionWorld, pos: Position, velocity: f32, control: V
         CharacterStep {
             start: pos,
             vertical_velocity: velocity,
-            control_velocity: control,
-            external_displacement: Vec3::ZERO,
+            intent_velocity: control,
+            velocity: control,
+            displacement: Vec3::ZERO,
             delta: TICK_SECS,
         },
         LadderMode::Disabled,

@@ -1,6 +1,6 @@
 use crate::{
     config::{MapMovementConfig, PlayerMovementConfig},
-    constants::{PLAYER_AIR_APEX_ACCELERATION_FACTOR, PLAYER_AIR_APEX_RISE_SPEED},
+    constants::{PLAYER_AIR_APEX_ACCELERATION_FACTOR, PLAYER_AIR_APEX_RISE_SPEED, PLAYER_CROUCH_SPEED_RATIO},
     protocol::PlayerMoveIntent,
 };
 use bevy_math::Vec3;
@@ -11,8 +11,36 @@ pub fn player_move_speed(cfg: &PlayerMovementConfig, has_speed: bool) -> f32 {
     cfg.move_speed * if has_speed { cfg.move_speed_power_up } else { 1.0 }
 }
 
-// Desired ground velocity, also used for animation and ladder intent. It is
-// not the player's velocity: accelerate_player owns changes to that state.
+// Where the body is when it asks for a velocity.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PlayerWish {
+    pub has_speed: bool,
+    pub disabled: bool,
+    pub airborne: bool,
+    pub crouched: bool,
+    pub on_ladder: bool,
+}
+
+// The horizontal velocity the player asks for: the move speed along the
+// intent, a crouch's share of it on the ground, the ladder's share in a
+// ladder's front volume, and airborne only the view's forward. It is not
+// the player's velocity: `accelerate_player` owns changes to that state.
+#[must_use]
+pub fn player_wish_velocity(intent: PlayerMoveIntent, cfg: &PlayerMovementConfig, wish: PlayerWish) -> Vec3 {
+    if wish.disabled {
+        return Vec3::ZERO;
+    }
+    let mut velocity = intent.wish_velocity(player_move_speed(cfg, wish.has_speed), wish.airborne && !wish.on_ladder);
+    if wish.crouched && !wish.airborne {
+        velocity *= PLAYER_CROUCH_SPEED_RATIO;
+    }
+    if wish.on_ladder {
+        velocity *= cfg.move_speed_ladder;
+    }
+    velocity
+}
+
+// The wish of a walking body, which animation measures travel against.
 #[must_use]
 pub fn player_control_velocity(
     intent: PlayerMoveIntent,
@@ -20,10 +48,15 @@ pub fn player_control_velocity(
     has_speed: bool,
     disabled: bool,
 ) -> Vec3 {
-    if disabled {
-        return Vec3::ZERO;
-    }
-    intent.wish_velocity(player_move_speed(&movement.player, has_speed), false)
+    player_wish_velocity(
+        intent,
+        &movement.player,
+        PlayerWish {
+            has_speed,
+            disabled,
+            ..PlayerWish::default()
+        },
+    )
 }
 
 // Ground and air use independent acceleration, braking, and sideways grip in

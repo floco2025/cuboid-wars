@@ -88,7 +88,7 @@ impl Course {
             has_low_gravity: false,
             held_keys: &[],
             open_fields: &[],
-            external_displacement: Vec3::ZERO,
+            knockback_displacement: Vec3::ZERO,
             collision_world: &self.world,
             map_settings: &self.settings,
             gameplay_config: &self.config,

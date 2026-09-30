@@ -89,7 +89,7 @@ fn landing_reports_ground_support() {
 
     assert_eq!(step.vertical_velocity, 0.0);
     assert_eq!(step.support, CharacterSupport::Ground);
-    assert_eq!(step.impact_speed, 12.5);
+    assert_eq!(step.impact_speed, 10.0 + TEST_GRAVITY * 0.05);
     let standing = step_in(
         &collision_world,
         character_step_toward(step.position, 0.0, pos.x, pos.z, 0.1),
@@ -111,7 +111,8 @@ fn upward_motion_hits_floor_underside() {
         LadderMode::Automatic,
     );
 
-    assert_eq!(step.vertical_velocity, 0.0);
+    // The hit ends the rise; the tick's second half of gravity starts the fall.
+    assert_eq!(step.vertical_velocity, -TEST_GRAVITY * 0.05);
     assert!(step.position.y <= floor.y - floor.thickness);
 }
 
@@ -212,7 +213,7 @@ fn landing_keeps_incoming_speed_when_a_ground_probe_stops_the_fall() {
 }
 
 #[test]
-fn landing_speed_uses_accumulated_velocity_with_only_this_steps_gravity_change() {
+fn landing_speed_uses_accumulated_velocity_with_the_fall_before_contact() {
     let world = collision_world(&[lower_floor()], &[]);
     let carriers = Carriers::default();
     for gravity in [0.0, 5.0, 25.0] {
@@ -223,7 +224,7 @@ fn landing_speed_uses_accumulated_velocity_with_only_this_steps_gravity_change()
             ..Default::default()
         };
         let result = step_character_movement(character_step_toward(pos, -20.0, 0.0, 0.0, 0.1), &env);
-        assert_eq!(result.impact_speed, 20.0 + gravity * 0.1);
+        assert_eq!(result.impact_speed, 20.0 + gravity * 0.05);
         assert_eq!(result.vertical_velocity, 0.0);
     }
 }

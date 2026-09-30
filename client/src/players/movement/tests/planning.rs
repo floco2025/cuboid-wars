@@ -1,143 +1,14 @@
 use super::*;
 use crate::test_fixtures;
-use bevy::ecs::system::SystemState;
-use common::{constants::TICK_SECS, protocol::MapLayout};
+use common::{
+    map::Carriers,
+    physics::{CharacterSupport, CollisionWorld, PortalSet},
+    protocol::{
+        Carrier, CarrierId, CarrierMotion, Floor, MapLayout, PlayerMoveIntent, Position, Ramp, RampDirection,
+        RampShape, SwitchState,
+    },
+};
 use std::f32::consts::FRAC_PI_2;
-
-#[test]
-fn remote_bodies_stay_at_reported_positions_while_the_owner_simulates() {
-    let gameplay = test_fixtures::gameplay_config();
-    let settings = test_fixtures::map_settings();
-    let collision = CollisionWorld::from_map_layout(&MapLayout::default());
-    for is_local in [false, true] {
-        let mut world = World::new();
-        let position = Position {
-            x: 0.0,
-            y: 10.0,
-            z: 0.0,
-        };
-        let entity = world
-            .spawn((
-                PlayerMarker,
-                PlayerId(1),
-                position,
-                PreviousTickPosition(position),
-                PlayerMoveIntent::moving(FRAC_PI_2),
-                CharacterVerticalVelocity(-3.0),
-                PlayerStance::default(),
-                HorizontalVelocity(Vec3::X),
-                KnockbackVelocity(Vec3::X),
-                PlayerAnimationMotion::default(),
-            ))
-            .id();
-        if is_local {
-            world.entity_mut(entity).insert(LocalPlayerMarker);
-        }
-        let mut state = SystemState::<PlayerMovementQuery>::new(&mut world);
-        let mut query = state.get_mut(&mut world).expect("movement query invalid");
-        let plans = plan_player_moves(
-            TICK_SECS,
-            &collision,
-            &settings,
-            &gameplay,
-            &PlayerMap::default(),
-            &SwitchState::default(),
-            &PortalSet::default(),
-            &Carriers::default(),
-            false,
-            &mut query,
-            &[],
-        );
-        state.apply(&mut world);
-        if is_local {
-            let plan = plans.first().expect("movement plan missing");
-            assert!(plan.result.position.x > position.x);
-            assert!(plan.result.position.y < position.y);
-        } else {
-            assert!(plans.is_empty());
-            assert_eq!(*world.get::<Position>(entity).expect("position"), position);
-            assert_eq!(
-                world.get::<CharacterVerticalVelocity>(entity).expect("velocity").0,
-                -3.0
-            );
-            assert_eq!(
-                world
-                    .get::<PlayerAnimationMotion>(entity)
-                    .expect("animation missing")
-                    .velocity,
-                Vec3::ZERO
-            );
-        }
-    }
-}
-
-#[test]
-fn a_dead_local_player_gets_no_plan_and_its_render_lerp_collapses() {
-    use super::super::application::apply_player_moves;
-    let gameplay = test_fixtures::gameplay_config();
-    let settings = test_fixtures::map_settings();
-    let collision = CollisionWorld::from_map_layout(&MapLayout::default());
-    let mut app = App::new();
-    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
-    let position = Position {
-        x: 0.0,
-        y: 10.0,
-        z: 0.0,
-    };
-    let last_step_start = Position { y: 10.7, ..position };
-    let entity = app
-        .world_mut()
-        .spawn((
-            PlayerMarker,
-            LocalPlayerMarker,
-            PlayerId(1),
-            position,
-            PreviousTickPosition(last_step_start),
-            PlayerMoveIntent::moving(FRAC_PI_2),
-            CharacterVerticalVelocity(-3.0),
-            PlayerStance::default(),
-            HorizontalVelocity(Vec3::X),
-            KnockbackVelocity(Vec3::X),
-            PlayerAnimationMotion::default(),
-        ))
-        .id();
-    let mut state = SystemState::<(Commands, PlayerMovementQuery)>::new(app.world_mut());
-    let server = app.world().resource::<AssetServer>().clone();
-    let (mut commands, mut query) = state.get_mut(app.world_mut()).expect("movement query invalid");
-    let plans = plan_player_moves(
-        TICK_SECS,
-        &collision,
-        &settings,
-        &gameplay,
-        &PlayerMap::default(),
-        &SwitchState::default(),
-        &PortalSet::default(),
-        &Carriers::default(),
-        true,
-        &mut query,
-        &[],
-    );
-    assert!(plans.is_empty());
-    apply_player_moves(
-        &mut commands,
-        TICK_SECS,
-        &server,
-        &test_fixtures::asset_set(),
-        &test_fixtures::client_settings().audio,
-        &mut query,
-        &plans,
-    );
-    state.apply(app.world_mut());
-    let world = app.world();
-    assert_eq!(*world.get::<Position>(entity).expect("position missing"), position);
-    assert_eq!(
-        world
-            .get::<PreviousTickPosition>(entity)
-            .expect("previous position missing")
-            .0,
-        position
-    );
-}
 
 fn planned_move(index: u32, start: Position, target: Position) -> CharacterMovePlan {
     let entity = Entity::from_raw_u32(index).expect("test entity index out of range");
@@ -187,11 +58,6 @@ fn overlapping_planned_characters_cannot_move_deeper_together() {
 
 #[test]
 fn character_blocking_commits_consistent_edges_landings_ramps_and_carrier_motion() {
-    use super::super::{application::apply_player_moves, outcomes::LocalMovementStep};
-    use common::{
-        physics::CharacterSupport,
-        protocol::{Carrier, CarrierId, CarrierMotion, Floor, Ramp, RampDirection, RampShape},
-    };
     let mut gameplay = test_fixtures::gameplay_config();
     gameplay.player.movement_collider.diameter = 0.6;
     gameplay.player.movement_collider.height = 1.8;
@@ -281,7 +147,7 @@ fn character_blocking_commits_consistent_edges_landings_ramps_and_carrier_motion
             intent: PlayerMoveIntent::moving(FRAC_PI_2),
             has_speed: false,
             disabled: false,
-            external_displacement: Vec3::X * delta,
+            knockback_displacement: Vec3::X * delta,
             delta,
             has_low_gravity: false,
             held_keys: &[],
@@ -296,7 +162,7 @@ fn character_blocking_commits_consistent_edges_landings_ramps_and_carrier_motion
         let expected = step_player_movement(PlayerMovementStep {
             horizontal_velocity: Vec3::ZERO,
             intent: PlayerMoveIntent::NONE,
-            external_displacement: Vec3::ZERO,
+            knockback_displacement: Vec3::ZERO,
             ..request
         })
         .movement;
@@ -304,85 +170,18 @@ fn character_blocking_commits_consistent_edges_landings_ramps_and_carrier_motion
             proposed.support != expected.support || (proposed.position.y - expected.position.y).abs() > 0.01,
             "{scene}: fixture must exercise a changed support result"
         );
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
-        let entity = app
-            .world_mut()
-            .spawn((
-                PlayerMarker,
-                LocalPlayerMarker,
-                PlayerId(1),
-                start,
-                PreviousTickPosition(start),
-                PlayerMoveIntent::moving(FRAC_PI_2),
-                CharacterVerticalVelocity(vertical),
-                PlayerStance::default(),
-                HorizontalVelocity(Vec3::X * 12.0),
-                KnockbackVelocity::default(),
-                PlayerAnimationMotion::default(),
-            ))
-            .id();
+        let entity = Entity::from_raw_u32(1).expect("entity");
+        // The body straight ahead leaves nothing of a move along +X.
         let blocker = CharacterMovePlan::stationary(
             Entity::from_raw_u32(1000).expect("entity"),
             proposed.position,
             0.0,
             physics,
         );
-        let mut state = SystemState::<(Commands, PlayerMovementQuery)>::new(app.world_mut());
-        let server = app.world().resource::<AssetServer>().clone();
-        let (mut commands, mut query) = state.get_mut(app.world_mut()).expect("movement query");
-        let plans = plan_player_moves(
-            delta,
-            &collision,
-            &settings,
-            &gameplay,
-            &PlayerMap::default(),
-            &SwitchState::default(),
-            &portals,
-            &carriers,
-            false,
-            &mut query,
-            &[blocker],
-        );
-        assert!(plans[0].hits_character, "{scene}");
-        assert_eq!(plans[0].result, expected, "{scene}");
-        apply_player_moves(
-            &mut commands,
-            delta,
-            &server,
-            &test_fixtures::asset_set(),
-            &test_fixtures::client_settings().audio,
-            &mut query,
-            &plans,
-        );
-        state.apply(app.world_mut());
-        let world = app.world();
-        assert_eq!(*world.get::<Position>(entity).expect("position"), expected.position);
-        assert_eq!(
-            world.get::<CharacterVerticalVelocity>(entity).expect("velocity").0,
-            expected.vertical_velocity
-        );
-        assert_eq!(
-            *world
-                .get::<common::physics::GroundingDiagnostics>(entity)
-                .expect("grounding"),
-            expected.grounding
-        );
-        let outcome = world.get::<LocalMovementStep>(entity).expect("outcome");
-        assert_eq!(
-            (outcome.carrier, outcome.support, outcome.impact_speed, outcome.crushed),
-            (
-                expected.carrier,
-                expected.support,
-                expected.impact_speed,
-                expected.crushed
-            )
-        );
-        assert_eq!(world.get::<HorizontalVelocity>(entity).expect("momentum").0, Vec3::ZERO);
-        assert_eq!(
-            world.get::<PlayerAnimationMotion>(entity).expect("animation").support,
-            expected.support
-        );
+        let planned = plan_player_move(entity, request, &[blocker]);
+        assert!(planned.hits_character, "{scene}");
+        assert_eq!(planned.step.movement, expected, "{scene}");
+        assert_eq!(planned.step.horizontal_velocity, Vec3::ZERO, "{scene}");
         if scene == "landing" {
             assert_eq!(expected.support, CharacterSupport::Airborne);
         }
@@ -391,4 +190,75 @@ fn character_blocking_commits_consistent_edges_landings_ramps_and_carrier_motion
             assert!(expected.position.x > start.x);
         }
     }
+}
+
+// A body beside the path takes only the velocity into it, like a wall.
+#[test]
+fn a_body_clipped_in_passing_leaves_the_velocity_along_it() {
+    let mut gameplay = test_fixtures::gameplay_config();
+    gameplay.player.movement_collider.diameter = 0.6;
+    gameplay.player.movement_collider.height = 1.8;
+    let physics = gameplay.player.physics();
+    let mut settings = test_fixtures::map_settings();
+    settings.movement.player.move_speed = 6.0;
+    let layout = MapLayout {
+        floors: vec![Floor {
+            x1: -4.0,
+            x2: 4.0,
+            z1: -4.0,
+            z2: 4.0,
+            y: 0.0,
+            thickness: 0.2,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        ..default()
+    };
+    let collision = CollisionWorld::from_map_layout(&layout);
+    let carriers = Carriers::default();
+    let portals = PortalSet::default();
+    let delta = 0.1;
+    let start = Position::default();
+    let request = PlayerMovementStep {
+        start,
+        vertical_velocity: 0.0,
+        horizontal_velocity: Vec3::new(6.0, 0.0, 0.0),
+        stance: Default::default(),
+        intent: PlayerMoveIntent::NONE,
+        has_speed: false,
+        disabled: false,
+        knockback_displacement: Vec3::ZERO,
+        delta,
+        has_low_gravity: false,
+        held_keys: &[],
+        open_fields: &[],
+        collision_world: &collision,
+        map_settings: &settings,
+        gameplay_config: &gameplay,
+        portal_set: &portals,
+        carriers: &carriers,
+    };
+    let entity = Entity::from_raw_u32(1).expect("entity");
+    // A body just off the path, at 45 degrees ahead and to the side.
+    let beside = CharacterMovePlan::stationary(
+        Entity::from_raw_u32(1000).expect("entity"),
+        Position { x: 0.5, y: 0.0, z: 0.5 },
+        0.0,
+        physics,
+    );
+    let free = plan_player_move(entity, request, &[]);
+    assert!(!free.hits_character);
+    let clipped = plan_player_move(entity, request, &[beside]);
+    assert!(clipped.hits_character);
+    let velocity = clipped.step.horizontal_velocity;
+    assert!(
+        velocity.x > 0.0 && velocity.x < free.step.horizontal_velocity.x,
+        "{velocity}"
+    );
+    assert!(velocity.z < 0.0, "pushed off the body's side: {velocity}");
+    assert!(
+        (velocity.x + velocity.z).abs() < 1e-3,
+        "nothing left toward the body: {velocity}"
+    );
+    assert!(clipped.step.movement.position.x > start.x, "still moves along the body");
 }

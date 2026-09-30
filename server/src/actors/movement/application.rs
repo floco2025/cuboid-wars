@@ -3,34 +3,32 @@ use common::{
     protocol::FieldId,
 };
 
-use super::{blocking_character_move_plan, query::ActorMovementQuery};
-use crate::actors::ActorMap;
+use super::{blocking_character_move_plan, query::FreeActorQuery};
 
-pub(crate) fn apply_actor_moves(
-    query: &mut ActorMovementQuery,
-    actors: &ActorMap,
-    planned_moves: &[CharacterMovePlan],
+// Applies the flying actors' plans. A plan another body swept into is
+// rejected: the actor stays, loses its vertical velocity, and is crushed only
+// where it already stands inside a carrier.
+pub(crate) fn apply_flying_moves(
+    query: &mut FreeActorQuery,
+    blockers: &[CharacterMovePlan],
+    moves: &[CharacterMovePlan],
     world: &CollisionWorld,
     open: &[FieldId],
 ) {
-    for planned_move in planned_moves {
-        let Ok((_, id, _, mut pos, mut motion, _, _, _, _, mut crushed, mut landing, character)) =
-            query.get_mut(planned_move.entity)
-        else {
+    for planned_move in moves {
+        let Ok(mut actor) = query.get_mut(planned_move.entity) else {
             continue;
         };
-
-        let overlapping_move = blocking_character_move_plan(planned_move, planned_moves);
-        // Only flying actors plan moves that another body can reject.
-        if overlapping_move.is_some() && actors.get(id).is_none_or(|actor| actor.anchor.is_none()) {
-            motion.0 = 0.0;
-            crushed.0 = planned_move.crushed && world.character_penetrates_solid(&pos, character.0.physics(), open);
+        if blocking_character_move_plan(planned_move, blockers.iter().chain(moves)).is_some() {
+            actor.vertical_velocity.0 = 0.0;
+            actor.crushed.0 = planned_move.crushed
+                && world.character_penetrates_solid(&actor.position, actor.character.0.physics(), open);
             continue;
         }
-        *pos = planned_move.target;
-        motion.0 = planned_move.target_vertical_velocity;
-        crushed.0 = planned_move.crushed;
-        landing.0 = planned_move.impact_speed;
+        *actor.position = planned_move.target;
+        actor.vertical_velocity.0 = planned_move.target_vertical_velocity;
+        actor.crushed.0 = planned_move.crushed;
+        actor.landing.0 = planned_move.impact_speed;
     }
 }
 

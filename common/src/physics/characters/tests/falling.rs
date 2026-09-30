@@ -2,8 +2,9 @@ use crate::{
     config::{CharacterPhysicsConfig, FallDamageConfig, HitboxConfig, MovementColliderConfig},
     map::Carriers,
     physics::{
-        CharacterEnvironment, CharacterStep, CharacterSupport, CollisionWorld, LadderMode, fall_damage_for_distance,
-        fall_distance_for_speed, landing_damage, step_character_movement,
+        CharacterEnvironment, CharacterStep, CharacterSupport, CollisionWorld, LadderMode,
+        characters::falling::fall_damage_for_distance, fall_distance_for_speed, landing_damage,
+        step_character_movement,
     },
     protocol::{CarrierId, Floor, MapLayout, Position},
 };
@@ -66,8 +67,9 @@ fn simulated_tall_fall_reaches_lethal_damage_without_low_gravity() {
                 CharacterStep {
                     start: pos,
                     vertical_velocity,
-                    control_velocity: Vec3::ZERO,
-                    external_displacement: Vec3::ZERO,
+                    intent_velocity: Vec3::ZERO,
+                    velocity: Vec3::ZERO,
+                    displacement: Vec3::ZERO,
                     delta: 1.0 / 30.0,
                 },
                 &environment,

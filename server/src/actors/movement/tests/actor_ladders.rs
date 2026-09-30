@@ -45,7 +45,7 @@ fn actor_step(
         start,
         vertical_velocity: velocity,
         intent,
-        external_displacement: Vec3::ZERO,
+        knockback_displacement: Vec3::ZERO,
         delta: 0.1,
         can_use_ladders,
         physics,

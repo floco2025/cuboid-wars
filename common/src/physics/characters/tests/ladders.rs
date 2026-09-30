@@ -40,8 +40,9 @@ fn ladder_step_with_external_displacement(
         CharacterStep {
             start,
             vertical_velocity: 0.0,
-            control_velocity,
-            external_displacement,
+            intent_velocity: control_velocity,
+            velocity: control_velocity,
+            displacement: external_displacement,
             delta: 0.1,
         },
         LadderMode::Automatic,

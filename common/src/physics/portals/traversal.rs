@@ -163,7 +163,6 @@ impl CharacterPortalHop {
     ) {
         if self.force_crouch {
             stance.crouched = true;
-            stance.fraction = 1.0;
         }
         *position = self.origin.into();
         face_yaw.0 = self.yaw;
@@ -343,11 +342,7 @@ impl PortalSet {
             && traverse_vector(&hop.entry, &hop.exit, Vec3::Y).y.abs() < PLAYER_CROUCH_PORTAL_TILT.cos()
         {
             let old = body.stance.physics(&gameplay_config.player);
-            let crouched = PlayerStance {
-                crouched: true,
-                fraction: 1.0,
-            }
-            .physics(&gameplay_config.player);
+            let crouched = PlayerStance { crouched: true }.physics(&gameplay_config.player);
             hop.origin.y += (old.movement_collider.height - crouched.movement_collider.height) * 0.5;
             hop.force_crouch = true;
         }

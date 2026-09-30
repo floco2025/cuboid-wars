@@ -48,7 +48,6 @@ impl Session {
                 "vertical_velocity": self.owner.motion.vertical_velocity.0,
                 "horizontal_velocity": self.owner.motion.horizontal_velocity.0.to_array(),
                 "crouched": self.owner.motion.stance.crouched,
-                "crouch_fraction": self.owner.motion.stance.fraction,
                 "knockback": self.owner.motion.knockback.0.to_array(),
                 "support": super::player::support(self.owner.motion.support),
                 "crossed_portal": self.owner.crossed_last_step,

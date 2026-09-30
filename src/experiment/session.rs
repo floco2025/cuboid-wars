@@ -1,8 +1,11 @@
 use anyhow::{Context, Result, ensure};
 use bevy::prelude::*;
-use client::projectiles::{
-    MuzzleCheck, ProjectileEnvironment, ProjectileFlightEvent, ProjectileMotion, calculate_projectile_spawns,
-    projectile_character_hit, projectile_overlaps_character, step_projectile,
+use client::{
+    players::CrouchBlend,
+    projectiles::{
+        MuzzleCheck, ProjectileEnvironment, ProjectileFlightEvent, ProjectileMotion, calculate_projectile_spawns,
+        projectile_character_hit, projectile_overlaps_character, step_projectile,
+    },
 };
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig, NetworkConfig},
@@ -74,7 +77,7 @@ impl Session {
                 _ => None,
             })
             .context("server did not establish the initial player body")?;
-        let owner = Owner::new(&relocated, &bootstrap.world.network);
+        let owner = Owner::new(&relocated);
         let id = bootstrap.player.id;
         let access = bootstrap.player.portal_access;
         let mut session = Self {
@@ -112,11 +115,7 @@ impl Session {
         ensure!(!player.is_dead(), "player is dead");
         Ok(Vec3::from(self.owner.position)
             + Vec3::Y
-                * self
-                    .owner
-                    .motion
-                    .stance
-                    .eye_height(&world.resource::<GameplayConfig>().player))
+                * CrouchBlend::settled(self.owner.motion.stance).eye_height(&world.resource::<GameplayConfig>().player))
     }
 
     pub fn aim(&mut self, position: [f32; 3]) -> Result<Value> {

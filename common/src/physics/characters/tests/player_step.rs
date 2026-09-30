@@ -89,7 +89,7 @@ fn simulate(
             has_low_gravity: false,
             held_keys: &[],
             open_fields: &[],
-            external_displacement: Vec3::ZERO,
+            knockback_displacement: Vec3::ZERO,
             collision_world: &world,
             map_settings: &settings,
             gameplay_config: &gameplay,
@@ -193,7 +193,7 @@ fn a_stationary_jump_can_accelerate_to_movement_speed_and_coast_after_release() 
                         has_low_gravity: false,
                         held_keys: &[],
                         open_fields: &[],
-                        external_displacement: Vec3::ZERO,
+                        knockback_displacement: Vec3::ZERO,
                         collision_world: &world,
                         map_settings: &settings,
                         gameplay_config: &gameplay,
@@ -226,10 +226,7 @@ fn crouched_body_cannot_stand_inside_a_low_ceiling() {
         ..Default::default()
     };
     let start = Position::default();
-    let crouched = PlayerStance {
-        crouched: true,
-        fraction: 1.0,
-    };
+    let crouched = PlayerStance { crouched: true };
     let (_, _, blocked) = simulate(layout, start, Vec3::ZERO, PlayerMoveIntent::NONE, crouched, 30);
     assert!(blocked.crouched);
     let (_, _, clear) = simulate(
@@ -244,7 +241,6 @@ fn crouched_body_cannot_stand_inside_a_low_ceiling() {
         30,
     );
     assert!(!clear.crouched);
-    assert_eq!(clear.fraction, 0.0);
 }
 
 #[test]
@@ -417,7 +413,7 @@ fn equipment_changes_affect_acceleration_and_gravity_without_erasing_air_velocit
         has_low_gravity: true,
         held_keys: &[],
         open_fields: &[],
-        external_displacement: Vec3::ZERO,
+        knockback_displacement: Vec3::ZERO,
         collision_world: &world,
         map_settings: &settings,
         gameplay_config: &gameplay,
@@ -464,7 +460,7 @@ fn passive_ground_and_air_braking_do_not_leave_reverse_velocity_after_a_blast() 
             has_low_gravity: false,
             held_keys: &[],
             open_fields: &[],
-            external_displacement: Vec3::X / 3.0,
+            knockback_displacement: Vec3::X / 3.0,
             collision_world: &world,
             map_settings: &settings,
             gameplay_config: &gameplay,
@@ -477,7 +473,7 @@ fn passive_ground_and_air_braking_do_not_leave_reverse_velocity_after_a_blast() 
         let after = step_player_movement(PlayerMovementStep {
             start: result.movement.position,
             vertical_velocity: result.movement.vertical_velocity,
-            external_displacement: Vec3::ZERO,
+            knockback_displacement: Vec3::ZERO,
             ..request
         });
         assert_eq!(after.horizontal_velocity, Vec3::ZERO);
@@ -512,7 +508,7 @@ fn air_rates_are_independent_of_speed_pickups_and_leave_vertical_gravity_unchang
                 has_low_gravity,
                 held_keys: &[],
                 open_fields: &[],
-                external_displacement: Vec3::ZERO,
+                knockback_displacement: Vec3::ZERO,
                 collision_world: &world,
                 map_settings: &settings,
                 gameplay_config: &gameplay,
@@ -566,7 +562,7 @@ fn a_rising_carrier_uses_ground_acceleration_and_inherits_velocity_once_on_jump(
         has_low_gravity: false,
         held_keys: &[],
         open_fields: &[],
-        external_displacement: Vec3::ZERO,
+        knockback_displacement: Vec3::ZERO,
         collision_world: &world,
         map_settings: &settings,
         gameplay_config: &gameplay,
@@ -684,7 +680,7 @@ fn trace(
                 has_low_gravity: false,
                 held_keys: &[],
                 open_fields: &[],
-                external_displacement: knockback.step(TRACE_DELTA),
+                knockback_displacement: knockback.step(TRACE_DELTA),
                 collision_world: world,
                 map_settings: settings,
                 gameplay_config: &gameplay,
@@ -899,7 +895,7 @@ fn a_walk_into_a_sliding_tiles_portal_sinks_with_the_tile_and_leaves_its_speed_b
             has_low_gravity: false,
             held_keys: &[],
             open_fields: &[],
-            external_displacement: Vec3::ZERO,
+            knockback_displacement: Vec3::ZERO,
             collision_world: &world,
             map_settings: &settings,
             gameplay_config: &gameplay,
@@ -990,7 +986,7 @@ fn slider_portal_flight(feet: Position, vertical: f32, horizontal: Vec3, ticks: 
             has_low_gravity: false,
             held_keys: &[],
             open_fields: &[],
-            external_displacement: Vec3::ZERO,
+            knockback_displacement: Vec3::ZERO,
             collision_world: &world,
             map_settings: &settings,
             gameplay_config: &gameplay,

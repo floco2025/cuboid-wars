@@ -1,5 +1,7 @@
 use super::*;
-use crate::actors::{TraversalEnvironment, TraversalExecutor, TraversalStatus, navigation::surface::fixtures};
+use crate::actors::{
+    ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus, navigation::surface::fixtures,
+};
 use common::{
     map::Carriers,
     physics::CollisionWorld,
@@ -49,40 +51,36 @@ fn authored_shuttle_is_planned_and_ridden_repeatably_between_disconnected_floors
                 .any(|action| matches!(action, TraversalAction::Ride { .. }))
         );
         let mut carriers = Carriers::from_layout(&generated.layout);
-        let env = TraversalEnvironment {
-            world: &world,
-            carriers: &carriers,
-            settings: &config.settings,
-            open: &[],
-            delta: 1.0 / 30.0,
-        };
-        let mut executor = TraversalExecutor::new(from.position, physics, 2.5, &env);
+        let mut executor = TraversalExecutor::new(physics, 2.5);
+        let mut body = ActorBody::standing(from.position);
         executor.set_route(route);
         let mut rode = false;
         let mut reached_tick = None;
         for tick in 1..1200 {
             carriers.advance(tick, &SwitchState::default());
             world.set_carrier_poses(&carriers);
-            executor.step(&TraversalEnvironment {
-                world: &world,
-                carriers: &carriers,
-                settings: &config.settings,
-                open: &[],
-                delta: 1.0 / 30.0,
-            });
-            rode |= !executor.movement.carrier.is_world();
-            assert!(!world.character_penetrates_solid(&executor.movement.position, physics, &[]));
+            let movement = executor.step(
+                &TraversalEnvironment {
+                    world: &world,
+                    carriers: &carriers,
+                    settings: &config.settings,
+                    open: &[],
+                    delta: 1.0 / 30.0,
+                },
+                &mut body,
+            );
+            rode |= !movement.carrier.is_world();
+            assert!(!world.character_penetrates_solid(&body.position, physics, &[]));
             if executor.status == TraversalStatus::Reached {
                 reached_tick = Some(tick);
                 break;
             }
         }
         assert!(
-            rode && executor.status == TraversalStatus::Reached
-                && executor.movement.position.distance_sq(&to.position) < 0.1,
-            "{executor:?}"
+            rode && executor.status == TraversalStatus::Reached && body.position.distance_sq(&to.position) < 0.1,
+            "{executor:?} {body:?}"
         );
-        let outcome = (reached_tick, executor.movement.position);
+        let outcome = (reached_tick, body.position);
         if let Some(previous) = previous {
             assert_eq!(outcome, previous);
         }

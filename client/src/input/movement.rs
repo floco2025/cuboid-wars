@@ -1,14 +1,7 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
-    config::{GameplayConfig, MapMovementConfig},
-    physics::{
-        CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, PlayerJump, passable_fields,
-        player_jump,
-    },
-    protocol::{
-        FaceYaw, FieldId, MapSettings, PlayerId, PlayerMoveIntent, PlayerStance, PortalAccess, Position, PowerUpKind,
-        SwitchState,
-    },
+    physics::CollisionWorld,
+    protocol::{FaceYaw, PlayerId, PlayerMoveIntent, PortalAccess, Position},
 };
 use std::f32::consts::PI;
 
@@ -18,7 +11,9 @@ use crate::{
     config::ClientSettings,
     constants::{CAMERA_MAX_PITCH, INPUT_MOUSE_SENSITIVITY_BASE},
     network::PlaybackMode,
-    players::{LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
+    players::{
+        JumpRequested, LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap, ladder_facing,
+    },
     ui::{ConsoleState, SettingsMenuState},
 };
 
@@ -56,16 +51,14 @@ type LocalPlayerInputQuery<'w, 's> = Query<
         &'static Position,
         &'static mut PlayerMoveIntent,
         &'static mut FaceYaw,
-        &'static mut CharacterVerticalVelocity,
-        &'static mut KnockbackVelocity,
-        Option<&'static LocalMovementStep>,
-        &'static PlayerStance,
+        &'static mut JumpRequested,
+        &'static LocalMovementStep,
     ),
     With<LocalPlayerMarker>,
 >;
 
-// Sample once per frame before fixed simulation. A jump writes the initial
-// vertical velocity once, retaining it if this frame has no fixed step.
+// Sample once per frame before fixed simulation. A jump sets the request
+// once; the owner's tick consumes it, so it survives a frame without steps.
 pub fn input_movement_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     playback: Option<Res<PlaybackMode>>,
@@ -75,9 +68,6 @@ pub fn input_movement_system(
     mut local_player_info: ResMut<LocalPlayerInfo>,
     mut local_player_query: LocalPlayerInputQuery,
     collision_world: Res<CollisionWorld>,
-    switch_state: Res<SwitchState>,
-    gameplay_config: Res<GameplayConfig>,
-    map_settings: Res<MapSettings>,
     client_settings: Res<ClientSettings>,
 ) {
     let mouse_sensitivity = INPUT_MOUSE_SENSITIVITY_BASE * client_settings.preferences.mouse_sensitivity;
@@ -91,7 +81,7 @@ pub fn input_movement_system(
 
     if camera_input.state.released || camera_input.console.open || camera_input.menu.open {
         if playback.is_none() {
-            for (_, mut input, _, _, _, _, _) in local_player_query.iter_mut() {
+            for (_, mut input, _, _, _) in local_player_query.iter_mut() {
                 *input = PlayerMoveIntent::NONE;
             }
         }
@@ -115,23 +105,13 @@ pub fn input_movement_system(
     let mut move_intent = calculate_move_intent(&keyboard, face_yaw, movement_disabled);
     move_intent.pitch = local_player_info.stored_pitch;
     let jump_requested = !movement_disabled && keyboard.just_pressed(KeyCode::Space);
-
-    let held_keys = players
-        .get(&my_player_id.0)
-        .map_or(&[][..], |info| info.held_keys.as_slice());
-    update_player_input_face_and_jump(
-        move_intent,
-        (!orbit || (!local_player_info.is_dead && camera_input.aiming_weapon())).then_some(face_yaw),
-        jump_requested,
-        &collision_world,
-        &passable_fields(held_keys, &switch_state.open_fields),
-        &gameplay_config,
-        &map_settings.movement,
-        players
-            .get(&my_player_id.0)
-            .is_some_and(|info| info.power_up(PowerUpKind::Speed)),
-        &mut local_player_query,
-    );
+    let locked_yaw = (!orbit || (!local_player_info.is_dead && camera_input.aiming_weapon())).then_some(face_yaw);
+    for (pos, mut input, mut face_direction, mut jump, step) in local_player_query.iter_mut() {
+        *input = move_intent;
+        face_direction.0 = ladder_facing(&collision_world, pos, step.result.support)
+            .unwrap_or_else(|| movement_facing(move_intent, locked_yaw, face_direction.0));
+        jump.0 |= jump_requested;
+    }
 }
 
 // Applies this frame's mouse motion to the view yaw and pitch and returns
@@ -189,45 +169,6 @@ fn local_player_stunned(my_player_id: PlayerId, players: &PlayerMap) -> bool {
     players
         .get(&my_player_id)
         .is_some_and(|player_info| player_info.stunned)
-}
-
-fn update_player_input_face_and_jump(
-    move_intent: PlayerMoveIntent,
-    face_yaw: Option<f32>,
-    jump_requested: bool,
-    collision_world: &CollisionWorld,
-    passable_fields: &[FieldId],
-    gameplay_config: &GameplayConfig,
-    movement: &MapMovementConfig,
-    has_speed: bool,
-    local_player_query: &mut LocalPlayerInputQuery,
-) {
-    for (pos, mut input, mut face_direction, mut motion, mut knockback, step, stance) in local_player_query.iter_mut() {
-        *input = move_intent;
-        let ladder_yaw = step
-            .filter(|step| step.support == CharacterSupport::Ladder)
-            .and_then(|_| collision_world.ladder_volume_at(pos))
-            .map(|ladder| (-ladder.normal_x).atan2(-ladder.normal_z));
-        face_direction.0 = ladder_yaw.unwrap_or_else(|| movement_facing(move_intent, face_yaw, face_direction.0));
-        if jump_requested && !stance.crouched {
-            let jump = player_jump(
-                step.map_or(CharacterSupport::Airborne, |step| step.support),
-                move_intent,
-                motion.0,
-                collision_world,
-                gameplay_config.player.physics(),
-                movement,
-                has_speed,
-                pos,
-                passable_fields,
-            );
-            match jump {
-                Some(PlayerJump::Rise(vertical_velocity)) => motion.0 = vertical_velocity,
-                Some(PlayerJump::Release(shove)) => knockback.0 += shove,
-                None => {}
-            }
-        }
-    }
 }
 
 fn movement_facing(intent: PlayerMoveIntent, locked_yaw: Option<f32>, previous: f32) -> f32 {

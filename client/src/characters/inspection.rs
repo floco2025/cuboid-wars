@@ -72,11 +72,7 @@ pub fn spawn_character_bounds(
             NotShadowReceiver,
         ));
         if can_crouch {
-            let crouched = PlayerStance {
-                crouched: true,
-                fraction: 1.0,
-            }
-            .adjust_physics(physics);
+            let crouched = PlayerStance { crouched: true }.adjust_physics(physics);
             let body = crouched.movement_collider;
             let crouched_mesh = match mode {
                 BoundsMode::Grounding => Mesh::from(Capsule3d::new(body.radius(), body.height - body.diameter)),
@@ -158,7 +154,8 @@ fn bounds_transform(parent: &Transform, center: Vec3, rotation: Quat) -> Transfo
         .with_scale(parent.scale.recip())
 }
 
-// Interpolated characters have no physics step to refresh their grounding diagnostics.
+// Interpolated characters have no physics step to refresh their grounding
+// diagnostics; the local body's step carries its own.
 pub(crate) fn refresh_grounding_debug_system(
     mut commands: Commands,
     mode: Res<BoundsMode>,
@@ -175,11 +172,14 @@ pub(crate) fn refresh_grounding_debug_system(
             Option<&CharacterSupport>,
             Option<&PlayerStance>,
         ),
-        Or<(
-            Without<GroundingDiagnostics>,
-            With<RemotePlayerMotion>,
-            With<ActorMarker>,
-        )>,
+        (
+            Without<LocalMovementStep>,
+            Or<(
+                Without<GroundingDiagnostics>,
+                With<RemotePlayerMotion>,
+                With<ActorMarker>,
+            )>,
+        ),
     >,
 ) {
     if *mode != BoundsMode::Grounding {
@@ -220,7 +220,7 @@ pub fn grounding_debug_system(
         &Position,
         &Transform,
         Option<&CuboidShake>,
-        &GroundingDiagnostics,
+        Option<&GroundingDiagnostics>,
         Option<&CharacterSupport>,
         Option<&LocalMovementStep>,
     )>,
@@ -238,9 +238,12 @@ pub fn grounding_debug_system(
         let origin = rendered_feet(transform, shake);
         // Diagnostics are sampled at physics ticks; draw them in the interpolated body's frame.
         let render_offset = origin - Vec3::from(*pos);
-        // The local body keeps its support on its step; interpolated bodies carry the component.
+        // The local body keeps its diagnostics on its step; interpolated bodies carry the component.
+        let Some(ground) = step.map(|step| step.result.grounding).or(ground.copied()) else {
+            continue;
+        };
         let support = step
-            .map(|step| step.support)
+            .map(|step| step.result.support)
             .or(support.copied())
             .unwrap_or(if ground.supported {
                 CharacterSupport::Ground

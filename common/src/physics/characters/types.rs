@@ -8,7 +8,7 @@ use crate::{
     protocol::{CarrierId, Position},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct CharacterMovementResult {
     pub contact_normals: [Vec3; 5],
     pub grounding: GroundingDiagnostics,
@@ -26,7 +26,7 @@ pub struct CharacterMovementResult {
     // otherwise. Its vertical part is already in `vertical_velocity` when the
     // body ends airborne; the horizontal part becomes `HorizontalVelocity`.
     pub floor_velocity: Vec3,
-    // Includes carried portal transit, which does not contribute floor velocity.
+    // A carrier moved the body vertically this step.
     pub lifted: bool,
     // The body ended the step inside a carrier's geometry: a carrier moved
     // into it and the collision could not push it clear. The server kills
@@ -57,8 +57,9 @@ pub struct GroundingDiagnostics {
 // Derived independently each step and never read back by the movement motor.
 // The owning client reports it with its movement; the server keeps the report
 // instead of probing again.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode)]
 pub enum CharacterSupport {
+    #[default]
     Airborne,
     Ground,
     Ladder,
@@ -127,12 +128,5 @@ impl CharacterMovePlan {
         physics: CharacterPhysicsConfig,
     ) -> Self {
         Self::from_target(entity, position, position, target_vertical_velocity, physics, false)
-    }
-
-    #[must_use]
-    pub const fn with_blocked_xz(mut self) -> Self {
-        self.target.x = self.start.x;
-        self.target.z = self.start.z;
-        self
     }
 }

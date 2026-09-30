@@ -37,7 +37,6 @@ impl RemotePlayerMotion {
         let end = Vec3::from(rendered(right, carriers, carrier_alpha).pos);
         movement.pos = start.lerp(end, playback.alpha).into();
         movement.face_yaw += angle_delta_radians(right.movement.face_yaw, movement.face_yaw) * playback.alpha;
-        movement.stance.fraction += (right.movement.stance.fraction - movement.stance.fraction) * playback.alpha;
         movement.vertical_velocity += (right.movement.vertical_velocity - movement.vertical_velocity) * playback.alpha;
         (
             movement,
@@ -100,8 +99,8 @@ pub(crate) fn interpolate_remote_players_system(
         yaw.0 = movement.face_yaw;
         *intent = movement.move_intent;
         vertical.0 = movement.vertical_velocity;
-        momentum.0 = Vec3::from_array(movement.horizontal_velocity);
-        knockback.0 = Vec3::from_array(movement.knockback);
+        momentum.0 = movement.horizontal_velocity();
+        knockback.0 = movement.knockback();
         *support = movement.support;
         *stance = movement.stance;
         let info = players.get(id);

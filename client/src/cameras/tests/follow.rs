@@ -3,7 +3,7 @@ use crate::{
     actors::ActorMap,
     cameras::{CameraAim, RENDER_LAYER_LOCAL_PLAYER, camera_aim_system, local_player_view_mode_system},
     constants::CROSSHAIR_THIRD_PERSON_HEIGHT,
-    players::{MyPlayerId, PlayerMap},
+    players::{CrouchBlend, MyPlayerId, PlayerMap},
     test_fixtures,
 };
 use bevy::camera::visibility::RenderLayers;
@@ -69,6 +69,7 @@ fn app() -> (App, Entity, f32) {
     app.world_mut().spawn((
         LocalPlayerMarker,
         common::protocol::PlayerStance::default(),
+        CrouchBlend::default(),
         FaceYaw(0.0),
         Position::default(),
         PreviousTickPosition(Position::default()),

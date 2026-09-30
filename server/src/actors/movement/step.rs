@@ -14,7 +14,7 @@ pub struct ActorMovementStep<'a> {
     pub start: Position,
     pub vertical_velocity: f32,
     pub intent: ActorMoveIntent,
-    pub external_displacement: Vec3,
+    pub knockback_displacement: Vec3,
     pub delta: f32,
     pub can_use_ladders: bool,
     pub physics: CharacterPhysicsConfig,
@@ -32,8 +32,9 @@ pub fn step_actor_movement(step: ActorMovementStep<'_>) -> CharacterMovementResu
         CharacterStep {
             start: step.start,
             vertical_velocity: step.vertical_velocity,
-            control_velocity: step.intent.to_horizontal_velocity(),
-            external_displacement: step.external_displacement,
+            intent_velocity: step.intent.to_horizontal_velocity(),
+            velocity: step.intent.to_horizontal_velocity(),
+            displacement: step.knockback_displacement,
             delta: step.delta,
         },
         &CharacterEnvironment {

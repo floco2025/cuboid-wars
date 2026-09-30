@@ -125,14 +125,10 @@ pub const CHARACTER_MAX_SLOPE: f32 = FRAC_PI_4;
 pub const CHARACTER_KNOCKBACK_CLAMP_RATIO: f32 = 1.5;
 
 // Crouching. An accepted transition shrinks both hulls to this fraction of
-// their standing height; the eye and the rendered model follow the stance blend.
+// their standing height; the client's crouch blend follows the stance.
 pub const PLAYER_CROUCH_HULL_RATIO: f32 = 0.5;
-// Crouched eye height as a fraction of the standing eye height.
-pub const PLAYER_CROUCH_EYE_RATIO: f32 = 28.0 / 64.0;
 // Grounded crouch speed as a fraction of the move speed.
 pub const PLAYER_CROUCH_SPEED_RATIO: f32 = 1.0 / 3.0;
-// Seconds a grounded stance blend takes; an airborne duck is instant.
-pub const PLAYER_CROUCH_BLEND_SECS: f32 = 0.2;
 // A portal exit that tilts an upright body past this angle forces the crouched hull.
 pub const PLAYER_CROUCH_PORTAL_TILT: f32 = FRAC_PI_6;
 

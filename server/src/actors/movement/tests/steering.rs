@@ -1,7 +1,7 @@
 use std::f32::consts::{PI, TAU};
 
 use crate::actors::{
-    movement::traversal::{TraversalEnvironment, TraversalExecutor, TraversalStatus},
+    movement::traversal::{ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus},
     navigation::surface::{SurfaceMesh, fixtures},
 };
 use common::{
@@ -45,7 +45,8 @@ fn route_replacement_preserves_turn_rate_and_actual_travel_direction() {
             open: &[],
             delta: 1.0 / hz as f32,
         };
-        let mut actor = TraversalExecutor::new(Position::default(), physics, 8.0, &env);
+        let mut actor = TraversalExecutor::new(physics, 8.0);
+        let mut body = ActorBody::standing(Position::default());
         // Crossing the -pi/pi boundary must take the short turn as well.
         for goal in [
             Position {
@@ -62,13 +63,13 @@ fn route_replacement_preserves_turn_rate_and_actual_travel_direction() {
         ] {
             let mut reached = false;
             for _ in 0..hz * 5 {
-                let start = actor.movement.position;
+                let start = body.position;
                 let facing = actor.facing;
                 actor.set_route(mesh.route(start, goal, 0.3).expect("replan"));
-                actor.step(&env);
+                actor.step(&env, &mut body);
                 let turned = angle_delta_radians(actor.facing, facing).abs();
                 assert!(turned <= TAU * env.delta + 1e-5, "unbounded turn {turned} at {hz}Hz");
-                let offset = bevy::math::Vec3::from(actor.movement.position) - bevy::math::Vec3::from(start);
+                let offset = bevy::math::Vec3::from(body.position) - bevy::math::Vec3::from(start);
                 if offset.x.hypot(offset.z) > 1e-4 {
                     assert!(
                         angle_delta_radians(offset.x.atan2(offset.z), actor.facing).abs() < 0.01,
@@ -130,7 +131,8 @@ fn actor_facing_off_a_ledge_can_turn_back_onto_safe_ground() {
         y: 0.0,
         z: 0.0,
     };
-    let mut actor = TraversalExecutor::new(start, physics, 8.0, &env);
+    let mut actor = TraversalExecutor::new(physics, 8.0);
+    let mut body = ActorBody::standing(start);
     actor.set_route(SurfaceRoute {
         actions: [TraversalAction::Walk {
             carrier: CarrierId::WORLD,
@@ -142,11 +144,11 @@ fn actor_facing_off_a_ledge_can_turn_back_onto_safe_ground() {
     let mut stopped_at_edge = false;
     for _ in 0..120 {
         let heading = actor.facing;
-        actor.step(&env);
+        actor.step(&env, &mut body);
         stopped_at_edge |= actor.status == TraversalStatus::LostSupport;
         assert!(angle_delta_radians(actor.facing, heading).abs() <= TAU * env.delta + 1e-5);
         assert!(
-            actor.movement.position.y > -0.05 && actor.movement.position.z <= 1.0,
+            body.position.y > -0.05 && body.position.z <= 1.0,
             "stepped off the ledge: {actor:?}"
         );
         if actor.status == TraversalStatus::Reached {

@@ -1,6 +1,6 @@
 use super::*;
 use crate::actors::{
-    TraversalEnvironment, TraversalExecutor, TraversalStatus,
+    ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus,
     navigation::surface::{RouteFailure, fixtures},
 };
 use common::{
@@ -122,22 +122,21 @@ fn assert_ladder_traversal(lower_behind: bool, barrier: Option<FieldId>) {
                 .iter()
                 .any(|action| matches!(action, TraversalAction::Climb { .. }))
         );
-        let mut executor = TraversalExecutor::new(start, physics, 2.0, &env);
+        let mut executor = TraversalExecutor::new(physics, 2.0);
+        let mut body = ActorBody::standing(start);
         executor.set_route(route);
         let mut climbed = false;
         for _ in 0..600 {
-            executor.step(&env);
-            climbed |= matches!(executor.movement.support, common::physics::CharacterSupport::Ladder);
-            assert!(!world.character_penetrates_solid(&executor.movement.position, physics, &open));
+            executor.step(&env, &mut body);
+            climbed |= matches!(body.support, common::physics::CharacterSupport::Ladder);
+            assert!(!world.character_penetrates_solid(&body.position, physics, &open));
             if executor.status == TraversalStatus::Reached {
                 break;
             }
         }
         assert!(
-            climbed
-                && executor.status == TraversalStatus::Reached
-                && executor.movement.position.distance_sq(&goal) < 0.1,
-            "{executor:?}"
+            climbed && executor.status == TraversalStatus::Reached && body.position.distance_sq(&goal) < 0.1,
+            "{executor:?} {body:?}"
         );
     }
 }
