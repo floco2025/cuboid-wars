@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use common::constants::PLAYER_COYOTE_SECS;
 use serde_json::{Value, json};
 
 use super::{
@@ -53,6 +54,7 @@ fn preview_physics(settings: &Value) -> Result<Value> {
         "body": at("player.movement_collider")?,
         "portal_size": at("weapons.portals.size")?,
         "funnel": at("weapons.portals.funnel")?,
+        "coyote_secs": PLAYER_COYOTE_SECS,
     });
     physics(&block)?;
     Ok(block)

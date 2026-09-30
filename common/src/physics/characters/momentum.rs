@@ -39,32 +39,6 @@ impl KnockbackVelocity {
     }
 }
 
-// Persistent player horizontal velocity, including ordinary locomotion,
-// portal launches and inherited carrier motion. Ground control and collision
-// projection are applied by the shared player step, never by input sampling.
-#[derive(Component, Debug, Default, Clone, Copy)]
-pub struct HorizontalVelocity(pub Vec3);
-
-impl HorizontalVelocity {
-    pub fn finish_step(&mut self, movement: &super::CharacterMovementResult) {
-        if movement.support == super::CharacterSupport::Airborne {
-            self.0 += movement.floor_velocity.with_y(0.0);
-        }
-        if movement.blocked {
-            for normal in movement.contact_normals {
-                if normal.y.abs() > 0.5 {
-                    continue;
-                }
-                let n = normal.with_y(0.0).normalize_or_zero();
-                self.0 -= n * self.0.dot(n).min(0.0);
-            }
-        }
-        if movement.support == super::CharacterSupport::Ladder {
-            self.0 = Vec3::ZERO;
-        }
-    }
-}
-
 pub fn knockback_decay_system<F: QueryFilter>(
     time: Res<Time>,
     map_settings: Option<Res<MapSettings>>,
@@ -78,7 +52,3 @@ pub fn knockback_decay_system<F: QueryFilter>(
         knockback.decay(delta, map_settings.movement.knockback.deceleration);
     }
 }
-
-#[cfg(test)]
-#[path = "tests/momentum.rs"]
-mod tests;

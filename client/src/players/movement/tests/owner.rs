@@ -22,7 +22,7 @@ struct Harness {
     knockback: KnockbackVelocity,
     stance: PlayerStance,
     support: CharacterSupport,
-    jump_requested: bool,
+    jump: JumpRequest,
     step: LocalMovementStep,
     reports: LocalMovementReports,
     stunned: bool,
@@ -54,7 +54,7 @@ impl Harness {
             knockback: KnockbackVelocity::default(),
             stance: PlayerStance::default(),
             support: CharacterSupport::Airborne,
-            jump_requested: false,
+            jump: JumpRequest::default(),
             step: LocalMovementStep::default(),
             reports: LocalMovementReports::default(),
             stunned: false,
@@ -92,7 +92,7 @@ impl Harness {
                 knockback: &mut self.knockback,
                 stance: &mut self.stance,
                 support: &mut self.support,
-                jump_requested: &mut self.jump_requested,
+                jump: &mut self.jump,
                 step: &mut self.step,
                 reports: &mut self.reports,
             },
@@ -163,22 +163,94 @@ fn a_jump_request_fires_once_unless_crouched_or_stunned() {
     owner.movement().player.jump_speed = 12.0;
     owner.tick();
     assert_eq!(owner.support, CharacterSupport::Ground);
-    owner.jump_requested = true;
+    owner.jump.pressed = true;
     owner.stance.crouched = true;
     assert!(owner.tick().jump.is_none(), "a crouched body cannot jump");
-    assert!(!owner.jump_requested, "the request is spent");
+    assert!(!owner.jump.pending(), "a crouched press is dropped");
     owner.stance.crouched = false;
     owner.intent.crouch = false;
     owner.tick();
-    owner.jump_requested = true;
+    owner.jump.pressed = true;
     owner.stunned = true;
     assert!(owner.tick().jump.is_none(), "a stunned body cannot jump");
+    assert!(!owner.jump.pending(), "a stunned press is dropped");
     owner.stunned = false;
-    owner.jump_requested = true;
+    owner.tick();
+    owner.jump.pressed = true;
     let jumped = owner.tick();
     assert_eq!(jumped.jump, Some(PlayerJump::Rise(12.0)));
     assert!(owner.vertical_velocity.0 > 10.0);
     assert!(owner.tick().jump.is_none(), "one request is one jump");
+}
+
+#[test]
+fn a_press_just_before_landing_jumps_on_the_landing_tick() {
+    let mut owner = Harness::new(floor(), &[]);
+    owner.movement().player.jump_speed = 12.0;
+    owner.position.y = 0.3;
+    owner.vertical_velocity.0 = -6.0;
+    let mut ticks = 0;
+    for _ in 0..3 {
+        let outcome = owner.tick();
+        ticks += 1;
+        if owner.support == CharacterSupport::Ground {
+            assert!(outcome.jump.is_none());
+            break;
+        }
+        owner.jump.pressed = true;
+    }
+    assert!(ticks > 1 && ticks <= 3, "the fall should take a tick or two: {ticks}");
+    assert!(owner.jump.pending(), "the press waits for the landing");
+    let landing = owner.tick();
+    assert_eq!(landing.jump, Some(PlayerJump::Rise(12.0)));
+    assert!(!owner.jump.pending());
+}
+
+#[test]
+fn a_press_within_the_coyote_window_still_jumps_off_the_edge() {
+    let mut owner = Harness::new(floor(), &[]);
+    owner.movement().player.jump_speed = 12.0;
+    owner.movement().player.air_deceleration = 0.0;
+    owner.tick();
+    assert_eq!(owner.support, CharacterSupport::Ground);
+    // Walk off the floor's edge at +X.
+    owner.position.x = 4.9;
+    owner.horizontal_velocity.0 = Vec3::X * 6.0;
+    while owner.support == CharacterSupport::Ground {
+        owner.tick();
+        assert!(owner.position.x < 6.0, "never left the floor");
+    }
+    owner.tick();
+    owner.jump.pressed = true;
+    let late = owner.tick();
+    assert_eq!(
+        late.jump,
+        Some(PlayerJump::Rise(12.0)),
+        "two ticks past the edge is inside the window"
+    );
+    for _ in 0..8 {
+        owner.tick();
+    }
+    assert!(owner.vertical_velocity.0 < 12.0 && owner.position.y > 0.0);
+    owner.jump.pressed = true;
+    let stale = owner.tick();
+    assert!(stale.jump.is_none(), "well past the edge, and rising, there is no jump");
+    let mut late_owner = Harness::new(floor(), &[]);
+    late_owner.movement().player.jump_speed = 12.0;
+    late_owner.tick();
+    late_owner.position.x = 4.9;
+    late_owner.horizontal_velocity.0 = Vec3::X * 6.0;
+    while late_owner.support == CharacterSupport::Ground {
+        late_owner.tick();
+    }
+    for _ in 0..4 {
+        late_owner.tick();
+    }
+    late_owner.jump.pressed = true;
+    assert!(
+        late_owner.tick().jump.is_none(),
+        "five ticks past the edge is outside the window"
+    );
 }
 
 #[test]

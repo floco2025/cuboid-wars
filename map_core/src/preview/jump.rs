@@ -34,7 +34,9 @@ pub struct JumpRequest {
 
 // The edge point a flight leaves from, heading `direction` at full speed and
 // with input released from then on. A step walks off it, a jump leaves the
-// ground `margin` seconds before it, both from where the body's support ends.
+// ground `margin` seconds before it, both from where the body's support ends;
+// a negative margin, down to the coyote window, is a jump pressed that long
+// after the edge, from where the fall has taken the body by then.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TakeoffSpec {
@@ -189,8 +191,9 @@ pub fn jump_preview(physics: &PreviewPhysics, request: &JumpRequest) -> Result<J
         .try_normalize()
         .ok_or_else(|| anyhow::anyhow!("takeoff.direction must not be zero"))?;
     ensure!(
-        takeoff.margin.is_finite() && takeoff.margin >= 0.0,
-        "takeoff.margin must be non-negative and finite"
+        takeoff.margin.is_finite() && takeoff.margin >= -physics.coyote_secs,
+        "takeoff.margin must be finite and at least -{}",
+        physics.coyote_secs
     );
     ensure!(
         request.heights.len() <= PREVIEW_MAX_HEIGHTS && request.heights.iter().all(|height| height.is_finite()),
@@ -235,8 +238,9 @@ fn scenario_preview(
     let velocity = direction * air.speed();
     let origin = Origin {
         state: if takeoff.jumping {
+            let late = (-takeoff.margin).max(0.0);
             PlayerFlightState {
-                position: edge - velocity * takeoff.margin,
+                position: edge - velocity * takeoff.margin - Vec3::Y * (0.5 * air.gravity() * late * late),
                 horizontal_velocity: velocity,
                 vertical_velocity: physics.player.jump_speed,
             }

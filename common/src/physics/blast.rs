@@ -1,7 +1,7 @@
 use crate::{constants::EXPLOSION_BLAST_CORE_FRACTION, physics::CollisionWorld, protocol::FieldId};
 use bevy::prelude::*;
 
-pub fn visible_blast_falloff(
+fn visible_blast_falloff(
     center: Vec3,
     target: Vec3,
     radius: f32,
@@ -31,7 +31,7 @@ pub fn blast_hit(
     Some((falloff, planar_shove(center, victim, 1.0, 1.0)))
 }
 
-pub fn planar_shove(center: Vec3, target: Vec3, falloff: f32, max_speed: f32) -> Vec3 {
+fn planar_shove(center: Vec3, target: Vec3, falloff: f32, max_speed: f32) -> Vec3 {
     Vec3::new(target.x - center.x, 0.0, target.z - center.z).normalize_or_zero() * max_speed * falloff
 }
 

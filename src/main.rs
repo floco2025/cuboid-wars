@@ -71,11 +71,12 @@ struct WindowArgs {
     #[arg(short, long, conflicts_with = "serve")]
     name: Option<String>,
 
-    // Position uses macOS points or Windows/X11 pixels; Wayland chooses placement.
-    #[arg(long, conflicts_with = "serve")]
+    // Position uses macOS points or Windows/X11 pixels, negative on a
+    // display left of or above the main one; Wayland chooses placement.
+    #[arg(long, allow_negative_numbers = true, conflicts_with = "serve")]
     window_x: Option<i32>,
 
-    #[arg(long, conflicts_with = "serve")]
+    #[arg(long, allow_negative_numbers = true, conflicts_with = "serve")]
     window_y: Option<i32>,
 
     /// Ignore saved fullscreen mode and start in a window.

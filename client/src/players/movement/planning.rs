@@ -1,8 +1,7 @@
 use bevy::prelude::*;
-use common::physics::{
-    CharacterMovePlan, PlayerMovementStep, PlayerStepResult, character_axis_separation, character_move_plans_intersect,
-    step_player_movement, step_player_movement_blocked,
-};
+use common::physics::{CharacterMovePlan, character_axis_separation, character_move_plans_intersect};
+
+use super::{PlayerMovementStep, PlayerStepResult, step_player_movement, step_player_movement_blocked};
 
 pub struct PlayerMove {
     pub step: PlayerStepResult,

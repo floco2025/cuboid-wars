@@ -6,8 +6,7 @@ use common::{
     config::{GameplayConfig, NetworkConfig},
     map::Carriers,
     physics::{
-        CharacterMovePlan, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, HorizontalVelocity,
-        KnockbackVelocity, PortalSet,
+        CharacterMovePlan, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, PortalSet,
     },
     protocol::{
         ActorId, ActorMarker, CMoveOutcome, ClientMessage, FaceYaw, MapSettings, PlayerId, PlayerMarker,
@@ -15,7 +14,9 @@ use common::{
     },
 };
 
-use super::{JumpRequested, LocalMovementStep, OwnerBody, OwnerWorld, feedback::bump, owner::owner_tick};
+use super::{
+    HorizontalVelocity, JumpRequest, LocalMovementStep, OwnerBody, OwnerWorld, feedback::bump, owner::owner_tick,
+};
 use crate::{
     actors::ActorMap,
     cameras::MainCameraMarker,
@@ -47,7 +48,7 @@ pub(crate) struct LocalBody {
     pub knockback: &'static mut KnockbackVelocity,
     pub stance: &'static mut PlayerStance,
     pub support: &'static mut CharacterSupport,
-    pub jump_requested: &'static mut JumpRequested,
+    pub jump: &'static mut JumpRequest,
     pub step: &'static mut LocalMovementStep,
     pub crouch_blend: &'static CrouchBlend,
 }
@@ -116,7 +117,7 @@ pub(crate) fn local_player_movement_system(
         knockback,
         stance,
         support,
-        jump_requested,
+        jump,
         step,
         crouch_blend,
     } = body;
@@ -171,7 +172,7 @@ pub(crate) fn local_player_movement_system(
             knockback: knockback.into_inner(),
             stance: stance.into_inner(),
             support: support.into_inner(),
-            jump_requested: &mut jump_requested.into_inner().0,
+            jump: jump.into_inner(),
             step: step.into_inner(),
             reports: &mut local.reports,
         },

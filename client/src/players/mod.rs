@@ -24,8 +24,9 @@ pub use effects::{
 };
 pub(crate) use footsteps::footsteps_plugin;
 pub use movement::{
-    JumpRequested, LocalMovementReports, LocalMovementStep, OwnerBody, OwnerTickOutcome, OwnerWorld, PlayerMove,
-    collect_move_outcomes, ladder_facing, owner_tick, plan_player_move,
+    HorizontalVelocity, JumpRequest, LocalMovementReports, LocalMovementStep, OwnerBody, OwnerTickOutcome, OwnerWorld,
+    PlayerJump, PlayerMove, PlayerMovementStep, PlayerStepResult, collect_move_outcomes, ladder_facing, owner_tick,
+    plan_player_move, player_jump, step_player_movement, step_player_movement_blocked,
 };
 pub(crate) use movement::{
     interpolate_remote_players_system, local_player_feedback_system, local_player_movement_system,

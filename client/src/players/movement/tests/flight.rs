@@ -1,13 +1,11 @@
-use super::{fixtures::*, player_step::map_settings};
-use crate::{
-    config::{GameplayConfig, gameplay::load_test_gameplay},
+use super::super::fixtures::*;
+use crate::portals::{PlayerHopBody, player_hop};
+use common::{
     constants::CHARACTER_TERMINAL_VELOCITY,
     physics::{
-        HorizontalVelocity, KnockbackVelocity, PlayerFlightPortals, PlayerFlightState, PlayerHopBody,
-        PlayerMovementStep, PortalSet, character_movement_center, player_move_speed, step_player_flight,
-        step_player_movement,
+        PlayerFlightPortals, PlayerFlightState, character_movement_center, player_move_speed, step_player_flight,
     },
-    protocol::{CarrierId, MapSettings, PlayerMoveIntent, PlayerStance, Portal, PortalEnd, PortalPairId, Position},
+    protocol::{Portal, PortalEnd, PortalPairId},
 };
 
 const DELTA: f32 = 1.0 / 30.0;
@@ -68,7 +66,7 @@ fn fly(
 #[test]
 fn open_air_flight_matches_the_player_step_tick_for_tick() {
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
-    let gameplay = load_test_gameplay().expect("gameplay");
+    let gameplay = gameplay_config();
     let carriers = Carriers::default();
     let portals = PortalSet::default();
     for air_rates in [5.0, 0.0] {
@@ -178,7 +176,7 @@ struct Flown {
 
 fn gates(entry: (Vec3, Vec3), exit: (Vec3, Vec3)) -> Gates {
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
-    let gameplay = load_test_gameplay().expect("gameplay");
+    let gameplay = gameplay_config();
     let carriers = Carriers::default();
     let portal = |end, (center, normal): (Vec3, Vec3)| Portal {
         pair: PortalPairId(1),
@@ -257,7 +255,8 @@ fn assert_flights_match(gates: &Gates, start: PlayerFlightState, heading: Option
                 horizontal = step.horizontal_velocity;
                 vertical = step.movement.vertical_velocity;
                 stance = step.stance;
-                let hop = gates.portals.player_hop(
+                let hop = player_hop(
+                    &gates.portals,
                     step.start.into(),
                     pos.into(),
                     &gates.gameplay,
@@ -273,9 +272,9 @@ fn assert_flights_match(gates: &Gates, start: PlayerFlightState, heading: Option
                     DELTA,
                 );
                 if let Some(hop) = &hop {
-                    pos = hop.origin.into();
-                    horizontal = hop.horizontal_velocity;
-                    vertical = hop.vertical_velocity;
+                    pos = hop.crossing.origin.into();
+                    horizontal = hop.crossing.horizontal_velocity;
+                    vertical = hop.crossing.vertical_velocity;
                     if hop.force_crouch {
                         stance = PlayerStance { crouched: true };
                     }

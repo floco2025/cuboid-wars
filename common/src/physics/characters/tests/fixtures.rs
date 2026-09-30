@@ -3,45 +3,17 @@ pub(super) use crate::{
     config::CharacterPhysicsConfig,
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{Floor, Ladder, MapLayout, PlayerMoveIntent, Position, Ramp, RampDirection, RampShape, Wall},
+    protocol::{Floor, Ladder, MapLayout, Position, Ramp, RampDirection, RampShape, Wall},
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
 use crate::{
-    config::{KnockbackConfig, MapMovementConfig, PlayerMovementConfig, gameplay::load_test_gameplay},
+    config::gameplay::load_test_gameplay,
     protocol::{Carrier, CarrierId, SwitchState},
 };
 pub(super) use bevy_math::Vec3;
-use std::collections::HashMap;
 
 pub(crate) const TEST_GRAVITY: f32 = 25.0;
 pub(crate) const TEST_PLAYER_SPEED: f32 = 9.0;
-
-pub(crate) fn test_movement() -> MapMovementConfig {
-    MapMovementConfig {
-        player: PlayerMovementConfig {
-            move_speed: TEST_PLAYER_SPEED,
-            move_speed_power_up: 1.5,
-            move_speed_ladder: 0.4,
-            jump_speed: 12.0,
-            ground_acceleration: 20.0,
-            ground_deceleration: 30.0,
-            ground_lateral_deceleration: 40.0,
-            air_acceleration: 5.0,
-            air_deceleration: 5.0,
-            air_lateral_deceleration: 5.0,
-        },
-        actors: HashMap::new(),
-        missile_speed: 16.0,
-        projectile_speed: 90.0,
-        gravity: TEST_GRAVITY,
-        low_gravity: 5.0,
-        knockback: KnockbackConfig {
-            max_speed: 15.0,
-            up_speed: 7.0,
-            deceleration: 35.0,
-        },
-    }
-}
 
 pub(crate) fn test_ramp() -> Ramp {
     Ramp {
@@ -360,6 +332,16 @@ pub(crate) fn ride(
         },
         &test_environment(world, carriers, player_physics(), LadderMode::Automatic),
     )
+}
+
+// What a player's momentum does with a step, as the owner's
+// `HorizontalVelocity` keeps it: a departure adds the ride, a ladder holds.
+pub(crate) fn carried_momentum(momentum: Vec3, step: &CharacterMovementResult) -> Vec3 {
+    match step.support {
+        CharacterSupport::Airborne => momentum + step.floor_velocity.with_y(0.0),
+        CharacterSupport::Ladder => Vec3::ZERO,
+        CharacterSupport::Ground => momentum,
+    }
 }
 
 pub(crate) fn player_physics() -> CharacterPhysicsConfig {

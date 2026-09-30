@@ -53,34 +53,6 @@ pub(crate) fn test_map_layout() -> MapLayout {
     }
 }
 
-// A wall end at the origin, running north (negative z) along x = 0.
-pub(crate) fn wall_end_world() -> CollisionWorld {
-    CollisionWorld::from_map_layout(&MapLayout {
-        walls: vec![Wall {
-            x1: 0.0,
-            z1: 0.0,
-            x2: 0.0,
-            z2: -8.0,
-            width: WALL_THICKNESS,
-            level: 0,
-            y: 0.0,
-            height: WALL_HEIGHT,
-            carrier: CarrierId::WORLD,
-        }],
-        floors: vec![Floor {
-            x1: -8.0,
-            z1: -8.0,
-            x2: 8.0,
-            z2: 8.0,
-            y: 0.0,
-            thickness: FLOOR_THICKNESS,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
-        ..Default::default()
-    })
-}
-
 pub(crate) fn wide_body() -> CharacterPhysicsConfig {
     CharacterPhysicsConfig {
         hitbox: HitboxConfig {

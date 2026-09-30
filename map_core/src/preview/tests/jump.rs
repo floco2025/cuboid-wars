@@ -152,6 +152,17 @@ fn a_step_leaves_from_the_edge_and_a_jump_from_the_margin_before_it() {
     assert!((jump.path[0][2] - (edge - 0.5)).abs() < 1e-3, "{:?}", jump.path[0]);
     assert!((crossing(jump, 1, Phase::BeforeEntry).point[1] - edge - 1.5).abs() < 2e-3);
     assert!(crossing(jump, 0, Phase::BeforeEntry).time > 2.0);
+
+    // A press inside the coyote window jumps from where the fall has taken the body.
+    let mut late = request([0.0, 5.0, 0.0], true, &[0.0, 5.0]);
+    late.takeoff.margin = -0.1;
+    let jump = &preview(&physics, &late)[0];
+    assert!((jump.path[0][2] - (edge + 0.1)).abs() < 1e-3, "{:?}", jump.path[0]);
+    assert!(
+        (jump.path[0][1] - (5.0 - 0.5 * 2.0 * 0.01)).abs() < 1e-4,
+        "{:?}",
+        jump.path[0]
+    );
 }
 
 #[test]
@@ -711,7 +722,7 @@ fn requests_are_validated() {
     still.takeoff.direction = [0.0, 0.0];
     assert!(jump_preview(&physics, &still).is_err());
     let mut late = request([0.0; 3], true, &[0.0]);
-    late.takeoff.margin = -0.1;
+    late.takeoff.margin = -(physics.coyote_secs + 0.01);
     assert!(jump_preview(&physics, &late).is_err());
     let tall = request([0.0; 3], true, &[0.0; PREVIEW_MAX_HEIGHTS + 1]);
     assert!(jump_preview(&physics, &tall).is_err());

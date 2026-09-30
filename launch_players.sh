@@ -41,15 +41,18 @@ echo "Logical screen size: ${SCREEN_WIDTH}x${SCREEN_HEIGHT}"
 echo "Scaling factor: ${SCALE_FACTOR}x"
 echo "Launching a host and $((NUM_PLAYERS - 1)) joiner(s) with ${LAG_MS}ms lag, drop ${DROP}, and jitter ${JITTER}..."
 
-# Window dimensions
-WINDOW_WIDTH=1000
-WINDOW_HEIGHT=600
+# Window dimensions, shrunk to fit two columns on a narrow screen
 GAP=20
 MENUBAR_HEIGHT=25  # macOS menu bar at top of screen
 TITLEBAR_HEIGHT=30  # Window title bar height
-
-# Calculate how many columns we can fit
 COLS=2
+WINDOW_WIDTH=1000
+MAX_WINDOW_WIDTH=$(((SCREEN_WIDTH - (COLS + 1) * GAP) / COLS))
+if [ "$WINDOW_WIDTH" -gt "$MAX_WINDOW_WIDTH" ]; then
+    WINDOW_WIDTH=$MAX_WINDOW_WIDTH
+fi
+WINDOW_HEIGHT=$((WINDOW_WIDTH * 3 / 5))
+echo "Window size: ${WINDOW_WIDTH}x${WINDOW_HEIGHT}"
 
 # Launch the host first, then the joiners
 for i in $(seq 0 $((NUM_PLAYERS - 1))); do

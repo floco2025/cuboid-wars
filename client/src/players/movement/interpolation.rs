@@ -2,9 +2,7 @@ use bevy::prelude::*;
 use common::{
     map::Carriers,
     math::angle_delta_radians,
-    physics::{
-        CharacterSupport, CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity, player_control_velocity,
-    },
+    physics::{CharacterSupport, CharacterVerticalVelocity, KnockbackVelocity, player_control_velocity},
     protocol::{
         CarrierId, FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, PlayerMovementState, PlayerStance, Position,
         PowerUpKind,
@@ -13,7 +11,9 @@ use common::{
 
 use crate::{
     characters::rendered_carrier_position,
-    players::{LocalPlayerMarker, PlayerAnimationMotion, PlayerMap, PlayerSample, RemotePlayerMotion},
+    players::{
+        HorizontalVelocity, LocalPlayerMarker, PlayerAnimationMotion, PlayerMap, PlayerSample, RemotePlayerMotion,
+    },
 };
 
 impl RemotePlayerMotion {

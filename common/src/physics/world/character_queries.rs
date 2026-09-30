@@ -100,36 +100,6 @@ impl CollisionWorld {
             open,
         )
     }
-
-    // Whether sliding a character's movement capsule horizontally from `start` to
-    // `target` drags it through a wall. Floors and ramps are ignored so a
-    // leg onto a slope counts as clear; a body already touching a wall but
-    // moving away from it is clear too.
-    #[must_use]
-    pub fn character_sweep_hits_wall(
-        &self,
-        start: &Position,
-        target: &Position,
-        physics: CharacterPhysicsConfig,
-    ) -> bool {
-        let translation = Vector::new(target.x - start.x, 0.0, target.z - start.z);
-        if translation.length_squared() == 0.0 {
-            return false;
-        }
-        let options = ShapeCastOptions {
-            max_time_of_impact: 1.0,
-            stop_at_penetration: false,
-            ..ShapeCastOptions::default()
-        };
-        self.query_pipeline(query_filter(WALL_COLLISION_GROUP))
-            .cast_shape(
-                &character_movement_pose(start, physics),
-                translation,
-                &character_movement_shape(physics),
-                options,
-            )
-            .is_some()
-    }
 }
 
 pub(super) struct CharacterQueryDispatcher<'a>(pub &'a dyn QueryDispatcher);

@@ -1,6 +1,5 @@
 use super::*;
-use crate::physics::{CharacterMovementResult, CharacterSupport};
-use crate::protocol::CarrierId;
+use common::protocol::CarrierId;
 
 #[test]
 fn landing_preserves_horizontal_velocity_and_wall_contact_clips_only_into_wall() {

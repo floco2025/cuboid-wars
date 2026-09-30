@@ -236,8 +236,8 @@ input. Obby sets all three to zero. Combat knockback retains its separate decay
 and participates in the air acceleration limit without passive braking storing
 an opposing velocity. No takeoff or steering velocity history is tracked.
 
-`common/src/physics/characters/player_step.rs` owns player policy over the shared
-collision motor, and `player_control.rs` owns acceleration. The rendered owner
+`client/src/players/movement/step.rs` owns player policy over the shared
+collision motor, and `common`'s `player_control.rs` owns acceleration. The rendered owner
 and headless owner call it through the same body-blocking planner. Reported state
 includes horizontal velocity and stance; the server adopts it without player
 physics or reconciliation. Crouching changes collision and hitbox size, keeps

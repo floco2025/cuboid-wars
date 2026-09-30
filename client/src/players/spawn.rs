@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::animation::{PlayerAnimationMotion, PlayerModel, player_animation_setup_system};
-use super::{BumpFeedbackState, CrouchBlend, JumpRequested, LocalMovementStep, RemotePlayerMotion};
+use super::{BumpFeedbackState, CrouchBlend, HorizontalVelocity, JumpRequest, LocalMovementStep, RemotePlayerMotion};
 use crate::{
     cameras::LocalPlayerLabelMarker,
     characters::{PreviousTickPosition, load_character_model, model_transform, spawn_character_bounds},
@@ -18,7 +18,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     map::Carriers,
-    physics::{CharacterSupport, CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity},
+    physics::{CharacterSupport, CharacterVerticalVelocity, KnockbackVelocity},
     protocol::{
         CarrierId, FaceYaw, Health, Player, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState,
         PlayerStance, Position,
@@ -163,7 +163,7 @@ pub fn spawn_player(
             LocalPlayerMarker,
             BumpFeedbackState::default(),
             LocalMovementStep::default(),
-            JumpRequested::default(),
+            JumpRequest::default(),
         ));
     } else {
         commands

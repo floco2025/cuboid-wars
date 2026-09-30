@@ -80,3 +80,8 @@ class JumpSettings:
 
     def floor_height(self, level: int) -> float:
         return level * self.level_height
+
+    # How long after walking off an edge the game still jumps as if from it.
+    @property
+    def coyote_secs(self) -> float:
+        return self.physics["coyote_secs"]

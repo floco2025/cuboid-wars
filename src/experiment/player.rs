@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use bevy::prelude::*;
 use client::{
     players::{
-        JumpRequested, LocalMovementReports, LocalMovementStep, OwnerBody, OwnerWorld, PlayerMotionBundle, owner_tick,
+        JumpRequest, LocalMovementReports, LocalMovementStep, OwnerBody, OwnerWorld, PlayerMotionBundle, owner_tick,
     },
     portals::portal_view_transition,
 };
@@ -25,7 +25,7 @@ pub(super) struct Owner {
     pub generation: PlayerGeneration,
     pub crossed_last_step: bool,
     previous_position: Position,
-    jump_requested: JumpRequested,
+    jump: JumpRequest,
     step: LocalMovementStep,
     reports: LocalMovementReports,
 }
@@ -38,7 +38,7 @@ impl Owner {
             generation: player.generation,
             crossed_last_step: false,
             previous_position: player.movement.pos,
-            jump_requested: JumpRequested::default(),
+            jump: JumpRequest::default(),
             step: LocalMovementStep::default(),
             reports: LocalMovementReports::default(),
         };
@@ -92,7 +92,7 @@ impl Owner {
             .collect();
         self.motion.move_intent.yaw = aim.x.atan2(aim.z);
         self.motion.move_intent.pitch = aim.y.clamp(-1.0, 1.0).asin();
-        self.jump_requested.0 |= jump;
+        self.jump.pressed |= jump;
         let before = self.velocity();
         let outcome = owner_tick(
             entity,
@@ -106,7 +106,7 @@ impl Owner {
                 knockback: &mut self.motion.knockback,
                 stance: &mut self.motion.stance,
                 support: &mut self.motion.support,
-                jump_requested: &mut self.jump_requested.0,
+                jump: &mut self.jump,
                 step: &mut self.step,
                 reports: &mut self.reports,
             },
@@ -127,7 +127,8 @@ impl Owner {
             &blockers,
         );
         let mut events = Vec::new();
-        if jump {
+        // A press is reported when made, and again when the buffer fires it later.
+        if jump || outcome.jump.is_some() {
             events.push(json!({"kind": "jump", "accepted": outcome.jump.is_some()}));
         }
         if let Some(hop) = &outcome.hop {

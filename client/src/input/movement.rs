@@ -12,7 +12,7 @@ use crate::{
     constants::{CAMERA_MAX_PITCH, INPUT_MOUSE_SENSITIVITY_BASE},
     network::PlaybackMode,
     players::{
-        JumpRequested, LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap, ladder_facing,
+        JumpRequest, LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap, ladder_facing,
     },
     ui::{ConsoleState, SettingsMenuState},
 };
@@ -51,7 +51,7 @@ type LocalPlayerInputQuery<'w, 's> = Query<
         &'static Position,
         &'static mut PlayerMoveIntent,
         &'static mut FaceYaw,
-        &'static mut JumpRequested,
+        &'static mut JumpRequest,
         &'static LocalMovementStep,
     ),
     With<LocalPlayerMarker>,
@@ -110,7 +110,7 @@ pub fn input_movement_system(
         *input = move_intent;
         face_direction.0 = ladder_facing(&collision_world, pos, step.result.support)
             .unwrap_or_else(|| movement_facing(move_intent, locked_yaw, face_direction.0));
-        jump.0 |= jump_requested;
+        jump.pressed |= jump_requested;
     }
 }
 

@@ -1,14 +1,6 @@
-use super::{fixtures::*, player_step::map_settings};
-use crate::{
-    config::{GameplayConfig, gameplay::load_test_gameplay},
-    physics::{
-        HorizontalVelocity, KnockbackVelocity, PlayerHopBody, PlayerMovementStep, PortalSet, step_player_movement,
-    },
-    protocol::{
-        Carrier, CarrierId, MapSettings, PlayerMoveIntent, PlayerStance, Portal, PortalEnd, PortalPairId, Ramp,
-        RampDirection, RampShape, SwitchState,
-    },
-};
+use super::super::fixtures::*;
+use crate::portals::{PlayerHopBody, player_hop};
+use common::protocol::{Portal, PortalEnd, PortalPairId, Ramp, RampDirection, RampShape, SwitchState};
 
 fn portal(end: PortalEnd, center: Vec3, normal: Vec3) -> Portal {
     Portal {
@@ -50,7 +42,7 @@ impl Course {
     }
     fn from_layout(layout: MapLayout, exit: Vec3) -> Self {
         let world = CollisionWorld::from_map_layout(&layout);
-        let config = load_test_gameplay().expect("fixture");
+        let config = gameplay_config();
         let carriers = Carriers::from_layout(&layout);
         let portals = PortalSet::rebuild(
             &[
@@ -75,7 +67,7 @@ impl Course {
         velocity: Vec3,
         intent: PlayerMoveIntent,
         dt: f32,
-    ) -> crate::physics::PlayerStepResult {
+    ) -> super::super::PlayerStepResult {
         step_player_movement(PlayerMovementStep {
             start: pos,
             vertical_velocity: velocity.y,
@@ -123,7 +115,8 @@ impl Course {
             let from = step.start;
             pos = step.movement.position;
             velocity = step.horizontal_velocity.with_y(step.movement.vertical_velocity);
-            if let Some(hop) = self.portals.player_hop(
+            if let Some(hop) = player_hop(
+                &self.portals,
                 from.into(),
                 pos.into(),
                 &self.config,
@@ -138,8 +131,8 @@ impl Course {
                 },
                 1.0 / hz as f32,
             ) {
-                pos = hop.origin.into();
-                velocity = hop.horizontal_velocity.with_y(hop.vertical_velocity);
+                pos = hop.crossing.origin.into();
+                velocity = hop.crossing.horizontal_velocity.with_y(hop.crossing.vertical_velocity);
                 hops += 1;
             }
         }

@@ -2,71 +2,19 @@ use super::*;
 const TEST_JUMP_SPEED: f32 = 12.0;
 
 #[test]
-fn supported_player_can_start_jump() {
-    let floor = lower_floor();
-    let collision_world = collision_world(&[floor], &[]);
-    let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-
-    assert_eq!(
-        player_jump(
-            CharacterSupport::Ground,
-            PlayerMoveIntent::NONE,
-            0.0,
-            &collision_world,
-            player_physics(),
-            &test_movement(),
-            false,
-            &pos,
-            &[]
-        ),
-        Some(PlayerJump::Rise(TEST_JUMP_SPEED))
-    );
-}
-
-#[test]
-fn airborne_player_cannot_start_jump() {
-    let floor = lower_floor();
-    let collision_world = collision_world(&[floor], &[]);
-    let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
-
-    assert_eq!(
-        player_jump(
-            CharacterSupport::Airborne,
-            PlayerMoveIntent::NONE,
-            0.0,
-            &collision_world,
-            player_physics(),
-            &test_movement(),
-            false,
-            &pos,
-            &[]
-        ),
-        None
-    );
-}
-
-#[test]
 fn upward_jump_velocity_moves_player_above_support() {
     let floor = lower_floor();
     let collision_world = collision_world(&[floor], &[]);
     let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-    let Some(PlayerJump::Rise(motion)) = player_jump(
-        CharacterSupport::Ground,
-        PlayerMoveIntent::NONE,
-        0.0,
+    assert!(position_has_floor_support(
         &collision_world,
-        player_physics(),
-        &test_movement(),
-        false,
         &pos,
-        &[],
-    ) else {
-        panic!("supported player did not start a jump");
-    };
-
+        player_physics(),
+        &[]
+    ));
     let step = step_in(
         &collision_world,
-        character_step_toward(pos, motion, pos.x, pos.z, 0.1),
+        character_step_toward(pos, TEST_JUMP_SPEED, pos.x, pos.z, 0.1),
         LadderMode::Automatic,
     );
 
@@ -227,46 +175,4 @@ fn landing_speed_uses_accumulated_velocity_with_the_fall_before_contact() {
         assert_eq!(result.impact_speed, 20.0 + gravity * 0.05);
         assert_eq!(result.vertical_velocity, 0.0);
     }
-}
-
-#[test]
-fn a_bridge_its_key_passes_is_no_floor_to_jump_from() {
-    use crate::{
-        physics::passable_fields,
-        protocol::{CarrierId, FieldId, LightBridge},
-        test_geometry::BRIDGE_THICKNESS,
-    };
-    let collision_world = CollisionWorld::from_map_layout(&MapLayout {
-        light_bridges: vec![LightBridge {
-            x1: -2.0,
-            z1: -2.0,
-            x2: 2.0,
-            z2: 2.0,
-            y: 0.0,
-            thickness: BRIDGE_THICKNESS,
-            level: 0,
-            field: FieldId(3),
-            carrier: CarrierId::WORLD,
-        }],
-        ..Default::default()
-    });
-    let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-    let jump = |held_keys: &[FieldId]| {
-        let passable = passable_fields(held_keys, &[]);
-        player_jump(
-            CharacterSupport::Ground,
-            PlayerMoveIntent::NONE,
-            0.0,
-            &collision_world,
-            player_physics(),
-            &test_movement(),
-            false,
-            &pos,
-            &passable,
-        )
-    };
-
-    assert_eq!(jump(&[]), Some(PlayerJump::Rise(TEST_JUMP_SPEED)));
-    assert_eq!(jump(&[FieldId(1)]), Some(PlayerJump::Rise(TEST_JUMP_SPEED)));
-    assert_eq!(jump(&[FieldId(3)]), None);
 }

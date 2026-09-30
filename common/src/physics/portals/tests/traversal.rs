@@ -1,11 +1,5 @@
 use super::{super::traversal::traverse_yaw, *};
-use crate::{
-    config::gameplay::load_test_gameplay,
-    constants::CHARACTER_CONTACT_OFFSET,
-    math::angle_delta_radians,
-    physics::{CharacterVerticalVelocity, HorizontalVelocity, KnockbackVelocity},
-    protocol::{FaceYaw, PlayerMoveIntent},
-};
+use crate::{constants::CHARACTER_CONTACT_OFFSET, math::angle_delta_radians, protocol::PlayerMoveIntent};
 
 fn assert_frame_valid(frame: &PortalFrame) {
     assert!((frame.normal.length() - 1.0).abs() < 1e-5);
@@ -111,20 +105,7 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
             TICK_SECS,
         )
         .expect("same-wall entry did not hop");
-    let mut position = Position::default();
-    let mut face_yaw = FaceYaw(PI);
-    let mut vertical_velocity = CharacterVerticalVelocity(0.0);
-    let mut mapped = intent;
-    hop.apply_player_state(
-        &mut position,
-        &mut face_yaw,
-        &mut vertical_velocity,
-        &mut mapped,
-        &mut Default::default(),
-    );
-    assert_eq!(position, hop.origin.into());
-    assert_eq!(face_yaw.0, hop.yaw);
-    assert_eq!(vertical_velocity.0, hop.vertical_velocity);
+    let mapped = traverse_move_intent(&hop.entry, &hop.exit, intent);
     let mapped_direction = mapped.direction().expect("running intent became idle");
     assert!(angle_delta_radians(mapped_direction, 0.0).abs() < 1e-4);
 
@@ -245,42 +226,6 @@ fn walking_into_wall_portal_exits_floor_portal_upward() {
     assert!(hop.horizontal_velocity.length() < 1e-4);
     // Emerges half-in: the crossing penetration is carried through.
     assert!((hop.origin.y - (0.1 - 0.9 - CHARACTER_CONTACT_OFFSET)).abs() < 1e-4);
-}
-
-#[test]
-fn falling_into_floor_portal_exits_ramp_at_its_normal_angle() {
-    let ramp_normal = Vec3::new(0.0, 0.6, 0.8);
-    let set = pair(
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::Y,
-        Vec3::new(10.0, 2.0, 10.0),
-        ramp_normal,
-    );
-    let gameplay = load_test_gameplay().expect("test gameplay config rejected");
-    let movement = map_movement();
-    let hop = set
-        .player_hop(
-            Vec3::new(0.0, -0.85, 0.0),
-            Vec3::new(0.0, -0.95, 0.0),
-            &gameplay,
-            &movement,
-            PlayerHopBody {
-                stance: Default::default(),
-                knockback: &KnockbackVelocity::default(),
-                horizontal_velocity: &HorizontalVelocity::default(),
-                vertical_velocity: -10.0,
-                carried: Vec3::ZERO,
-                yaw: 0.0,
-            },
-            TICK_SECS,
-        )
-        .expect("floor-to-ramp portal crossing missing");
-    let exit_velocity = hop.horizontal_velocity + hop.knockback + Vec3::Y * hop.vertical_velocity;
-
-    assert!((exit_velocity - ramp_normal * 10.0).length() < 1e-4);
-    assert!(hop.knockback.length() < 1e-4);
-    assert!(hop.horizontal_velocity.z > 1.0);
-    assert!(hop.force_crouch, "an angled fling uses the shorter exit hull");
 }
 
 #[test]

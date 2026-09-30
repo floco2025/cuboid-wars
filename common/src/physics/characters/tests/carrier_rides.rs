@@ -2,7 +2,6 @@ use super::*;
 use crate::{
     constants::TICK_SECS,
     map::CarrierRun,
-    physics::HorizontalVelocity,
     protocol::{Carrier, CarrierId, CarrierMotion, SwitchId, SwitchState},
 };
 
@@ -292,12 +291,10 @@ fn walking_off_the_tile_keeps_its_velocity_at_different_tick_rates() {
             })
             .expect("player never left the moving tile");
         assert!((step.floor_velocity.x - 2.0).abs() < 1e-3);
-        let mut momentum = HorizontalVelocity::default();
-        momentum.finish_step(&step);
+        let momentum = carried_momentum(Vec3::ZERO, &step);
         assert!(
-            (momentum.0 - Vec3::new(2.0, 0.0, 0.0)).length() < 1e-3,
-            "momentum {}",
-            momentum.0
+            (momentum - Vec3::new(2.0, 0.0, 0.0)).length() < 1e-3,
+            "momentum {momentum}"
         );
     }
 }
@@ -477,9 +474,8 @@ fn jumping_rider_takes_the_tile_velocity() {
         step.position
     );
     assert!((step.floor_velocity.x - 2.0).abs() < 1e-3);
-    let mut momentum = HorizontalVelocity::default();
-    momentum.finish_step(&step);
-    assert!((momentum.0.x - 2.0).abs() < 1e-3, "momentum {}", momentum.0);
+    let momentum = carried_momentum(Vec3::ZERO, &step);
+    assert!((momentum.x - 2.0).abs() < 1e-3, "momentum {momentum}");
 }
 
 // The ride tolerance and the movement support probe cover
@@ -495,7 +491,7 @@ fn a_takeoff_takes_the_tile_velocity_at_most_once() {
     for takeoff_speed in [0.5, 1.0, 1.4, 1.8, 2.2, 2.6, 3.0, 6.0, 12.0] {
         let mut pos = Position::default();
         let mut vertical_velocity = takeoff_speed;
-        let mut momentum = HorizontalVelocity::default();
+        let mut momentum = Vec3::ZERO;
         let mut took_off = false;
         for tick in 1..=4 {
             let (world, carriers) = carried_world((carrier, floor), &[], &[], tick);
@@ -504,7 +500,7 @@ fn a_takeoff_takes_the_tile_velocity_at_most_once() {
                     start: pos,
                     vertical_velocity,
                     intent_velocity: Vec3::ZERO,
-                    velocity: momentum.0,
+                    velocity: momentum,
                     displacement: Vec3::ZERO,
                     delta: TICK_SECS,
                 },
@@ -512,18 +508,16 @@ fn a_takeoff_takes_the_tile_velocity_at_most_once() {
             );
             pos = step.position;
             vertical_velocity = step.vertical_velocity;
-            momentum.finish_step(&step);
+            momentum = carried_momentum(momentum, &step);
             took_off |= step.support == CharacterSupport::Airborne;
             assert!(
-                momentum.0.x >= -1e-3 && momentum.0.x <= 2.0 + 1e-3,
-                "takeoff {takeoff_speed}, tick {tick}: momentum {}, {step:?}",
-                momentum.0
+                momentum.x >= -1e-3 && momentum.x <= 2.0 + 1e-3,
+                "takeoff {takeoff_speed}, tick {tick}: momentum {momentum}, {step:?}"
             );
             if step.support == CharacterSupport::Airborne {
                 assert!(
-                    (momentum.0.x - 2.0).abs() < 1e-3,
-                    "takeoff {takeoff_speed}, tick {tick}: momentum {}",
-                    momentum.0
+                    (momentum.x - 2.0).abs() < 1e-3,
+                    "takeoff {takeoff_speed}, tick {tick}: momentum {momentum}"
                 );
             }
         }

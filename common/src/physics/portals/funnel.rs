@@ -85,7 +85,7 @@ fn braked_travel(speed: f32, brake: f32, time: f32, delta: f32) -> f32 {
 // The funnel's prediction for a body over a level plane, as a floor portal
 // centred on `plane_point` would be judged.
 #[must_use]
-pub fn floor_funnel_prediction(
+pub(crate) fn floor_funnel_prediction(
     plane_point: Vec3,
     origin: Vec3,
     physics: CharacterPhysicsConfig,
@@ -112,13 +112,13 @@ pub fn floor_funnel_prediction(
 // the margin for the time it still has to fly. Aiming errors grow with the
 // flight, so the catch is widest from far away and narrows to the mouth.
 #[must_use]
-pub fn funnel_captures(frame: &PortalFrame, config: PortalFunnelConfig, prediction: &FunnelPrediction) -> bool {
+fn funnel_captures(frame: &PortalFrame, config: PortalFunnelConfig, prediction: &FunnelPrediction) -> bool {
     let margin = config.margin_at(prediction.time);
     prediction.arrival.dot(frame.right).abs() <= frame.size.half_width() + margin
         && prediction.arrival.dot(frame.up).abs() <= frame.size.half_height() + margin
 }
 
-pub(crate) struct FunnelStep<'a> {
+pub struct FunnelStep<'a> {
     pub origin: Vec3,
     pub physics: CharacterPhysicsConfig,
     pub velocity: Vec3,
@@ -142,7 +142,7 @@ impl PortalSet {
     // the other end at that angle. Recompute from actual motion each tick; no
     // future physics ticks or per-player funnel state. Moving gates use their
     // current linear velocity.
-    pub(crate) fn funnel_correction(&self, step: FunnelStep<'_>) -> Option<Vec3> {
+    pub fn funnel_correction(&self, step: FunnelStep<'_>) -> Option<Vec3> {
         if self.is_empty() || !step.config.assists() || step.delta <= 0.0 {
             return None;
         }

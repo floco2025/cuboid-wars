@@ -1,9 +1,7 @@
-use bevy_math::Vec3;
-
-use super::{CharacterSupport, player_control::player_move_speed, support::position_has_floor_support};
-use crate::{
+use bevy::prelude::*;
+use common::{
     config::{CharacterPhysicsConfig, MapMovementConfig},
-    physics::CollisionWorld,
+    physics::{CharacterSupport, CollisionWorld, player_move_speed, position_has_floor_support},
     protocol::{FieldId, PlayerMoveIntent, Position},
 };
 
@@ -46,3 +44,7 @@ pub fn player_jump(
     }
     Some(PlayerJump::Rise(movement.player.jump_speed))
 }
+
+#[cfg(test)]
+#[path = "tests/jump.rs"]
+mod tests;

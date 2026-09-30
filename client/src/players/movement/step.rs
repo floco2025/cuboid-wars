@@ -1,17 +1,16 @@
-use super::{
-    movement::{CharacterStart, step_character_movement_from},
-    player_control::{PlayerWish, accelerate_player, player_wish_velocity},
-};
-use crate::{
+use bevy::prelude::*;
+use common::{
     config::GameplayConfig,
     map::Carriers,
     physics::{
-        CharacterEnvironment, CharacterMovementResult, CharacterStep, CollisionWorld, HorizontalVelocity, LadderMode,
-        PortalSet, passable_fields, portals::FunnelStep,
+        CharacterEnvironment, CharacterMovementResult, CharacterStart, CharacterStep, CollisionWorld, FunnelStep,
+        LadderMode, PlayerWish, PortalSet, accelerate_player, passable_fields, player_wish_velocity,
+        step_character_movement_from,
     },
     protocol::{FieldId, MapSettings, PlayerMoveIntent, PlayerStance, Position},
 };
-use bevy_math::Vec3;
+
+use super::HorizontalVelocity;
 
 #[derive(Clone, Copy)]
 pub struct PlayerMovementStep<'a> {
@@ -200,3 +199,7 @@ fn step_player(step: PlayerMovementStep<'_>, blocked: bool) -> PlayerStepResult 
         knockback_displacement: step.knockback_displacement,
     }
 }
+
+#[cfg(test)]
+#[path = "tests/step.rs"]
+mod tests;

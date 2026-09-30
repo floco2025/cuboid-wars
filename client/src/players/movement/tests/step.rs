@@ -1,64 +1,5 @@
-use super::fixtures::*;
-use crate::{
-    celestial::{CelestialMapSettings, LocalTime, Season},
-    config::gameplay::load_test_gameplay,
-    config::{KnockbackConfig, MapGeometryConfig, MapMovementConfig, PlayerMovementConfig},
-    physics::{
-        CharacterSupport, KnockbackVelocity, PlayerJump, PlayerMovementStep, PortalSet, player_jump,
-        step_player_movement,
-    },
-    protocol::{MapSettings, PlayerMoveIntent, PlayerStance, PortalMode},
-    test_geometry::LEVEL_HEIGHT,
-};
-use std::collections::HashMap;
-
-pub(super) fn map_settings() -> MapSettings {
-    MapSettings {
-        grounds: None,
-        celestial: CelestialMapSettings {
-            latitude_degrees: 40.0,
-            season: Season::Summer,
-            north_yaw_degrees: 0.0,
-            start_local_time: LocalTime::parse("09:00").expect("valid fixture time"),
-            start_moon_phase: 0.25,
-        },
-        textures: Default::default(),
-
-        geometry: MapGeometryConfig {
-            grid_cell_size: 2.0,
-            level_height: 2.0,
-            floor_thickness: 0.2,
-            wall_thickness: 0.2,
-        },
-        movement: MapMovementConfig {
-            player: PlayerMovementConfig {
-                move_speed: 4.375,
-                move_speed_power_up: 1.5,
-                move_speed_ladder: 0.6,
-                jump_speed: 5.809475,
-                ground_acceleration: 43.75,
-                ground_deceleration: 17.5,
-                ground_lateral_deceleration: 43.75,
-                air_acceleration: 21.875,
-                air_deceleration: 0.0,
-                air_lateral_deceleration: 0.0,
-            },
-            actors: HashMap::new(),
-            missile_speed: 20.0,
-            projectile_speed: 30.0,
-            gravity: 15.0,
-            low_gravity: 5.0,
-            knockback: KnockbackConfig {
-                max_speed: 10.0,
-                up_speed: 4.0,
-                deceleration: 12.0,
-            },
-        },
-        portals: PortalMode::Both,
-        switches: Vec::new(),
-        fields: Vec::new(),
-    }
-}
+use super::super::fixtures::*;
+use common::protocol::Wall;
 
 fn simulate(
     layout: MapLayout,
@@ -69,7 +10,7 @@ fn simulate(
     ticks: usize,
 ) -> (Position, Vec3, PlayerStance) {
     let world = CollisionWorld::from_map_layout(&layout);
-    let gameplay = load_test_gameplay().expect("gameplay");
+    let gameplay = gameplay_config();
     let settings = map_settings();
     let carriers = Carriers::default();
     let portals = PortalSet::default();
@@ -153,7 +94,7 @@ fn a_stationary_jump_can_accelerate_to_movement_speed_and_coast_after_release() 
         floors: vec![lower_floor()],
         ..Default::default()
     });
-    let gameplay = load_test_gameplay().expect("gameplay");
+    let gameplay = gameplay_config();
     let carriers = Carriers::default();
     let portals = PortalSet::default();
     let mut settings = map_settings();
@@ -393,7 +334,7 @@ fn player_steps_over_a_low_stair_without_jumping() {
 #[test]
 fn equipment_changes_affect_acceleration_and_gravity_without_erasing_air_velocity() {
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
-    let gameplay = load_test_gameplay().expect("gameplay");
+    let gameplay = gameplay_config();
     let settings = map_settings();
     let carriers = Carriers::default();
     let portals = PortalSet::default();
@@ -438,7 +379,7 @@ fn passive_ground_and_air_braking_do_not_leave_reverse_velocity_after_a_blast() 
         floors: vec![lower_floor()],
         ..Default::default()
     });
-    let gameplay = load_test_gameplay().expect("gameplay");
+    let gameplay = gameplay_config();
     let mut settings = map_settings();
     settings.movement.player.air_deceleration = 30.0;
     settings.movement.player.air_lateral_deceleration = 40.0;
@@ -484,7 +425,7 @@ fn passive_ground_and_air_braking_do_not_leave_reverse_velocity_after_a_blast() 
 #[test]
 fn air_rates_are_independent_of_speed_pickups_and_leave_vertical_gravity_unchanged() {
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
-    let gameplay = load_test_gameplay().expect("gameplay");
+    let gameplay = gameplay_config();
     let mut settings = map_settings();
     settings.movement.player.air_acceleration = 20.0;
     settings.movement.player.air_deceleration = 30.0;
@@ -543,7 +484,7 @@ fn a_rising_carrier_uses_ground_acceleration_and_inherits_velocity_once_on_jump(
         ..Default::default()
     };
     let (world, carriers) = world_at(&layout, 10);
-    let gameplay = load_test_gameplay().expect("gameplay");
+    let gameplay = gameplay_config();
     let settings = map_settings();
     let portals = PortalSet::default();
     let request = PlayerMovementStep {
@@ -639,7 +580,7 @@ fn trace(
     start: Position,
     phases: &[Phase],
 ) -> Vec<(Position, CharacterSupport)> {
-    let gameplay = load_test_gameplay().expect("gameplay");
+    let gameplay = gameplay_config();
     let carriers = Carriers::default();
     let portals = PortalSet::default();
     let mut pos = start;
@@ -839,17 +780,15 @@ fn a_jump_while_descending_still_lets_go() {
 // entry, not to the static exit.
 #[test]
 fn a_walk_into_a_sliding_tiles_portal_sinks_with_the_tile_and_leaves_its_speed_behind() {
-    use crate::{
-        physics::PlayerHopBody,
-        protocol::{CarrierId, Portal, PortalEnd, PortalPairId},
-    };
+    use crate::portals::{PlayerHopBody, player_hop};
+    use common::protocol::{Portal, PortalEnd, PortalPairId};
     let (carrier, floor) = slider();
     let layout = MapLayout {
         carriers: vec![carrier],
         floors: vec![floor],
         ..Default::default()
     };
-    let gameplay = load_test_gameplay().expect("gameplay");
+    let gameplay = gameplay_config();
     let settings = map_settings();
     let portal = |end, pos: Vec3, normal: Vec3, carrier| Portal {
         pair: PortalPairId(1),
@@ -910,7 +849,8 @@ fn a_walk_into_a_sliding_tiles_portal_sinks_with_the_tile_and_leaves_its_speed_b
             sinking.push(pos.x - carriers.pose(TILE).translation.x);
             assert!((horizontal.x - 2.0).abs() < 1e-3, "tick {tick}: {horizontal}");
         }
-        if let Some(hop) = set.player_hop(
+        if let Some(hop) = player_hop(
+            &set,
             step.start.into(),
             pos.into(),
             &gameplay,
@@ -931,7 +871,10 @@ fn a_walk_into_a_sliding_tiles_portal_sinks_with_the_tile_and_leaves_its_speed_b
                 .fold(0.0_f32, |worst, rel| worst.max((rel - sinking[0]).abs()));
             assert!(drift < 1e-3, "drifted across the aperture: {sinking:?}");
             let walk = settings.movement.player.move_speed;
-            assert!((hop.horizontal_velocity.length() - walk).abs() < 1e-3, "{hop:?}");
+            assert!(
+                (hop.crossing.horizontal_velocity.length() - walk).abs() < 1e-3,
+                "{hop:?}"
+            );
             return;
         }
     }
@@ -942,14 +885,14 @@ fn a_walk_into_a_sliding_tiles_portal_sinks_with_the_tile_and_leaves_its_speed_b
 // per tick, the position relative to the tile, horizontal velocity, and
 // vertical velocity after the step.
 fn slider_portal_flight(feet: Position, vertical: f32, horizontal: Vec3, ticks: u32) -> Vec<(Vec3, Vec3, f32)> {
-    use crate::protocol::{CarrierId, Portal, PortalEnd, PortalPairId};
+    use common::protocol::{Portal, PortalEnd, PortalPairId};
     let (carrier, floor) = slider();
     let layout = MapLayout {
         carriers: vec![carrier],
         floors: vec![floor],
         ..Default::default()
     };
-    let gameplay = load_test_gameplay().expect("gameplay");
+    let gameplay = gameplay_config();
     let settings = map_settings();
     let portal = |end, pos: Vec3, normal: Vec3, carrier| Portal {
         pair: PortalPairId(1),

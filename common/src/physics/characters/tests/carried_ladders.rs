@@ -14,7 +14,7 @@ struct Climber {
     physics: CharacterPhysicsConfig,
     position: Position,
     vertical_velocity: f32,
-    momentum: HorizontalVelocity,
+    momentum: Vec3,
     tick: u32,
 }
 
@@ -77,7 +77,7 @@ impl Climber {
             carriers,
             physics,
             vertical_velocity: 0.0,
-            momentum: HorizontalVelocity::default(),
+            momentum: Vec3::ZERO,
             tick: 0,
         }
     }
@@ -101,7 +101,7 @@ impl Climber {
                 start: self.position,
                 vertical_velocity: self.vertical_velocity,
                 intent_velocity: control_velocity,
-                velocity: control_velocity + self.momentum.0,
+                velocity: control_velocity + self.momentum,
                 displacement: Vec3::ZERO,
                 delta: TICK_SECS,
             },
@@ -109,7 +109,7 @@ impl Climber {
         );
         self.position = result.position;
         self.vertical_velocity = result.vertical_velocity;
-        self.momentum.finish_step(&result);
+        self.momentum = carried_momentum(self.momentum, &result);
         result
     }
 }
@@ -193,7 +193,7 @@ fn leaving_a_moving_ladder_keeps_its_velocity() {
     climber.position.x += 0.4;
     let result = climber.step(Vec3::X * 6.0);
     assert_eq!(result.support, CharacterSupport::Airborne);
-    assert!((climber.momentum.0.x - 4.5).abs() < 0.01);
+    assert!((climber.momentum.x - 4.5).abs() < 0.01);
     let local = climber.local_position();
     climber.step(Vec3::ZERO);
     assert!((climber.local_position().x - local.x).abs() < 0.01);

@@ -14,9 +14,7 @@ use bevy::{
 use common::{
     config::NetworkConfig,
     map::Carriers,
-    physics::{
-        CharacterSupport, CharacterVerticalVelocity, CollisionWorld, HorizontalVelocity, KnockbackVelocity, PortalSet,
-    },
+    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, PortalSet},
     protocol::{
         CarrierId, ClientMessage, FaceYaw, Floor, Ladder, MapLayout, PlayerId, PlayerMarker, PlayerMoveIntent,
         PortalAccess, PortalPairId, Position,
@@ -32,8 +30,8 @@ use crate::{
     map::LevelFocusEnabled,
     network::ClientToServerChannel,
     players::{
-        CrouchBlend, JumpRequested, LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap,
-        local_player_movement_system,
+        CrouchBlend, HorizontalVelocity, JumpRequest, LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker,
+        MyPlayerId, PlayerMap, local_player_movement_system,
     },
     schedule::{ClientSet, configure_client_sets},
     test_fixtures,
@@ -87,7 +85,7 @@ fn input_app() -> (App, Entity, Entity) {
             HorizontalVelocity::default(),
             KnockbackVelocity::default(),
             CharacterSupport::Ground,
-            JumpRequested::default(),
+            JumpRequest::default(),
             LocalMovementStep {
                 result: common::physics::CharacterMovementResult {
                     support: CharacterSupport::Ground,
@@ -125,9 +123,9 @@ fn fixed_input_app() -> (App, Entity, Entity) {
         // Stands in for the owner's tick: records and spends the jump request.
         .add_systems(
             FixedUpdate,
-            |mut players: Query<(&PlayerMoveIntent, &FaceYaw, &mut JumpRequested)>, mut inputs: ResMut<FixedInputs>| {
+            |mut players: Query<(&PlayerMoveIntent, &FaceYaw, &mut JumpRequest)>, mut inputs: ResMut<FixedInputs>| {
                 for (intent, facing, mut jump) in &mut players {
-                    inputs.0.push((*intent, facing.0, std::mem::take(&mut jump.0)));
+                    inputs.0.push((*intent, facing.0, std::mem::take(&mut jump.pressed)));
                 }
             },
         );
@@ -225,9 +223,9 @@ fn jump_survives_a_frame_without_steps_and_is_not_reapplied_during_catchup() {
     assert!(app.world().resource::<FixedInputs>().0.is_empty());
     assert!(
         app.world()
-            .get::<JumpRequested>(player)
+            .get::<JumpRequest>(player)
             .expect("jump request missing")
-            .0
+            .pressed
     );
 
     app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear();
@@ -751,7 +749,7 @@ fn playback_mouse_look_does_not_change_scripted_movement_facing_or_jump() {
         PlayerMoveIntent::moving(1.0)
     );
     assert_eq!(app.world().get::<FaceYaw>(player).expect("facing").0, 1.0);
-    assert!(!app.world().get::<JumpRequested>(player).expect("jump request").0);
+    assert!(!app.world().get::<JumpRequest>(player).expect("jump request").pressed);
 }
 
 #[test]

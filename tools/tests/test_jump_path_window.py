@@ -96,6 +96,14 @@ class JumpPathWindowTests(WindowTestCase):
         self.assertAlmostEqual(jump[0].path[0][0], edge - 2.25, places=3)
         overlay.margin.setValue(0.2)
         self.assertAlmostEqual(overlay.free[0].path[0][0], edge - 1.8, places=3)
+        # A late press, as late as the game allows, leaves past the edge and a little lower.
+        self.assertAlmostEqual(overlay.margin.minimum(), -overlay.settings.coyote_secs)
+        overlay.margin.setValue(-1.0)
+        self.assertAlmostEqual(overlay.margin.value(), -overlay.settings.coyote_secs)
+        late = overlay.free[0].path[0]
+        self.assertAlmostEqual(late[0], edge + 9 * overlay.settings.coyote_secs, places=3)
+        self.assertLess(late[1], jump[0].path[0][1])
+        overlay.margin.setValue(0.2)
         overlay.kind.setCurrentText("Step")
         self.assertFalse(overlay.margin.isEnabled())
         self.assertAlmostEqual(overlay.free[0].path[0][0], edge, places=3)

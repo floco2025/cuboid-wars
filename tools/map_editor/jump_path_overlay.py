@@ -42,7 +42,8 @@ LIMITS = (
     "Flights run the game's own movement, portal funnel, and portal crossing per server tick, in open space. "
     "The takeoff is the clicked point on a tile edge, heading straight out at full speed from where the body's "
     "support ends, a fifth of a metre past the edge: Step walks off there, Jump leaves the ground the margin "
-    "before it. A landing counts that close to a slab too. Input is released in the air. "
+    "before it, or after it for a negative margin, as late as the game still jumps off an edge. "
+    "A landing counts that close to a slab too. Input is released in the air. "
     "A path is thick down to the floor of the level in view and thin once it has fallen past it. "
     "Landings show where the flight comes down on every level: ● safe, △ damage, × fatal at full health; "
     "hollow where no floor is under it, faded where a floor above catches the flight first. "
@@ -151,7 +152,10 @@ class JumpPathOverlay:
         self.margin.setSuffix(" s")
         self.margin.setKeyboardTracking(False)
         self.margin.setAccessibleName("Jump Path takeoff margin")
-        self.margin.setToolTip("Takeoff margin: jump this much travel time before the edge. Jump only.")
+        self.margin.setToolTip(
+            "Takeoff margin: jump this much travel time before the edge, or after it when negative, "
+            "as far as the game still allows. Jump only."
+        )
         # The margin sits against Jump, which it belongs to.
         for widget, gap in ((self.kind, GROUP_GAP), (self.margin, 0), (self.air_control, GROUP_GAP)):
             widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
@@ -204,6 +208,7 @@ class JumpPathOverlay:
         except (OSError, ValueError) as exc:
             self.settings = None
             self.error = str(exc)
+        self.margin.setMinimum(-self.settings.coyote_secs if self.settings else 0)
         self._replies = {}
         self.rebuild()
 

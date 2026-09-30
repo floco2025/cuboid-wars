@@ -74,6 +74,7 @@ class CoreParityTests(unittest.TestCase):
             "body": {"diameter": 0.6, "height": 1.8},
             "portal_size": {"width": 1.4, "height": 2.6},
             "funnel": {"capture_margin": 0.6, "capture_growth": 1.0},
+            "coyote_secs": 0.1,
         }
         settings = JumpSettings(3.4, 4.4, 0.3, physics)
         shooter = (5.2, 5.7)

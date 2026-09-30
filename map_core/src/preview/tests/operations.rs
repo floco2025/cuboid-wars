@@ -34,6 +34,7 @@ fn preview_physics_extracts_and_validates_the_settings_it_needs() {
     assert_eq!(physics["portal_size"]["height"], 2.6);
     assert_eq!(physics["funnel"]["capture_margin"], 0.6);
     assert_eq!(physics["funnel"]["capture_growth"], 1.0);
+    assert_eq!(physics["coyote_secs"], PLAYER_COYOTE_SECS);
 
     let mut broken = settings();
     broken["movement"]["player"]["move_speed"] = json!(-1.0);

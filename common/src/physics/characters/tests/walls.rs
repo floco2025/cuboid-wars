@@ -316,21 +316,9 @@ fn jumping_while_pushing_into_a_wall_still_rises() {
     );
     assert!(pressed.blocked, "the run-up never reached the wall");
 
-    let launch = player_jump(
-        CharacterSupport::Ground,
-        PlayerMoveIntent::NONE,
-        0.0,
-        &collision_world,
-        player_physics(),
-        &test_movement(),
-        false,
-        &pos,
-        &[],
-    );
-    assert_eq!(
-        launch,
-        Some(PlayerJump::Rise(12.0)),
-        "the jump was refused while pressed into the wall at {pos:?}"
+    assert!(
+        position_has_floor_support(&collision_world, &pos, player_physics(), &[]),
+        "support was lost while pressed into the wall at {pos:?}"
     );
 
     let mut vertical_velocity = 12.0;
@@ -382,20 +370,13 @@ fn jumping_while_sliding_diagonally_along_a_wall_keeps_rising() {
         pos = result.position;
         vertical_velocity = result.vertical_velocity;
     }
-    assert_eq!(
-        player_jump(
-            CharacterSupport::Ground,
-            PlayerMoveIntent::NONE,
-            vertical_velocity,
-            &collision_world,
-            player_physics(),
-            &test_movement(),
-            false,
-            &pos,
-            &[]
-        ),
-        Some(PlayerJump::Rise(12.0))
-    );
+    assert_eq!(vertical_velocity, 0.0);
+    assert!(position_has_floor_support(
+        &collision_world,
+        &pos,
+        player_physics(),
+        &[]
+    ));
 
     vertical_velocity = 12.0;
     let mut heights = Vec::new();

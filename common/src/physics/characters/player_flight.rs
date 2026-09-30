@@ -5,8 +5,8 @@ use crate::{
     config::{CharacterPhysicsConfig, PlayerMovementConfig, PortalFunnelConfig},
     constants::CHARACTER_TERMINAL_VELOCITY,
     physics::{
-        CharacterHopBody, CharacterPortalHop, CollisionWorld, FunnelPrediction, PortalSet, floor_funnel_prediction,
-        portals::FunnelStep,
+        CharacterHopBody, CharacterPortalHop, CollisionWorld, FunnelPrediction, PortalSet,
+        portals::{FunnelStep, floor_funnel_prediction},
     },
 };
 

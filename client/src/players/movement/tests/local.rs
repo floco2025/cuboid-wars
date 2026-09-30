@@ -54,7 +54,7 @@ fn app() -> (App, Entity, Receiver<ClientMessage>) {
             KnockbackVelocity::default(),
             PlayerStance::default(),
             CharacterSupport::Airborne,
-            JumpRequested::default(),
+            JumpRequest::default(),
             LocalMovementStep::default(),
             CrouchBlend::default(),
         ))

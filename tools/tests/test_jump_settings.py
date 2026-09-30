@@ -22,6 +22,7 @@ class JumpSettingsTests(ConfigTestCase):
         self.assertEqual((settings.cell_size, settings.level_height, settings.wall_thickness), (3.4, 4.4, 0.3))
         self.assertEqual(settings.physics["player"]["move_speed"], 9)
         self.assertEqual(settings.physics["funnel"], {"capture_margin": 0.6, "capture_growth": 1.0})
+        self.assertAlmostEqual(settings.coyote_secs, 0.1)
         self.assertEqual((settings.portal_half_width, settings.portal_half_height), (0.7, 1.3))
         self.assertAlmostEqual(settings.tick, 1 / 30)
         self.assertAlmostEqual(settings.floor_height(2), 8.8)

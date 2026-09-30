@@ -140,6 +140,12 @@ pub const PLAYER_AIR_STEER_PITCH: f32 = FRAC_PI_6;
 pub const PLAYER_AIR_APEX_ACCELERATION_FACTOR: f32 = 0.25;
 pub const PLAYER_AIR_APEX_RISE_SPEED: f32 = 3.5;
 
+// Jump timing forgiveness. A press up to this long before a landing still
+// jumps on landing, and a press up to this long after walking off an edge
+// still jumps, as if from it; the editor preview flies the late jump too.
+pub const PLAYER_JUMP_BUFFER_SECS: f32 = 0.1;
+pub const PLAYER_COYOTE_SECS: f32 = 0.1;
+
 // ============================================================================
 // Explosions
 // ============================================================================

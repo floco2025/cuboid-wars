@@ -147,6 +147,12 @@ fn review_window_and_view_options_parse_without_changing_saved_settings() {
         })
     );
     assert!(!options.logging);
+    // A display left of or above the main one has negative coordinates.
+    let placed = parse(&["--window-x", "-312", "--window-y", "-40"]).expect("negative window position rejected");
+    assert_eq!(
+        (placed.window.window_x, placed.window.window_y),
+        (Some(-312), Some(-40))
+    );
 
     for invalid in ["1280", "0x720", "1280x0", "wide"] {
         assert!(parse(&["--resolution", invalid]).is_err(), "accepted {invalid:?}");

@@ -7,15 +7,11 @@ use rapier3d::{
 
 use super::PortalFrame;
 use crate::{
-    config::{CharacterPhysicsConfig, GameplayConfig, MapMovementConfig, PortalSize},
-    constants::{PLAYER_CROUCH_PORTAL_TILT, PORTAL_KNOCKBACK_CARRY_FACTOR},
+    config::{CharacterPhysicsConfig, PortalSize},
     map::Carriers,
     math::{direction_from_yaw_pitch, to_rapier},
-    physics::{
-        CharacterVerticalVelocity, CollisionWorld, HorizontalVelocity, KnockbackVelocity, character_movement_center,
-        character_movement_shape,
-    },
-    protocol::{CarrierId, FaceYaw, PlayerMoveIntent, PlayerStance, Portal, PortalEnd, PortalPairId, Position},
+    physics::{CollisionWorld, character_movement_center, character_movement_shape},
+    protocol::{CarrierId, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
 };
 
 pub(super) const PORTAL_PROJECTILE_EXIT_STANDOFF: f32 = 0.02;
@@ -112,16 +108,6 @@ pub(crate) struct Transit {
     pub feet_distance: f32,
 }
 
-pub struct PlayerHopBody<'a> {
-    pub stance: PlayerStance,
-    pub knockback: &'a KnockbackVelocity,
-    pub horizontal_velocity: &'a HorizontalVelocity,
-    pub vertical_velocity: f32,
-    // The velocity the ride gives a grounded body on top of its own.
-    pub carried: Vec3,
-    pub yaw: f32,
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterHopBody {
     pub knockback: Vec3,
@@ -134,7 +120,6 @@ pub struct CharacterHopBody {
 
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterPortalHop {
-    pub force_crouch: bool,
     // New entity origin (feet): the entry pose mapped continuously through
     // the pair — aperture offset carried (clamped to keep the body inside
     // the exit aperture) and the crossing penetration carried, so
@@ -150,34 +135,6 @@ pub struct CharacterPortalHop {
     // The gate that was crossed, for camera view mapping.
     pub entry: PortalFrame,
     pub exit: PortalFrame,
-}
-
-impl CharacterPortalHop {
-    pub fn apply_player_state(
-        &self,
-        position: &mut Position,
-        face_yaw: &mut FaceYaw,
-        vertical_velocity: &mut CharacterVerticalVelocity,
-        move_intent: &mut PlayerMoveIntent,
-        stance: &mut PlayerStance,
-    ) {
-        if self.force_crouch {
-            stance.crouched = true;
-        }
-        *position = self.origin.into();
-        face_yaw.0 = self.yaw;
-        vertical_velocity.0 = self.vertical_velocity;
-        *move_intent = traverse_move_intent(&self.entry, &self.exit, *move_intent);
-    }
-
-    pub fn apply_motion_components(
-        &self,
-        knockback: &mut KnockbackVelocity,
-        horizontal_velocity: &mut HorizontalVelocity,
-    ) {
-        knockback.0 = self.knockback;
-        horizontal_velocity.0 = self.horizontal_velocity;
-    }
 }
 
 // Fraction `t` of the remaining projectile travel at which the swept ball touches an entry
@@ -310,43 +267,6 @@ impl PortalSet {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.pairs.is_empty()
-    }
-
-    #[must_use]
-    pub fn player_hop(
-        &self,
-        from: Vec3,
-        to: Vec3,
-        gameplay_config: &GameplayConfig,
-        movement: &MapMovementConfig,
-        body: PlayerHopBody<'_>,
-        delta: f32,
-    ) -> Option<CharacterPortalHop> {
-        let mut hop = self.character_hop(
-            from,
-            to,
-            body.stance.physics(&gameplay_config.player),
-            CharacterHopBody {
-                knockback: body.knockback.0,
-                horizontal_velocity: body.horizontal_velocity.0,
-                vertical_velocity: body.vertical_velocity,
-                carried: body.carried,
-                yaw: body.yaw,
-            },
-            PORTAL_KNOCKBACK_CARRY_FACTOR * movement.knockback.max_speed,
-            delta,
-        )?;
-        // Rotating an upright body more than 30 degrees needs the shorter hull
-        // at the exit. Preserve its centre, as with an airborne manual duck.
-        if !body.stance.crouched
-            && traverse_vector(&hop.entry, &hop.exit, Vec3::Y).y.abs() < PLAYER_CROUCH_PORTAL_TILT.cos()
-        {
-            let old = body.stance.physics(&gameplay_config.player);
-            let crouched = PlayerStance { crouched: true }.physics(&gameplay_config.player);
-            hop.origin.y += (old.movement_collider.height - crouched.movement_collider.height) * 0.5;
-            hop.force_crouch = true;
-        }
-        Some(hop)
     }
 
     pub(super) fn gates(&self) -> impl Iterator<Item = (&PortalGate, &PortalGate)> {
@@ -539,7 +459,6 @@ impl PortalSet {
             let mapped_knockback = traverse_vector(entry, exit, knockback);
             let mapped_velocity = mapped_portal_velocity + mapped_knockback;
             return Some(CharacterPortalHop {
-                force_crouch: false,
                 origin: exit_center - center_offset,
                 yaw: traverse_yaw(entry, exit, yaw),
                 vertical_velocity: mapped_velocity.y,

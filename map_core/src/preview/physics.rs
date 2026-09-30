@@ -24,6 +24,8 @@ pub struct PreviewPhysics {
     pub body: MovementColliderConfig,
     pub portal_size: PortalSize,
     pub funnel: PortalFunnelConfig,
+    // How long after walking off an edge the game still jumps as if from it.
+    pub coyote_secs: f32,
 }
 
 // A pickup combination a preview is flown with.
@@ -65,7 +67,8 @@ impl PreviewPhysics {
         validate_positive_finite(self.portal_size.width, "weapons.portals.size.width")?;
         validate_positive_finite(self.portal_size.height, "weapons.portals.size.height")?;
         validate_non_negative_finite(self.funnel.capture_margin, "weapons.portals.funnel.capture_margin")?;
-        validate_non_negative_finite(self.funnel.capture_growth, "weapons.portals.funnel.capture_growth")
+        validate_non_negative_finite(self.funnel.capture_growth, "weapons.portals.funnel.capture_growth")?;
+        validate_non_negative_finite(self.coyote_secs, "coyote_secs")
     }
 
     pub(super) fn tick(&self) -> f32 {

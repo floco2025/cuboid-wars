@@ -1,4 +1,5 @@
 mod clipping;
+mod hop;
 mod projection;
 mod refresh;
 mod render;
@@ -9,6 +10,7 @@ mod view;
 
 pub(crate) use clipping::portal_body_clipping_system;
 pub use clipping::{PortalBody, PortalTwinMarker};
+pub use hop::{PlayerHop, PlayerHopBody, player_hop};
 pub(crate) use refresh::carried_portals_refresh_system;
 pub use render::portal_render_plugin;
 pub use resources::{PortalInfo, PortalMap};

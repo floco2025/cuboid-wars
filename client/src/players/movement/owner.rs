@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use common::{
     config::{GameplayConfig, NetworkConfig},
+    constants::{PLAYER_COYOTE_SECS, PLAYER_JUMP_BUFFER_SECS},
     map::Carriers,
     physics::{
         CharacterMovePlan, CharacterPortalHop, CharacterSupport, CharacterVerticalVelocity, CollisionWorld,
-        HorizontalVelocity, KnockbackVelocity, PlayerHopBody, PlayerJump, PlayerMovementStep, PortalSet,
-        passable_fields, player_jump,
+        KnockbackVelocity, PortalSet, passable_fields,
     },
     protocol::{
         CMove, CarrierId, FaceYaw, FieldId, MapSettings, MoveOutcome, PlayerMoveIntent, PlayerMovementState,
@@ -13,12 +13,65 @@ use common::{
     },
 };
 
-use super::{LocalMovementReports, LocalMovementStep, collect_move_outcomes, plan_player_move};
+use super::{
+    HorizontalVelocity, LocalMovementReports, LocalMovementStep, PlayerJump, PlayerMovementStep, collect_move_outcomes,
+    plan_player_move, player_jump,
+};
+use crate::portals::{PlayerHopBody, player_hop};
 
-// A jump the input asked for that no tick has consumed yet: it survives a
-// frame without fixed steps and fires in exactly one.
-#[derive(Component, Debug, Default, Clone, Copy)]
-pub struct JumpRequested(pub bool);
+// The jump the input asked for and what the tick makes of it. A press
+// survives frames without fixed steps and is kept for
+// `PLAYER_JUMP_BUFFER_SECS`, so one just before a landing fires on the
+// landing tick; a body that stood within `PLAYER_COYOTE_SECS` still jumps
+// as if it did. Either way one press is at most one jump.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct JumpRequest {
+    pub pressed: bool,
+    // Seconds the pending press has left before it lapses.
+    buffered_secs: Option<f32>,
+    // Seconds since the last step ended standing.
+    since_ground_secs: f32,
+}
+
+impl Default for JumpRequest {
+    fn default() -> Self {
+        Self {
+            pressed: false,
+            buffered_secs: None,
+            since_ground_secs: f32::INFINITY,
+        }
+    }
+}
+
+impl JumpRequest {
+    #[must_use]
+    pub fn pending(&self) -> bool {
+        self.pressed || self.buffered_secs.is_some()
+    }
+
+    fn take_press(&mut self) -> bool {
+        if std::mem::take(&mut self.pressed) {
+            self.buffered_secs = Some(PLAYER_JUMP_BUFFER_SECS);
+        }
+        self.buffered_secs.is_some()
+    }
+
+    // Spends the press, or lets it age; the buffer lapses before the next tick.
+    fn settle(&mut self, spent: bool, delta: f32) {
+        self.buffered_secs = match self.buffered_secs {
+            Some(left) if !spent && left > delta => Some(left - delta),
+            _ => None,
+        };
+    }
+
+    fn stood(&mut self, support: CharacterSupport, delta: f32) {
+        self.since_ground_secs = if support == CharacterSupport::Ground {
+            0.0
+        } else {
+            self.since_ground_secs + delta
+        };
+    }
+}
 
 // The local body as the owner's tick reads and writes it. The rendered
 // client builds the view from the body's components, the headless
@@ -33,7 +86,7 @@ pub struct OwnerBody<'a> {
     pub knockback: &'a mut KnockbackVelocity,
     pub stance: &'a mut PlayerStance,
     pub support: &'a mut CharacterSupport,
-    pub jump_requested: &'a mut bool,
+    pub jump: &'a mut JumpRequest,
     pub step: &'a mut LocalMovementStep,
     pub reports: &'a mut LocalMovementReports,
 }
@@ -103,10 +156,21 @@ pub fn owner_tick(
     let gameplay = world.gameplay_config;
     let settings = world.map_settings;
     let passable = passable_fields(world.held_keys, world.open_fields);
-    let jump = (std::mem::take(body.jump_requested) && !body.stance.crouched && !world.stunned)
+    let last = body.step.result.support;
+    // A body just off an edge jumps as if it were still on it.
+    let coyote = last == CharacterSupport::Airborne
+        && body.jump.since_ground_secs <= PLAYER_COYOTE_SECS
+        && body.vertical_velocity.0 <= 0.0;
+    // A crouched or stunned body drops the press; an airborne one keeps it
+    // for the landing.
+    let refused = body.stance.crouched || world.stunned;
+    let jump = (body.jump.take_press() && !refused)
         .then(|| {
+            if coyote {
+                return Some(PlayerJump::Rise(settings.movement.player.jump_speed));
+            }
             player_jump(
-                body.step.result.support,
+                last,
                 *body.intent,
                 body.vertical_velocity.0,
                 world.collision_world,
@@ -118,6 +182,7 @@ pub fn owner_tick(
             )
         })
         .flatten();
+    body.jump.settle(jump.is_some() || refused, world.delta);
     match jump {
         Some(PlayerJump::Rise(velocity)) => body.vertical_velocity.0 = velocity,
         Some(PlayerJump::Release(shove)) => body.knockback.0 += shove,
@@ -157,6 +222,7 @@ pub fn owner_tick(
     body.horizontal_velocity.0 = step.horizontal_velocity;
     *body.stance = step.stance;
     *body.support = result.support;
+    body.jump.stood(result.support, world.delta);
     *body.step = LocalMovementStep {
         start: step.start,
         result,
@@ -166,7 +232,8 @@ pub fn owner_tick(
         hits_character: planned.hits_character,
     };
 
-    let hop = world.portal_set.player_hop(
+    let hop = player_hop(
+        world.portal_set,
         Vec3::from(step.start),
         Vec3::from(*body.position),
         gameplay,
@@ -183,18 +250,21 @@ pub fn owner_tick(
     );
     if let Some(hop) = &hop {
         let entrance = *body.position;
-        hop.apply_player_state(
+        hop.apply(
             body.position,
             body.face_yaw,
             body.vertical_velocity,
             body.intent,
             body.stance,
+            body.knockback,
+            body.horizontal_velocity,
         );
-        hop.apply_motion_components(body.knockback, body.horizontal_velocity);
         // Render interpolation anchors at the exit: the transit is a cut
         // there, not a smear between the portals.
         *body.previous_position = *body.position;
         body.reports.begin_crossing(entrance);
+        // A press meant for the entrance side is not carried through.
+        body.jump.settle(true, 0.0);
     }
 
     let outcomes = collect_move_outcomes(
@@ -213,7 +283,7 @@ pub fn owner_tick(
         .decay(world.delta, settings.movement.knockback.deceleration);
     OwnerTickOutcome {
         jump,
-        hop,
+        hop: hop.map(|hop| hop.crossing),
         outcomes,
         report,
     }
