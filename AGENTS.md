@@ -10,7 +10,7 @@ Read [TODO.md](TODO.md) at the start of a task and keep it updated when discussi
 
 ## Project structure
 
-Rust workspace. The root package builds the one `cuboid-wars` executable: `src/main.rs` parses the CLI and picks the mode from one optional flag (`--host`, `--join`, `--serve`, each with an optional address; `--experiment FILE` runs a headless encounter script; `--play-experiment FILE` steps through it graphically; none is single-player). `src/experiment/` is the headless runner; `EXPERIMENTS.md` covers scripts.
+Rust workspace. The root package builds the one `cuboid-wars` executable: `src/main.rs` parses the CLI and picks the mode from one optional flag (`--host`, `--join`, `--serve`, each with an optional address; `--experiment FILE` runs a headless encounter script; `--play-experiment FILE` steps through it graphically; none is single-player). `src/experiment/` is the headless runner; `tools/map_author/README.md` covers scripts.
 
 Entries below give a module's role and point at the comment that owns each non-obvious rule. Mechanisms, numbers, and step-by-step behaviour live in the code; read the module before changing it.
 
@@ -130,7 +130,7 @@ The map's `quests` load into the immutable `QuestCatalog`; `QuestBoard` is sessi
 
 The client's fixed step is the owner's simulation, not a prediction: nothing corrects it, a dead local body stops stepping, and only a new body generation moves it. The owner reports its full state at `update_hz` in the frame of the carrier it rode and its outcomes as `CMoveOutcome` events; the server keeps the newest report whole, resolves it against the carrier pose, and relays it. Server player entities carry only position, facing, and health. Every server placement goes through `place_player_body`, and `PlayerMap` remembers retired generations so late snapshots and cues cannot revive them.
 
-Players have persistent horizontal velocity and view-relative input at one speed; portal exits use the same air rules as any flight. `accelerate_player` owns independent ground/air acceleration and braking. `PlayerStance` is the hull alone and rides reports; `CrouchBlend` is each client's own eye and pose blend. A move another body rejects keeps the velocity along that body and loses the velocity into it, like a wall contact.
+Players have persistent horizontal velocity and view-relative input at one speed; portal exits use the same air rules as any flight. `accelerate_player` owns independent ground/air acceleration and braking. The model follows Valve's [Source SDK movement](https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp), profiled from the Portal 2 community's [strafe prediction](https://github.com/p2sr/SourceAutoRecord/blob/master/src/Features/Tas/TasTools/StrafeTool.cpp) at 0.025 m per Source unit, with ground and air rates separated and its own speed limits; the SDK is not a specification of it. `PlayerStance` is the hull alone and rides reports; `CrouchBlend` is each client's own eye and pose blend. A move another body rejects keeps the velocity along that body and loses the velocity into it, like a wall contact.
 
 Observers play remote bodies through the shared `SampleBuffer`, `interpolation.buffer_intervals` behind the newest sample; riders report carrier-local positions. Clients treat interpolated bodies as stationary obstacles. Characters are not Rapier colliders: movement and projectile scans iterate the small character lists with swept capsule tests (the comment at `character_paths_intersect` explains the query). Registering characters in the broad phase was weighed and rejected at these counts, as were Parry contact queries while every shape is an upright capsule. Fall damage converts landing speed to an equivalent normal-gravity drop (`landing_damage`), which the editor preview shares.
 
@@ -243,6 +243,7 @@ Model tests load shipped GLBs through `client/src/tests/assets.rs` (`test_assets
 ## Documentation
 
 - `README.md` is for players: what the game is, how to run it, controls. No rules, config paths, editor workflows, or a line per feature; it is not a changelog.
+- `PLAN.md` is the high-level game plan, for the human and the AI alike: the goal, priorities, what is fun, how we work, design principles, and the roadmap, in plain language. Read it before map or gameplay design work. No mechanics, tool reference, or follow-up lists.
 - `AGENTS.md` is loaded every session, so it holds only what the code cannot supply: settled decisions and rejected alternatives, invariants spanning crates, conventions, workflows, the config semantics a map author sees, and where things live. Mechanisms, numbers, and step-by-step behaviour belong in code comments. Write at the depth of the sibling entries.
 
 ## Commits & pull requests

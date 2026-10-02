@@ -26,7 +26,7 @@ cargo run --release -- --experiment config/server/maps/<map>/experiment.json | p
 1. Register the map in `config/server/gameplay.json::maps` and write its `settings.json` (copy `portal_primer`'s: 2 m cells, 2.2 m levels, a `solid` and a `portal` texture alias). The tools never write either file.
 2. Write `build.py` (below), run `build`, read the summary it prints.
 3. `describe` for the plan of each level; `surface`, `jump`, `fling`, and `ranges` for the physics of each gap and portal pair. Place landings where a flight comes down, not where it looks right.
-4. Write `experiment.json` beside the layout (format in `EXPERIMENTS.md`), run it, read `proof`. Every `aim`, `check`, and `spawn` is in world metres; `describe` and `where` give them.
+4. Write `experiment.json` beside the layout (format under Proving a route), run it, read `proof`. Every `aim`, `check`, and `spawn` is in world metres; `describe` and `where` give them.
 5. Iterate until the route passes, then pin it in `src/experiment/tests/` like `primer.rs`, on `scenario`, which pins the movement rates the course was proved against: the completion run and the failures the course is built on (a missing portal, a skipped pickup, a plate not pressed). A route the runner cannot finish because the player died ends the run at the next `aim`; truncate the script to see the report up to there.
 6. `python3 tools/editor.py <map>` opens the result; Check Map must be clean.
 
@@ -73,4 +73,40 @@ The plan draws one character per cell with the walls between them; the legend is
 
 `jump` and `fling` print, per pickup scenario, where the flight crosses each floor height, in cells and world metres, with the fall damage and whether a floor is there; the first floor is the landing. With `--air-control` they add how far holding a direction carries on each level. `fling --into` runs into the entry wall from the takeoff cell instead of jumping off an edge.
 
-`proof` prints one line per action with its result and the events that matter (crossings, landings, checkpoints, pickups, erasure, deaths, portal results), the body's end position as world metres and a cell, and a footer with the checks passed. A passing script shows a route exists; it does not show that the route is necessary or readable, which `EXPERIMENTS.md` covers.
+`proof` prints one line per action with its result and the events that matter (crossings, landings, checkpoints, pickups, erasure, deaths, portal results), the body's end position as world metres and a cell, and a footer with the checks passed. A passing script shows a route exists; it does not show that the route is necessary or readable, which the design principles in `PLAN.md` cover.
+
+## Proving a route
+
+```sh
+cargo run --release -- --map <map>                                                    # play it
+cargo run --release -- --experiment config/server/maps/<map>/experiment.json         # headless, report on stdout
+cargo run --release -- --play-experiment config/server/maps/<map>/experiment.json    # step through it
+cargo test --release -p cuboid-wars                                                   # route and runner tests
+```
+
+A map's `experiment.json` sits beside its `layout.json` and `settings.json`; its README holds the walkthrough. Headless mode needs no window, listener, or registry entry; invalid scripts are process errors, failed checks are report entries.
+
+Playback starts paused: Space plays or pauses, Enter runs one action, R restarts, Esc opens the menu. The view is the one a player would have: level along the direction of travel, starting on the script's first move, and on the target from an `aim` until the next move. Mouse look, zoom, and V inspect a paused scene; the next control or tick eases the view back. Continuous playback holds briefly after an `aim` and a `portal` so the view arrives and the result shows. Pausing and holding stop the owner and the server alike, so waiting adds no ticks. Playback re-executes the script; it is not a recording, and randomness is unseeded.
+
+### Script
+
+`gameplay`, `settings`, and `layout` are paths relative to the script; `spawn` is the initial feet position and may be airborne. Equipment, health, checkpoints, and respawn policy come from the map files.
+
+| Action | Behavior |
+| --- | --- |
+| `move`, `direction: [x, z]`, `ticks: N` | Hold a direction for N ticks; magnitude is ignored, `[0, 0]` holds nothing. Optional `crouch: true`; `jump: true` attempts one jump on the first tick. |
+| `advance`, `ticks: N` | N ticks with no movement input. |
+| `aim`, `target: [x, y, z]` | Aim from the eye at a world point, no time passes. |
+| `portal`, `end: "a"` or `"b"` | A portal shot with the current aim under the normal placement rules. |
+| `check`, `min`, `max` | The living player's feet lie inside inclusive world bounds, grounded unless `grounded: false`. |
+| `inspect` | Record state, no time passes. |
+| `reset` | Recreate server and owner at the scripted spawn; aim returns to +Z. |
+| `fire` | One ordinary projectile with the current aim. |
+
+A direction starts in world space, resolves against the aim into forward and sideways input, and turns with the player through portals. Input is released at the end of a `move`; a second `move` can steer in midair where the map allows. Jumps use the game's support checks, so a jump requested in flight makes no double jump. Death interrupts a `move`; `advance` waits out the respawn. A fired shot, blocked muzzle, submitted portal, or fizzle consumes one tick; rejected preconditions, invalid placement, and overlap consume none.
+
+### Report and scope
+
+The report holds the `initial` state and a `steps` array: each action, its result, its events, and the resulting state, including the owner's position and the last one the server adopted, velocities, stance, support, health, equipment, checkpoint, switches, and open fields. Per-tick `player_step` records, portal crossings, landings, fall damage, checkpoints, and deaths explain an outcome; failed checks report `outside_region`, `not_grounded`, or `player_dead`.
+
+The runner owns its player like the rendered client, through the same owner tick, planner, portal traversal, and outcome reports, and sends ordinary `CMove`/`CMoveOutcome` messages to a real server schedule. Observations come from each completed tick without interpolation. Carrier maps are rejected; missiles, route search, and measures of fun are not implemented.
