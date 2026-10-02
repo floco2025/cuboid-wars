@@ -6,62 +6,69 @@ use std::{
 use bevy::math::Vec2;
 use common::{math::angle_delta_radians, physics::CharacterSupport};
 use serde_json::json;
+use tempfile::TempDir;
 
 use super::{
-    fixtures::scenario,
+    fixtures::{scenario, turret_room},
     playback::{Controls, Playback},
-    script::Action,
+    script::{Action, Script},
 };
+
+// The Primer's first chamber: two portal shots, a run off the lobby, and the
+// fling to checkpoint 1.
+fn fling() -> (TempDir, Script) {
+    let (folder, mut script) = scenario("portal_primer");
+    script.actions.truncate(8);
+    (folder, script)
+}
 
 #[test]
 fn graphical_pacing_and_observation_preserve_the_headless_trace() {
-    for map in ["portal_movement"] {
-        let (_folder, script) = scenario(map);
-        let expected = script.run().expect("headless route");
-        for render_delta in [
-            Duration::from_millis(7),
-            Duration::from_millis(43),
-            Duration::from_millis(250),
-        ] {
-            let mut playback = Playback::new(script.clone()).expect("viewer route");
-            while !playback.executor.finished() {
-                let state = playback.executor.session.state();
-                assert_eq!(
-                    playback
-                        .update(Controls::default(), Duration::from_secs(120))
-                        .expect("pause"),
-                    Duration::ZERO
-                );
-                assert_eq!(state, playback.executor.session.state());
-                playback
-                    .update(
-                        Controls {
-                            next: true,
-                            ..Default::default()
-                        },
-                        Duration::ZERO,
-                    )
-                    .expect("start action");
-                while playback.executor.running() {
-                    playback.update(Controls::default(), render_delta).expect("paced tick");
-                    // Graphical sampling must not advance the simulation or change results.
-                    let before = playback.executor.session.state();
-                    playback.take_frame();
-                    assert_eq!(before, playback.executor.session.state());
-                }
-                assert!(playback.paused);
-            }
+    let (_folder, script) = fling();
+    let expected = script.run().expect("headless route");
+    for render_delta in [
+        Duration::from_millis(7),
+        Duration::from_millis(43),
+        Duration::from_millis(250),
+    ] {
+        let mut playback = Playback::new(script.clone()).expect("viewer route");
+        while !playback.executor.finished() {
+            let state = playback.executor.session.state();
             assert_eq!(
-                json!({"initial":playback.executor.initial, "steps":playback.executor.steps}),
-                expected
+                playback
+                    .update(Controls::default(), Duration::from_secs(120))
+                    .expect("pause"),
+                Duration::ZERO
             );
+            assert_eq!(state, playback.executor.session.state());
+            playback
+                .update(
+                    Controls {
+                        next: true,
+                        ..Default::default()
+                    },
+                    Duration::ZERO,
+                )
+                .expect("start action");
+            while playback.executor.running() {
+                playback.update(Controls::default(), render_delta).expect("paced tick");
+                // Graphical sampling must not advance the simulation or change results.
+                let before = playback.executor.session.state();
+                playback.take_frame();
+                assert_eq!(before, playback.executor.session.state());
+            }
+            assert!(playback.paused);
         }
+        assert_eq!(
+            json!({"initial":playback.executor.initial, "steps":playback.executor.steps}),
+            expected
+        );
     }
 }
 
 #[test]
 fn an_airborne_pause_freezes_the_owner_server_and_action_progress() {
-    let (_folder, mut script) = scenario("portal_movement");
+    let (_folder, mut script) = fling();
     script.actions = vec![Action::Move {
         direction: [0.0, 0.0],
         ticks: 30,
@@ -119,7 +126,7 @@ fn an_airborne_pause_freezes_the_owner_server_and_action_progress() {
 
 #[test]
 fn restart_and_script_reset_clear_simulation_state_and_pending_view_frames() {
-    let (_folder, mut script) = scenario("portal_movement");
+    let (_folder, mut script) = fling();
     script.actions.push(Action::Reset);
     let mut playback = Playback::new(script).expect("viewer route");
     let initial = playback.executor.initial.clone();
@@ -169,7 +176,7 @@ fn restart_and_script_reset_clear_simulation_state_and_pending_view_frames() {
 
 #[test]
 fn space_plays_the_whole_route_at_the_tick_rate_and_stops_at_completion() {
-    let (_folder, script) = scenario("portal_movement");
+    let (_folder, script) = fling();
     let expected = script.run().expect("headless route");
     for render_delta in [
         Duration::from_millis(7),
@@ -223,7 +230,7 @@ fn space_plays_the_whole_route_at_the_tick_rate_and_stops_at_completion() {
 
 #[test]
 fn enter_finishes_only_the_current_action_then_space_resumes_the_sequence() {
-    let (_folder, mut script) = scenario("portal_movement");
+    let (_folder, mut script) = fling();
     script.actions = vec![
         Action::Advance { ticks: 4 },
         Action::Inspect,
@@ -301,7 +308,7 @@ fn enter_finishes_only_the_current_action_then_space_resumes_the_sequence() {
 
 #[test]
 fn continuous_playback_handles_script_reset_and_restart_returns_to_paused() {
-    let (_folder, mut script) = scenario("portal_movement");
+    let (_folder, mut script) = fling();
     script.actions = vec![
         Action::Advance { ticks: 1 },
         Action::Reset,
@@ -347,7 +354,7 @@ fn continuous_playback_handles_script_reset_and_restart_returns_to_paused() {
 
 #[test]
 fn menu_pause_holds_continuous_playback_until_explicit_resume() {
-    let (_folder, mut script) = scenario("portal_movement");
+    let (_folder, mut script) = fling();
     script.actions = vec![Action::Advance { ticks: 30 }, Action::Inspect];
     let mut playback = Playback::new(script).expect("viewer sequence");
     playback
@@ -382,7 +389,7 @@ fn menu_pause_holds_continuous_playback_until_explicit_resume() {
 
 #[test]
 fn the_shown_body_faces_its_travel_not_the_held_input() {
-    let (_folder, mut script) = scenario("portal_movement");
+    let (_folder, mut script) = turret_room();
     let east = |ticks| Action::Move {
         direction: [1.0, 0.0],
         ticks,
@@ -390,9 +397,9 @@ fn the_shown_body_faces_its_travel_not_the_held_input() {
         jump: false,
     };
     script.actions = vec![
-        east(5),
+        east(12),
         Action::Advance { ticks: 10 },
-        east(5),
+        east(12),
         Action::Move {
             direction: [0.0, 1.0],
             ticks: 10,
@@ -438,7 +445,7 @@ fn the_shown_body_faces_its_travel_not_the_held_input() {
 
 #[test]
 fn an_aim_holds_the_view_on_its_target_until_the_next_move() {
-    let (_folder, mut script) = scenario("portal_movement");
+    let (_folder, mut script) = fling();
     let [x, y, z] = script.spawn;
     script.actions = vec![
         Action::Aim {
@@ -480,7 +487,7 @@ fn an_aim_holds_the_view_on_its_target_until_the_next_move() {
 
 #[test]
 fn a_mouse_look_holds_while_paused_and_the_next_control_eases_it_away() {
-    let (_folder, mut script) = scenario("portal_movement");
+    let (_folder, mut script) = fling();
     script.actions = vec![Action::Inspect, Action::Inspect];
     let mut playback = Playback::new(script).expect("viewer route");
     let frame = Duration::from_millis(16);
@@ -515,7 +522,7 @@ fn a_mouse_look_holds_while_paused_and_the_next_control_eases_it_away() {
 
 #[test]
 fn continuous_playback_holds_after_an_aim_without_adding_ticks_and_enter_skips_the_hold() {
-    let (_folder, mut script) = scenario("portal_movement");
+    let (_folder, mut script) = fling();
     let [x, y, z] = script.spawn;
     let aim = Action::Aim {
         target: [x, y, z + 10.0],

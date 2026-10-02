@@ -2,8 +2,6 @@
 
 ## Fixes
 
-- **Generated courses after movement replacement:** Portal Movement, Relay, and Choices are tuned for the old instant walk/sprint model; their route tests fail with persistent velocity. Retune them in stage 4, after the Hotel playtest and the Obby edits; keep the completion and negative-route assertions meanwhile.
-
 - **Navigation search exhaustion:** a connected route whose A* search exceeds the per-query budget fails repeatedly, including some long Hotel detours. Continue such searches across ticks under the shared work cap.
 
 ## Enhancements
@@ -20,7 +18,7 @@
 
 - **World-space content authoring:** place items, zones, objectives, and geometry anywhere in the playable world, terrain included. The grid bounds editing, not gameplay; navigation already loads regions beyond it.
 
-- **Pressure-plate sizing:** author plate size and activation area independently of the grid. Relay uses a 2 m grid for 1 m plates.
+- **Pressure-plate sizing:** author plate size and activation area independently of the grid. The Primer's 2 m grid gives 1 m plates.
 
 - **Editor preview scope:** Jump Path flies open air at full speed from a tile edge. Missing: the run-up, obstacles, ramps, and bridges stopping a flight (a flight under an overhanging slab reads as clear), crouch, ramp takeoffs, mid-flight equipment or gravity changes, switches, carriers, and a wall-portal capture outline. Steering samples fixed directions and one entry rule; search the input instead. `mapauthor jump` and `fling` inherit all of it.
 

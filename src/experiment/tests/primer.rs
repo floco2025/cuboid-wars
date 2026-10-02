@@ -1,7 +1,7 @@
 use serde_json::{Value, json};
 
 use super::{
-    fixtures::tuned_scenario,
+    fixtures::scenario,
     script::{Action, End},
 };
 
@@ -59,7 +59,7 @@ const FINISH: ([f32; 3], [f32; 3]) = ([54.0, -0.1, -12.0], [66.0, 0.1, 16.0]);
 
 #[test]
 fn primer_course_connects_every_chamber_and_starts_the_fireworks() {
-    let (_folder, script) = tuned_scenario("portal_primer");
+    let (_folder, script) = scenario("portal_primer");
     let report = script.run().expect("primer course");
     for step in report["steps"].as_array().expect("steps") {
         match step["action"]["action"].as_str() {
@@ -98,7 +98,7 @@ fn primer_course_connects_every_chamber_and_starts_the_fireworks() {
 
 #[test]
 fn the_first_fling_needs_its_exit_portal() {
-    let (_folder, mut script) = tuned_scenario("portal_primer");
+    let (_folder, mut script) = scenario("portal_primer");
     script.actions.truncate(8);
     script.actions[3] = advance(1);
     script.actions[4] = advance(1);
@@ -113,7 +113,7 @@ fn the_first_fling_needs_its_exit_portal() {
 
 #[test]
 fn the_corridor_side_of_the_hidden_wall_refuses_portals() {
-    let (_folder, mut script) = tuned_scenario("portal_primer");
+    let (_folder, mut script) = scenario("portal_primer");
     script.actions.truncate(9);
     script.actions.extend([
         walk([0.0, 1.0], 9),
@@ -131,7 +131,7 @@ fn the_corridor_side_of_the_hidden_wall_refuses_portals() {
 
 #[test]
 fn the_bridge_drops_a_player_who_skips_the_plate() {
-    let (_folder, mut script) = tuned_scenario("portal_primer");
+    let (_folder, mut script) = scenario("portal_primer");
     script.actions.truncate(35);
     script
         .actions
@@ -144,7 +144,7 @@ fn the_bridge_drops_a_player_who_skips_the_plate() {
 
 #[test]
 fn the_gate_holds_a_player_without_the_key() {
-    let (_folder, mut script) = tuned_scenario("portal_primer");
+    let (_folder, mut script) = scenario("portal_primer");
     script.actions.truncate(38);
     script.actions.extend([
         walk([1.0, 0.0], 10),
@@ -169,7 +169,7 @@ fn the_gate_holds_a_player_without_the_key() {
 // pickup and the ladder back up make the second attempt.
 #[test]
 fn the_ramp_gap_needs_speed_and_the_refill_deck_offers_a_retry() {
-    let (_folder, mut script) = tuned_scenario("portal_primer");
+    let (_folder, mut script) = scenario("portal_primer");
     script.actions.truncate(42);
     script.actions.extend([
         walk([0.0, -1.0], 10),
@@ -202,7 +202,7 @@ fn the_ramp_gap_needs_speed_and_the_refill_deck_offers_a_retry() {
 
 #[test]
 fn the_summit_needs_low_gravity() {
-    let (_folder, mut script) = tuned_scenario("portal_primer");
+    let (_folder, mut script) = scenario("portal_primer");
     script.actions.truncate(43);
     script.actions.extend([
         jump([1.0, 0.0], 30),
@@ -233,7 +233,7 @@ fn the_tower_keeps_out_a_player_who_still_has_low_gravity() {
         (52, vec![walk([0.0, 1.0], 12), advance(10), walk([1.0, 0.0], 24)]),
         (52, vec![jump([1.0, 0.0], 50)]),
     ] {
-        let (_folder, mut script) = tuned_scenario("portal_primer");
+        let (_folder, mut script) = scenario("portal_primer");
         script.actions.truncate(kept);
         script.actions.extend(detour);
         script.actions.extend([advance(250), check(FINISH.0, FINISH.1)]);
@@ -254,7 +254,7 @@ fn the_tower_keeps_out_a_player_who_still_has_low_gravity() {
 // still has everything the finale needs.
 #[test]
 fn the_ledge_drop_kills_without_its_portals_and_needs_no_pickup_with_them() {
-    let (_folder, mut script) = tuned_scenario("portal_primer");
+    let (_folder, mut script) = scenario("portal_primer");
     let finale = script.actions.split_off(54);
     script
         .actions

@@ -3,46 +3,76 @@ use serde_json::{Value, json};
 use std::{fs, path::PathBuf};
 use tempfile::TempDir;
 
-// The courses authored for the instant walk/sprint model keep its rates.
+// A shipped map's own script, over gameplay defaults that pin what its route
+// was proved against.
 pub(super) fn scenario(name: &str) -> (TempDir, Script) {
-    scenario_with_movement(
-        name,
-        json!({
-            "move_speed": 6.0,
-            "jump_speed": 12.0,
-            "ground_acceleration": 60.0,
-            "ground_deceleration": 24.0,
-            "ground_lateral_deceleration": 60.0,
-            "air_acceleration": 5.0,
-            "air_deceleration": 0.0,
-            "air_lateral_deceleration": 0.0,
-        }),
-    )
-}
-
-// The persistent-velocity rates the current courses are proved against.
-pub(super) fn tuned_scenario(name: &str) -> (TempDir, Script) {
-    scenario_with_movement(
-        name,
-        json!({
-            "move_speed": 8.0,
-            "jump_speed": 12.0,
-            "ground_acceleration": 20.0,
-            "ground_deceleration": 30.0,
-            "ground_lateral_deceleration": 40.0,
-            "air_acceleration": 5.0,
-            "air_deceleration": 5.0,
-            "air_lateral_deceleration": 5.0,
-        }),
-    )
-}
-
-fn scenario_with_movement(name: &str, player: Value) -> (TempDir, Script) {
     let folder = TempDir::new().expect("experiment directory");
     let example = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("config/server/maps")
         .join(name);
     let mut script = Script::load(&example.join("experiment.json")).expect("example script");
+    script.gameplay = folder.path().join("gameplay.json");
+    fs::write(&script.gameplay, gameplay().to_string()).expect("write test defaults");
+    (folder, script)
+}
+
+// A test-owned map with no actions: 4 m cells under 4 m walls, so one wall
+// section backs a portal, and both weapons from the start.
+pub(super) fn chamber(layout: Value, spawn: [f32; 3]) -> (TempDir, Script) {
+    let folder = TempDir::new().expect("experiment directory");
+    let settings = json!({
+        "textures": {
+            "solid": {"material": "steelplate1", "portalable": false},
+            "portal": {"material": "titanium-scuffed", "portalable": true},
+        },
+        "grounds": null,
+        "random_items": null,
+        "placed_items": null,
+        "quests": [],
+        "weather": "clear",
+        "geometry": {"grid_cell_size": 4.0, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.4},
+        "portals": "both",
+        "power_ups": {"single_shot": {"mode": "always"}, "portal_gun": {"mode": "always"}},
+        "combat": {"health": {
+            "actors": {"turret": {"max": 50.0, "regen_rate": 0.0}},
+            "player": {"max": 500.0, "regen_rate": 0.0},
+        }},
+    });
+    let script = json!({"gameplay": "gameplay.json", "settings": "settings.json", "layout": "layout.json",
+        "spawn": spawn, "actions": []});
+    for (name, value) in [
+        ("gameplay.json", gameplay()),
+        ("settings.json", settings),
+        ("layout.json", layout),
+        ("experiment.json", script),
+    ] {
+        fs::write(folder.path().join(name), value.to_string()).expect("write chamber file");
+    }
+    let script = Script::load(&folder.path().join("experiment.json")).expect("chamber script");
+    (folder, script)
+}
+
+// A flat floor with a wall between the spawn and a turret, and a portalable
+// wall to one side of each.
+pub(super) fn turret_room() -> (TempDir, Script) {
+    let floors: Vec<_> = (0..8)
+        .flat_map(|col| (0..8).map(move |row| json!({"col": col, "row": row, "all": "solid"})))
+        .collect();
+    let layout = json!({"map": {"fireworks": null, "grid_cols": 8, "grid_rows": 8,
+        "checkpoints": [{"level": 0, "cols": [1, 2], "rows": [4, 5], "type": "individual", "number": 0}],
+        "actor_spawn_zones": [{"level": 0, "cols": [5, 6], "rows": [4, 5], "kind": "turret", "count": [1],
+            "respawn_secs": null, "beam_in_secs": 0.1}],
+        "levels": [{"name": "Chamber", "floors": floors, "walls": [
+            {"c0": 4, "r0": 3, "c1": 4, "r1": 4, "all": "solid"},
+            {"c0": 4, "r0": 4, "c1": 4, "r1": 5, "all": "solid"},
+            {"c0": 1, "r0": 2, "c1": 2, "r1": 2, "all": "portal"},
+            {"c0": 5, "r0": 6, "c1": 6, "r1": 6, "all": "portal"},
+        ]}],
+    }});
+    chamber(layout, [-10.0, 0.0, 2.0])
+}
+
+fn gameplay() -> Value {
     let mut gameplay: Value =
         serde_json::from_str(include_str!("../../../config/server/gameplay.json")).expect("gameplay defaults");
     gameplay["network"] = json!({"server_hz": 30, "update_hz": 30, "snapshot_hz": 4});
@@ -68,10 +98,18 @@ fn scenario_with_movement(name: &str, player: Value) -> (TempDir, Script) {
     gameplay["movement"]["projectile_speed"] = json!(90.0);
     gameplay["movement"]["gravity"] = json!(25.0);
     gameplay["combat"]["damage"]["projectile"] = json!(60.0);
+    let player = json!({
+        "move_speed": 8.0,
+        "jump_speed": 12.0,
+        "ground_acceleration": 20.0,
+        "ground_deceleration": 30.0,
+        "ground_lateral_deceleration": 40.0,
+        "air_acceleration": 5.0,
+        "air_deceleration": 5.0,
+        "air_lateral_deceleration": 5.0,
+    });
     for (key, value) in player.as_object().expect("movement rates") {
         gameplay["movement"]["player"][key] = value.clone();
     }
-    script.gameplay = folder.path().join("gameplay.json");
-    fs::write(&script.gameplay, gameplay.to_string()).expect("write test defaults");
-    (folder, script)
+    gameplay
 }

@@ -23,11 +23,11 @@ cargo run --release -- --experiment config/server/maps/<map>/experiment.json | p
 
 ## Workflow
 
-1. Register the map in `config/server/gameplay.json::maps` and write its `settings.json` (copy `portal_relay`'s: 2 m cells, 2.2 m levels, a `solid` and a `portal` texture alias). The tools never write either file.
+1. Register the map in `config/server/gameplay.json::maps` and write its `settings.json` (copy `portal_primer`'s: 2 m cells, 2.2 m levels, a `solid` and a `portal` texture alias). The tools never write either file.
 2. Write `build.py` (below), run `build`, read the summary it prints.
 3. `describe` for the plan of each level; `surface`, `jump`, `fling`, and `ranges` for the physics of each gap and portal pair. Place landings where a flight comes down, not where it looks right.
 4. Write `experiment.json` beside the layout (format in `EXPERIMENTS.md`), run it, read `proof`. Every `aim`, `check`, and `spawn` is in world metres; `describe` and `where` give them.
-5. Iterate until the route passes, then pin it in `src/experiment/tests/` like `primer.rs`, on `tuned_scenario`, which pins the movement rates the course was proved against: the completion run and the failures the course is built on (a missing portal, a skipped pickup, a plate not pressed). A route the runner cannot finish because the player died ends the run at the next `aim`; truncate the script to see the report up to there.
+5. Iterate until the route passes, then pin it in `src/experiment/tests/` like `primer.rs`, on `scenario`, which pins the movement rates the course was proved against: the completion run and the failures the course is built on (a missing portal, a skipped pickup, a plate not pressed). A route the runner cannot finish because the player died ends the run at the next `aim`; truncate the script to see the report up to there.
 6. `python3 tools/editor.py <map>` opens the result; Check Map must be clean.
 
 ## Coordinates

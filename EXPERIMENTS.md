@@ -9,11 +9,11 @@ connected decisions: preparing a route, choosing an exit surface, building the
 right entry velocity, and changing equipment at the right point. More platforms
 and repeated jumps alone are insufficient.
 
-The maps and tools here are groundwork: authored courses, scripts that exercise
-the real game simulation, and graphical playback for inspecting them. There is
-no map generator, route search, or evaluator of fun. A script reaching the
-finish establishes a working route; only player feedback establishes whether it
-is readable and satisfying.
+The map and tools here are groundwork: one authored course, Portal Primer,
+scripts that exercise the real game simulation, and graphical playback for
+inspecting them. There is no map generator, route search, or evaluator of fun.
+A script reaching the finish establishes a working route; only player feedback
+establishes whether it is readable and satisfying.
 
 ## Design decisions to preserve
 
@@ -33,6 +33,11 @@ is readable and satisfying.
 - **Necessary traversal.** Check that ordinary jumps, drops, other portal
   placements, or air steering do not bypass a puzzle. A passing script does not
   show its portals or pickups are necessary.
+- **Enclosed rooms.** A portal chamber is a room: walls and a ceiling bound
+  where a body and a shot can go, which is what makes its portals necessary
+  and what reads as a portal puzzle. Open-air platforms leave every gap to a
+  jump, and low gravity floats down to any floor in reach. The Primer's finale
+  is its only enclosed chamber so far.
 - **Puzzle contract.** Main progression uses momentum from an ordinary takeoff
   or fall, portal orientation, and ordinary steering, with W released. Expert
   air control may reward optional routes only. Courses may zero the air rates
@@ -42,25 +47,46 @@ is readable and satisfying.
   player can see and aim at them from a safe approach, never from the lip
   looking straight down. Judge the gap against the drop and the view, then
   verify the traversal.
-- **2 m floor and wall sections** for Relay and Choices, with 2.2 m levels and
-  normal player and portal sizes; assemble cells where a portal needs more
-  backing. A course choice, not a grid rule.
+- **2 m floor and wall sections** for the Primer, with 2.2 m levels and normal
+  player and portal sizes; assemble cells where a portal needs more backing. A
+  course choice, not a grid rule.
 - **Obby is edited by hand.** Do not change its layout or retune its movement
-  overrides on the author's behalf. The generated courses are retuned for the
-  current movement in the Fixes entry of [TODO.md](TODO.md); keep their
-  failing route assertions visible rather than weakening them.
+  overrides on the author's behalf.
+
+## Not in the Primer
+
+The earlier courses (Portal Movement, Relay, Choices, and a turret chamber)
+were removed once the Primer covered the basics. They exercised these, which
+the Primer does not:
+
+- **Shooting through a pair.** A turret behind a wall, killed by a bullet sent
+  through two portals. The Primer has no enemy and no weapon; the runner's
+  `fire` keeps its tests on a test-owned chamber.
+- **A vertical launch.** Floor to floor: the drop's speed leaves the exit
+  upward, and air steering catches a ledge an ordinary jump cannot reach.
+- **Ramp angles as a decision.** Three inclined exits around one landing, each
+  launching at a different angle, and speed carried into a wall portal for an
+  upward launch off a ramp.
+- **Erasure in mid-flight.** A suspended eraser past the exit, so gravity
+  changes during the flight; the Primer erases on foot at a doorway.
+- **A running jump onto a plate,** and a switch that a death resets.
+- **Tolerance tests.** Ranges of run-off timing, air-steering delay, portal
+  aim, and takeoff position; recovery from every checkpoint; portal shots held
+  to 60° of downward aim. The Primer pins one route and its failures.
+- **Per-map movement overrides.** Choices ran its own speeds and low gravity;
+  the Primer uses the defaults.
 
 ## Run and watch
 
 ```sh
-cargo run --release -- --map portal_choices --look 90,-10                                   # play it
-cargo run --release -- --experiment config/server/maps/portal_movement/experiment.json      # headless, report on stdout
-cargo run --release -- --play-experiment config/server/maps/portal_relay/experiment.json    # step through it
+cargo run --release -- --map portal_primer --look 90,-10                                    # play it
+cargo run --release -- --experiment config/server/maps/portal_primer/experiment.json        # headless, report on stdout
+cargo run --release -- --play-experiment config/server/maps/portal_primer/experiment.json   # step through it
 cargo test --release -p cuboid-wars                                                          # route and runner tests
 ```
 
-Each map's `experiment.json` sits beside its `layout.json` and `settings.json`;
-the map READMEs hold the walkthroughs. `python3 tools/mapauthor.py proof <map> -`
+A map's `experiment.json` sits beside its `layout.json` and `settings.json`;
+its README holds the walkthrough. `python3 tools/mapauthor.py proof <map> -`
 reads a report from stdin as one line per action, and the rest of
 `tools/mapauthor.py` builds, draws, and measures a map before it is proved
 (`tools/map_author/README.md`). Headless mode needs no window, listener,
@@ -116,8 +142,6 @@ tick, planner, portal traversal, and outcome reports, and sends ordinary
 `CMove`/`CMoveOutcome` messages to a real server schedule. Observations come
 from each completed tick without interpolation. Carrier maps are rejected;
 missiles, route search, and measures of fun are not implemented.
-`portal_turret/experiment.json` is the shooting example: direct fire is
-blocked and a shot through the pair kills the turret.
 
 ## References
 

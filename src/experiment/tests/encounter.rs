@@ -3,10 +3,35 @@ use std::fs;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
-use super::script::{Action, End, Script};
+use super::{
+    fixtures::turret_room,
+    script::{Action, End, Script},
+};
 
+// A direct shot the wall stops, then, from a fresh session, a shot through a
+// portal pair that reaches the turret behind it.
 fn chamber() -> (TempDir, Script) {
-    super::fixtures::scenario("portal_turret")
+    let (folder, mut script) = turret_room();
+    let aim = |target| Action::Aim { target };
+    script.actions = vec![
+        Action::Advance { ticks: 6 },
+        aim([6.0, 1.0, 2.0]),
+        Action::Fire,
+        Action::Advance { ticks: 30 },
+        Action::Reset,
+        Action::Advance { ticks: 6 },
+        aim([-10.0, 1.62, -8.0]),
+        Action::Portal { end: End::A },
+        Action::Advance { ticks: 4 },
+        aim([6.0, 1.62, 7.8]),
+        Action::Portal { end: End::B },
+        Action::Advance { ticks: 4 },
+        aim([-10.0, 1.62, -8.0]),
+        Action::Fire,
+        Action::Advance { ticks: 30 },
+        Action::Inspect,
+    ];
+    (folder, script)
 }
 
 fn events(report: &Value) -> impl Iterator<Item = &Value> {

@@ -21,16 +21,8 @@ mod fixtures;
 mod movement_tests;
 
 #[cfg(test)]
-#[path = "tests/course.rs"]
-mod course_tests;
-
-#[cfg(test)]
 #[path = "tests/playback.rs"]
 mod playback_tests;
-
-#[cfg(test)]
-#[path = "tests/choices.rs"]
-mod choices_tests;
 
 #[cfg(test)]
 #[path = "tests/primer.rs"]
