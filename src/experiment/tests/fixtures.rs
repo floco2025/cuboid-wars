@@ -3,7 +3,41 @@ use serde_json::{Value, json};
 use std::{fs, path::PathBuf};
 use tempfile::TempDir;
 
+// The courses authored for the instant walk/sprint model keep its rates.
 pub(super) fn scenario(name: &str) -> (TempDir, Script) {
+    scenario_with_movement(
+        name,
+        json!({
+            "move_speed": 6.0,
+            "jump_speed": 12.0,
+            "ground_acceleration": 60.0,
+            "ground_deceleration": 24.0,
+            "ground_lateral_deceleration": 60.0,
+            "air_acceleration": 5.0,
+            "air_deceleration": 0.0,
+            "air_lateral_deceleration": 0.0,
+        }),
+    )
+}
+
+// The persistent-velocity rates the current courses are proved against.
+pub(super) fn tuned_scenario(name: &str) -> (TempDir, Script) {
+    scenario_with_movement(
+        name,
+        json!({
+            "move_speed": 8.0,
+            "jump_speed": 12.0,
+            "ground_acceleration": 20.0,
+            "ground_deceleration": 30.0,
+            "ground_lateral_deceleration": 40.0,
+            "air_acceleration": 5.0,
+            "air_deceleration": 5.0,
+            "air_lateral_deceleration": 5.0,
+        }),
+    )
+}
+
+fn scenario_with_movement(name: &str, player: Value) -> (TempDir, Script) {
     let folder = TempDir::new().expect("experiment directory");
     let example = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("config/server/maps")
@@ -27,17 +61,16 @@ pub(super) fn scenario(name: &str) -> (TempDir, Script) {
     gameplay["weapons"]["projectiles"]["drag_factor"] = json!(0.011);
     gameplay["weapons"]["projectiles"]["bounce_retention"] = json!(0.85);
     gameplay["weapons"]["portals"]["range"] = json!(100.0);
+    gameplay["weapons"]["portals"]["size"] = json!({"width": 1.4, "height": 2.6});
+    gameplay["weapons"]["portals"]["funnel"] = json!({"capture_margin": 0.6, "capture_growth": 0.8});
+    gameplay["movement"]["low_gravity"] = json!(5.0);
+    gameplay["player_fall"] = json!({"safe_distance": 8.0, "lethal_distance": 15.0});
     gameplay["movement"]["projectile_speed"] = json!(90.0);
     gameplay["movement"]["gravity"] = json!(25.0);
     gameplay["combat"]["damage"]["projectile"] = json!(60.0);
-    gameplay["movement"]["player"]["move_speed"] = json!(6.0);
-    gameplay["movement"]["player"]["jump_speed"] = json!(12.0);
-    gameplay["movement"]["player"]["ground_acceleration"] = json!(60.0);
-    gameplay["movement"]["player"]["ground_deceleration"] = json!(24.0);
-    gameplay["movement"]["player"]["ground_lateral_deceleration"] = json!(60.0);
-    gameplay["movement"]["player"]["air_acceleration"] = json!(5.0);
-    gameplay["movement"]["player"]["air_deceleration"] = json!(0.0);
-    gameplay["movement"]["player"]["air_lateral_deceleration"] = json!(0.0);
+    for (key, value) in player.as_object().expect("movement rates") {
+        gameplay["movement"]["player"][key] = value.clone();
+    }
     script.gameplay = folder.path().join("gameplay.json");
     fs::write(&script.gameplay, gameplay.to_string()).expect("write test defaults");
     (folder, script)

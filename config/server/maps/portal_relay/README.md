@@ -65,12 +65,14 @@ the route. The gold plate on the final platform starts the fireworks.
 ## Watch the scripted route
 
 ```sh
-cargo run --release -- --play-experiment config/server/maps/portal_relay/experiment.json --look 270,-10
+cargo run --release -- --play-experiment config/server/maps/portal_relay/experiment.json
 ```
 
 Space plays/pauses the entire sequence. Enter runs the next action (or finishes
 the current one) and pauses at its end. R restarts, paused. Esc opens the settings
-menu and pauses playback. Mouse look, zoom, and V let you inspect the frozen scene.
+menu and pauses playback. The view follows the player: its direction of travel,
+and an aim's target until the next move. Mouse look, zoom, and V let you inspect
+the paused scene; the next step takes the view back.
 See [EXPERIMENTS.md](../../../../EXPERIMENTS.md) for the script format and scope.
 
 ## Automated route

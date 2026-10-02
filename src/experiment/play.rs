@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use client::{
     app::build_client_app,
     network::{ClientToServerChannel, ServerLink, apply_playback_frame, install_playback},
+    players::LocalPlayerInfo,
     schedule::ClientSet,
     ui::SettingsMenuState,
 };
@@ -123,6 +124,12 @@ fn drive_viewer(world: &mut World) {
     if let Some(frame) = viewer.playback.take_frame() {
         apply_playback_frame(world, frame);
     }
+    let mut local = world.resource_mut::<LocalPlayerInfo>();
+    let view = viewer
+        .playback
+        .view(Vec2::new(local.stored_yaw, local.stored_pitch), delta);
+    local.stored_yaw = view.x;
+    local.stored_pitch = view.y;
     let executor = &viewer.playback.executor;
     let phase = if viewer.error.is_some() {
         "ERROR"

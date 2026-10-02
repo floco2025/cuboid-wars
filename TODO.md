@@ -22,7 +22,9 @@
 
 - **Pressure-plate sizing:** author plate size and activation area independently of the grid. Relay uses a 2 m grid for 1 m plates.
 
-- **Editor preview scope:** Jump Path flies open air at full speed from a tile edge. Missing: the run-up, obstacles, ramps, and bridges stopping a flight, crouch, ramp takeoffs, mid-flight equipment or gravity changes, switches, carriers, and a wall-portal capture outline. Steering samples fixed directions and one entry rule; search the input instead.
+- **Editor preview scope:** Jump Path flies open air at full speed from a tile edge. Missing: the run-up, obstacles, ramps, and bridges stopping a flight (a flight under an overhanging slab reads as clear), crouch, ramp takeoffs, mid-flight equipment or gravity changes, switches, carriers, and a wall-portal capture outline. Steering samples fixed directions and one entry rule; search the input instead. `mapauthor jump` and `fling` inherit all of it.
+
+- **Experiment runner on a dead player:** an `aim` after a death is a process error that discards the report; record it as a failed action like `check` does, so a proof run shows where the route died.
 
 - **Sandbox simulation and experiment workflow:** toward AI-generated movement and portal maps that are fun; [EXPERIMENTS.md](EXPERIMENTS.md) has the goals and evidence. Extend `--experiment` with carriers, route and landing-tolerance measurements, and seeded randomness. Separate scenes, rulesets, and setups; keep client movement authority and server actor authority, no reconciliation. Prove reusable body, controller, team, and loadout composition, then connect inspection and reset to the editor.
 

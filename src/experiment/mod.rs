@@ -31,3 +31,7 @@ mod playback_tests;
 #[cfg(test)]
 #[path = "tests/choices.rs"]
 mod choices_tests;
+
+#[cfg(test)]
+#[path = "tests/primer.rs"]
+mod primer_tests;

@@ -82,7 +82,7 @@ velocity: gravity acts on the flight from that point onward.
 ## Replay and validation
 
 ```sh
-cargo run --release -- --play-experiment config/server/maps/portal_choices/experiment.json --look 90,-10
+cargo run --release -- --play-experiment config/server/maps/portal_choices/experiment.json
 cargo test --release -p cuboid-wars choices_tests
 ```
 

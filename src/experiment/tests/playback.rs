@@ -1,6 +1,10 @@
-use std::time::Duration;
+use std::{
+    f32::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU},
+    time::Duration,
+};
 
-use common::physics::CharacterSupport;
+use bevy::math::Vec2;
+use common::{math::angle_delta_radians, physics::CharacterSupport};
 use serde_json::json;
 
 use super::{
@@ -374,4 +378,198 @@ fn menu_pause_holds_continuous_playback_until_explicit_resume() {
         )
         .expect("resume");
     assert!(playback.executor.finished());
+}
+
+#[test]
+fn the_shown_body_faces_its_travel_not_the_held_input() {
+    let (_folder, mut script) = scenario("portal_movement");
+    let east = |ticks| Action::Move {
+        direction: [1.0, 0.0],
+        ticks,
+        crouch: false,
+        jump: false,
+    };
+    script.actions = vec![
+        east(5),
+        Action::Advance { ticks: 10 },
+        east(5),
+        Action::Move {
+            direction: [0.0, 1.0],
+            ticks: 10,
+            crouch: false,
+            jump: true,
+        },
+    ];
+    let mut playback = Playback::new(script).expect("viewer route");
+    let shown = |playback: &mut Playback| {
+        let frame = playback.take_frame().expect("frame");
+        frame.snapshot.players[0].1.movement.face_yaw
+    };
+    let step = |playback: &mut Playback| {
+        playback
+            .update(
+                Controls {
+                    next: true,
+                    ..Default::default()
+                },
+                Duration::from_secs(10),
+            )
+            .expect("action");
+    };
+    assert_eq!(playback.facing, FRAC_PI_2);
+    assert_eq!(shown(&mut playback), FRAC_PI_2);
+    step(&mut playback);
+    step(&mut playback);
+    let owner = &playback.executor.session.owner.motion;
+    assert_eq!(owner.horizontal_velocity.0.length(), 0.0);
+    assert!(angle_delta_radians(playback.facing, FRAC_PI_2).abs() < 1e-3);
+    step(&mut playback);
+    step(&mut playback);
+    // The jump keeps the run's eastward speed while the script steers north.
+    let owner = &playback.executor.session.owner.motion;
+    assert_eq!(owner.face_yaw.0, 0.0);
+    assert!(
+        angle_delta_radians(playback.facing, FRAC_PI_2).abs() < FRAC_PI_4,
+        "facing {}",
+        playback.facing
+    );
+    assert_eq!(shown(&mut playback), playback.facing);
+}
+
+#[test]
+fn an_aim_holds_the_view_on_its_target_until_the_next_move() {
+    let (_folder, mut script) = scenario("portal_movement");
+    let [x, y, z] = script.spawn;
+    script.actions = vec![
+        Action::Aim {
+            target: [x, y, z + 10.0],
+        },
+        Action::Advance { ticks: 2 },
+        Action::Move {
+            direction: [1.0, 0.0],
+            ticks: 5,
+            crouch: false,
+            jump: false,
+        },
+    ];
+    let mut playback = Playback::new(script).expect("viewer route");
+    let step = |playback: &mut Playback| {
+        playback
+            .update(
+                Controls {
+                    next: true,
+                    ..Default::default()
+                },
+                Duration::from_secs(10),
+            )
+            .expect("action");
+    };
+    assert_eq!((playback.facing, playback.pitch), (FRAC_PI_2, 0.0));
+    for _ in 0..2 {
+        // North of the feet, so below the eye.
+        step(&mut playback);
+        assert!(playback.facing.abs() < 1e-3, "facing {}", playback.facing);
+        assert!((-0.3..-0.1).contains(&playback.pitch), "pitch {}", playback.pitch);
+    }
+    let frame = playback.take_frame().expect("frame");
+    assert_eq!(frame.snapshot.players[0].1.movement.face_yaw, playback.facing);
+    step(&mut playback);
+    assert!(angle_delta_radians(playback.facing, FRAC_PI_2).abs() < 1e-3);
+    assert_eq!(playback.pitch, 0.0);
+}
+
+#[test]
+fn a_mouse_look_holds_while_paused_and_the_next_control_eases_it_away() {
+    let (_folder, mut script) = scenario("portal_movement");
+    script.actions = vec![Action::Inspect, Action::Inspect];
+    let mut playback = Playback::new(script).expect("viewer route");
+    let frame = Duration::from_millis(16);
+    let player = Vec2::new(playback.facing + PI, playback.pitch);
+    // More than half a turn away, as --look or the mouse would leave it.
+    let looked = player + Vec2::new(3.5, -0.3);
+    let mut view = looked;
+    for _ in 0..50 {
+        view = playback.view(view, frame);
+    }
+    assert!(view.distance(looked) < 1e-4, "view {view}");
+    playback
+        .update(
+            Controls {
+                next: true,
+                ..Default::default()
+            },
+            Duration::ZERO,
+        )
+        .expect("instant action");
+    assert!(playback.paused);
+    // A hand resting on the mouse must not stop the return.
+    let nudge = Vec2::new(0.01, 0.0);
+    view = playback.view(view, frame);
+    view = playback.view(view + nudge, frame);
+    for _ in 0..300 {
+        view = playback.view(view, frame);
+    }
+    let settled = player + Vec2::new(TAU, 0.0) + nudge;
+    assert!(view.distance(settled) < 1e-3, "view {view}");
+}
+
+#[test]
+fn continuous_playback_holds_after_an_aim_without_adding_ticks_and_enter_skips_the_hold() {
+    let (_folder, mut script) = scenario("portal_movement");
+    let [x, y, z] = script.spawn;
+    let aim = Action::Aim {
+        target: [x, y, z + 10.0],
+    };
+    script.actions = vec![
+        aim.clone(),
+        Action::Advance { ticks: 3 },
+        aim,
+        Action::Advance { ticks: 3 },
+    ];
+    let expected = script.run().expect("headless sequence");
+    let mut playback = Playback::new(script).expect("viewer sequence");
+    playback
+        .update(
+            Controls {
+                play_pause: true,
+                ..Default::default()
+            },
+            Duration::ZERO,
+        )
+        .expect("play");
+    let tick = playback.executor.session.tick();
+    assert_eq!(
+        playback
+            .update(Controls::default(), Duration::from_millis(500))
+            .expect("hold"),
+        Duration::ZERO
+    );
+    assert!(!playback.paused);
+    assert!(!playback.executor.running());
+    assert_eq!(playback.executor.steps.len(), 1);
+    playback
+        .update(Controls::default(), Duration::from_millis(150))
+        .expect("hold ends");
+    assert!(playback.executor.running());
+    assert_eq!(playback.executor.session.tick(), tick + 1);
+    playback
+        .update(Controls::default(), Duration::from_millis(100))
+        .expect("second aim");
+    assert!(!playback.executor.running());
+    assert_eq!(playback.executor.steps.len(), 3);
+    playback
+        .update(
+            Controls {
+                next: true,
+                ..Default::default()
+            },
+            Duration::ZERO,
+        )
+        .expect("skip the hold");
+    assert!(playback.executor.running());
+    playback
+        .update(Controls::default(), Duration::from_secs(1))
+        .expect("finish");
+    assert!(playback.paused);
+    assert_eq!(json!(playback.executor.steps), expected["steps"]);
 }

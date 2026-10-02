@@ -7,7 +7,8 @@
     "portal_movement",
     "portal_relay",
     "portal_choices",
-    "portal_turret"
+    "portal_turret",
+    "portal_primer"
   ],
   "player": {
     "movement_collider": { "diameter": 0.6, "height": 1.8 },

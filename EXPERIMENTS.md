@@ -60,11 +60,19 @@ cargo test --release -p cuboid-wars                                             
 ```
 
 Each map's `experiment.json` sits beside its `layout.json` and `settings.json`;
-the map READMEs hold the walkthroughs. Headless mode needs no window, listener,
+the map READMEs hold the walkthroughs. `python3 tools/mapauthor.py proof <map> -`
+reads a report from stdin as one line per action, and the rest of
+`tools/mapauthor.py` builds, draws, and measures a map before it is proved
+(`tools/map_author/README.md`). Headless mode needs no window, listener,
 or registry entry; invalid scripts are process errors, failed checks are report
 entries. Playback starts paused: Space plays or pauses, Enter runs one action,
-R restarts, Esc opens the menu, mouse look and V move only the inspection
-camera. Pausing stops the owner and the server alike, so waiting adds no ticks.
+R restarts, Esc opens the menu. The view is the one a player would have: level
+along the direction of travel, starting on the script's first move, and on the
+target from an `aim` until the next move. Mouse look, zoom, and V inspect a
+paused scene; the next control or tick eases the view back. Continuous playback
+holds briefly after an `aim` and a `portal` so the view arrives and the result
+shows. Pausing and holding stop the owner and the server alike, so waiting adds
+no ticks.
 It re-executes the script; it is not a recording, and randomness is unseeded.
 
 ## Script
