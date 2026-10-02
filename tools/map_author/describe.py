@@ -7,7 +7,7 @@ import string
 from map_editor.geometry import ramp_slope, zone_rect
 
 from .context import MapContext
-from .edges import SIDE_OF_FACE, cells_of_edge, surface_of_side
+from .edges import SIDE_OF_FACE, cells_of_edge, surface_of_side, surface_spec
 from .index import FloorSurface, MapIndex, WallSurface
 
 ITEM_GLYPHS = {
@@ -28,7 +28,7 @@ GAP_LIMIT = 12
 LEGEND = """legend: . floor  o portalable floor  O portal-ready floor  # blocked floor  _ light bridge  ~ terrain
         ^ v < > ramp (rises toward)  @ plate  0-9 checkpoint  (space) void
         items: s speed  g low gravity  e eraser  k key  p portal gun  h health  m missiles  $ gold  w weapon
-        edges: | - wall  : ~ portalable wall  I = portal-ready wall (two storeys)  % barrier  x eraser  H ladder"""
+        edges: | - wall  : ~ portalable wall  I = portal-ready wall  % barrier  x eraser  H ladder"""
 
 
 def plan(ctx: MapContext, level: int | None = None, *, legend: bool = True) -> str:
@@ -118,10 +118,12 @@ def _level_plan(ctx: MapContext, index: MapIndex, level: int) -> str:
 
 def summary(ctx: MapContext) -> str:
     index = MapIndex(ctx)
-    frame = ctx.frame
+    frame, need = ctx.frame, ctx.footprint
     lines = [
         f"map {ctx.name}  {frame.cols}x{frame.rows} cells  cell {frame.cell:g} m  level {frame.level_height:g} m  "
-        f"world x {-frame.width / 2:g}..{frame.width / 2:g}  z {-frame.depth / 2:g}..{frame.depth / 2:g}"
+        f"world x {-frame.width / 2:g}..{frame.width / 2:g}  z {-frame.depth / 2:g}..{frame.depth / 2:g}",
+        f"a portal needs a wall {_count(need.across, 'cell')} wide and {_count(need.storeys, 'section')} tall, "
+        f"or a floor of {need.along}x{need.across} cells",
     ]
     platforms = []
     seen = set()
@@ -147,6 +149,10 @@ def summary(ctx: MapContext) -> str:
     lines.extend(_surface_lines(ctx, index))
     lines.extend(_structure_lines(ctx, index, platforms))
     return "\n".join(lines)
+
+
+def _count(number: int, noun: str) -> str:
+    return f"{number} {noun}{'' if number == 1 else 's'}"
 
 
 def _letters():
@@ -236,7 +242,7 @@ def _surface_lines(ctx: MapContext, index: MapIndex) -> list[str]:
 
 
 # Runs of unit edges along one line with the same face and verdict, as one
-# surface; the upper section of a ready pair is not reported on its own.
+# surface; the upper sections of a ready stack are not reported on their own.
 def _wall_groups(index: MapIndex, level: int) -> list[list[WallSurface]]:
     groups = []
     surfaces = sorted(
@@ -245,8 +251,10 @@ def _wall_groups(index: MapIndex, level: int) -> list[list[WallSurface]]:
     )
     for surface in surfaces:
         axis, col, row = surface.key
-        if level > 0 and any(
-            s.ready and s.key == surface.key and s.face == surface.face for s in index.wall_surfaces(level - 1)
+        if any(
+            s.ready and s.key == surface.key and s.face == surface.face
+            for below in range(max(level - index.ctx.footprint.storeys + 1, 0), level)
+            for s in index.wall_surfaces(below)
         ):
             continue
         last = groups[-1][-1] if groups else None
@@ -275,10 +283,16 @@ def _wall_line(ctx: MapContext, group: list[WallSurface]) -> str:
     cz = sum(f.center[2] for f in frames) / len(frames)
     x, z = ctx.frame.metres_to_world(cx, cz)
     normal = tuple(int(n) for n in frames[0].normal)
-    span = "" if len(group) == 1 else f" to ({last.cell[0]}, {last.cell[1]}), {len(group)} cells"
+    span, centre = "", ""
+    if len(group) > 1:
+        span = f" to ({last.cell[0]}, {last.cell[1]}), {len(group)} cells"
+        # The spec of the run's middle: a cell's edge, or the point two cells share.
+        middle = group[(len(group) - 1) // 2]
+        along = 0.5 if len(group) % 2 else 1.0
+        centre = surface_spec(surface_of_side(middle.level, *middle.cell, side, along)) + " "
     text = (
         f"wall  wall:L{first.level}:{col},{row}:{side}{span}  faces {first.face}  "
-        f"centre world ({x:.2f}, {frames[0].center[1]:.2f}, {z:.2f}) normal {normal}"
+        f"centre {centre}world ({x:.2f}, {frames[0].center[1]:.2f}, {z:.2f}) normal {normal}"
     )
     return text if first.ready else f"{text}: {first.reason}"
 
@@ -289,6 +303,28 @@ def _floor_line(ctx: MapContext, surface: FloorSurface) -> str:
     axes = " and ".join(surface.axes) if surface.axes else "none"
     text = f"floor floor:L{surface.level}:{(c0 + c1) / 2:g},{(r0 + r1) / 2:g}  cols {c0}..{c1} rows {r0}..{r1}  long axis {axes}  centre world ({x:.2f}, {ctx.frame.level_y(surface.level):.2f}, {z:.2f})"
     return text if surface.ready else f"{text}: {surface.reason}"
+
+
+def _actor_line(zone: dict) -> str:
+    c0, r0, c1, r1 = zone_rect(zone)
+    top = zone["level"] + zone.get("levels", 1) - 1
+    levels = f"L{zone['level']}" + (f"..L{top}" if top > zone["level"] else "")
+    respawn = zone.get("respawn_secs")
+    parts = [
+        f"actors {zone['kind']} x{'/'.join(str(n) for n in zone['count'])} {levels} cols {c0}..{c1} rows {r0}..{r1}",
+        "no respawn" if respawn is None else f"respawn {respawn:g} s",
+    ]
+    if zone.get("roam_distance"):
+        parts.append(f"roams {zone['roam_distance']:g} m")
+    if zone.get("switch"):
+        parts.append(f"switch {zone['switch']!r}")
+    if not zone.get("initially_on", True):
+        parts.append("initially off")
+    if zone.get("until_checkpoint") is not None:
+        parts.append(
+            f"until cp{zone['until_checkpoint']}" + (f" ({zone['on_checkpoint']})" if zone.get("on_checkpoint") else "")
+        )
+    return ", ".join(parts)
 
 
 # Consecutive unit edges on one line with the same value, as one run.
@@ -353,6 +389,12 @@ def _structure_lines(ctx: MapContext, index: MapIndex, platforms) -> list[str]:
         for cell, item in sorted(index.items[level].items()):
             if (level, cell) not in placed:
                 lines.append(f"item {item['type']} L{level} {cell} floats with no floor under it")
+    for level, records in enumerate(data["levels"]):
+        kinds = sorted(light["kind"] for light in records.get("lights", []))
+        if kinds:
+            counts = ", ".join(f"{kinds.count(kind)} {kind}" for kind in dict.fromkeys(kinds))
+            lines.append(f"lights L{level}: {counts}")
+    lines.extend(_actor_line(zone) for zone in data.get("actor_spawn_zones", []))
     switches = data.get("switches") or []
     plates = {}
     for level in range(index.count):

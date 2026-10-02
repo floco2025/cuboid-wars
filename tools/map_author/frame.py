@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import floor
+from math import ceil, floor
 
 from map_editor.catalogs import load_map_settings, map_settings_path, setting_number
+from map_editor.portal_surfaces import PORTAL_RIM_SCALE
 
 # A feet height this close to a floor top counts as standing on that level,
 # the same tolerance the server's checkpoint rule uses.
@@ -83,3 +84,29 @@ class GridFrame:
         x0, z0 = self.grid_to_world(c0, r0)
         x1, z1 = self.grid_to_world(c1, r1)
         return x0, z0, x1, z1
+
+
+# The grid a portal needs behind its rim: cells across its width, cells along
+# its height on a floor, and stacked wall sections for its height. A wall
+# section ends a floor's thickness below the next level.
+@dataclass(frozen=True)
+class PortalFootprint:
+    across: int
+    along: int
+    storeys: int
+
+    @classmethod
+    def for_map(cls, name: str, frame: GridFrame) -> PortalFootprint:
+        settings = load_map_settings(name)
+        source = str(map_settings_path(name))
+        width, height = (
+            setting_number(settings, source, f"weapons.portals.size.{key}") * PORTAL_RIM_SCALE
+            for key in ("width", "height")
+        )
+        section = frame.level_height - frame.floor_thickness
+        storeys = 1 if height <= section else 1 + _cells(height - section, frame.level_height)
+        return cls(_cells(width, frame.cell), _cells(height, frame.cell), storeys)
+
+
+def _cells(length: float, cell: float) -> int:
+    return max(ceil(length / cell - 1e-9), 1)

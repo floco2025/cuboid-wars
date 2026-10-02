@@ -14,7 +14,7 @@ The first command builds the Rust map library (`cargo build --release -p map_cor
 python3 tools/mapauthor.py build <map>                 # run config/server/maps/<map>/build.py
 python3 tools/mapauthor.py describe <map> [--level N] [--plan | --summary]
 python3 tools/mapauthor.py where <map> L4:9.5,17.5 | --world -46,8.8,-30
-python3 tools/mapauthor.py surface <map> wall:L4:6,16:W | floor:L2:37,42
+python3 tools/mapauthor.py surface <map> wall:L4:6,16:W[:along] | floor:L2:37,42
 python3 tools/mapauthor.py jump <map> --from L4:11,17:E [--walk] [--late 0.1] [--air-control]
 python3 tools/mapauthor.py fling <map> --from L4:6,17:W --into --entry wall:L4:6,17:W --exit wall:L6:20,23:S
 python3 tools/mapauthor.py ranges <map>
@@ -23,7 +23,7 @@ cargo run --release -- --experiment config/server/maps/<map>/experiment.json | p
 
 ## Workflow
 
-1. Register the map in `config/server/gameplay.json::maps` and write its `settings.json` (copy `portal_primer`'s: 2 m cells, 2.2 m levels, a `solid` and a `portal` texture alias). The tools never write either file.
+1. Register the map in `config/server/gameplay.json::maps` and write its `settings.json`: start from `portal_primer`'s, set `geometry` (the Primer has 2 m cells; `PLAN.md` asks for 1 m), and give `textures` an alias per role, a floor, wall, and ceiling material from Hotel's beside the `solid` and `portal` pair. The tools never write either file.
 2. Write `build.py` (below), run `build`, read the summary it prints.
 3. `describe` for the plan of each level; `surface`, `jump`, `fling`, and `ranges` for the physics of each gap and portal pair. Place landings where a flight comes down, not where it looks right.
 4. Write `experiment.json` beside the layout (format under Proving a route), run it, read `proof`. Every `aim`, `check`, and `spawn` is in world metres; `describe` and `where` give them.
@@ -32,7 +32,7 @@ cargo run --release -- --experiment config/server/maps/<map>/experiment.json | p
 
 ## Coordinates
 
-Cells and levels everywhere in the tools: `(col, row)` with columns along x and rows along z, rects end-exclusive, level L's floor top at `L * level_height`. The grid is centred on the world origin, so world x = `col * cell - cols * cell / 2`, the same for z, and feet y = `L * 2.2`. Scripts take world metres; `where` converts both ways. A takeoff `L4:11,17:E` leaves cell (11, 17) on level 4 over its east edge; a surface `wall:L4:6,17:W` is the wall on the west side of cell (6, 17) with its portal facing that cell, and `floor:L2:37,42` a floor point at cell coordinates (37, 42), which is the corner shared by cells 36 and 37.
+Cells and levels everywhere in the tools: `(col, row)` with columns along x and rows along z, rects end-exclusive, level L's floor top at `L * level_height`. The grid is centred on the world origin, so world x = `col * cell - cols * cell / 2`, the same for z, and feet y = `L * level_height`. Scripts take world metres; `where` converts both ways. A takeoff `L4:11,17:E` leaves cell (11, 17) on level 4 over its east edge; a surface `wall:L4:6,17:W` is the wall on the west side of cell (6, 17) with its portal facing that cell, and `floor:L2:37,42` a floor point at cell coordinates (37, 42), which is the corner shared by cells 36 and 37. A takeoff and a wall take an optional `:<along>` from 0 at the edge's west or north end to 1 at the other, the middle without one: `wall:L1:6,2:N:1` centres a portal on the point cells 6 and 7 share, where a portal two cells wide belongs.
 
 ## Rules of thumb at the portal-course geometry
 
@@ -44,7 +44,7 @@ Do not trust these for a gap: run `ranges` once per map and `jump` at the actual
 
 ## Portal backing
 
-A portal is 1.4 × 2.6 m. A wall portal needs two stacked sections on the same edge (`portal_wall` writes both) and nothing standing in front of the upper one; a floor portal needs two portalable cells side by side with no wall between them (`portal_floor` writes a 2×2 pad) and no pressure plate within 1.2 m. A surface's normal fixes the exit direction; where the portal is shot from only turns a floor portal by quarter turns. Materials come from the map's `settings.json::textures` aliases and their `portalable` flag. `surface` and the summary's "portal-ready" list judge all of this; the runner's `portal` action is the final word.
+A portal is 1.4 × 2.6 m and its rim, 6% larger, needs backing: 1.5 × 2.8 m of portalable surface. How many cells and wall sections that is follows from the map's geometry, and the summary's first lines and `BuildError`s say it. At the Primer's 2 m cells and 2.2 m levels a wall portal is one cell wide and two stacked sections tall, and a floor portal two cells long; at 1 m cells a wall portal is two cells wide and a floor portal three by two; at Hotel's 4.4 m levels one wall section is enough. `portal_wall` and `portal_floor` write what fits by default. A wall portal also needs nothing standing in front of its upper sections, so the room it is in is as tall as the portal; a floor portal needs no wall inside its block and no pressure plate within 1.2 m; a wall light keeps a portal 0.4 m away. A surface's normal fixes the exit direction; where the portal is shot from only turns a floor portal by quarter turns. Materials come from the map's `settings.json::textures` aliases and their `portalable` flag. `surface` and the summary's "portal-ready" list judge all of this by grid rules; the runner's `portal` action is the final word.
 
 ## The builder
 
@@ -65,13 +65,28 @@ b.platform("landing", level=4, size=(4, 4), east_of="lobby", gap=6, shift=0)
 b.save()
 ```
 
-Placement is `at=(col, row)` or exactly one of `east_of`, `west_of`, `north_of`, `south_of` naming an earlier piece, with `gap` cells between and `shift` cells along the shared edge; `level` is a number or a piece's name, with `up` and `down`. Pieces: `platform`, `portal_floor`, `portal_wall(name, level, at, side, length=1)`, `wall(level, start, end, material=None, storeys=1)` between grid points, `bridge(..., field=)`, `barrier(level, start, end, field=)`, `eraser(level, start, end)`, `ramp(name, lower_level, size, direction=, levels=1, shape="solid")` where `direction` is the side it rises toward and the slope must be climbable, `ladder(lower_level, landing, side, levels=1)` on a side of its top landing cell, `checkpoint(number, level, size, ...)`, `plate(level, at, switch=)`, `item(type, level, at, field=None)`, `switch(id, activation=, reset=, held=, color=)`, `field(id, switch=, initially_on=, color=)`, `fireworks(switch)`. `save()` normalizes, validates, raises `BuildError` with the validator's messages, writes the layout, and prints the summary. Out of scope: terrain, grounds, nested maps, actor zones, lights, random items, quests.
+Placement is `at=(col, row)` or exactly one of `east_of`, `west_of`, `north_of`, `south_of` naming an earlier piece, with `gap` cells between and `shift` cells along the shared edge; `level` is a number or a piece's name, with `up` and `down`. Pieces: `platform`, `portal_floor(name, level, size=None)`, which also turns a floor already there into a pad, `portal_wall(name, level, at, side, length=None)`, which makes the face into the cell portalable and keeps the other faces of a wall already there, `wall(level, start, end, material=None, storeys=1)` between grid points, `bridge(..., field=)`, `barrier(level, start, end, field=)`, `eraser(level, start, end)`, `ramp(name, lower_level, size, direction=, levels=1, shape="solid")` where `direction` is the side it rises toward and the slope must be climbable, `ladder(lower_level, landing, side, levels=1)` on a side of its top landing cell, `checkpoint(number, level, size, ...)`, `plate(level, at, switch=)`, `item(type, level, at, field=None)`, `switch(id, activation=, reset=, held=, color=)`, `field(id, switch=, initially_on=, color=)`, `fireworks(switch)`. `save()` normalizes, validates, raises `BuildError` with the validator's messages, writes the layout, and prints the summary. Out of scope: terrain, grounds, nested maps, random items, quests.
+
+A building is rooms:
+
+```python
+b.room("hall", level=1, at=(2, 2), size=(10, 8), storeys=2, floor="carpet", inside="wallpaper", ceiling="plaster")
+b.room("vault", level=1, size=(4, 4), east_of="hall", storeys=2, inside={"E": "portal"})
+b.doorway("hall", "E", 1)  # into the vault, one storey tall
+b.doorway("hall", "S", width=2, eraser=True)  # centred; or field="gate" for a barrier
+b.portal_wall("north", level="hall", at=(6, 2), side="N")  # a panel of the hall's north wall
+b.portal_floor("pad", level="hall", at=(8, 5))
+b.room_lights("hall", "utility", every=3)
+b.actor_zone("turret", level="vault", at=(14, 4), size=(1, 1), count=[1, 2], switch="alarm")
+```
+
+`room` writes the floor, the walls around it `storeys` tall, and the ceiling, which is the floor slab of the level above: `ceiling=False` leaves the top open, and a room built on top gives that slab its own floor material. `inside` and `outside` are the wall faces' aliases, one for all four walls or a dict per side; every alias defaults to `solid`. Rooms may share a wall, and each keeps its own inside face. `doorway(room, side, offset=None, width=1, storeys=1, eraser=False, field=None)` counts `offset` in cells from the wall's west or north end. `light(level, at, side, kind=)` hangs one light in a cell on its `side` wall; `room_lights` skips openings and portalable faces and returns how many it placed. `actor_zone(kind, level, size, ..., count=1, respawn_secs=None, beam_in_secs=0.0, roam=0.0, levels=1, switch=, initially_on=, until_checkpoint=, on_checkpoint=)` never refills a killed actor unless `respawn_secs` says so.
 
 ## Reading the views
 
-The plan draws one character per cell with the walls between them; the legend is printed with it. The summary names each platform `L<level>.<letter>` with its grid and world bounds and what it holds, the nearest neighbour in each direction with the gap in cells and metres and the storey difference, every portal-ready surface with its world centre and normal, the portalable surfaces that are not ready and why, ramps with their slope, ladders, barriers, erasers, switches with their plates, and fields.
+The plan draws one character per cell with the walls between them; the legend is printed with it. The summary names each platform `L<level>.<letter>` with its grid and world bounds and what it holds, the nearest neighbour in each direction with the gap in cells and metres and the storey difference, every portal-ready surface with its world centre and normal (a wall run of several cells also with the spec of its centre), the portalable surfaces that are not ready and why, ramps with their slope, ladders, barriers, erasers, lights per level, actor zones, switches with their plates, and fields.
 
-`jump` and `fling` print, per pickup scenario, where the flight crosses each floor height, in cells and world metres, with the fall damage and whether a floor is there; the first floor is the landing. With `--air-control` they add how far holding a direction carries on each level. `fling --into` runs into the entry wall from the takeoff cell instead of jumping off an edge.
+`jump` and `fling` print, per pickup scenario, where the flight crosses each floor height, in cells and world metres, with the fall damage and whether a floor is there; the first floor is the landing. With `--air-control` they add how far holding a direction carries on each level. `fling --into` runs into the entry wall from the takeoff cell instead of jumping off an edge; the takeoff and the entry name the same cell, side, and `along`.
 
 `proof` prints one line per action with its result and the events that matter (crossings, landings, checkpoints, pickups, erasure, deaths, portal results), the body's end position as world metres and a cell, and a footer with the checks passed. A passing script shows a route exists; it does not show that the route is necessary or readable, which the design principles in `PLAN.md` cover.
 

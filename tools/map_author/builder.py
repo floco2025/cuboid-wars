@@ -6,9 +6,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from map_editor.catalogs import MapCatalogs, load_actor_kinds, load_wall_light_kinds, map_layout_path
-from map_editor.constants import FACES, ITEM_KEY_TYPE, ITEM_TYPES
+from map_editor.constants import ACTOR_ZONE_LIST, FACES, ITEM_KEY_TYPE, ITEM_TYPES
 from map_editor.editing import paint_bridges, paint_edges, paint_erasers, paint_floors, place_plate, place_ramp
 from map_editor.editing import placement_materials
+from map_editor.erasing import lights_off_edges
 from map_editor.geometry import ramp_error, ramp_slope
 from map_editor.io import write_map
 from map_editor.normalization import (
@@ -16,19 +17,18 @@ from map_editor.normalization import (
     edge_key,
     empty_level,
     empty_map,
+    expand_face_materials,
     item_cell_error,
+    light_placement_error,
     normalize_map,
     plate_cell_error,
 )
 from map_editor.validation import validate_document
 
 from .context import MapContext
-from .frame import GridFrame
+from .edges import FACE_INTO_CELL, SIDES
+from .frame import GridFrame, PortalFootprint
 
-SIDES = ("N", "S", "E", "W")
-# A piece's `side` names the edge of its cell; the portal face on that edge
-# looks back into the cell, so a player standing there sees it.
-FACE_INTO_CELL = {"N": "south", "S": "north", "E": "west", "W": "east"}
 RELATIVE = ("east_of", "west_of", "north_of", "south_of")
 FIELD_COLORS = ("#00ccff", "#ffcc00", "#ff5533", "#33dd66", "#cc66ff", "#ff9900")
 
@@ -63,7 +63,7 @@ class Piece:
     def center(self) -> tuple[float, float]:
         return (self.c0 + self.c1) / 2, (self.r0 + self.r1) / 2
 
-    # The level a ramp arrives on.
+    # The level a ramp arrives on, or a room's ceiling stands on.
     @property
     def top_level(self) -> int:
         return self.level + self.levels
@@ -86,6 +86,7 @@ class MapBuilder:
         data["levels"] = [empty_level(index) for index in range(levels)]
         self.data = {**data, "switches": [], "fields": [], "fireworks": None}
         self.frame = GridFrame.for_map(name, self.data)
+        self.footprint = PortalFootprint.for_map(name, self.frame)
         self.pieces: dict[str, Piece] = {}
 
     @property
@@ -103,6 +104,14 @@ class MapBuilder:
             raise BuildError(f"piece {piece.name!r} already exists")
         self.pieces[piece.name] = piece
         return piece
+
+    def _alias(self, material: str | None, default: str) -> str:
+        if material is None:
+            return default
+        if material not in self.catalogs.texture_catalog:
+            known = ", ".join(self.catalogs.texture_catalog)
+            raise BuildError(f"texture alias {material!r} is not in settings.json; known: {known}")
+        return material
 
     def _level(self, level: int | str, up: int = 0, down: int = 0) -> int:
         index = (self.piece(level).level if isinstance(level, str) else level) + up - down
@@ -155,52 +164,62 @@ class MapBuilder:
     ) -> Piece:
         index = self._level(level, up, down)
         rect = self._place(size, at, **where)
-        self.data = paint_floors(self.data, index, rect, material or self.solid, blocked=blocked)
+        self.data = paint_floors(self.data, index, rect, self._alias(material, self.solid), blocked=blocked)
         return self._register(Piece(name, "platform", index, *rect))
 
-    # Two portalable cells along the long axis are the least backing a floor portal has.
-    def portal_floor(self, name: str, level, size=(2, 2), at=None, *, up=0, down=0, **where) -> Piece:
-        if max(size) < 2:
-            raise BuildError("a floor portal needs two cells along its long axis")
+    # A pad a floor portal fits on either way round, unless `size` says otherwise.
+    def portal_floor(self, name: str, level, size=None, at=None, *, up=0, down=0, **where) -> Piece:
+        along, across = self.footprint.along, self.footprint.across
+        size = size or (along, along)
+        if max(size) < along or min(size) < across:
+            raise BuildError(f"{name}: a floor portal needs {along}x{across} cells on this grid")
         index = self._level(level, up, down)
         rect = self._place(size, at, **where)
-        self.data = paint_floors(self.data, index, rect, self.portal)
+        self._slab(index, rect, dict.fromkeys(FACES, self.portal), "top")
         return self._register(Piece(name, "portal_floor", index, *rect))
 
     def wall(self, level, start, end, *, material: str | None = None, storeys: int = 1) -> None:
         index = self._level(level)
         if index + storeys > self.level_count:
             raise BuildError(f"a wall of {storeys} storeys from level {index} leaves the map")
+        material = self._alias(material, self.solid)
         for storey in range(index, index + storeys):
-            self.data = paint_edges(self.data, storey, tuple(start), tuple(end), material=material or self.solid)
+            self.data = paint_edges(self.data, storey, tuple(start), tuple(end), material=material)
 
-    # A wall on `side` of cell (col, row) and the `length` cells after it, two
-    # storeys tall so a portal fits, portalable on the face into those cells
-    # alone: the back stays solid, so only a player in front can use it.
-    def portal_wall(self, name: str, level, at, side: str, *, length: int = 1, up=0, down=0) -> Piece:
+    # The wall on `side` of cell (col, row) and of the cells after it, as wide
+    # and as many sections tall as a portal needs, portalable on the face into
+    # those cells alone: a new wall's back is solid, and a wall already there
+    # keeps its other faces, so only a player in front can use it.
+    def portal_wall(self, name: str, level, at, side: str, *, length: int | None = None, up=0, down=0) -> Piece:
         if side not in SIDES:
             raise BuildError(f"side must be one of {', '.join(SIDES)}")
+        length = length or self.footprint.across
+        if length < self.footprint.across:
+            raise BuildError(f"{name}: a portal is {self.footprint.across} cells wide on this grid")
         index = self._level(level, up, down)
-        if index + 1 >= self.level_count:
-            raise BuildError("a portal wall needs the storey above it: it cannot sit on the top level")
+        storeys = self.footprint.storeys
+        if index + storeys > self.level_count:
+            raise BuildError(f"{name}: a portal wall is {storeys} storeys tall and leaves the map from level {index}")
         col, row = at
-        if side in "NS":
-            line = row if side == "N" else row + 1
-            start, end = (col, line), (col + length, line)
-            rect = col, row, col + length, row + 1
-        else:
-            line = col if side == "W" else col + 1
-            start, end = (line, row), (line, row + length)
-            rect = col, row, col + 1, row + length
+        rect = (col, row, col + length, row + 1) if side in "NS" else (col, row, col + 1, row + length)
+        start, end = self._side_segment(rect, side)
         face = FACE_INTO_CELL[side]
         materials = {**dict.fromkeys(FACES, self.solid), face: self.portal}
-        for storey in (index, index + 1):
-            painted = paint_edges(self.data, storey, start, end, material=materials)
-            for wall in painted["levels"][storey]["walls"]:
-                if wall[face] != self.portal and self._on_segment(wall, start, end):
-                    raise BuildError(f"{name}: level {storey} already has a solid wall on that edge")
-            self.data = painted
+        for storey in range(index, index + storeys):
+            self._walls(storey, start, end, materials, face)
         return self._register(Piece(name, "portal_wall", index, *rect, face=face))
+
+    # The grid line along `side` of a footprint.
+    @staticmethod
+    def _side_segment(rect, side: str, offset: int = 0, width: int | None = None):
+        c0, r0, c1, r1 = rect
+        if side in "NS":
+            line = r0 if side == "N" else r1
+            a = c0 + offset
+            return (a, line), (c1 if width is None else a + width, line)
+        line = c0 if side == "W" else c1
+        a = r0 + offset
+        return (line, a), (line, r1 if width is None else a + width)
 
     @staticmethod
     def _on_segment(wall: dict, start, end) -> bool:
@@ -209,6 +228,221 @@ class MapBuilder:
         if sr == er:
             return r0 == r1 == sr and min(sc, ec) <= c0 and c1 <= max(sc, ec)
         return c0 == c1 == sc and min(sr, er) <= r0 and r1 <= max(sr, er)
+
+    # Walls on the unit edges from `start` to `end`: a new wall takes
+    # `materials`, and one already there takes `face` from them alone.
+    def _walls(self, level: int, start, end, materials: dict, face: str | None = None) -> None:
+        data = paint_edges(self.data, level, start, end, material=materials)
+        if face is not None:
+            walls = data["levels"][level]["walls"]
+            for at, wall in enumerate(walls):
+                if self._on_segment(wall, start, end):
+                    walls[at] = self._refaced(wall, face, materials[face])
+        self.data = data
+
+    @staticmethod
+    def _refaced(record: dict, face: str, material: str) -> dict:
+        faces = record if all(name in record for name in FACES) else expand_face_materials(record)
+        refaced = {**record, **{name: faces[name] for name in FACES}, face: material}
+        refaced.pop("all", None)
+        return refaced
+
+    # Floor slabs over `rect`, with the same rule for `face`: a room's ceiling
+    # is the slab the storey above stands on.
+    def _slab(self, level: int, rect, materials: dict, face: str) -> None:
+        data = paint_floors(self.data, level, rect, materials)
+        c0, r0, c1, r1 = rect
+        for name in ("floors", "inaccessible_floors"):
+            slabs = data["levels"][level][name]
+            for at, slab in enumerate(slabs):
+                if c0 <= slab["col"] < c1 and r0 <= slab["row"] < r1:
+                    slabs[at] = self._refaced(slab, face, materials[face])
+        self.data = data
+
+    # A room: a floor, walls around it `storeys` tall, and a ceiling, which is
+    # the floor slab of the level above. `inside` and `outside` are the wall
+    # faces' texture aliases, one for all four walls or one per side; `ceiling`
+    # is an alias, True for the solid one, or False for an open top. A wall
+    # shared with an earlier room keeps that room's faces.
+    def room(
+        self,
+        name: str,
+        level,
+        size,
+        at=None,
+        *,
+        storeys: int = 1,
+        floor: str | None = None,
+        inside: str | dict[str, str] | None = None,
+        outside: str | dict[str, str] | None = None,
+        ceiling: str | bool = True,
+        up=0,
+        down=0,
+        **where,
+    ) -> Piece:
+        index = self._level(level, up, down)
+        top = index + storeys
+        if storeys < 1 or top > self.level_count or (ceiling is not False and top >= self.level_count):
+            raise BuildError(f"{name}: {storeys} storeys from level {index} leave no level for the walls and ceiling")
+        rect = self._place(size, at, **where)
+        self._slab(index, rect, dict.fromkeys(FACES, self._alias(floor, self.solid)), "top")
+        for side in SIDES:
+            start, end = self._side_segment(rect, side)
+            face = FACE_INTO_CELL[side]
+            materials = {
+                **dict.fromkeys(FACES, self._side_alias(outside, side)),
+                face: self._side_alias(inside, side),
+            }
+            for storey in range(index, top):
+                self._walls(storey, start, end, materials, face)
+        if ceiling is not False:
+            under = self.solid if ceiling is True else self._alias(ceiling, self.solid)
+            self._slab(top, rect, {**dict.fromkeys(FACES, self.solid), "bottom": under}, "bottom")
+        return self._register(Piece(name, "room", index, *rect, levels=storeys))
+
+    def _side_alias(self, material: str | dict[str, str] | None, side: str) -> str:
+        if isinstance(material, dict):
+            unknown = set(material) - set(SIDES)
+            if unknown:
+                raise BuildError(f"wall materials are keyed by side ({', '.join(SIDES)}), not {sorted(unknown)}")
+            material = material.get(side)
+        return self._alias(material, self.solid)
+
+    def _room(self, name: str) -> Piece:
+        piece = self.piece(name)
+        if piece.kind != "room":
+            raise BuildError(f"{name!r} is a {piece.kind}, not a room")
+        return piece
+
+    # An opening in a room's wall, `width` cells wide and `storeys` tall,
+    # `offset` cells from the wall's west or north end and centred without
+    # one. `eraser` fills it with an equipment eraser and `field` with a
+    # barrier of that field.
+    def doorway(
+        self,
+        room: str,
+        side: str,
+        offset: int | None = None,
+        *,
+        width: int = 1,
+        storeys: int = 1,
+        eraser: bool = False,
+        field: str | None = None,
+    ) -> None:
+        piece = self._room(room)
+        if side not in SIDES:
+            raise BuildError(f"side must be one of {', '.join(SIDES)}")
+        span = piece.size[0] if side in "NS" else piece.size[1]
+        offset = (span - width) // 2 if offset is None else offset
+        if width < 1 or offset < 0 or offset + width > span:
+            raise BuildError(f"{room}: a doorway {width} wide at offset {offset} leaves its {span}-cell wall")
+        if not 1 <= storeys <= piece.levels:
+            raise BuildError(f"{room}: a doorway is 1 to {piece.levels} storeys tall")
+        start, end = self._side_segment(piece.rect, side, offset, width)
+        for storey in range(piece.level, piece.level + storeys):
+            level = self.data["levels"][storey]
+            removed = {edge_key(w) for w in level["walls"] if self._on_segment(w, start, end)}
+            level["walls"] = [w for w in level["walls"] if edge_key(w) not in removed]
+            level["lights"] = lights_off_edges(level["lights"], removed)
+            if eraser:
+                self.data = paint_erasers(self.data, storey, start, end)
+            if field is not None:
+                self.data = paint_edges(self.data, storey, start, end, field=field)
+
+    # A wall light in cell (col, row) on its `side` wall, facing the cell. A
+    # portal keeps 0.4 m from a light (PORTAL_LIGHT_CLEARANCE).
+    def light(self, level, at, side: str, *, kind: str) -> None:
+        kinds = load_wall_light_kinds()
+        if kind not in kinds:
+            raise BuildError(f"unknown light kind {kind!r}; one of {', '.join(kinds)}")
+        index = self._level(level)
+        col, row = at
+        error = light_placement_error(self.data, index, col, row, side)
+        if error:
+            raise BuildError(f"light at ({col}, {row}) {side}: {error}")
+        self.data["levels"][index]["lights"].append({"col": col, "row": row, "side": side, "kind": kind})
+
+    # Lights along a room's walls on its storey `storey`, one every `every`
+    # cells, on the wall sections that stand and take no portal. Returns how
+    # many it placed.
+    def room_lights(self, room: str, kind: str, *, every: int = 3, storey: int = 0, sides: str = "NSEW") -> int:
+        piece = self._room(room)
+        if every < 1 or not 0 <= storey < piece.levels:
+            raise BuildError(f"{room}: lights go every 1 or more cells on storeys 0 to {piece.levels - 1}")
+        index = piece.level + storey
+        walls = {edge_key(w): w for w in self.data["levels"][index]["walls"]}
+        c0, r0, c1, r1 = piece.rect
+        placed = 0
+        for side in sides:
+            if side not in SIDES:
+                raise BuildError(f"side must be one of {', '.join(SIDES)}")
+            if side in "NS":
+                cells = [(col, r0 if side == "N" else r1 - 1) for col in range(c0, c1)]
+            else:
+                cells = [(c0 if side == "W" else c1 - 1, row) for row in range(r0, r1)]
+            for col, row in cells[every // 2 :: every]:
+                start, end = self._side_segment((col, row, col + 1, row + 1), side)
+                wall = walls.get((*start, *end))
+                if wall is None:
+                    continue
+                inside = expand_face_materials(wall)[FACE_INTO_CELL[side]]
+                if self.catalogs.texture_catalog.get(inside):
+                    continue
+                if light_placement_error(self.data, index, col, row, side) is None:
+                    self.light(index, (col, row), side, kind=kind)
+                    placed += 1
+        return placed
+
+    # Actors of one kind spawning in a rectangle. `count` is one target or a
+    # nondecreasing list for one, two, three, and four or more players;
+    # `respawn_secs` None never refills a killed actor's slot.
+    def actor_zone(
+        self,
+        kind: str,
+        level,
+        size,
+        at=None,
+        *,
+        count: int | list[int] = 1,
+        respawn_secs: float | None = None,
+        beam_in_secs: float = 0.0,
+        roam: float = 0.0,
+        levels: int = 1,
+        switch: str | None = None,
+        initially_on: bool = True,
+        until_checkpoint: int | None = None,
+        on_checkpoint: str | None = None,
+        up=0,
+        down=0,
+        **where,
+    ) -> None:
+        kinds = load_actor_kinds()
+        if kind not in kinds:
+            raise BuildError(f"unknown actor kind {kind!r}; one of {', '.join(kinds)}")
+        index = self._level(level, up, down)
+        c0, r0, c1, r1 = self._place(size, at, **where)
+        zone = {
+            "level": index,
+            "cols": [c0, c1],
+            "rows": [r0, r1],
+            "kind": kind,
+            "count": [count] if isinstance(count, int) else list(count),
+            "respawn_secs": respawn_secs,
+            "beam_in_secs": beam_in_secs,
+        }
+        if levels != 1:
+            zone["levels"] = levels
+        if roam:
+            zone["roam_distance"] = roam
+        if switch is not None:
+            zone["switch"] = switch
+        if switch is not None or not initially_on:
+            zone["initially_on"] = initially_on
+        if until_checkpoint is not None:
+            zone["until_checkpoint"] = until_checkpoint
+        if on_checkpoint is not None:
+            zone["on_checkpoint"] = on_checkpoint
+        self.data[ACTOR_ZONE_LIST] = [*self.data[ACTOR_ZONE_LIST], zone]
 
     def bridge(self, name: str, level, size, at=None, *, field: str, up=0, down=0, **where) -> Piece:
         index = self._level(level, up, down)

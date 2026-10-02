@@ -24,7 +24,8 @@ class PortalFrame:
 
 
 # A floor portal lies anywhere on its cell, `offset` from the cell's corner in
-# cells; a wall portal is centred on its cell edge with its rim on the wall's base.
+# cells; a wall portal lies that far along its cell edge, at its middle
+# unless told otherwise, with its rim on the wall's base.
 @dataclass(frozen=True)
 class PortalSurface:
     level: int
@@ -44,8 +45,9 @@ class PortalSurface:
     def grid_center(self) -> tuple[float, float]:
         if self.face == "floor":
             return self.col + self.offset[0], self.row + self.offset[1]
-        horizontal = self.face in ("north", "south")
-        return self.col + (0.5 if horizontal else 0), self.row + (0 if horizontal else 0.5)
+        if self.face in ("north", "south"):
+            return self.col + self.offset[0], self.row
+        return self.col, self.row + self.offset[1]
 
     # A floor portal's long axis follows the quarter turn its shooter, a point in grid units, faces.
     def placed_from(self, shooter: tuple[float, float]) -> "PortalSurface":

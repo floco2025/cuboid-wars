@@ -43,9 +43,24 @@ def front_cell(key: EdgeKey, face: str) -> tuple[int, int]:
     return col, row
 
 
-def surface_of_side(level: int, col: int, row: int, side: str) -> PortalSurface:
+# `along` runs from 0 at the edge's west or north end to 1 at the other, so
+# 1 centres a portal on the grid point two cells share.
+def surface_of_side(level: int, col: int, row: int, side: str, along: float = 0.5) -> PortalSurface:
     (axis, edge_col, edge_row), face = edge_of_side(col, row, side)
-    return PortalSurface(level, edge_col, edge_row, face)
+    return PortalSurface(level, edge_col, edge_row, face, offset=(along, along))
+
+
+def along_of_surface(surface: PortalSurface) -> float:
+    return surface.offset[0] if surface.face in ("north", "south") else surface.offset[1]
+
+
+def surface_spec(surface: PortalSurface) -> str:
+    if surface.face == "floor":
+        x, z = surface.grid_center
+        return f"floor:L{surface.level}:{x:g},{z:g}"
+    col, row, side = cell_side_of_surface(surface)
+    along = along_of_surface(surface)
+    return f"wall:L{surface.level}:{col},{row}:{side}" + ("" if along == 0.5 else f":{along:g}")
 
 
 # The cell and side a wall surface stands in front of.

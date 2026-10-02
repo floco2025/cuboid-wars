@@ -11,7 +11,7 @@ class PlanTests(ConfigTestCase):
         self.assertEqual(
             lines,
             [
-                '## L1 "Deck"  y=4.40  cols 1..8  rows 2..3',
+                '## L1 "Deck"  y=2.40  cols 1..8  rows 2..3',
                 "     1 2 3 4 5 6 7 8",
                 "     ~ ~ ~       - -",
                 "  2  0 . .%_ _ _x. .",
@@ -31,14 +31,15 @@ class PlanTests(ConfigTestCase):
         ctx = course()
         ctx.data["levels"][2]["walls"] = []
         text = plan(ctx)
-        self.assertIn('## L2 "Level 2"  y=8.80  (empty)', text)
+        self.assertIn('## L2 "Level 2"  y=4.80  (empty)', text)
         self.assertEqual(text.count("legend:"), 1)
 
 
 class SummaryTests(ConfigTestCase):
     def test_platforms_gaps_and_holdings(self):
         lines = summary(course()).splitlines()
-        self.assertEqual(lines[0], "map obby  12x8 cells  cell 3.4 m  level 4.4 m  world x -20.4..20.4  z -13.6..13.6")
+        self.assertEqual(lines[0], "map obby  12x8 cells  cell 3.4 m  level 2.4 m  world x -20.4..20.4  z -13.6..13.6")
+        self.assertEqual(lines[1], "a portal needs a wall 1 cell wide and 2 sections tall, or a floor of 1x1 cells")
         self.assertIn(
             "  L1.a   cols 1..4 rows 2..4 (3x2) floor  world x -17..-6.8 z -6.8..0  holds: cp0, speed (2, 3)", lines
         )
@@ -62,7 +63,7 @@ class SummaryTests(ConfigTestCase):
 
     def test_structure_lines(self):
         text = summary(course())
-        self.assertIn("ramp L0->L1 cols 9..11 rows 0..1 rising E (solid)  32.9° climbable", text)
+        self.assertIn("ramp L0->L1 cols 9..11 rows 0..1 rising E (solid)  19.4° climbable", text)
         self.assertIn("ladder L0->L1 on side S of cell (1, 2), climbed from the cell across that edge", text)
         self.assertIn("barrier 'door' L1 between cells (3, 2) and (4, 2)", text)
         self.assertIn("eraser L1 between cells (6, 2)..(6, 3) and (7, 2)..(7, 3) (2 edges)", text)

@@ -29,6 +29,12 @@ class SpecTests(ConfigTestCase):
                 self.assertEqual(parse_surface(spec), expected)
                 self.assertEqual(surface_spec(expected), spec)
 
+    def test_a_wall_spec_may_say_how_far_along_its_edge(self):
+        shared = parse_surface("wall:L1:6,2:N:1")
+        self.assertEqual((shared.grid_center, surface_spec(shared)), ((7.0, 2), "wall:L1:6,2:N:1"))
+        self.assertEqual(parse_surface("wall:L1:6,2:W:0.25").grid_center, (6, 2.25))
+        self.assertEqual(parse_surface("wall:L1:6,2:N").grid_center, (6.5, 2))
+
     def test_floor_specs_are_points_in_cells(self):
         self.assertEqual(parse_surface("floor:L0:3,6"), PortalSurface(0, 3, 6, offset=(0.0, 0.0)))
         self.assertEqual(surface_spec(PortalSurface(0, 3, 6, offset=(0.5, 0.25))), "floor:L0:3.5,6.25")
@@ -39,13 +45,13 @@ class SpecTests(ConfigTestCase):
 class ViewTests(ConfigTestCase):
     def test_where_converts_both_ways(self):
         ctx = course()
-        self.assertEqual(where(ctx, "L1:4,3"), "L1 cell (4, 3) is world (-6.80, 4.40, -3.40)")
-        self.assertEqual(where(ctx, world="-6.8,4.4,-3.4"), "world (-6.8, 4.4, -3.4) is L1 cell (4.00, 3.00)")
-        self.assertEqual(where(ctx, world="0,5.5,0"), "world (0, 5.5, 0) is between L1/L2 (y=5.50) cell (6.00, 4.00)")
+        self.assertEqual(where(ctx, "L1:4,3"), "L1 cell (4, 3) is world (-6.80, 2.40, -3.40)")
+        self.assertEqual(where(ctx, world="-6.8,2.4,-3.4"), "world (-6.8, 2.4, -3.4) is L1 cell (4.00, 3.00)")
+        self.assertEqual(where(ctx, world="0,3.5,0"), "world (0, 3.5, 0) is between L1/L2 (y=3.50) cell (6.00, 4.00)")
 
     def test_surface_reports_readiness(self):
         ctx = course()
-        self.assertIn("ready: two portalable storeys with a clear front", surface(ctx, parse_surface("wall:L1:3,3:S")))
+        self.assertIn("ready: 2 portalable storeys with a clear front", surface(ctx, parse_surface("wall:L1:3,3:S")))
         self.assertIn("not ready: no wall section on the storey above", surface(ctx, parse_surface("wall:L1:1,2:N")))
         self.assertIn("ready: pad cols 2..4 rows 5..7", surface(ctx, parse_surface("floor:L0:3,6")))
         self.assertIn("not ready: a pressure plate", surface(ctx, parse_surface("floor:L0:7,6")))
@@ -64,7 +70,7 @@ class FlightTests(ConfigTestCase):
         ctx = course()
         # East off the west platform, in grid-origin metres: the east platform starts at x = 7 * 3.4.
         flight = scenario(
-            [[13.6, 4.4, 10.2]],
+            [[13.6, 2.4, 10.2]],
             crossings=[
                 (2, "before_entry", (15.0, 10.2), 0.3, 0.0),
                 (1, "before_entry", (24.5, 10.2), 0.9, 0.0),
@@ -75,33 +81,33 @@ class FlightTests(ConfigTestCase):
             text = jump(ctx, parse_takeoff("L1:3,3:E"))
         lines = text.splitlines()
         self.assertEqual(
-            lines[0], "takeoff L1 cell (3, 3) side E along 0.5: jump heading E, world (-6.65, 4.40, -1.70)"
+            lines[0], "takeoff L1 cell (3, 3) side E along 0.5: jump heading E, world (-6.65, 2.40, -1.70)"
         )
         self.assertEqual(lines[1], "normal: falls below every floor")
         self.assertEqual(
-            lines[2], "  L2 at 0.30 s: cell (4.4, 3.0) world (-5.40, 8.80, -3.40)  0% damage  no floor there"
+            lines[2], "  L2 at 0.30 s: cell (4.4, 3.0) world (-5.40, 4.80, -3.40)  0% damage  no floor there"
         )
         self.assertEqual(
-            lines[3], "  L1 at 0.90 s: cell (7.2, 3.0) world (4.10, 4.40, -3.40)  0% damage  LANDS on cell (7, 2)"
+            lines[3], "  L1 at 0.90 s: cell (7.2, 3.0) world (4.10, 2.40, -3.40)  0% damage  LANDS on cell (7, 2)"
         )
         self.assertEqual(lines[4], "speed: falls below every floor")
 
     def test_a_fatal_crossing_ends_the_listing(self):
         ctx = course()
         flight = scenario(
-            [[13.6, 4.4, 10.2]],
+            [[13.6, 2.4, 10.2]],
             crossings=[(0, "before_entry", (40.0, 10.2), 2.0, 1.0)],
         )
         with patch.object(measure, "jump_preview", canned([flight] * 4)):
             lines = jump(ctx, parse_takeoff("L1:3,3:E"), walk=True).splitlines()
-        self.assertTrue(lines[0].endswith("walk-off heading E, world (-6.65, 4.40, -1.70)"))
+        self.assertTrue(lines[0].endswith("walk-off heading E, world (-6.65, 2.40, -1.70)"))
         self.assertEqual(lines[2], "  L0 at 2.00 s: cell (11.8, 3.0) world (19.60, 0.00, -3.40)  fatal  no floor there")
         self.assertEqual(len(lines), 9)
 
     def test_fling_reports_the_entry_and_refuses_bad_surfaces(self):
         ctx = course()
         flight = scenario(
-            [[13.6, 4.4, 10.2], [14.0, 4.4, 10.2], [15.0, 4.4, 10.2]],
+            [[13.6, 2.4, 10.2], [14.0, 2.4, 10.2], [15.0, 2.4, 10.2]],
             hop=0,
             hop_time=0.03,
             end="below",
@@ -122,7 +128,7 @@ class FlightTests(ConfigTestCase):
     def test_held_input_reach_comes_from_the_range_hull(self):
         ctx = course()
         flight = scenario(
-            [[13.6, 4.4, 10.2]],
+            [[13.6, 2.4, 10.2]],
             crossings=[(0, "before_entry", (20.0, 10.2), 1.0, 0.0)],
             range=[{"level": 0, "polygon": [[14.0, 8.0], [22.0, 8.0], [22.0, 13.0], [14.0, 13.0]]}],
         )

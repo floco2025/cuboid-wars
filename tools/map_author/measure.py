@@ -9,12 +9,12 @@ from map_editor.jump_path import AFTER_EXIT, Flight, Takeoff, build_request, ent
 from map_editor.portal_surfaces import PortalSurface, PortalSurfaces, portals_overlap
 
 from .context import MapContext
-from .edges import cell_side_of_surface, surface_of_side
+from .edges import along_of_surface, cell_side_of_surface, surface_of_side, surface_spec
 from .index import MapIndex
 
 SCENARIOS = ("normal", "speed", "low gravity", "speed+low gravity")
 TAKEOFF_RE = re.compile(r"^L(\d+):(-?\d+),(-?\d+):([NSEW])(?::([0-9.]+))?$")
-WALL_RE = re.compile(r"^wall:L(\d+):(-?\d+),(-?\d+):([NSEW])$")
+WALL_RE = re.compile(r"^wall:L(\d+):(-?\d+),(-?\d+):([NSEW])(?::([0-9.]+))?$")
 FLOOR_RE = re.compile(r"^floor:L(\d+):(-?[0-9.]+),(-?[0-9.]+)$")
 POINT_RE = re.compile(r"^L(\d+):(-?[0-9.]+),(-?[0-9.]+)$")
 
@@ -28,18 +28,19 @@ def parse_takeoff(spec: str) -> Takeoff:
     return Takeoff(int(level), int(col), int(row), side, float(along) if along else 0.5)
 
 
-# `wall:L<level>:<col>,<row>:<side>` is the wall on that side of the cell, its
-# portal facing the cell; `floor:L<level>:<x>,<z>` is a floor point in cells.
+# `wall:L<level>:<col>,<row>:<side>[:<along>]` is the wall on that side of the
+# cell, its portal facing the cell and centred `along` the edge (0 to 1, the
+# middle without one); `floor:L<level>:<x>,<z>` is a floor point in cells.
 def parse_surface(spec: str) -> PortalSurface:
     match = WALL_RE.match(spec)
     if match:
-        level, col, row, side = match.groups()
-        return surface_of_side(int(level), int(col), int(row), side)
+        level, col, row, side, along = match.groups()
+        return surface_of_side(int(level), int(col), int(row), side, float(along) if along else 0.5)
     match = FLOOR_RE.match(spec)
     if match:
         level, x, z = match.groups()
         return PortalSurface.floor_at(int(level), float(x), float(z))
-    raise ValueError(f"surface {spec!r} is not wall:L<level>:<col>,<row>:<side> or floor:L<level>:<x>,<z>")
+    raise ValueError(f"surface {spec!r} is not wall:L<level>:<col>,<row>:<side>[:<along>] or floor:L<level>:<x>,<z>")
 
 
 def parse_point(spec: str) -> tuple[int, float, float]:
@@ -48,14 +49,6 @@ def parse_point(spec: str) -> tuple[int, float, float]:
         raise ValueError(f"point {spec!r} is not L<level>:<x>,<z> in cells")
     level, x, z = match.groups()
     return int(level), float(x), float(z)
-
-
-def surface_spec(surface: PortalSurface) -> str:
-    if surface.face == "floor":
-        x, z = surface.grid_center
-        return f"floor:L{surface.level}:{x:g},{z:g}"
-    col, row, side = cell_side_of_surface(surface)
-    return f"wall:L{surface.level}:{col},{row}:{side}"
 
 
 def footprints(ctx: MapContext) -> FloorFootprints:
@@ -90,8 +83,12 @@ def jump(
             entry is None
             or entry.face == "floor"
             or cell_side_of_surface(entry) != (takeoff.col, takeoff.row, takeoff.side)
+            or along_of_surface(entry) != takeoff.along
         ):
-            raise ValueError("a walk into a portal needs the entry to be the wall on the takeoff's side of its cell")
+            raise ValueError(
+                "a walk into a portal needs the entry to be the wall on the takeoff's side of its cell, "
+                "at the same point along it"
+            )
         walk = True
     if entry is not None:
         entry = entry.placed_from(shooter)
@@ -224,7 +221,8 @@ def surface(ctx: MapContext, spec: PortalSurface) -> str:
         elif reason:
             lines.append(f"not ready: {reason}")
         else:
-            lines.append("ready: two portalable storeys with a clear front")
+            storeys = ctx.footprint.storeys
+            lines.append(f"ready: {storeys} portalable storey{'' if storeys == 1 else 's'} with a clear front")
     return "\n".join(lines)
 
 

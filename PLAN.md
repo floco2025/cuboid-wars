@@ -99,8 +99,10 @@ the right point.
   fun.
 - **The tools** build a map from a script, draw it as text, measure jumps and
   flings, and run a scripted route through the real game, headless or in a
-  window. The AI cannot yet search for a route, show that no shortcut exists,
-  or see what a map looks like.
+  window. The builder writes buildings: rooms with ceilings and doorways,
+  lights, enemy zones, any texture a map names, and portal surfaces sized to
+  the grid. The AI cannot yet search for a route, show that no shortcut
+  exists, or see what a map looks like.
 - **Tried in earlier courses, absent from the Primer:** shooting an enemy
   through a portal pair, a floor-to-floor launch upward with an air-steered
   catch, three ramp exits around one landing, erasure in mid-flight, a running
@@ -108,18 +110,16 @@ the right point.
 
 ## Roadmap
 
-1. **A builder for buildings.** Rooms with ceilings and doorways, lights,
-   Hotel's textures, enemy zones, and portal surfaces at any grid size.
-2. **Self-checks.** The AI asks the game what a shot reaches from a standing
+1. **Self-checks.** The AI asks the game what a shot reaches from a standing
    point and where every reachable portal pair lands, so it can show that a
    wrong surface fails and a route has no shortcut. Later, a bot that plays at
    the level of intent and searches, and rendered snapshots so the AI sees its
    map.
-3. **A first small building to playtest.** A hub and three portal rooms in
+2. **A first small building to playtest.** A hub and three portal rooms in
    Obby's manner, each yielding a key or a switch, all needed for the exit,
    handed over once it passes the self-checks.
-4. **Playtest lessons** written back here as principles and as room patterns
+3. **Playtest lessons** written back here as principles and as room patterns
    that worked.
-5. **The puzzle before the geometry:** what the player learns and in what
+4. **The puzzle before the geometry:** what the player learns and in what
    order, then rooms, then the building. Then pacing across several maps, and
    two-player twists.

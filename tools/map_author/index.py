@@ -13,17 +13,20 @@ from .edges import EdgeKey, cells_of_edge, edge_of_side, edges_of_record, front_
 
 # PORTAL_PLATE_CLEARANCE in common/src/constants.rs: a plate this close to a floor portal blocks it.
 PLATE_CLEARANCE = 1.2
+NOT_PORTALABLE = "face material is not portalable"
 Cell = tuple[int, int]
 
 
-# A floor region a portal fits on: `axes` says along which grid axes two
-# portalable cells line up with no wall between them.
+# A floor region a portal fits on: `axes` says along which grid axes a block
+# of `need` portalable cells, the portal's length by its width, lies with no
+# wall inside it.
 @dataclass(frozen=True)
 class FloorSurface:
     level: int
     cells: frozenset[Cell]
     axes: str
     plates: tuple[Cell, ...]
+    need: tuple[int, int]
 
     @property
     def bounds(self) -> tuple[int, int, int, int]:
@@ -40,7 +43,8 @@ class FloorSurface:
         if self.plates:
             return "a pressure plate on the pad blocks portals within 1.2 m"
         if not self.axes:
-            return "one cell alone: a floor portal needs two portalable cells side by side with no wall between"
+            along, across = self.need
+            return f"too small: a floor portal needs {along}x{across} portalable cells with no wall between"
         return ""
 
 
@@ -92,6 +96,7 @@ class MapIndex:
             for index in range(ladder["lower_level"], min(ladder["lower_level"] + ladder["levels"], self.count)):
                 self.ladders[index][key] = ladder
         self._faces: dict[int, dict[str, str]] = {}
+        self._wall_surfaces: dict[int, list[WallSurface]] = {}
 
     def slab(self, level: int, cell: Cell) -> bool:
         return cell in self.floors[level] or cell in self.blocked[level] or cell in self.terrain[level]
@@ -109,36 +114,59 @@ class MapIndex:
         record = self.floors[level].get(cell) or self.blocked[level].get(cell)
         return record is not None and cell not in self.ramp_cells[level] and self.portalable(record, "top")
 
-    # Why a wall face takes no portal, or an empty string when it does: a
-    # portal is taller than one storey, so the edge needs the same face one
-    # level up with nothing standing in front of it there.
-    def wall_reason(self, level: int, key: EdgeKey, face: str) -> str | None:
+    # Why the wall sections stacked on one edge take no portal, or an empty
+    # string when they do: a portal taller than a section needs the same face
+    # on the storeys above with nothing standing in front of it there.
+    def _stack_reason(self, level: int, key: EdgeKey, face: str) -> str | None:
         record = self.walls[level].get(key)
         if record is None:
             return None
         if not self.portalable(record, face):
-            return "face material is not portalable"
-        if level + 1 >= self.count:
-            return "top level: no storey above to stack a second wall section"
-        above = self.walls[level + 1].get(key)
-        if above is None:
-            return "no wall section on the storey above (a portal needs two)"
-        if not self.portalable(above, face):
-            return "the upper wall section's face is not portalable"
+            return NOT_PORTALABLE
+        storeys = self.ctx.footprint.storeys
         cell = front_cell(key, face)
-        if self.slab(level + 1, cell) or cell in self.bridges[level + 1]:
-            return "a floor in front on the storey above cuts the aperture"
+        for above in range(level + 1, level + storeys):
+            if above >= self.count:
+                return f"top level: no storey above to stack {storeys} wall sections"
+            upper = self.walls[above].get(key)
+            if upper is None:
+                return f"no wall section on the storey above (a portal needs {storeys})"
+            if not self.portalable(upper, face):
+                return "the upper wall section's face is not portalable"
+            if self.slab(above, cell) or cell in self.bridges[above]:
+                return "a floor in front on the storey above cuts the aperture"
+        return ""
+
+    # Why a wall face takes no portal, or an empty string when it does. A
+    # portal wider than a cell needs that many ready edges in a row.
+    def wall_reason(self, level: int, key: EdgeKey, face: str) -> str | None:
+        reason = self._stack_reason(level, key, face)
+        across = self.ctx.footprint.across
+        if reason is None or reason or across == 1:
+            return reason
+        axis, col, row = key
+        dc, dr = (1, 0) if axis == "h" else (0, 1)
+        run = 1
+        for sign in (1, -1):
+            c, r = col + sign * dc, row + sign * dr
+            while run < across and self._stack_reason(level, (axis, c, r), face) == "":
+                run += 1
+                c, r = c + sign * dc, r + sign * dr
+        if run < across:
+            return f"{run} cell{'' if run == 1 else 's'} wide: a portal needs {across} such sections side by side"
         return ""
 
     def wall_surfaces(self, level: int) -> list[WallSurface]:
-        surfaces = []
-        for key in sorted(self.walls[level], key=lambda k: (k[0], k[2], k[1])):
-            faces = ("north", "south") if key[0] == "h" else ("west", "east")
-            for face in faces:
-                reason = self.wall_reason(level, key, face)
-                if reason is not None and reason != "face material is not portalable":
-                    surfaces.append(WallSurface(level, key, face, reason))
-        return surfaces
+        if level not in self._wall_surfaces:
+            surfaces = []
+            for key in sorted(self.walls[level], key=lambda k: (k[0], k[2], k[1])):
+                faces = ("north", "south") if key[0] == "h" else ("west", "east")
+                for face in faces:
+                    reason = self.wall_reason(level, key, face)
+                    if reason is not None and reason != NOT_PORTALABLE:
+                        surfaces.append(WallSurface(level, key, face, reason))
+            self._wall_surfaces[level] = surfaces
+        return self._wall_surfaces[level]
 
     def components(self, level: int, cells: set[Cell]) -> list[set[Cell]]:
         remaining = set(cells)
@@ -168,15 +196,28 @@ class MapIndex:
         candidates = set(self.floors[level]) | set(self.blocked[level])
         portalable = {cell for cell in candidates if self.portalable_top(level, cell)}
         surfaces = []
+        along, across = self.ctx.footprint.along, self.ctx.footprint.across
         for group in self.components(level, portalable):
             axes = ""
-            if any((c + 1, r) in group and self.open_between(level, (c, r), (c + 1, r)) for c, r in group):
+            if self._block_fits(level, group, along, across):
                 axes += "x"
-            if any((c, r + 1) in group and self.open_between(level, (c, r), (c, r + 1)) for c, r in group):
+            if self._block_fits(level, group, across, along):
                 axes += "z"
             plates = tuple(sorted(cell for cell in self.plates[level] if self._near_group(cell, group)))
-            surfaces.append(FloorSurface(level, frozenset(group), axes, plates))
+            surfaces.append(FloorSurface(level, frozenset(group), axes, plates, (along, across)))
         return surfaces
+
+    # Whether some block of `cols` by `rows` cells of the group has no wall inside it.
+    def _block_fits(self, level: int, group: set[Cell], cols: int, rows: int) -> bool:
+        for c0, r0 in group:
+            cells = [(c0 + i, r0 + j) for j in range(rows) for i in range(cols)]
+            if (
+                all(cell in group for cell in cells)
+                and all(self.open_between(level, (c, r), (c + 1, r)) for c, r in cells if c + 1 < c0 + cols)
+                and all(self.open_between(level, (c, r), (c, r + 1)) for c, r in cells if r + 1 < r0 + rows)
+            ):
+                return True
+        return False
 
     def _near_group(self, plate: Cell, group: set[Cell]) -> bool:
         cell = self.ctx.frame.cell
