@@ -1,4 +1,4 @@
-"""`mapauthor` commands: build, describe, where, surface, jump, fling, ranges, proof."""
+"""`mapauthor` commands: build, describe, where, surface, jump, fling, ranges, shots, sweep, proof."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ from .context import MapContext
 from .describe import plan, summary
 from .measure import jump, parse_surface, parse_takeoff, ranges, surface, where
 from .proof import summarize
+from .shots import shots
+from .sweep import sweep
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -55,6 +57,20 @@ def main(argv: list[str] | None = None) -> int:
 
     reach = commands.add_parser("ranges", help="how far jumps and walk-offs carry at this map's physics")
     reach.add_argument("map")
+
+    aim = commands.add_parser("shots", help="what portal shots from a standing point do, asked of the game")
+    aim.add_argument("map")
+    aim.add_argument("--from", dest="stand", required=True, help="L<level>:<x>,<z> in cells, where the body stands")
+    aim.add_argument("surfaces", nargs="*", help="surfaces to aim at (default: every portalable one)")
+
+    pairs = commands.add_parser("sweep", help="where moves end for every pair of portals in reach, in the game")
+    pairs.add_argument("map")
+    pairs.add_argument("--from", dest="stand", required=True, help="L<level>:<x>,<z> in cells: the shots and the start")
+    pairs.add_argument("--moves", required=True, help='"move <x>,<z> x<ticks> [jump] [crouch]; advance <ticks>"')
+    pairs.add_argument("--entry", action="append", default=[], help="one portal on this surface only (repeatable)")
+    pairs.add_argument("--exit", action="append", default=[], help="the other on this surface only (repeatable)")
+    pairs.add_argument("--also-from", action="append", default=[], help="another point the portals are shot from")
+    pairs.add_argument("--goal", help="L<level>:<c0>,<r0>:<c1>,<r1> in cells: mark the pairs that end there")
 
     proof = commands.add_parser("proof", help="summarize an experiment report (a file, or - for stdin)")
     proof.add_argument("map")
@@ -110,6 +126,20 @@ def run(args) -> int:
         )
     elif args.command == "ranges":
         print(ranges(ctx))
+    elif args.command == "shots":
+        print(shots(ctx, args.stand, args.surfaces))
+    elif args.command == "sweep":
+        print(
+            sweep(
+                ctx,
+                args.stand,
+                args.moves,
+                entries=args.entry,
+                exits=args.exit,
+                also_from=args.also_from,
+                goal=args.goal,
+            )
+        )
     elif args.command == "proof":
         text = sys.stdin.read() if args.report == "-" else Path(args.report).read_text(encoding="utf-8")
         print(summarize(json.loads(text), ctx.frame))

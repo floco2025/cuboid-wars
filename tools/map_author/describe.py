@@ -125,11 +125,8 @@ def summary(ctx: MapContext) -> str:
         f"a portal needs a wall {_count(need.across, 'cell')} wide and {_count(need.storeys, 'section')} tall, "
         f"or a floor of {need.along}x{need.across} cells",
     ]
-    platforms = []
+    platforms = labelled_platforms(index)
     seen = set()
-    for level in range(index.count):
-        for letter, cells in zip(_letters(), index.platforms(level)):
-            platforms.append((f"L{level}.{letter}", level, cells, _bounds(cells)))
     for level in range(index.count):
         own = [p for p in platforms if p[1] == level]
         bridges = index.components(level, set(index.bridges[level]))
@@ -149,6 +146,15 @@ def summary(ctx: MapContext) -> str:
     lines.extend(_surface_lines(ctx, index))
     lines.extend(_structure_lines(ctx, index, platforms))
     return "\n".join(lines)
+
+
+# Every platform as the summary names it: label, level, cells, bounds.
+def labelled_platforms(index: MapIndex) -> list[tuple[str, int, set, tuple[int, int, int, int]]]:
+    return [
+        (f"L{level}.{letter}", level, cells, _bounds(cells))
+        for level in range(index.count)
+        for letter, cells in zip(_letters(), index.platforms(level))
+    ]
 
 
 def _count(number: int, noun: str) -> str:
@@ -229,7 +235,7 @@ def _gap_parts(frame, platform, platforms, seen: set) -> list[str]:
 def _surface_lines(ctx: MapContext, index: MapIndex) -> list[str]:
     ready, blocked = [], []
     for level in range(index.count):
-        for group in _wall_groups(index, level):
+        for group in wall_groups(index, level):
             (ready if group[0].ready else blocked).append(_wall_line(ctx, group))
         for surface in index.floor_surfaces(level):
             (ready if surface.ready else blocked).append(_floor_line(ctx, surface))
@@ -243,7 +249,7 @@ def _surface_lines(ctx: MapContext, index: MapIndex) -> list[str]:
 
 # Runs of unit edges along one line with the same face and verdict, as one
 # surface; the upper sections of a ready stack are not reported on their own.
-def _wall_groups(index: MapIndex, level: int) -> list[list[WallSurface]]:
+def wall_groups(index: MapIndex, level: int) -> list[list[WallSurface]]:
     groups = []
     surfaces = sorted(
         index.wall_surfaces(level),

@@ -106,7 +106,7 @@ impl Session {
         self.server.world().resource::<ServerTick>().0
     }
 
-    fn eye(&self) -> Result<Vec3> {
+    pub(super) fn eye(&self) -> Result<Vec3> {
         let world = self.server.world();
         let player = world
             .resource::<PlayerMap>()
@@ -145,13 +145,28 @@ impl Session {
     }
 
     fn yaw(&self) -> f32 {
-        self.direction.x.atan2(self.direction.z)
+        yaw_of(self.direction)
     }
 
     pub fn portal(&mut self, end: End) -> Result<Value> {
         if let Some(reason) = self.ready(PowerUpKind::PortalGun) {
             return Ok(json!({"status": "rejected", "reason": reason}));
         }
+        self.shoot_portal(end, self.eye()?, self.direction)
+    }
+
+    pub fn place(&mut self, end: End, eye: [f32; 3], target: [f32; 3]) -> Result<Value> {
+        if let Some(reason) = self.ready(PowerUpKind::PortalGun) {
+            return Ok(json!({"status": "rejected", "reason": reason}));
+        }
+        let eye = Vec3::from_array(eye);
+        let direction = (Vec3::from_array(target) - eye)
+            .try_normalize()
+            .context("place target must differ from its eye")?;
+        self.shoot_portal(end, eye, direction)
+    }
+
+    fn shoot_portal(&mut self, end: End, origin: Vec3, direction: Vec3) -> Result<Value> {
         let end = match end {
             End::A => PortalEnd::A,
             End::B => PortalEnd::B,
@@ -163,9 +178,9 @@ impl Session {
         let carriers = world.resource::<Carriers>();
         let existing = world.resource::<PortalMap>().snapshot_portals();
         let placement = compute_portal_placement(
-            self.eye()?,
-            self.direction,
-            self.yaw(),
+            origin,
+            direction,
+            yaw_of(direction),
             &world.resource::<GameplayConfig>().portals,
             world.resource::<CollisionWorld>(),
             world.resource::<MapLayout>(),
@@ -511,6 +526,10 @@ impl Session {
         }
         Ok(())
     }
+}
+
+pub(super) fn yaw_of(direction: Vec3) -> f32 {
+    direction.x.atan2(direction.z)
 }
 
 fn bodies(world: &World) -> Vec<(HitTarget, Position, f32, CharacterPhysicsConfig)> {

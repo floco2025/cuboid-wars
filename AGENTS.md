@@ -10,7 +10,7 @@ Read [TODO.md](TODO.md) at the start of a task and keep it updated when discussi
 
 ## Project structure
 
-Rust workspace. The root package builds the one `cuboid-wars` executable: `src/main.rs` parses the CLI and picks the mode from one optional flag (`--host`, `--join`, `--serve`, each with an optional address; `--experiment FILE` runs a headless encounter script; `--play-experiment FILE` steps through it graphically; none is single-player). `src/experiment/` is the headless runner; `tools/map_author/README.md` covers scripts.
+Rust workspace. The root package builds the one `cuboid-wars` executable: `src/main.rs` parses the CLI and picks the mode from one optional flag (`--host`, `--join`, `--serve`, each with an optional address; `--experiment FILE` runs a scripted player headless and prints its report; `--play-experiment FILE` steps through it graphically; none is single-player). `src/experiment/` is the headless runner; `tools/map_author/README.md` covers scripts.
 
 Entries below give a module's role and point at the comment that owns each non-obvious rule. Mechanisms, numbers, and step-by-step behaviour live in the code; read the module before changing it.
 
@@ -37,7 +37,7 @@ Entries below give a module's role and point at the comment that owns each non-o
 Other paths:
 
 - `tools/editor.py` — the PySide6 map editor (`tools/map_editor/`); takes a map name.
-- `tools/mapauthor.py` — scripted map authoring, text views, flight measurement, and experiment summaries for AI-authored courses (`tools/map_author/README.md` is the guide, `tools/map_author/` the code over the editor's Qt-free modules). An AI-authored map keeps its `build.py` beside `layout.json` as its source; a human who edits the layout in the editor updates or deletes it.
+- `tools/mapauthor.py` — scripted map authoring, text views, flight measurement, portal shots and pair sweeps asked of the game, and experiment summaries for AI-authored courses (`tools/map_author/README.md` is the guide, `tools/map_author/` the code over the editor's Qt-free modules). An AI-authored map keeps its `build.py` beside `layout.json` as its source; a human who edits the layout in the editor updates or deletes it.
 - `tools/game_review/` — the visual/performance review workflow; read its README and the platform one before client review work.
 - `client/assets/` — models, textures, audio; generation scripts live beside their assets. `analyze_audio.py` measures every audio asset into `sounds/analysis.json`, which normalization applies; `--check` verifies it. Model textures add visible coarse relief or are authored for the model; plain materials for subtle paint and metal; `synth-rubber` is the approved external texture for tires and player elastomer, discuss any other third-party texture first. `ASSETS.md` is the provenance register (asset/source/license tables, `TBD` for unknowns, no local paths or narratives).
 - `config/client/assets.json` — the hand-edited asset set. `config/client/client_local.json` is gitignored and carries the one version number in the project: any format change bumps `LOCAL_SETTINGS_VERSION`, and a stale file is discarded, never migrated.

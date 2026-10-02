@@ -2,6 +2,7 @@ mod executor;
 mod play;
 mod playback;
 mod player;
+mod probe;
 mod report;
 mod script;
 mod session;

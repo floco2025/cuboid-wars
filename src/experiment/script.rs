@@ -33,6 +33,19 @@ pub(super) enum Action {
     Portal {
         end: End,
     },
+    // The portal a shot from `eye` at `target` opens, wherever the player
+    // stands: a sweep tries the pairs a `probe` has shown reachable.
+    Place {
+        end: End,
+        eye: [f32; 3],
+        target: [f32; 3],
+    },
+    // What portal shots from `eye`, or from the player's, would do.
+    Probe {
+        #[serde(default)]
+        eye: Option<[f32; 3]>,
+        targets: Vec<[f32; 3]>,
+    },
     Fire,
     Move {
         direction: [f32; 2],
@@ -107,6 +120,14 @@ impl Script {
                 Action::Aim { target } => ensure!(
                     target.iter().all(|n| n.is_finite()),
                     "action {index}: aim target must be finite"
+                ),
+                Action::Place { eye, target, .. } => ensure!(
+                    eye.iter().chain(target).all(|n| n.is_finite()) && eye != target,
+                    "action {index}: place needs a finite eye and a different finite target"
+                ),
+                Action::Probe { eye, targets } => ensure!(
+                    !targets.is_empty() && eye.iter().chain(targets).flatten().all(|n| n.is_finite()),
+                    "action {index}: probe needs finite targets and a finite eye"
                 ),
                 Action::Advance { ticks } | Action::Move { ticks, .. } => {
                     ensure!(*ticks > 0, "action {index}: ticks must be positive");

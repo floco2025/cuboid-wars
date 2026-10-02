@@ -62,6 +62,8 @@ impl Executor {
             }
             Action::Aim { target } => self.session.aim(target),
             Action::Portal { end } => self.session.portal(end),
+            Action::Place { end, eye, target } => self.session.place(end, eye, target),
+            Action::Probe { eye, targets } => self.session.probe(eye, &targets),
             Action::Fire => self.session.fire(),
             Action::Check { min, max, grounded } => Ok(self.session.check(min, max, grounded)),
             Action::Inspect => Ok(json!({"status":"inspected"})),

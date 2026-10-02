@@ -4,6 +4,7 @@ import json
 
 from map_author.builder import MapBuilder
 from map_author.context import MapContext
+from map_editor import catalogs
 from map_editor.catalogs import map_settings_path
 
 # Obby's storeys: lower than a portal, so a wall portal needs two sections.
@@ -18,6 +19,31 @@ def pin_geometry(**geometry):
     settings = json.loads(path.read_text())
     settings["geometry"] = {**settings["geometry"], **geometry}
     path.write_text(json.dumps(settings))
+
+
+# What the game-backed tools read about the shooter.
+def pin_shooter(eye_height=1.6, cooldown_secs=0.1):
+    gameplay = json.loads(catalogs.GAMEPLAY_PATH.read_text())
+    gameplay["player"]["eye_height"] = eye_height
+    gameplay["weapons"]["projectiles"] = {"cooldown_secs": cooldown_secs}
+    catalogs.GAMEPLAY_PATH.write_text(json.dumps(gameplay))
+
+
+# A fine-grid hall on level 1: a four-cell portal panel in its north wall, a
+# portal pad, and a portalable ramp outside; `deck` adds a portalable slab above.
+def hall(deck=False):
+    pin_geometry(**FINE_GRID)
+    pin_shooter()
+    b = MapBuilder("obby", cols=20, rows=20, levels=4, solid="portal-resistant", portal="slab")
+    b.room("hall", level=1, at=(2, 2), size=(10, 8), storeys=2)
+    b.checkpoint(0, level="hall", at=(3, 5), size=(2, 2))
+    b.portal_wall("north", level="hall", at=(5, 2), side="N", length=4)
+    b.portal_floor("pad", level="hall", at=(8, 5))
+    b.ramp("ramp", lower_level=0, at=(14, 2), size=(4, 2), direction="E", material="slab")
+    if deck:
+        b.platform("deck", level=2, at=(14, 10), size=(3, 3), material="slab")
+    root, _ = b.document()
+    return MapContext.load("obby", root)
 
 
 # Two platforms a gap apart, a portal-ready wall and pad, a single-storey

@@ -101,6 +101,22 @@ class ProofSummaryTests(unittest.TestCase):
             "#3   advance x60                        advanced   t70 fall damage hp 420 | t71 died | t131 relocated",
         )
 
+    def test_probes_and_placements_read_as_shots(self):
+        shots = [{"status": "placed"}, {"status": "no_fit"}, {"status": "placed"}]
+        steps = [
+            step(0, {"action": "probe", "eye": None, "targets": [[0, 0, 0]] * 3}, {"status": "probed", "shots": shots}),
+            step(
+                1,
+                {"action": "place", "end": "b", "eye": [0.0, 1.6, 0.0], "target": [2.0, 3.5, -7.9]},
+                {"status": "submitted", "portal": {"position": [2.0, 3.6, -7.9], "normal": [0.0, 0.0, 1.0]}},
+            ),
+        ]
+        lines = summarize({"initial": state(None), "steps": steps}, FRAME).splitlines()
+        self.assertEqual(lines[0], "#0   probe x3                           2 of 3 shots open a portal")
+        self.assertEqual(
+            lines[1], "#1   place b at (2, 3.5, -7.9)          submitted at (2.0, 3.6, -7.9) normal (0, 0, 1)"
+        )
+
     def test_the_footer_counts_what_happened(self):
         lines = summarize(report(), FRAME).splitlines()
         self.assertEqual(

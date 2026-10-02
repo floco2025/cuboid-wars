@@ -101,8 +101,10 @@ the right point.
   flings, and run a scripted route through the real game, headless or in a
   window. The builder writes buildings: rooms with ceilings and doorways,
   lights, enemy zones, any texture a map names, and portal surfaces sized to
-  the grid. The AI cannot yet search for a route, show that no shortcut
-  exists, or see what a map looks like.
+  the grid. The AI can ask the game what a shot from a standing point opens
+  and where its moves end for every pair of portals in reach. It cannot yet
+  search for a route or for a shortcut by other moves, or see what a map
+  looks like.
 - **Tried in earlier courses, absent from the Primer:** shooting an enemy
   through a portal pair, a floor-to-floor launch upward with an air-steered
   catch, three ramp exits around one landing, erasure in mid-flight, a running
@@ -111,10 +113,10 @@ the right point.
 ## Roadmap
 
 1. **Self-checks.** The AI asks the game what a shot reaches from a standing
-   point and where every reachable portal pair lands, so it can show that a
-   wrong surface fails and a route has no shortcut. Later, a bot that plays at
-   the level of intent and searches, and rendered snapshots so the AI sees its
-   map.
+   point and where every reachable portal pair lands, which shows that a wrong
+   surface fails. Showing that a route has no shortcut still needs a bot that
+   plays at the level of intent and searches the moves; rendered snapshots
+   would let the AI see its map.
 2. **A first small building to playtest.** A hub and three portal rooms in
    Obby's manner, each yielding a key or a switch, all needed for the exit,
    handed over once it passes the self-checks.

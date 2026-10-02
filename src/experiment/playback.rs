@@ -136,7 +136,9 @@ impl Playback {
                 // Do not execute that tick ahead of the playback clock. Instant
                 // actions can still finish the sequence with no extra wait.
                 let action = &self.executor.script.actions[self.executor.steps.len()];
-                if matches!(action, Action::Portal { .. } | Action::Fire) && self.budget < tick_duration {
+                if matches!(action, Action::Portal { .. } | Action::Place { .. } | Action::Fire)
+                    && self.budget < tick_duration
+                {
                     break;
                 }
                 let advanced = self.start_next(tick_duration)?;
@@ -166,7 +168,12 @@ impl Playback {
             Action::Move { direction, .. } if *direction != [0.0, 0.0] => false,
             _ => self.aiming,
         };
-        if self.continuous && matches!(action, Action::Aim { .. } | Action::Portal { .. }) {
+        if self.continuous
+            && matches!(
+                action,
+                Action::Aim { .. } | Action::Portal { .. } | Action::Place { .. }
+            )
+        {
             self.hold = ACTION_HOLD;
         }
         let before = self.executor.session.tick();

@@ -81,6 +81,10 @@ def _action(action: dict) -> str:
         return f"aim ({', '.join(f'{v:g}' for v in action['target'])})"
     if kind == "portal":
         return f"portal {action['end']}"
+    if kind == "place":
+        return f"place {action['end']} at ({', '.join(f'{v:g}' for v in action['target'])})"
+    if kind == "probe":
+        return f"probe x{len(action['targets'])}"
     if kind == "check":
         grounded = "" if action.get("grounded", True) else " airborne"
         return f"check{grounded} [{_vec(action['min'])} .. {_vec(action['max'])}]"
@@ -104,6 +108,9 @@ def _result(action: dict, result: dict) -> str:
         return f"interrupted after {result.get('ticks')} ticks"
     if status == "simulated":
         return f"simulated {result.get('ticks')} ticks"
+    if status == "probed":
+        shots = result.get("shots", [])
+        return f"{sum(shot['status'] == 'placed' for shot in shots)} of {len(shots)} shots open a portal"
     return status
 
 

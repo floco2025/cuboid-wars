@@ -3,12 +3,12 @@
 `tools/mapauthor.py` is how an AI composes a map, looks at it, measures it,
 and proves a route, without a renderer. Every rule and number comes from the
 game: the builder validates with `map_core`, flights run the game's own
-step, funnel, and portal hop, and the proof is the headless experiment
-runner. An AI-authored map keeps its `build.py` beside its `layout.json`;
+step, funnel, and portal hop, and shots, sweeps, and the proof run in the
+game itself through the headless experiment runner. An AI-authored map keeps its `build.py` beside its `layout.json`;
 that script is the map's source, and a human who edits the layout in the
 editor updates or deletes it.
 
-The first command builds the Rust map library (`cargo build --release -p map_core_py`), which takes a few minutes once.
+The first command builds the Rust map library (`cargo build --release -p map_core_py`), which takes a few minutes once. `shots` and `sweep` run the game with `cargo run --release`, which builds it whenever it is stale.
 
 ```sh
 python3 tools/mapauthor.py build <map>                 # run config/server/maps/<map>/build.py
@@ -18,6 +18,8 @@ python3 tools/mapauthor.py surface <map> wall:L4:6,16:W[:along] | floor:L2:37,42
 python3 tools/mapauthor.py jump <map> --from L4:11,17:E [--walk] [--late 0.1] [--air-control]
 python3 tools/mapauthor.py fling <map> --from L4:6,17:W --into --entry wall:L4:6,17:W --exit wall:L6:20,23:S
 python3 tools/mapauthor.py ranges <map>
+python3 tools/mapauthor.py shots <map> --from L1:4,6 [surface ...]
+python3 tools/mapauthor.py sweep <map> --from L1:4,6 --moves "move 0,-1 x40; advance 20" [--goal L1:2,2:6,4]
 cargo run --release -- --experiment config/server/maps/<map>/experiment.json | python3 tools/mapauthor.py proof <map> -
 ```
 
@@ -26,9 +28,10 @@ cargo run --release -- --experiment config/server/maps/<map>/experiment.json | p
 1. Register the map in `config/server/gameplay.json::maps` and write its `settings.json`: start from `portal_primer`'s, set `geometry` (the Primer has 2 m cells; `PLAN.md` asks for 1 m), and give `textures` an alias per role, a floor, wall, and ceiling material from Hotel's beside the `solid` and `portal` pair. The tools never write either file.
 2. Write `build.py` (below), run `build`, read the summary it prints.
 3. `describe` for the plan of each level; `surface`, `jump`, `fling`, and `ranges` for the physics of each gap and portal pair. Place landings where a flight comes down, not where it looks right.
-4. Write `experiment.json` beside the layout (format under Proving a route), run it, read `proof`. Every `aim`, `check`, and `spawn` is in world metres; `describe` and `where` give them.
-5. Iterate until the route passes, then pin it in `src/experiment/tests/` like `primer.rs`, on `scenario`, which pins the movement rates the course was proved against: the completion run and the failures the course is built on (a missing portal, a skipped pickup, a plate not pressed). A route the runner cannot finish because the player died ends the run at the next `aim`; truncate the script to see the report up to there.
-6. `python3 tools/editor.py <map>` opens the result; Check Map must be clean.
+4. `shots` from each point a portal is shot from, and `sweep` with the moves of each puzzle step (Asking the game): the intended pair reaches the goal and no other does.
+5. Write `experiment.json` beside the layout (format under Proving a route), run it, read `proof`. Every `aim`, `check`, and `spawn` is in world metres; `describe` and `where` give them.
+6. Iterate until the route passes, then pin it in `src/experiment/tests/` like `primer.rs`, on `scenario`, which pins the movement rates the course was proved against: the completion run and the failures the course is built on (a missing portal, a skipped pickup, a plate not pressed). A route the runner cannot finish because the player died ends the run at the next `aim`; truncate the script to see the report up to there.
+7. `python3 tools/editor.py <map>` opens the result; Check Map must be clean.
 
 ## Coordinates
 
@@ -90,6 +93,14 @@ The plan draws one character per cell with the walls between them; the legend is
 
 `proof` prints one line per action with its result and the events that matter (crossings, landings, checkpoints, pickups, erasure, deaths, portal results), the body's end position as world metres and a cell, and a footer with the checks passed. A passing script shows a route exists; it does not show that the route is necessary or readable, which the design principles in `PLAN.md` cover.
 
+## Asking the game
+
+The summary's portal-ready list and `surface` are grid rules, and `jump` and `fling` fly open air: walls and ceilings stop no flight there. `shots` and `sweep` run the saved map in the game, so its placement rule, its nudge, and its collisions answer.
+
+`shots --from L1:4,6` stands a body on level 1 at that grid point and shoots from its eye at every surface whose material takes a portal: walls at the height a portal rests on their base, floors, ceilings (`ceiling:L<level>:<x>,<z>`, the underside of that level's slab), and ramps (`ramp:L<lower>:<x>,<z>`), one target per portal that fits side by side. Each line is the game's verdict: where the portal opens and how far the placement rule nudged it, `fizzles`, `no fit`, or `BLOCKED` with what the shot met first. Name surfaces to aim at those alone. A pad seen only from a ledge's lip shows up here as blocked from where a player would stand.
+
+`sweep --from L1:4,6 --moves "move 0,-1 x40 jump; advance 20"` takes the portals `shots` opens from that point (and from every `--also-from` point, for a portal prepared elsewhere), and for each pair resets to the standing point, opens both, runs the moves, and reports the crossings and where the body ends: its level, cell, and platform, or `DIES`. Pairs that end as the moves do without portals are counted, not listed. `--entry` and `--exit` keep one surface for either end; `--goal L1:2,2:6,4` marks the pairs that end standing in that rectangle of cells. A puzzle step is sound when its intended pair is the only one at the goal. A sweep tries the moves it is given from a fresh start: a shortcut by other moves, or equipment and switches carried from earlier in the route, are not covered.
+
 ## Proving a route
 
 ```sh
@@ -101,7 +112,7 @@ cargo test --release -p cuboid-wars                                             
 
 A map's `experiment.json` sits beside its `layout.json` and `settings.json`; its README holds the walkthrough. Headless mode needs no window, listener, or registry entry; invalid scripts are process errors, failed checks are report entries.
 
-Playback starts paused: Space plays or pauses, Enter runs one action, R restarts, Esc opens the menu. The view is the one a player would have: level along the direction of travel, starting on the script's first move, and on the target from an `aim` until the next move. Mouse look, zoom, and V inspect a paused scene; the next control or tick eases the view back. Continuous playback holds briefly after an `aim` and a `portal` so the view arrives and the result shows. Pausing and holding stop the owner and the server alike, so waiting adds no ticks. Playback re-executes the script; it is not a recording, and randomness is unseeded.
+Playback starts paused: Space plays or pauses, Enter runs one action, R restarts, Esc opens the menu. The view is the one a player would have: level along the direction of travel, starting on the script's first move, and on the target from an `aim` until the next move. Mouse look, zoom, and V inspect a paused scene; the next control or tick eases the view back. Continuous playback holds briefly after an `aim`, a `portal`, and a `place` so the view arrives and the result shows. Pausing and holding stop the owner and the server alike, so waiting adds no ticks. Playback re-executes the script; it is not a recording, and randomness is unseeded.
 
 ### Script
 
@@ -113,12 +124,14 @@ Playback starts paused: Space plays or pauses, Enter runs one action, R restarts
 | `advance`, `ticks: N` | N ticks with no movement input. |
 | `aim`, `target: [x, y, z]` | Aim from the eye at a world point, no time passes. |
 | `portal`, `end: "a"` or `"b"` | A portal shot with the current aim under the normal placement rules. |
+| `place`, `end`, `eye: [x, y, z]`, `target: [x, y, z]` | The portal a shot from `eye` at `target` opens, wherever the player stands: the same rules, cooldown, and tick as `portal`. |
+| `probe`, `targets: [[x, y, z], ...]`, optional `eye` | What a portal shot at each target would do, from `eye` or the player's: where the ray lands, and `placed` with the aperture, `no_fit`, `incompatible_material`, or `no_surface`. Changes nothing, no time passes. |
 | `check`, `min`, `max` | The living player's feet lie inside inclusive world bounds, grounded unless `grounded: false`. |
 | `inspect` | Record state, no time passes. |
 | `reset` | Recreate server and owner at the scripted spawn; aim returns to +Z. |
 | `fire` | One ordinary projectile with the current aim. |
 
-A direction starts in world space, resolves against the aim into forward and sideways input, and turns with the player through portals. Input is released at the end of a `move`; a second `move` can steer in midair where the map allows. Jumps use the game's support checks, so a jump requested in flight makes no double jump. Death interrupts a `move`; `advance` waits out the respawn. A fired shot, blocked muzzle, submitted portal, or fizzle consumes one tick; rejected preconditions, invalid placement, and overlap consume none.
+A direction starts in world space, resolves against the aim into forward and sideways input, and turns with the player through portals. Input is released at the end of a `move`; a second `move` can steer in midair where the map allows. Jumps use the game's support checks, so a jump requested in flight makes no double jump. Death interrupts a `move`; `advance` waits out the respawn. A fired shot, blocked muzzle, submitted portal or placement, or fizzle consumes one tick; rejected preconditions, invalid placement, and overlap consume none.
 
 ### Report and scope
 
