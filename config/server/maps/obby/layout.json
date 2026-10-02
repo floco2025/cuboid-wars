@@ -9,12 +9,12 @@
       {"id": "trap", "color": "#30d8ff", "switch": "bridge", "initially_on": false}
     ],
     "fireworks": {"switch": "firework", "cooldown_secs": 0.0},
-    "grid_cols": 46,
+    "grid_cols": 44,
     "grid_rows": 24,
     "actor_spawn_zones": [
       {"level": 4, "cols": [17, 19], "rows": [8, 10], "kind": "turret", "count": [4], "respawn_secs": 30, "beam_in_secs": 0.5, "switch": "turrets", "initially_on": false, "until_checkpoint": 4, "on_checkpoint": "destroy"},
       {"level": 9, "cols": [39, 41], "rows": [13, 15], "kind": "scuttler", "count": [6], "respawn_secs": 5.5, "beam_in_secs": 1.5, "switch": "bridge", "initially_on": false, "until_checkpoint": 2, "on_checkpoint": "destroy"},
-      {"level": 9, "cols": [8, 32], "rows": [19, 23], "kind": "zapper", "count": [20, 30, 35], "respawn_secs": 30.0, "beam_in_secs": 1.0, "levels": 3, "roam_distance": 4.0, "switch": "shuttle", "initially_on": false, "until_checkpoint": 3, "on_checkpoint": "destroy"}
+      {"level": 9, "cols": [8, 32], "rows": [19, 23], "kind": "zapper", "count": [18, 27, 31], "respawn_secs": 45.0, "beam_in_secs": 3.0, "levels": 3, "roam_distance": 4.0, "switch": "shuttle", "initially_on": false, "until_checkpoint": 3, "on_checkpoint": "destroy"}
     ],
     "checkpoints": [
       {"level": 4, "cols": [2, 4], "rows": [2, 4], "type": "individual", "number": 0},
@@ -49,10 +49,10 @@
       {"level": 5, "col": 30, "row": 2, "type": "low_gravity"},
       {"level": 5, "col": 30, "row": 3, "type": "low_gravity"},
       {"level": 5, "col": 30, "row": 4, "type": "low_gravity"},
-      {"level": 7, "col": 34, "row": 1, "type": "speed"},
-      {"level": 7, "col": 34, "row": 2, "type": "speed"},
-      {"level": 7, "col": 34, "row": 3, "type": "speed"},
-      {"level": 7, "col": 34, "row": 4, "type": "speed"},
+      {"level": 7, "col": 33, "row": 1, "type": "speed"},
+      {"level": 7, "col": 33, "row": 2, "type": "speed"},
+      {"level": 7, "col": 33, "row": 3, "type": "speed"},
+      {"level": 7, "col": 33, "row": 4, "type": "speed"},
       {"level": 7, "col": 1, "row": 14, "type": "single_shot"},
       {"level": 7, "col": 2, "row": 14, "type": "single_shot"},
       {"level": 7, "col": 3, "row": 14, "type": "single_shot"},
