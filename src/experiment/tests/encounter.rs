@@ -18,7 +18,7 @@ fn chamber() -> (TempDir, Script) {
         aim([6.0, 1.0, 2.0]),
         Action::Fire,
         Action::Advance { ticks: 30 },
-        Action::Reset,
+        Action::Reset { spawn: None },
         Action::Advance { ticks: 6 },
         aim([-10.0, 1.62, -8.0]),
         Action::Portal { end: End::A },

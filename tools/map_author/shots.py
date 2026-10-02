@@ -26,12 +26,20 @@ Point = tuple[float, float, float]
 
 
 # A point on a surface to aim at, in world metres, under the name the tools
-# give it, and the way that surface faces.
+# give it, and the way that surface faces. `group` names the stretch of wall
+# or the slab it is one sample of, and `walk_up` says a floor lies at a
+# wall target's foot, so a body can walk into a portal there.
 @dataclass(frozen=True)
 class Target:
     spec: str
     point: Point
     normal: Point
+    group: str = ""
+    walk_up: bool = False
+
+    @property
+    def kind(self) -> str:
+        return self.spec.split(":", 1)[0]
 
 
 @dataclass(frozen=True)
@@ -85,21 +93,28 @@ def _spread(cells: int, step: int) -> list[float]:
 def _wall_targets(ctx: MapContext, index: MapIndex) -> list[Target]:
     targets = []
     for level in range(index.count):
-        for group in wall_groups(index, level):
-            side = SIDE_OF_FACE[group[0].face]
+        for group in wall_groups(index, level, uppers=True):
+            first = group[0]
+            side = SIDE_OF_FACE[first.face]
+            line = f"row {first.key[2]}" if first.key[0] == "h" else f"col {first.key[1]}"
+            name = f"L{level} wall on {line} facing {first.face}"
             for along in _spread(len(group), ctx.footprint.across):
                 # A whole number is the point two cells share: the end of the earlier one.
                 at = min(floor(along), len(group) - 1) if along % 1 else int(along) - 1
-                targets.append(_surface_target(ctx, surface_of_side(level, *group[at].cell, side, along - at)))
+                surface = surface_of_side(level, *group[at].cell, side, along - at)
+                foot = index.slab(level, group[at].cell) or group[at].cell in index.bridges[level]
+                targets.append(_surface_target(ctx, surface, name, foot))
     return targets
 
 
-def _surface_target(ctx: MapContext, surface: PortalSurface) -> Target:
+def _surface_target(ctx: MapContext, surface: PortalSurface, group: str = "", walk_up: bool = False) -> Target:
     frame = surface.frame(ctx.settings)
     x, y, z = frame.center
     wx, wz = ctx.frame.metres_to_world(x, z)
     point = wx, y + (surface.face != "floor") * WALL_CLEARANCE, wz
-    return Target(surface_spec(surface), point, tuple(map(float, frame.normal)))
+    return Target(
+        surface_spec(surface), point, tuple(map(float, frame.normal)), group or surface_spec(surface), walk_up
+    )
 
 
 # One point per portal that fits side by side on a region of cells, on the cells themselves.
@@ -126,14 +141,16 @@ def _slab_targets(ctx: MapContext, index: MapIndex) -> list[Target]:
         for surface in index.floor_surfaces(level):
             for gx, gz in _region_points(ctx, surface.cells):
                 x, z = frame.grid_to_world(gx, gz)
-                targets.append(Target(f"floor:L{level}:{gx:g},{gz:g}", (x, frame.level_y(level), z), (0.0, 1.0, 0.0)))
+                point = x, frame.level_y(level), z
+                targets.append(Target(f"floor:L{level}:{gx:g},{gz:g}", point, (0.0, 1.0, 0.0), f"L{level} floor"))
         slabs = {**index.blocked[level], **index.floors[level]}
         under = {cell for cell, record in slabs.items() if index.portalable(record, "bottom")}
         for cells in index.components(level, under) if level else []:
             for gx, gz in _region_points(ctx, cells):
                 x, z = frame.grid_to_world(gx, gz)
                 y = frame.level_y(level) - frame.floor_thickness
-                targets.append(Target(f"ceiling:L{level}:{gx:g},{gz:g}", (x, y, z), (0.0, -1.0, 0.0)))
+                spec = f"ceiling:L{level}:{gx:g},{gz:g}"
+                targets.append(Target(spec, (x, y, z), (0.0, -1.0, 0.0), f"L{level} ceiling"))
     return targets
 
 
@@ -152,13 +169,15 @@ def _ramp_targets(ctx: MapContext, index: MapIndex) -> list[Target]:
         length = hypot(rise, run)
         normal = -dx * rise / length, run / length, -dz * rise / length
         point = x, ctx.frame.level_y(ramp["lower_level"]) + rise / 2, z
-        targets.append(Target(f"ramp:L{ramp['lower_level']}:{gx:g},{gz:g}", point, normal))
+        spec = f"ramp:L{ramp['lower_level']}:{gx:g},{gz:g}"
+        targets.append(Target(spec, point, normal, spec))
     return targets
 
 
 # Every surface whose material takes a portal, sampled where portals fit side
-# by side: walls at the height a portal rests on their base, floors,
-# ceilings, and ramps. Whether a portal opens there is the game's to say.
+# by side: walls on every storey at the height a portal would rest on that
+# storey's floor, floors, ceilings, and ramps. Whether a portal opens there,
+# and where the placement rule moves it, is the game's to say.
 def candidates(ctx: MapContext) -> list[Target]:
     index = MapIndex(ctx)
     return [*_wall_targets(ctx, index), *_slab_targets(ctx, index), *_ramp_targets(ctx, index)]
@@ -229,6 +248,31 @@ def verdict(shot: Shot) -> str:
     return "fizzles: the aperture would cover a surface that takes no portal"
 
 
+# One line per stretch of wall or slab a shot opens a portal on, with the
+# samples that open; the rest are counted by why they do not.
+def _overview(results: list[Shot]) -> list[str]:
+    groups: dict[str, list[Shot]] = {}
+    for shot in results:
+        groups.setdefault(shot.target.group, []).append(shot)
+    lines = []
+    closed = {"out of sight": 0, "no fit": 0, "fizzles": 0}
+    for name, members in groups.items():
+        opening = [shot for shot in members if shot.opens]
+        for shot in members:
+            if not shot.opens:
+                reason = "out of sight" if not shot.on_target else "no fit" if shot.status == "no_fit" else "fizzles"
+                closed[reason] += 1
+        if opening:
+            specs = opening[0].target.spec + (f" .. {opening[-1].target.spec}" if len(opening) > 1 else "")
+            lines.append(f"  {name}: {len(opening)} of {len(members)} open  {specs}")
+    counts = ", ".join(f"{count} {reason}" for reason, count in closed.items() if count)
+    if counts:
+        lines.append(f"  not opening: {counts}")
+    return lines
+
+
+# Named surfaces get the game's verdict each; without any, every surface is
+# tried and the ones that open are summed up by stretch of wall and slab.
 def shots(ctx: MapContext, stand_spec: str, specs=(), run=game.run) -> str:
     stand = stand_at(ctx, stand_spec)
     known = candidates(ctx)
@@ -236,8 +280,11 @@ def shots(ctx: MapContext, stand_spec: str, specs=(), run=game.run) -> str:
     if not targets:
         return f"shots from {stand.label}: the map has no portalable surface"
     (results,) = probe(ctx, [stand], targets, run)
-    width = max(len(target.spec) for target in targets)
     lines = [f"shots from {stand.label}, eye world {_point(stand.eye)}: {len(targets)} targets"]
-    lines.extend(f"  {shot.target.spec:<{width}}  {verdict(shot)}" for shot in results)
+    if specs:
+        width = max(len(target.spec) for target in targets)
+        lines.extend(f"  {shot.target.spec:<{width}}  {verdict(shot)}" for shot in results)
+    else:
+        lines.extend(_overview(results))
     lines.append(f"{sum(shot.opens for shot in results)} of {len(results)} open a portal where aimed")
     return "\n".join(lines)

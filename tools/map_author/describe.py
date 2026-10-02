@@ -236,7 +236,7 @@ def _surface_lines(ctx: MapContext, index: MapIndex) -> list[str]:
     ready, blocked = [], []
     for level in range(index.count):
         for group in wall_groups(index, level):
-            (ready if group[0].ready else blocked).append(_wall_line(ctx, group))
+            (ready if group[0].ready else blocked).append(_wall_line(ctx, index, group))
         for surface in index.floor_surfaces(level):
             (ready if surface.ready else blocked).append(_floor_line(ctx, surface))
     lines = ["portal-ready surfaces:" if ready else "portal-ready surfaces: none"]
@@ -248,8 +248,9 @@ def _surface_lines(ctx: MapContext, index: MapIndex) -> list[str]:
 
 
 # Runs of unit edges along one line with the same face and verdict, as one
-# surface; the upper sections of a ready stack are not reported on their own.
-def wall_groups(index: MapIndex, level: int) -> list[list[WallSurface]]:
+# surface. Without `uppers`, the sections a ready stack below already covers
+# are not reported on their own.
+def wall_groups(index: MapIndex, level: int, *, uppers: bool = False) -> list[list[WallSurface]]:
     groups = []
     surfaces = sorted(
         index.wall_surfaces(level),
@@ -257,7 +258,7 @@ def wall_groups(index: MapIndex, level: int) -> list[list[WallSurface]]:
     )
     for surface in surfaces:
         axis, col, row = surface.key
-        if any(
+        if not uppers and any(
             s.ready and s.key == surface.key and s.face == surface.face
             for below in range(max(level - index.ctx.footprint.storeys + 1, 0), level)
             for s in index.wall_surfaces(below)
@@ -280,7 +281,18 @@ def wall_groups(index: MapIndex, level: int) -> list[list[WallSurface]]:
     return groups
 
 
-def _wall_line(ctx: MapContext, group: list[WallSurface]) -> str:
+# The highest level a ready run's portal can still rest its rim on.
+def _top_base(index: MapIndex, group: list[WallSurface]) -> int:
+    level = group[0].level
+    while level + 1 < index.count and all(
+        any(s.ready and s.key == surface.key and s.face == surface.face for s in index.wall_surfaces(level + 1))
+        for surface in group
+    ):
+        level += 1
+    return level
+
+
+def _wall_line(ctx: MapContext, index: MapIndex, group: list[WallSurface]) -> str:
     first, last = group[0], group[-1]
     col, row = first.cell
     side = SIDE_OF_FACE[first.face]
@@ -300,7 +312,10 @@ def _wall_line(ctx: MapContext, group: list[WallSurface]) -> str:
         f"wall  wall:L{first.level}:{col},{row}:{side}{span}  faces {first.face}  "
         f"centre {centre}world ({x:.2f}, {frames[0].center[1]:.2f}, {z:.2f}) normal {normal}"
     )
-    return text if first.ready else f"{text}: {first.reason}"
+    if not first.ready:
+        return f"{text}: {first.reason}"
+    top = _top_base(index, group)
+    return text + (f"  ready from L{first.level} up to L{top}" if top > first.level else "")
 
 
 def _floor_line(ctx: MapContext, surface: FloorSurface) -> str:

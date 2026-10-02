@@ -26,10 +26,15 @@ from map_editor.normalization import (
 from map_editor.validation import validate_document
 
 from .context import MapContext
-from .edges import FACE_INTO_CELL, SIDES
+from .edges import FACE_INTO_CELL, SIDES, STEP
 from .frame import GridFrame, PortalFootprint
 
+OPPOSITE_FACE = {"north": "south", "south": "north", "east": "west", "west": "east"}
 RELATIVE = ("east_of", "west_of", "north_of", "south_of")
+# WALL_LIGHT_HEIGHT_FRACTION in common/src/constants.rs: how far up its wall section a light hangs.
+WALL_LIGHT_HEIGHT_FRACTION = 0.625
+# Where a light in a room wants to hang, in metres above the floor.
+LIGHT_HEIGHT = 2.3
 FIELD_COLORS = ("#00ccff", "#ffcc00", "#ff5533", "#33dd66", "#cc66ff", "#ff9900")
 
 
@@ -70,7 +75,19 @@ class Piece:
 
 
 class MapBuilder:
-    def __init__(self, name: str, cols: int, rows: int, *, levels: int, solid: str = "solid", portal: str = "portal"):
+    # `solid` takes no portal and `portal` does; `default`, one of the two
+    # unless named, is what a surface gets when its piece names no material.
+    def __init__(
+        self,
+        name: str,
+        cols: int,
+        rows: int,
+        *,
+        levels: int,
+        solid: str = "solid",
+        portal: str = "portal",
+        default: str | None = None,
+    ):
         self.name = name
         self.catalogs = MapCatalogs.load(name)
         textures = self.catalogs.texture_catalog
@@ -81,6 +98,7 @@ class MapBuilder:
         if levels < 1:
             raise BuildError("a map needs at least one level")
         self.solid, self.portal = solid, portal
+        self.default = self._alias(default, solid)
         data = empty_map(cols, rows)
         data["checkpoints"] = []
         data["levels"] = [empty_level(index) for index in range(levels)]
@@ -164,7 +182,7 @@ class MapBuilder:
     ) -> Piece:
         index = self._level(level, up, down)
         rect = self._place(size, at, **where)
-        self.data = paint_floors(self.data, index, rect, self._alias(material, self.solid), blocked=blocked)
+        self.data = paint_floors(self.data, index, rect, self._alias(material, self.default), blocked=blocked)
         return self._register(Piece(name, "platform", index, *rect))
 
     # A pad a floor portal fits on either way round, unless `size` says otherwise.
@@ -182,9 +200,47 @@ class MapBuilder:
         index = self._level(level)
         if index + storeys > self.level_count:
             raise BuildError(f"a wall of {storeys} storeys from level {index} leaves the map")
-        material = self._alias(material, self.solid)
+        material = self._alias(material, self.default)
         for storey in range(index, index + storeys):
             self.data = paint_edges(self.data, storey, tuple(start), tuple(end), material=material)
+
+    # The face into cell (col, row) of the wall on its `side`, and of the
+    # cells after it, in another material: `length` cells and `storeys` up.
+    def face_wall(self, level, at, side: str, material: str, *, length: int = 1, storeys: int = 1) -> None:
+        if side not in SIDES:
+            raise BuildError(f"side must be one of {', '.join(SIDES)}")
+        index = self._level(level)
+        col, row = at
+        rect = (col, row, col + length, row + 1) if side in "NS" else (col, row, col + 1, row + length)
+        start, end = self._side_segment(rect, side)
+        face = FACE_INTO_CELL[side]
+        material = self._alias(material, self.default)
+        for storey in range(index, index + storeys):
+            if storey >= self.level_count:
+                raise BuildError(f"a face {storeys} storeys from level {index} leaves the map")
+            walls = self.data["levels"][storey]["walls"]
+            found = [at for at, wall in enumerate(walls) if self._on_segment(wall, start, end)]
+            if len(found) != length:
+                raise BuildError(f"level {storey}: no wall along all of {start}..{end} to face")
+            for at in found:
+                walls[at] = self._refaced(walls[at], face, material)
+
+    # The top of the slabs over a footprint, or their underside, in another material.
+    def face_slab(self, level, size, at, material: str, *, face: str = "top") -> None:
+        if face not in ("top", "bottom"):
+            raise BuildError("a slab is faced on its top or its bottom")
+        index = self._level(level)
+        c0, r0, c1, r1 = self._place(size, at)
+        material = self._alias(material, self.default)
+        cells = {(col, row) for row in range(r0, r1) for col in range(c0, c1)}
+        for name in ("floors", "inaccessible_floors"):
+            slabs = self.data["levels"][index][name]
+            for at, slab in enumerate(slabs):
+                if (slab["col"], slab["row"]) in cells:
+                    slabs[at] = self._refaced(slab, face, material)
+                    cells.discard((slab["col"], slab["row"]))
+        if cells:
+            raise BuildError(f"level {index}: no slab under {sorted(cells)[0]} to face")
 
     # The wall on `side` of cell (col, row) and of the cells after it, as wide
     # and as many sections tall as a portal needs, portalable on the face into
@@ -285,19 +341,20 @@ class MapBuilder:
         if storeys < 1 or top > self.level_count or (ceiling is not False and top >= self.level_count):
             raise BuildError(f"{name}: {storeys} storeys from level {index} leave no level for the walls and ceiling")
         rect = self._place(size, at, **where)
-        self._slab(index, rect, dict.fromkeys(FACES, self._alias(floor, self.solid)), "top")
+        self._slab(index, rect, dict.fromkeys(FACES, self._alias(floor, self.default)), "top")
         for side in SIDES:
             start, end = self._side_segment(rect, side)
             face = FACE_INTO_CELL[side]
+            # A wall's ends and edges show in doorways, so they match its inside.
             materials = {
-                **dict.fromkeys(FACES, self._side_alias(outside, side)),
-                face: self._side_alias(inside, side),
+                **dict.fromkeys(FACES, self._side_alias(inside, side)),
+                OPPOSITE_FACE[face]: self._side_alias(outside, side),
             }
             for storey in range(index, top):
                 self._walls(storey, start, end, materials, face)
         if ceiling is not False:
-            under = self.solid if ceiling is True else self._alias(ceiling, self.solid)
-            self._slab(top, rect, {**dict.fromkeys(FACES, self.solid), "bottom": under}, "bottom")
+            under = self.default if ceiling is True else self._alias(ceiling, self.default)
+            self._slab(top, rect, {**dict.fromkeys(FACES, self.default), "bottom": under}, "bottom")
         return self._register(Piece(name, "room", index, *rect, levels=storeys))
 
     def _side_alias(self, material: str | dict[str, str] | None, side: str) -> str:
@@ -306,7 +363,7 @@ class MapBuilder:
             if unknown:
                 raise BuildError(f"wall materials are keyed by side ({', '.join(SIDES)}), not {sorted(unknown)}")
             material = material.get(side)
-        return self._alias(material, self.solid)
+        return self._alias(material, self.default)
 
     def _room(self, name: str) -> Piece:
         piece = self.piece(name)
@@ -325,7 +382,7 @@ class MapBuilder:
         offset: int | None = None,
         *,
         width: int = 1,
-        storeys: int = 1,
+        storeys: int | None = None,
         eraser: bool = False,
         field: str | None = None,
     ) -> None:
@@ -336,6 +393,7 @@ class MapBuilder:
         offset = (span - width) // 2 if offset is None else offset
         if width < 1 or offset < 0 or offset + width > span:
             raise BuildError(f"{room}: a doorway {width} wide at offset {offset} leaves its {span}-cell wall")
+        storeys = min(self.footprint.doorway, piece.levels) if storeys is None else storeys
         if not 1 <= storeys <= piece.levels:
             raise BuildError(f"{room}: a doorway is 1 to {piece.levels} storeys tall")
         start, end = self._side_segment(piece.rect, side, offset, width)
@@ -362,11 +420,23 @@ class MapBuilder:
             raise BuildError(f"light at ({col}, {row}) {side}: {error}")
         self.data["levels"][index]["lights"].append({"col": col, "row": row, "side": side, "kind": kind})
 
-    # Lights along a room's walls on its storey `storey`, one every `every`
-    # cells, on the wall sections that stand and take no portal. Returns how
-    # many it placed.
-    def room_lights(self, room: str, kind: str, *, every: int = 3, storey: int = 0, sides: str = "NSEW") -> int:
+    # Lights along a room's walls, one every `every` cells where a wall
+    # stands, in one row: on its storey `storey`, or the one that hangs them
+    # nearest head height. Without `portal_faces` they keep off faces that
+    # take a portal, which a light keeps 0.4 m away. Returns how many it placed.
+    def room_lights(
+        self,
+        room: str,
+        kind: str,
+        *,
+        every: int = 3,
+        storey: int | None = None,
+        sides: str = "NSEW",
+        portal_faces: bool = True,
+    ) -> int:
         piece = self._room(room)
+        if storey is None:
+            storey = min(range(piece.levels), key=lambda s: abs(self._light_height(s) - LIGHT_HEIGHT))
         if every < 1 or not 0 <= storey < piece.levels:
             raise BuildError(f"{room}: lights go every 1 or more cells on storeys 0 to {piece.levels - 1}")
         index = piece.level + storey
@@ -386,12 +456,17 @@ class MapBuilder:
                 if wall is None:
                     continue
                 inside = expand_face_materials(wall)[FACE_INTO_CELL[side]]
-                if self.catalogs.texture_catalog.get(inside):
+                if not portal_faces and self.catalogs.texture_catalog.get(inside):
                     continue
                 if light_placement_error(self.data, index, col, row, side) is None:
                     self.light(index, (col, row), side, kind=kind)
                     placed += 1
         return placed
+
+    # How far above a room's floor a light on its storey `storey` hangs.
+    def _light_height(self, storey: int) -> float:
+        section = self.frame.level_height - self.frame.floor_thickness
+        return storey * self.frame.level_height + WALL_LIGHT_HEIGHT_FRACTION * section
 
     # Actors of one kind spawning in a rectangle. `count` is one target or a
     # nondecreasing list for one, two, three, and four or more players;
@@ -577,8 +652,32 @@ class MapBuilder:
     def level_name(self, level: int, name: str) -> None:
         self.data["levels"][self._level(level)]["name"] = name
 
+    # A slab's side lies flush in the wall it meets: the band between that
+    # wall's sections on the far side. Where no slab continues it, the side
+    # takes the face of the wall under it, or else of the wall standing on it.
+    def _dress_slab_sides(self) -> None:
+        levels = self.data["levels"]
+        walls = [{edge_key(wall): wall for wall in level["walls"]} for level in levels]
+        for index, level in enumerate(levels):
+            slabs = [slab for name in ("floors", "inaccessible_floors") for slab in level[name]]
+            cells = {(slab["col"], slab["row"]) for slab in slabs}
+            for name in ("floors", "inaccessible_floors"):
+                for at, slab in enumerate(level[name]):
+                    col, row = slab["col"], slab["row"]
+                    for side, (dc, dr) in STEP.items():
+                        if (col + dc, row + dr) in cells:
+                            continue
+                        start, end = self._side_segment((col, row, col + 1, row + 1), side)
+                        wall = (walls[index - 1].get((*start, *end)) if index else None) or walls[index].get(
+                            (*start, *end)
+                        )
+                        if wall is not None:
+                            face = OPPOSITE_FACE[FACE_INTO_CELL[side]]
+                            level[name][at] = slab = self._refaced(slab, face, expand_face_materials(wall)[face])
+
     # The map the game would load, normalized, canonical, and valid, with the validator's warnings.
     def document(self) -> tuple[dict, list[str]]:
+        self._dress_slab_sides()
         root = canonicalize_map(normalize_map(self.data))
         issues = validate_document(
             root,

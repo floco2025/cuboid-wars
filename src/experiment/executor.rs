@@ -67,11 +67,21 @@ impl Executor {
             Action::Fire => self.session.fire(),
             Action::Check { min, max, grounded } => Ok(self.session.check(min, max, grounded)),
             Action::Inspect => Ok(json!({"status":"inspected"})),
-            Action::Reset => {
+            Action::Reset { spawn } => {
                 let visual = self.session.visual_messages.is_some();
-                self.session = Session::new(&self.script)?;
-                self.session.visual_messages = visual.then(Vec::new);
-                Ok(json!({"status":"reset"}))
+                let mut script = self.script.clone();
+                script.spawn = spawn.unwrap_or(script.spawn);
+                // A sweep tries spawns it cannot judge: one the game refuses
+                // is a result, and the session stays as it was.
+                match (Session::new(&script), spawn) {
+                    (Ok(session), _) => {
+                        self.session = session;
+                        self.session.visual_messages = visual.then(Vec::new);
+                        Ok(json!({"status":"reset"}))
+                    }
+                    (Err(error), Some(_)) => Ok(json!({"status":"rejected", "reason": error.to_string()})),
+                    (Err(error), None) => Err(error),
+                }
             }
         }
         .with_context(|| format!("action {}", self.steps.len()))?;

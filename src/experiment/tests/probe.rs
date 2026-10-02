@@ -50,6 +50,23 @@ fn a_probe_reports_each_shot_and_changes_nothing() {
 }
 
 #[test]
+fn a_reset_starts_over_where_it_says_or_at_the_scripts_spawn() {
+    let (_folder, mut script) = walled_floor();
+    script.actions = vec![
+        Action::Reset {
+            spawn: Some([0.0, 0.0, -6.0]),
+        },
+        Action::Reset { spawn: None },
+    ];
+    let report = script.run().expect("resets");
+    assert!(close(
+        &report["steps"][0]["state"]["player"]["position"],
+        [0.0, 0.0, -6.0]
+    ));
+    assert_eq!(report["steps"][1]["state"], report["initial"]);
+}
+
+#[test]
 fn a_placed_portal_opens_where_the_probe_from_its_eye_said() {
     let (_folder, mut script) = walled_floor();
     script.actions = vec![
@@ -75,4 +92,16 @@ fn a_placed_portal_opens_where_the_probe_from_its_eye_said() {
         close(&placed["state"]["player"]["position"], [-10.0, 0.0, -6.0]),
         "{placed}"
     );
+}
+
+#[test]
+fn a_reset_into_geometry_is_refused_and_changes_nothing() {
+    let (_folder, mut script) = walled_floor();
+    script.actions = vec![Action::Reset {
+        spawn: Some([-10.0, 0.0, -12.0]),
+    }];
+    let report = script.run().expect("refused reset");
+    let step = &report["steps"][0];
+    assert_eq!(step["result"]["status"], "rejected", "{step}");
+    assert_eq!(step["state"], report["initial"]);
 }

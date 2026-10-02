@@ -62,9 +62,13 @@ the right point.
   start, each yielding a key, with every key needed for the next part or the
   finish. Keys are held for one life; a switch that never resets keeps a
   finished course finished.
-- **Wrong surfaces.** More portalable surfaces than the solution uses, so a
-  portal can go where it does not help. A wrong choice fails for an
-  understandable physical reason, not by visibly leading nowhere.
+- **Portals go almost anywhere.** An ordinary surface takes a portal, as in
+  Hotel; a few materials do not, and metal is the one players know. The
+  challenge is to find how and where to portal. A map where one pale panel
+  takes a portal and nothing else does makes the answer obvious; Obby gets
+  away with it as a special case.
+- **Wrong surfaces.** A portal can go where it does not help. A wrong choice
+  fails for an understandable physical reason, not by visibly leading nowhere.
 - **Portals prepared elsewhere.** One portal is set up from a different place
   than the takeoff. A surface's normal fixes its exit direction; the shooting
   position does not rotate it.
@@ -77,6 +81,10 @@ the right point.
   or air steering must not bypass a puzzle. Low gravity floats down to any
   floor in reach, so a goal it must not reach is a closed room entered through
   an eraser doorway.
+- **No way in at a walk.** A body that walks, steps, or hops into one portal
+  leaves the other with almost no speed and drops from it, or drifts along
+  it. So nothing a portal can open on lies above the goal or within a few
+  metres beside it: the goal and the walls and ceiling around it are metal.
 - **Recovery after mistakes.** Losing a required boost leaves a way to refill
   and retry, and every checkpoint has usable equipment and a route onward.
 - **Ordinary skill.** The main route needs momentum from an ordinary takeoff
@@ -85,7 +93,12 @@ the right point.
 - **Visibility.** A landing or a portal pad sits far enough out to be seen and
   aimed at from a safe approach, never from the lip looking straight down.
 - **A fine grid.** 1 m floor cells and wall sections, for geometry a 2 m grid
-  cannot draw.
+  cannot draw, and a storey a jump clears once and not twice: 1.6 m, where a
+  jump rises 2.9 m.
+- **Rooms that look like rooms.** A room is two such storeys tall, about 3 m,
+  and a doorway is as tall as its room. Lights hang in one row a little above
+  head height, never in rows above each other. A wall's ends and the edges
+  of a floor look like the wall they sit in.
 - **Enemies** as part of a room's problem, in small doses.
 - **Solvable alone.** Every room works for one player; two-player twists come
   on top.
@@ -97,14 +110,18 @@ the right point.
 - **Portal Primer** is the one AI-authored map: one line of chambers, open-air
   except its finale, on a 2 m grid. It shows the tools work more than it is
   fun.
+- **Gatehouse** is the first building, under construction: a hub, an exit
+  behind three gates, and the first of its rooms. Its first playtest gave the
+  principles above on portals, walking in, and looks.
 - **The tools** build a map from a script, draw it as text, measure jumps and
   flings, and run a scripted route through the real game, headless or in a
   window. The builder writes buildings: rooms with ceilings and doorways,
   lights, enemy zones, any texture a map names, and portal surfaces sized to
-  the grid. The AI can ask the game what a shot from a standing point opens
-  and where its moves end for every pair of portals in reach. It cannot yet
-  search for a route or for a shortcut by other moves, or see what a map
-  looks like.
+  the grid. The AI can ask the game what a shot from a standing point opens,
+  where its moves end for every pair of portals on its way, and whether
+  walking into any pair reaches the goal. It can look at a map by launching
+  the game at a chosen spot and capturing the window, by hand so far. It
+  cannot yet search for a route or for a shortcut by other moves.
 - **Tried in earlier courses, absent from the Primer:** shooting an enemy
   through a portal pair, a floor-to-floor launch upward with an air-steered
   catch, three ramp exits around one landing, erasure in mid-flight, a running
@@ -113,10 +130,10 @@ the right point.
 ## Roadmap
 
 1. **Self-checks.** The AI asks the game what a shot reaches from a standing
-   point and where every reachable portal pair lands, which shows that a wrong
-   surface fails. Showing that a route has no shortcut still needs a bot that
-   plays at the level of intent and searches the moves; rendered snapshots
-   would let the AI see its map.
+   point, where every portal pair on its way lands, and whether walking into
+   a pair is enough. Showing that a route has no shortcut by other moves still
+   needs a bot that plays at the level of intent and searches; looking at a
+   map should become one command.
 2. **A first small building to playtest.** A hub and three portal rooms in
    Obby's manner, each yielding a key or a switch, all needed for the exit,
    handed over once it passes the self-checks.

@@ -1,0 +1,35 @@
+{
+  "textures": {
+    "metal": { "material": "steelplate1", "portalable": false },
+    "brick": { "material": "bricks-mortar", "portalable": true },
+    "floor": { "material": "cheap_old_linoleum1", "portalable": true },
+    "pit-floor": { "material": "smooth-temple-blocks", "portalable": true },
+    "hub-floor": { "material": "rectangle-polished-tile", "portalable": true },
+    "hub-wall": { "material": "art-deco-scales-wallpaper", "portalable": true },
+    "ceiling": { "material": "fiberous-plaster1-ue", "portalable": true },
+    "outside": { "material": "modern-brick1", "portalable": true }
+  },
+  "grounds": null,
+  "random_items": null,
+  "placed_items": {
+    "respawn_secs": {
+      "speed": 0.0,
+      "low_gravity": 0.0,
+      "equipment_eraser": 0.0
+    }
+  },
+  "quests": [],
+  "weather": "clear",
+  "geometry": {
+    "grid_cell_size": 1.0,
+    "level_height": 1.6,
+    "floor_thickness": 0.2,
+    "wall_thickness": 0.2
+  },
+  "portals": "both",
+  "power_ups": {
+    "portal_gun": { "mode": "always" },
+    "speed": { "mode": "pickup", "duration_secs": null },
+    "low_gravity": { "mode": "pickup", "duration_secs": null }
+  }
+}

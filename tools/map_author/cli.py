@@ -15,7 +15,7 @@ from .describe import plan, summary
 from .measure import jump, parse_surface, parse_takeoff, ranges, surface, where
 from .proof import summarize
 from .shots import shots
-from .sweep import sweep
+from .sweep import sweep, walk_in
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -66,7 +66,10 @@ def main(argv: list[str] | None = None) -> int:
     pairs = commands.add_parser("sweep", help="where moves end for every pair of portals in reach, in the game")
     pairs.add_argument("map")
     pairs.add_argument("--from", dest="stand", required=True, help="L<level>:<x>,<z> in cells: the shots and the start")
-    pairs.add_argument("--moves", required=True, help='"move <x>,<z> x<ticks> [jump] [crouch]; advance <ticks>"')
+    pairs.add_argument("--moves", help='"move <x>,<z> x<ticks> [jump] [crouch]; advance <ticks>"')
+    pairs.add_argument(
+        "--walk-in", action="store_true", help="instead of moves, walk, step, and hop into every portal: needs --goal"
+    )
     pairs.add_argument("--entry", action="append", default=[], help="one portal on this surface only (repeatable)")
     pairs.add_argument("--exit", action="append", default=[], help="the other on this surface only (repeatable)")
     pairs.add_argument("--also-from", action="append", default=[], help="another point the portals are shot from")
@@ -128,7 +131,13 @@ def run(args) -> int:
         print(ranges(ctx))
     elif args.command == "shots":
         print(shots(ctx, args.stand, args.surfaces))
+    elif args.command == "sweep" and args.walk_in:
+        if not args.goal or args.moves:
+            raise ValueError("--walk-in takes a --goal and no --moves")
+        print(walk_in(ctx, args.stand, args.goal, entries=args.entry, exits=args.exit, also_from=args.also_from))
     elif args.command == "sweep":
+        if not args.moves:
+            raise ValueError("a sweep needs --moves, or --walk-in with a --goal")
         print(
             sweep(
                 ctx,

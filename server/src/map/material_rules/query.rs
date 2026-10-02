@@ -14,6 +14,9 @@ use super::{
 // than the corner-filler offset (`WALL_HALF_THICKNESS`) so the two sides of a
 // thin strip are always distinguishable.
 const GRID_LINE_EPS: f32 = 0.05;
+// How exactly a strip must match a wall's width and line to be its trim: a
+// slab's perimeter extension is half that width and off the line by a quarter.
+const TRIM_EPS: f32 = 0.01;
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct SegmentMaterials {
@@ -44,14 +47,18 @@ impl MaterialRules {
         //      floor cell. Detect it by shape and use *that* cell directly,
         //      so the strip inherits its long-side neighbour's material
         //      rather than a diagonal cell's.
-        //   3. Any cardinal neighbour of the midpoint that has a floor.
-        //   4. Adjacent wall on this level.
+        //   3. Stacked-wall trim: the wall it caps.
+        //   4. Any cardinal neighbour of the midpoint that has a floor.
+        //   5. Adjacent wall on this level.
         let mid_col = self.geometry.cell_col_containing_x(f32::midpoint(floor.x1, floor.x2));
         let mid_row = self.geometry.cell_row_containing_z(f32::midpoint(floor.z1, floor.z2));
         if let Some(materials) = self.segments.floors.get(&(floor.level, mid_col, mid_row)) {
             return materials.clone();
         }
         if let Some(materials) = self.corner_filler_originating_cell_materials(floor) {
+            return materials;
+        }
+        if let Some(materials) = self.capped_wall_materials(floor) {
             return materials;
         }
         if let Some(materials) = self.adjacent_floor_materials(floor.level, mid_col, mid_row) {
@@ -108,6 +115,39 @@ impl MaterialRules {
             .floors
             .get(&(floor.level, origin_col, origin_row))
             .cloned()
+    }
+
+    // A stacked-wall trim is a wall's width, centred on the wall's grid
+    // line, and sits on the lower wall below the upper level's floor plane,
+    // so it continues the lower wall's faces. Asking the midpoint cell's
+    // edges in a fixed order instead hands a corner cell's strip the end caps
+    // of the wall it meets, and a floor beside the strip hands it that
+    // floor's sides.
+    fn capped_wall_materials(&self, floor: &Floor) -> Option<FaceMaterials> {
+        let x = f32::midpoint(floor.x1, floor.x2);
+        let z = f32::midpoint(floor.z1, floor.z2);
+        let across = (floor.z2 - floor.z1).abs().min((floor.x2 - floor.x1).abs());
+        if (across - self.geometry.wall_thickness()).abs() > TRIM_EPS {
+            return None;
+        }
+        let (from, to) = if (floor.z2 - floor.z1).abs() < (floor.x2 - floor.x1).abs() {
+            let row = self.geometry.nearest_grid_row_to_z(z);
+            if (z - self.geometry.cell_to_world_z(row)).abs() > TRIM_EPS {
+                return None;
+            }
+            let col = self.geometry.cell_col_containing_x(x);
+            ([col, row], [col + 1, row])
+        } else {
+            let col = self.geometry.nearest_grid_col_to_x(x);
+            if (x - self.geometry.cell_to_world_x(col)).abs() > TRIM_EPS {
+                return None;
+            }
+            let row = self.geometry.cell_row_containing_z(z);
+            ([col, row], [col, row + 1])
+        };
+        let (a, b) = wall_edge_key(from, to);
+        let lower = floor.level.checked_sub(1)?;
+        self.segments.walls.get(&(lower, a, b)).cloned()
     }
 
     fn is_on_grid_z(&self, z: f32) -> bool {
@@ -191,3 +231,7 @@ fn missing_materials() -> FaceMaterials {
     // visually distinctive so the issue is obvious if it does.
     FaceMaterials::uniform("__missing__")
 }
+
+#[cfg(test)]
+#[path = "tests/query.rs"]
+mod tests;

@@ -77,6 +77,16 @@ class MapBuilderTests(ConfigTestCase):
         self.assertEqual((lower["south"], lower["north"]), ("slab", "basement-floor"))
         self.assertEqual((upper["south"], upper["north"]), ("slab", "portal-resistant"))
 
+    def test_a_strip_taller_than_a_portal_says_how_high_it_takes_one(self):
+        pin_geometry(**LOW_STOREYS)
+        b = builder(levels=6)
+        b.portal_wall("strip", level=1, at=(5, 5), side="N")
+        b.portal_wall("strip-top", level=3, at=(5, 5), side="N")
+        text = summary(MapContext.load("obby", b.data))
+        self.assertIn("wall  wall:L1:5,5:N  faces south", text)
+        self.assertIn("ready from L1 up to L3", text)
+        self.assertEqual(text.count("faces south"), 1)
+
     def test_portal_pieces_take_their_size_from_the_grid(self):
         tall = builder()
         self.assertEqual(tall.footprint, PortalFootprint(across=1, along=1, storeys=1))
@@ -177,17 +187,67 @@ class MapBuilderTests(ConfigTestCase):
         b = builder()
         b.room("hall", level=0, at=(2, 2), size=(6, 6), inside={"N": "slab"})
         b.doorway("hall", "W", 2, width=2)
-        self.assertEqual(b.room_lights("hall", "utility", every=2), 8)
+        self.assertEqual(b.room_lights("hall", "utility", every=2, portal_faces=False), 8)
         lights = {(light["col"], light["row"], light["side"]) for light in b.data["levels"][0]["lights"]}
         self.assertEqual(
             lights,
             {(3, 7, "S"), (5, 7, "S"), (7, 7, "S"), (7, 3, "E"), (7, 5, "E"), (7, 7, "E"), (2, 3, "W"), (2, 7, "W")},
         )
-        self.assertEqual(b.room_lights("hall", "utility", every=2), 0)
+        self.assertEqual(b.room_lights("hall", "utility", every=2, portal_faces=False), 0)
+        self.assertEqual(b.room_lights("hall", "utility", every=2), 3)
         with self.assertRaisesRegex(BuildError, "unknown light kind"):
             b.light(level=0, at=(3, 7), side="S", kind="neon")
         with self.assertRaisesRegex(BuildError, "No wall"):
             b.light(level=0, at=(4, 4), side="N", kind="utility")
+
+    def test_a_walls_ends_and_edges_match_its_inside(self):
+        b = builder()
+        b.room("hall", level=0, at=(2, 2), size=(4, 4), inside="slab")
+        north = {edge_key(w): w for w in b.data["levels"][0]["walls"]}[(2, 2, 3, 2)]
+        self.assertEqual({north[face] for face in ("south", "east", "west", "top", "bottom")}, {"slab"})
+        self.assertEqual(north["north"], "portal-resistant")
+
+    def test_a_slabs_side_takes_the_face_of_the_wall_it_lies_in(self):
+        b = builder()
+        b.room("shaft", level=0, at=(2, 2), size=(4, 4), storeys=3, inside="slab")
+        b.room("hall", level=1, size=(4, 4), east_of="shaft", inside="basement-floor")
+        b.platform("deck", level=1, at=(2, 2), size=(4, 1))
+        b.checkpoint(0, level="hall", at=(7, 3), size=(1, 1))
+        root, _ = b.document()
+        floors = {(f["col"], f["row"]): f for f in root["levels"][1]["floors"]}
+        # The hall's floor meets the wall it shares with the shaft: from the shaft, that band is shaft wall.
+        self.assertEqual(floors[(6, 3)]["west"], "slab")
+        # The deck's free edge has no wall under it and keeps its own material.
+        self.assertEqual(floors[(3, 2)]["south"], "portal-resistant")
+        self.assertEqual(floors[(3, 2)]["north"], "portal-resistant")
+        ceiling = {(f["col"], f["row"]): f for f in root["levels"][2]["floors"]}
+        self.assertEqual(ceiling[(6, 3)]["west"], "slab")
+
+    def test_lights_and_doorways_follow_the_storey_height(self):
+        pin_geometry(level_height=1.6, floor_thickness=0.2)
+        b = builder(levels=6)
+        self.assertEqual(b.footprint.doorway, 2)
+        b.room("hall", level=1, at=(2, 2), size=(6, 6), storeys=2)
+        b.doorway("hall", "W")
+        for level in (1, 2):
+            self.assertNotIn((2, 4, 2, 5), {edge_key(w) for w in b.data["levels"][level]["walls"]})
+        b.room_lights("hall", "utility", every=3)
+        self.assertEqual([len(level["lights"]) for level in b.data["levels"][:4]], [0, 0, 8, 0])
+
+    def test_faces_change_one_material_of_what_stands_there(self):
+        b = MapBuilder("obby", cols=12, rows=12, levels=3, solid="portal-resistant", portal="slab", default="slab")
+        b.room("hall", level=0, at=(2, 2), size=(4, 4))
+        b.face_wall(0, (2, 2), "N", "portal-resistant", length=2)
+        b.face_slab(1, (2, 2), (2, 2), "portal-resistant", face="bottom")
+        walls = {edge_key(w): w for w in b.data["levels"][0]["walls"]}
+        self.assertEqual([walls[(c, 2, c + 1, 2)]["south"] for c in (2, 3, 4)], ["portal-resistant"] * 2 + ["slab"])
+        ceiling = {(f["col"], f["row"]): f for f in b.data["levels"][1]["floors"]}
+        self.assertEqual((ceiling[(3, 3)]["bottom"], ceiling[(3, 3)]["top"]), ("portal-resistant", "slab"))
+        self.assertEqual(ceiling[(4, 4)]["bottom"], "slab")
+        with self.assertRaisesRegex(BuildError, "no wall along"):
+            b.face_wall(0, (3, 3), "N", "slab")
+        with self.assertRaisesRegex(BuildError, "no slab under"):
+            b.face_slab(2, (2, 2), (2, 2), "slab")
 
     def test_actor_zones_are_written_and_described(self):
         b = builder()

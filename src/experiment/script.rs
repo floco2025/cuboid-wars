@@ -65,7 +65,11 @@ pub(super) enum Action {
         ticks: u32,
     },
     Inspect,
-    Reset,
+    // Recreate the session at `spawn`, or at the script's without one.
+    Reset {
+        #[serde(default)]
+        spawn: Option<[f32; 3]>,
+    },
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
@@ -124,6 +128,10 @@ impl Script {
                 Action::Place { eye, target, .. } => ensure!(
                     eye.iter().chain(target).all(|n| n.is_finite()) && eye != target,
                     "action {index}: place needs a finite eye and a different finite target"
+                ),
+                Action::Reset { spawn: Some(spawn) } => ensure!(
+                    spawn.iter().all(|n| n.is_finite()),
+                    "action {index}: reset spawn must be finite"
                 ),
                 Action::Probe { eye, targets } => ensure!(
                     !targets.is_empty() && eye.iter().chain(targets).flatten().all(|n| n.is_finite()),

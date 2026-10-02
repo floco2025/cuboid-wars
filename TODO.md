@@ -4,6 +4,10 @@
 
 - **Navigation search exhaustion:** a connected route whose A* search exceeds the per-query budget fails repeatedly, including some long Hotel detours. Continue such searches across ticks under the shared work cap.
 
+- **Lintel gap:** a wall section standing over an opening lower than its room starts a floor's thickness above the opening, and the jamb beside it ends that much below it: a notch at each top corner of the door and no band under the wall. The stacked-wall trim covers only edges where both sections stand; emit it under every upper section no slab covers. Gatehouse avoids it with doorways as tall as their rooms.
+
+- **Review capture on macOS:** with Peekaboo 4.6 the launch in `tools/game_review/macos/README.md` reports an unverifiable receipt and `window list` and `see` cannot find the review app. Launching the binary with `--spawn` and `--look`, reading the window id from `CGWindowListCopyWindowInfo` by process id, and `screencapture -l` works.
+
 ## Enhancements
 
 - **Player stair stepping:** the motor steps over ledges up to `CHARACTER_STEP_HEIGHT`, 0.2 m; taller is a wall. No shipped map needs more (ramps, ladders, jumps). Needed once a map authors stairs or generated courses put knee-high blocks in the way; Source steps 0.45 m at our scale. Raising Rapier's autostep alone stalled a 0.4 m step, since the capsule's rounded bottom catches the ledge's edge: it needs a capsule-aware step solver. Keep the actor limit, which the navigation mesh assumes; cover low ceilings, ledges narrower than the body, and steps onto carriers.
@@ -18,13 +22,17 @@
 
 - **World-space content authoring:** place items, zones, objectives, and geometry anywhere in the playable world, terrain included. The grid bounds editing, not gameplay; navigation already loads regions beyond it.
 
+- **Looking at a map:** make the capture above one `mapauthor` command taking a standing point and a view, so an author checks proportions, light, and materials before a playtest.
+
+- **Wall light height:** a light hangs at a fixed fraction of its wall section, which is chest height on a 2 m section and knee height on a 1.4 m one; the builder picks the storey that puts it nearest head height. Let a light say its height.
+
 - **Pressure-plate sizing:** author plate size and activation area independently of the grid. The Primer's 2 m grid gives 1 m plates.
 
 - **Editor preview scope:** Jump Path flies open air at full speed from a tile edge. Missing: the run-up, obstacles, ramps, and bridges stopping a flight (a flight under an overhanging slab reads as clear), crouch, ramp takeoffs, mid-flight equipment or gravity changes, switches, carriers, and a wall-portal capture outline. Steering samples fixed directions and one entry rule; search the input instead. `mapauthor jump` and `fling` inherit all of it.
 
 - **Experiment runner on a dead player:** an `aim` after a death is a process error that discards the report; record it as a failed action like `check` does, so a proof run shows where the route died.
 
-- **Authoring the next courses:** [PLAN.md](PLAN.md) says what an AI-authored map should have; `mapauthor shots` and `sweep` ask the game what a shot opens and where moves end for each portal pair in reach. A sweep tries only the moves it is given, from the standing point with fresh equipment and switches: a shortcut by other moves needs a search over moves, and a step late in a route needs the state the route built up. Walls are sampled at the height a portal rests on their base, so higher placements on tall walls are not tried. `surface`, `jump`, `fling`, and the summary's portal-ready list still judge by Python grid rules and open-air flights. The builder has no nested maps or terrain. Keys are lost on death, plates scale with the grid, actor behaviour is unseeded, and nothing shows the author how a map looks.
+- **Authoring the next courses:** [PLAN.md](PLAN.md) says what an AI-authored map should have; `mapauthor shots` and `sweep` ask the game what a shot opens and where moves end for each portal pair in reach. A sweep tries only the moves it is given, from the standing point with fresh equipment and switches, and `--walk-in` tries walking, stepping, and hopping into a pair: a shortcut by other moves needs a search over moves, and a step late in a route needs the state the route built up. Walls are sampled once per storey and floors every few cells, so the best spot for a portal may lie between samples and has to be named. `surface`, `jump`, `fling`, and the summary's portal-ready list still judge by Python grid rules and open-air flights. The builder has no nested maps or terrain. Keys are lost on death, plates scale with the grid, and actor behaviour is unseeded.
 
 - **Sandbox simulation and experiment workflow:** toward AI-generated movement and portal maps that are fun; [PLAN.md](PLAN.md) has the goal. Extend `--experiment` with carriers, route and landing-tolerance measurements, and seeded randomness. Separate scenes, rulesets, and setups; keep client movement authority and server actor authority, no reconciliation. Prove reusable body, controller, team, and loadout composition, then connect inspection and reset to the editor.
 

@@ -127,7 +127,7 @@ fn an_airborne_pause_freezes_the_owner_server_and_action_progress() {
 #[test]
 fn restart_and_script_reset_clear_simulation_state_and_pending_view_frames() {
     let (_folder, mut script) = fling();
-    script.actions.push(Action::Reset);
+    script.actions.push(Action::Reset { spawn: None });
     let mut playback = Playback::new(script).expect("viewer route");
     let initial = playback.executor.initial.clone();
     let first = playback.take_frame().expect("initial frame");
@@ -311,7 +311,7 @@ fn continuous_playback_handles_script_reset_and_restart_returns_to_paused() {
     let (_folder, mut script) = fling();
     script.actions = vec![
         Action::Advance { ticks: 1 },
-        Action::Reset,
+        Action::Reset { spawn: None },
         Action::Advance { ticks: 30 },
         Action::Inspect,
     ];

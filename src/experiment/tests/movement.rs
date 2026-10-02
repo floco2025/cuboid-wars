@@ -23,7 +23,7 @@ fn walking_cannot_pass_a_wall_and_a_jump_requires_ground_support() {
             crouch: false,
             jump: false,
         },
-        Action::Reset,
+        Action::Reset { spawn: None },
         Action::Move {
             direction: [0.0, 0.0],
             ticks: 1,
@@ -137,7 +137,7 @@ fn a_wall_portal_turns_held_movement_and_reports_the_owners_exit_position() {
             max: [2.5, 0.1, -5.9],
             grounded: true,
         },
-        Action::Reset,
+        Action::Reset { spawn: None },
     ];
     let report = script.run().expect("turn through portal");
     let result = &report["steps"][6];

@@ -161,10 +161,10 @@ impl Playback {
 
     fn start_next(&mut self, tick_duration: Duration) -> Result<Duration> {
         let action = &self.executor.script.actions[self.executor.steps.len()];
-        let resetting = matches!(action, Action::Reset);
+        let resetting = matches!(action, Action::Reset { .. });
         self.aiming = match action {
             Action::Aim { .. } => true,
-            Action::Reset => false,
+            Action::Reset { .. } => false,
             Action::Move { direction, .. } if *direction != [0.0, 0.0] => false,
             _ => self.aiming,
         };

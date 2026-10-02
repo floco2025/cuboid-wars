@@ -3,6 +3,8 @@ from config_fixtures import ConfigTestCase
 from map_author.shots import candidates, shots, stand_at
 
 WALLS = ["wall:L1:5,2:N:1", "wall:L1:7,2:N:1"]
+# The panel's upper storey: a portal aimed there is the game's to move down.
+UPPER = ["wall:L2:5,2:N:1", "wall:L2:7,2:N:1"]
 PAD = "floor:L1:9.5,6.5"
 
 
@@ -23,7 +25,9 @@ class CandidateTests(ConfigTestCase):
         self.assertEqual(normals["ceiling:L2:15.5,11.5"], (0.0, -1.0, 0.0))
         for value, wanted in zip(normals["ramp:L0:16,3"], (-0.482, 0.876, 0.0), strict=True):
             self.assertAlmostEqual(value, wanted, places=3)
-        self.assertEqual(list(targets), [*WALLS, PAD, "floor:L2:15.5,11.5", "ceiling:L2:15.5,11.5", "ramp:L0:16,3"])
+        self.assertEqual(
+            list(targets), [*WALLS, *UPPER, PAD, "floor:L2:15.5,11.5", "ceiling:L2:15.5,11.5", "ramp:L0:16,3"]
+        )
         # Cells to world on a 20x20 grid of 1 m; a wall is aimed just above its base.
         for point, expected in (
             (targets[WALLS[0]], (-4.0, 2.2 + 1.378 + 0.02, -7.9)),
@@ -65,20 +69,30 @@ class ShotTests(ConfigTestCase):
             normal = [0.0, 1.0, 0.0] if spec.startswith(("floor", "ceiling", "ramp")) else [0.0, 0.0, 1.0]
             return {**game(point), **({"hit": {"position": point, "normal": normal}} if "floor" in spec else {})}
 
-        lines = shots(ctx, "L1:4,6", run=answers(facing)).splitlines()
-        self.assertEqual(lines[0], "shots from L1 (4, 6), eye world (-6.00, 3.80, -4.00): 6 targets")
+        overview = shots(ctx, "L1:4,6", run=answers(facing)).splitlines()
+        self.assertEqual(
+            overview[1:],
+            [
+                "  L1 wall on row 2 facing south: 1 of 2 open  wall:L1:5,2:N:1",
+                "  not opening: 4 out of sight, 2 no fit, 1 fizzles",
+                "1 of 8 open a portal where aimed",
+            ],
+        )
+        lines = shots(ctx, "L1:4,6", list(targets.values()), run=answers(facing)).splitlines()
+        self.assertEqual(lines[0], "shots from L1 (4, 6), eye world (-6.00, 3.80, -4.00): 8 targets")
         self.assertEqual(
             lines[1], "  wall:L1:5,2:N:1       opens at (-4.00, 3.72, -7.90) normal (0, 0, 1), nudged 0.12 m"
         )
         self.assertIn("fizzles: the aperture would cover a surface that takes no portal", lines[2])
-        self.assertIn("no fit: nothing within the nudge", lines[3])
+        self.assertIn("nothing within range", lines[3])
+        self.assertIn("no fit: nothing within the nudge", lines[5])
         self.assertEqual(
-            lines[5],
+            lines[7],
             "  ceiling:L2:15.5,11.5  BLOCKED: the shot lands at (2.10, 3.00, -3.50) on a surface facing (-1, 0, 0) "
             "that takes no portal",
         )
-        self.assertIn("nothing within range", lines[6])
-        self.assertEqual(lines[7], "1 of 6 open a portal where aimed")
+        self.assertIn("nothing within range", lines[8])
+        self.assertEqual(lines[9], "1 of 8 open a portal where aimed")
 
     def test_named_surfaces_replace_the_whole_list(self):
         ctx = hall()

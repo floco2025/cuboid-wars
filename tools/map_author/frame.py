@@ -86,6 +86,10 @@ class GridFrame:
         return x0, z0, x1, z1
 
 
+# The clearance a doorway leaves above a standing body.
+HEADROOM = 0.1
+
+
 # The grid a portal needs behind its rim: cells across its width, cells along
 # its height on a floor, and stacked wall sections for its height. A wall
 # section ends a floor's thickness below the next level.
@@ -94,6 +98,8 @@ class PortalFootprint:
     across: int
     along: int
     storeys: int
+    # The storeys a doorway opens for a standing body to pass.
+    doorway: int = 1
 
     @classmethod
     def for_map(cls, name: str, frame: GridFrame) -> PortalFootprint:
@@ -105,7 +111,9 @@ class PortalFootprint:
         )
         section = frame.level_height - frame.floor_thickness
         storeys = 1 if height <= section else 1 + _cells(height - section, frame.level_height)
-        return cls(_cells(width, frame.cell), _cells(height, frame.cell), storeys)
+        body = setting_number(settings, source, "player.movement_collider.height") + HEADROOM
+        doorway = 1 if body <= section else 1 + _cells(body - section, frame.level_height)
+        return cls(_cells(width, frame.cell), _cells(height, frame.cell), storeys, doorway)
 
 
 def _cells(length: float, cell: float) -> int:
