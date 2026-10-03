@@ -51,6 +51,20 @@ class FileIoTests(unittest.TestCase):
             self.assertIn('"switch": "fireworks"}', text)
             self.assertEqual(read_map(path)["pressure_plates"], data["pressure_plates"])
 
+    def test_a_light_round_trips_its_height(self) -> None:
+        data = {"fireworks": None, **empty_map(2, 2)}
+        data["levels"][0]["walls"] = [{"c0": 0, "r0": 0, "c1": 2, "r1": 0, "all": "wall"}]
+        data["levels"][0]["lights"] = [
+            {"col": 0, "row": 0, "side": "N", "kind": "utility", "height": 2.5},
+            {"col": 1, "row": 0, "side": "N", "kind": "utility", "height": 1.9},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "map.json"
+            write_map(path, data)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn('"kind": "utility", "height": 1.9}', text)
+            self.assertEqual(read_map(path)["levels"][0]["lights"], data["levels"][0]["lights"])
+
     def test_zones_and_nested_maps_round_trip_their_switches_and_initial_states(self) -> None:
         data = {"fireworks": None, **empty_map(2, 2)}
         data["levels"][0]["floors"] = [floor(0, 0)]

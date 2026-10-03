@@ -130,6 +130,11 @@ pub(super) fn validate(data: &Value, context: &Value, errors: &mut Errors) {
                     known(&context["wall_light_kinds"])
                 ));
             }
+            if !positive(&light["height"]) {
+                errors.add(format!(
+                    "{prefix}: light [{c}, {r}, {side}] needs a positive height in metres above the floor"
+                ));
+            }
             if !inside(c, r) {
                 errors.add(format!("{prefix}: light [{c}, {r}, {side}] is outside the grid"));
                 continue;

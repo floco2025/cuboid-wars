@@ -22,9 +22,6 @@ pub const BARRIER_THICKNESS_FRACTION: f32 = 1.0 / 6.0;
 // Slab thickness of a light bridge, as a fraction of the floor thickness.
 pub const BRIDGE_THICKNESS_FRACTION: f32 = 0.25;
 
-// Height of a wall light above its floor, as a fraction of the wall height.
-pub const WALL_LIGHT_HEIGHT_FRACTION: f32 = 0.625;
-
 // Pressure plates use one fixed box, including the model's clipped corners.
 // The tread's 3 cm press travel is purely visual.
 pub const PRESSURE_PLATE_SIDE_CELLS: f32 = 0.5;

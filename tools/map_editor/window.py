@@ -28,6 +28,7 @@ from .constants import (
     DEFAULT_ACTOR_COUNT,
     DEFAULT_ACTOR_RESPAWN_SECS,
     MODE_SELECT,
+    WALL_LIGHT_HEIGHT_FRACTION,
 )
 from .dependencies import MapDependencies
 from .document import MapDocument
@@ -108,6 +109,7 @@ class EditorWindow(
         self.actor_kinds = load_actor_kinds()
         self.wall_light_kinds = load_wall_light_kinds()
         self.recent_light_kind = next(iter(self.wall_light_kinds), "")
+        self.seed_light_height()
         self.recent_actor_spawn_levels = 1
         self.recent_actor_roam_distance = 0.0
         self.current_level = 0
@@ -318,12 +320,25 @@ class EditorWindow(
 
     def adopt_map(self, map_name: str) -> None:
         self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
+        self.seed_light_height()
         self.jump_path.reload_settings()
         self.run_time.reload_settings()
         self.clear_selection()
         self.current_level = 0
         self.refresh_ui()
         self.canvas.fit_map()
+
+    # A new light hangs where the map's last one does, or, in a map without
+    # lights, part way up a wall section.
+    def seed_light_height(self) -> None:
+        heights = [
+            light["height"]
+            for level in self.map_data["levels"]
+            for light in level.get("lights", [])
+            if isinstance(light.get("height"), (int, float))
+        ]
+        section = self.level_height - self.floor_thickness
+        self.recent_light_height = heights[-1] if heights else round(WALL_LIGHT_HEIGHT_FRACTION * section, 3)
 
     # === Menus & toolbar ===
 

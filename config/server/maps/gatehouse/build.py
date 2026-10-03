@@ -56,12 +56,12 @@ for row, gate in ((34, "drop"), (36, "vantage"), (38, "firing")):
 b.plate(level="exit", at=(30, 40), switch="finish")
 b.fireworks("finish")
 
-# One row of lights a little above head height where people walk, and the
-# pit's own on the faces under the landing and the block.
+# One row of lights where people walk, at the height a single wall would
+# hang them, and the pit's own on the faces under the landing and the block.
 b.room_lights("hub", "decorative", every=4)
 b.room_lights("exit", "decorative", every=4)
-b.room_lights("drop", "utility", every=4, storey=GROUND + 1)
+b.room_lights("drop", "utility", every=4, storey=GROUND)
 for at, side in (((20, 24), "E"), ((20, 27), "E"), ((10, 26), "W")):
-    b.light(level=1, at=at, side=side, kind="utility")
+    b.light(level=0, at=at, side=side, kind="utility", height=1.9)
 
 b.save()

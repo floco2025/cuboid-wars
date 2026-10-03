@@ -3,9 +3,7 @@ use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 use super::validation::validate_positive_finite;
-use crate::constants::{
-    BARRIER_THICKNESS_FRACTION, BRIDGE_THICKNESS_FRACTION, LEVEL_CLASSIFICATION_TOLERANCE, WALL_LIGHT_HEIGHT_FRACTION,
-};
+use crate::constants::{BARRIER_THICKNESS_FRACTION, BRIDGE_THICKNESS_FRACTION, LEVEL_CLASSIFICATION_TOLERANCE};
 
 // The sizes every other map measure follows: the edge of one grid cell, the
 // storey pitch, and the slab and wall thicknesses. Per map in
@@ -52,12 +50,6 @@ impl MapGeometryConfig {
     #[must_use]
     pub fn bridge_thickness(&self) -> f32 {
         self.floor_thickness * BRIDGE_THICKNESS_FRACTION
-    }
-
-    // Where a wall light hangs above its storey's floor.
-    #[must_use]
-    pub fn wall_light_height(&self) -> f32 {
-        self.wall_height() * WALL_LIGHT_HEIGHT_FRACTION
     }
 
     // The floor surface of storey `level`.

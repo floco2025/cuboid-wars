@@ -31,7 +31,7 @@ class LightsMixin:
             return
         after = copy.deepcopy(self.map_data)
         after["levels"][level_idx]["lights"].append(
-            {"col": col, "row": row, "side": side, "kind": self.recent_light_kind}
+            {"col": col, "row": row, "side": side, "kind": self.recent_light_kind, "height": self.recent_light_height}
         )
         self.apply_change("Add Light", after)
 
@@ -62,14 +62,20 @@ class LightsMixin:
         for c, r in floors_on_level:
             if (c, r) in ramp_cells:
                 continue
-            if c in selected_cols:
-                for side in ("N", "S"):
+            for sides, chosen in ((("N", "S"), selected_cols), (("E", "W"), selected_rows)):
+                if (c if sides[0] == "N" else r) not in chosen:
+                    continue
+                for side in sides:
                     if wall_endpoints_for_cell_side(c, r, side) in wall_set:
-                        candidates.append({"col": c, "row": r, "side": side, "kind": self.recent_light_kind})
-            if r in selected_rows:
-                for side in ("E", "W"):
-                    if wall_endpoints_for_cell_side(c, r, side) in wall_set:
-                        candidates.append({"col": c, "row": r, "side": side, "kind": self.recent_light_kind})
+                        candidates.append(
+                            {
+                                "col": c,
+                                "row": r,
+                                "side": side,
+                                "kind": self.recent_light_kind,
+                                "height": self.recent_light_height,
+                            }
+                        )
 
         if not candidates:
             self.notify("Auto-Place Lights: no walls matched the stride.")

@@ -32,6 +32,9 @@ pub fn get(value: &Value, key: &str, default: Value) -> Value {
 pub fn nonnegative(value: &Value) -> bool {
     value.is_number() && number(value).is_finite() && number(value) >= 0.0
 }
+pub fn positive(value: &Value) -> bool {
+    nonnegative(value) && number(value) > 0.0
+}
 pub fn whole(value: &Value) -> bool {
     value.is_i64() || value.is_u64()
 }

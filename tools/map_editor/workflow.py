@@ -60,6 +60,8 @@ class WorkflowMixin:
             self.recent_pressure_plate_switch = entry["switch"]
         elif name == "lights":
             self.recent_light_kind = entry["kind"]
+            if isinstance(entry.get("height"), (int, float)):
+                self.recent_light_height = entry["height"]
         elif name == "ladders":
             self.recent_ladder_levels = entry["levels"]
         if name == "ramps":

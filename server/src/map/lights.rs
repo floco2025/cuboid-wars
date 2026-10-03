@@ -24,7 +24,7 @@ pub(crate) fn generate_wall_lights(
     defs: &[WallLightDef],
     carrier: CarrierId,
 ) -> Vec<WallLight> {
-    let light_y = geometry.level_y(u8::try_from(level_idx).unwrap_or(u8::MAX)) + geometry.wall_light_height();
+    let floor_y = geometry.level_y(u8::try_from(level_idx).unwrap_or(u8::MAX));
 
     defs.iter()
         .filter_map(|def| {
@@ -35,6 +35,7 @@ pub(crate) fn generate_wall_lights(
             if !has_edge_on_cell_side(&level.edges, def.row, def.col, side) {
                 return None;
             }
+            let light_y = floor_y + def.height;
             let (pos, yaw) = wall_light_pose(geometry, light_y, def.row, def.col, side);
             Some(WallLight {
                 kind: def.kind.clone(),

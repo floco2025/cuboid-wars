@@ -163,7 +163,7 @@ class MapBuilderTests(ConfigTestCase):
     def test_a_doorway_opens_the_wall_and_takes_its_lights(self):
         b = builder()
         b.room("hall", level=0, at=(2, 2), size=(5, 4), storeys=2)
-        b.light(level=0, at=(4, 5), side="S", kind="utility")
+        b.light(level=0, at=(4, 5), side="S", kind="utility", height=2.0)
         b.doorway("hall", "S")
         self.assertNotIn((4, 6, 5, 6), {edge_key(w) for w in b.data["levels"][0]["walls"]})
         self.assertIn((4, 6, 5, 6), {edge_key(w) for w in b.data["levels"][1]["walls"]})
@@ -196,9 +196,9 @@ class MapBuilderTests(ConfigTestCase):
         self.assertEqual(b.room_lights("hall", "utility", every=2, portal_faces=False), 0)
         self.assertEqual(b.room_lights("hall", "utility", every=2), 3)
         with self.assertRaisesRegex(BuildError, "unknown light kind"):
-            b.light(level=0, at=(3, 7), side="S", kind="neon")
+            b.light(level=0, at=(3, 7), side="S", kind="neon", height=2.0)
         with self.assertRaisesRegex(BuildError, "No wall"):
-            b.light(level=0, at=(4, 4), side="N", kind="utility")
+            b.light(level=0, at=(4, 4), side="N", kind="utility", height=2.0)
 
     def test_a_walls_ends_and_edges_match_its_inside(self):
         b = builder()
@@ -233,6 +233,12 @@ class MapBuilderTests(ConfigTestCase):
             self.assertNotIn((2, 4, 2, 5), {edge_key(w) for w in b.data["levels"][level]["walls"]})
         b.room_lights("hall", "utility", every=3)
         self.assertEqual([len(level["lights"]) for level in b.data["levels"][:4]], [0, 0, 8, 0])
+        # A single 3.0 m wall hangs its lights at 1.875 m: on the upper storey, 0.275 m up it.
+        self.assertEqual({light["height"] for light in b.data["levels"][2]["lights"]}, {0.275})
+        b.light(1, (3, 7), "S", kind="utility", height=0.8)
+        self.assertEqual(b.data["levels"][1]["lights"][-1]["height"], 0.8)
+        with self.assertRaisesRegex(BuildError, "positive"):
+            b.light(1, (4, 7), "S", kind="utility", height=0.0)
 
     def test_faces_change_one_material_of_what_stands_there(self):
         b = MapBuilder("obby", cols=12, rows=12, levels=3, solid="portal-resistant", portal="slab", default="slab")

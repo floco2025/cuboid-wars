@@ -132,6 +132,7 @@ pub fn normalize_record(kind: &str, v: &Value) -> Value {
             let mut out = coords(v, &["col", "row"]);
             out["side"] = side(v);
             out["kind"] = get(v, "kind", json!(""));
+            out["height"] = get(v, "height", json!(null));
             out
         }
         "nested_map" => {

@@ -143,6 +143,8 @@ DEFAULT_ACTOR_BEAM_IN_SECS = 3.0
 SPAWN_ZONE_HANDLE_PIXELS = 8.0
 # Screen distance within which a click picks a wall, barrier, eraser, or ladder edge.
 EDGE_PICK_PIXELS = 6.0
+# How far up a wall section the first light of a map hangs; later ones follow the last.
+WALL_LIGHT_HEIGHT_FRACTION = 0.625
 STATUS_TIMEOUT_MS = 4000
 
 EDITOR_CELL = 36

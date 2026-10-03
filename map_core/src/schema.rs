@@ -189,14 +189,17 @@ pub struct LevelDef {
     pub lights: Vec<WallLightDef>,
 }
 
-// Editor-authored wall light. Identifies a `(cell, side)` pair on this level;
-// the runtime resolves its position and facing on the wall.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Serialize)]
+// Editor-authored wall light. Identifies a `(cell, side)` pair on this level
+// and hangs `height` metres above the level's floor; the runtime resolves
+// its position and facing on the wall.
+#[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
 pub struct WallLightDef {
     pub kind: String,
     pub col: i32,
     pub row: i32,
     pub side: WallSide,
+    #[serde(serialize_with = "crate::values::serialize_number")]
+    pub height: f32,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Serialize)]

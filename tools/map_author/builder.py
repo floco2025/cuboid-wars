@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from map_editor.catalogs import MapCatalogs, load_actor_kinds, load_wall_light_kinds, map_layout_path
-from map_editor.constants import ACTOR_ZONE_LIST, FACES, ITEM_KEY_TYPE, ITEM_TYPES
+from map_editor.constants import ACTOR_ZONE_LIST, FACES, ITEM_KEY_TYPE, ITEM_TYPES, WALL_LIGHT_HEIGHT_FRACTION
 from map_editor.editing import paint_bridges, paint_edges, paint_erasers, paint_floors, place_plate, place_ramp
 from map_editor.editing import placement_materials
 from map_editor.erasing import lights_off_edges
@@ -31,10 +31,6 @@ from .frame import GridFrame, PortalFootprint
 
 OPPOSITE_FACE = {"north": "south", "south": "north", "east": "west", "west": "east"}
 RELATIVE = ("east_of", "west_of", "north_of", "south_of")
-# WALL_LIGHT_HEIGHT_FRACTION in common/src/constants.rs: how far up its wall section a light hangs.
-WALL_LIGHT_HEIGHT_FRACTION = 0.625
-# Where a light in a room wants to hang, in metres above the floor.
-LIGHT_HEIGHT = 2.3
 FIELD_COLORS = ("#00ccff", "#ffcc00", "#ff5533", "#33dd66", "#cc66ff", "#ff9900")
 
 
@@ -407,39 +403,52 @@ class MapBuilder:
             if field is not None:
                 self.data = paint_edges(self.data, storey, start, end, field=field)
 
-    # A wall light in cell (col, row) on its `side` wall, facing the cell. A
-    # portal keeps 0.4 m from a light (PORTAL_LIGHT_CLEARANCE).
-    def light(self, level, at, side: str, *, kind: str) -> None:
+    # A wall light in cell (col, row) on its `side` wall, facing the cell,
+    # `height` metres above that level's floor; a height past the storey
+    # hangs on the section above. A portal keeps 0.4 m from a light
+    # (PORTAL_LIGHT_CLEARANCE).
+    def light(self, level, at, side: str, *, kind: str, height: float) -> None:
         kinds = load_wall_light_kinds()
         if kind not in kinds:
             raise BuildError(f"unknown light kind {kind!r}; one of {', '.join(kinds)}")
-        index = self._level(level)
+        if height <= 0:
+            raise BuildError("a light hangs a positive number of metres above its floor")
+        storeys, local = divmod(height, self.frame.level_height)
+        index = self._level(self._level(level) + int(storeys))
         col, row = at
         error = light_placement_error(self.data, index, col, row, side)
         if error:
             raise BuildError(f"light at ({col}, {row}) {side}: {error}")
-        self.data["levels"][index]["lights"].append({"col": col, "row": row, "side": side, "kind": kind})
+        light = {"col": col, "row": row, "side": side, "kind": kind, "height": round(local, 3)}
+        self.data["levels"][index]["lights"].append(light)
 
     # Lights along a room's walls, one every `every` cells where a wall
-    # stands, in one row: on its storey `storey`, or the one that hangs them
-    # nearest head height. Without `portal_faces` they keep off faces that
-    # take a portal, which a light keeps 0.4 m away. Returns how many it placed.
+    # stands, in one row `height` metres above the floor of its storey
+    # `storey`: without one, part way up a single wall as tall as a room a
+    # standing body needs, whatever the storeys. Without
+    # `portal_faces` they keep off faces that take a portal, which a light
+    # keeps 0.4 m away. Returns how many it placed.
     def room_lights(
         self,
         room: str,
         kind: str,
         *,
         every: int = 3,
-        storey: int | None = None,
+        storey: int = 0,
+        height: float | None = None,
         sides: str = "NSEW",
         portal_faces: bool = True,
     ) -> int:
         piece = self._room(room)
-        if storey is None:
-            storey = min(range(piece.levels), key=lambda s: abs(self._light_height(s) - LIGHT_HEIGHT))
         if every < 1 or not 0 <= storey < piece.levels:
             raise BuildError(f"{room}: lights go every 1 or more cells on storeys 0 to {piece.levels - 1}")
-        index = piece.level + storey
+        if height is None:
+            height = WALL_LIGHT_HEIGHT_FRACTION * (
+                self.footprint.doorway * self.frame.level_height - self.frame.floor_thickness
+            )
+        index = piece.level + storey + int(height // self.frame.level_height)
+        if index >= self.level_count:
+            raise BuildError(f"{room}: a light {height:g} m above storey {storey} leaves the map")
         walls = {edge_key(w): w for w in self.data["levels"][index]["walls"]}
         c0, r0, c1, r1 = piece.rect
         placed = 0
@@ -459,14 +468,9 @@ class MapBuilder:
                 if not portal_faces and self.catalogs.texture_catalog.get(inside):
                     continue
                 if light_placement_error(self.data, index, col, row, side) is None:
-                    self.light(index, (col, row), side, kind=kind)
+                    self.light(piece.level + storey, (col, row), side, kind=kind, height=height)
                     placed += 1
         return placed
-
-    # How far above a room's floor a light on its storey `storey` hangs.
-    def _light_height(self, storey: int) -> float:
-        section = self.frame.level_height - self.frame.floor_thickness
-        return storey * self.frame.level_height + WALL_LIGHT_HEIGHT_FRACTION * section
 
     # Actors of one kind spawning in a rectangle. `count` is one target or a
     # nondecreasing list for one, two, three, and four or more players;

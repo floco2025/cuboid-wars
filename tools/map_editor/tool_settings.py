@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QSizePolicy,
+    QDoubleSpinBox,
     QSpinBox,
     QWidget,
 )
@@ -223,6 +224,20 @@ class ToolSettings(QWidget):
             item.currentTextChanged.connect(show_key_field)
             show_key_field(window.recent_item_type)
 
+        def light_controls():
+            combo("Style", "recent_light_kind", window.wall_light_kinds, required=True)
+            box = QDoubleSpinBox()
+            box.setRange(0.1, 99.0)
+            box.setSingleStep(0.1)
+            box.setDecimals(2)
+            box.setSuffix(" m")
+            box.setToolTip("Height above the floor")
+            box.setValue(window.recent_light_height)
+            box.setMaximumWidth(85)
+            box.valueChanged.connect(lambda value: setattr(window, "recent_light_height", value))
+            self.bindings.append((box, "recent_light_height"))
+            field("Height", box)
+
         def material_controls():
             box, _ = combo("Material", "current_material", window.materials_catalog, required=True)
             permission = QLabel(portal_label(window.texture_catalog.get(window.current_material, False)))
@@ -292,7 +307,7 @@ class ToolSettings(QWidget):
                 "Switch", "recent_pressure_plate_switch", window.switches, colors=window.switch_colors
             ),
             MODE_LIGHT_BRIDGE: lambda: field_controls("recent_bridge_field"),
-            MODE_LIGHT: lambda: combo("Style", "recent_light_kind", window.wall_light_kinds, required=True),
+            MODE_LIGHT: light_controls,
             MODE_ITEM: item_controls,
             MODE_LADDER: lambda: number(
                 "Storeys", "recent_ladder_levels", 1, max(1, len(window.map_data["levels"]) - 1)

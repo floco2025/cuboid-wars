@@ -101,6 +101,7 @@ def fields_for(window, name):
     elif name == "lights":
         choice("kind", "Style", window.wall_light_kinds)
         choice("side", "Side", ("N", "S", "E", "W"))
+        add("height", "Height (m)", "positive", tooltip="Metres above this level's floor.")
     elif name == "ladders":
         add("levels", "Storeys", "positive_int")
         choice("side", "Side", ("N", "S", "E", "W"))

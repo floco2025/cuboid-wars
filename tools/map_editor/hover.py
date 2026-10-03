@@ -80,7 +80,8 @@ def element_hover_text(data: dict, level_idx: int, hit, fields: dict[str, dict] 
 
     if kind == HIT_LIGHT:
         entry = next(light for light in level["lights"] if (light["col"], light["row"], light["side"]) == value)
-        return f"Light: {entry.get('kind', '(missing style)')}\n{SIDE_LABELS.get(value[2], value[2])} wall"
+        height = f", {entry['height']:g} m up" if isinstance(entry.get("height"), (int, float)) else ""
+        return f"Light: {entry.get('kind', '(missing style)')}\n{SIDE_LABELS.get(value[2], value[2])} wall{height}"
 
     if kind == HIT_LADDER:
         ladder = next(e for e in data["ladders"] if ladder_key(e) == value)

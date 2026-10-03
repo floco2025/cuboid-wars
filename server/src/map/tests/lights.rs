@@ -23,6 +23,31 @@ fn level_with_walls(cols: i32, rows: i32) -> LevelGrid {
 }
 
 #[test]
+fn a_light_hangs_at_its_height_above_its_storeys_floor() {
+    let level = level_with_walls(1, 1);
+    let geometry = geometry(1, 1);
+    let defs = vec![
+        WallLightDef {
+            kind: "test-light".into(),
+            col: 0,
+            row: 0,
+            side: WallSide::North,
+            height: 0.5,
+        },
+        WallLightDef {
+            kind: "test-light".into(),
+            col: 0,
+            row: 0,
+            side: WallSide::South,
+            height: 2.5,
+        },
+    ];
+    let lights = generate_wall_lights(&geometry, &level, 1, &defs, CarrierId::WORLD);
+    assert_eq!(lights[0].pos.y, LEVEL_HEIGHT + 0.5);
+    assert_eq!(lights[1].pos.y, LEVEL_HEIGHT + 2.5);
+}
+
+#[test]
 fn places_one_light_per_def_with_correct_yaw() {
     let level = level_with_walls(1, 1);
     let defs = vec![
@@ -31,24 +56,28 @@ fn places_one_light_per_def_with_correct_yaw() {
             col: 0,
             row: 0,
             side: WallSide::North,
+            height: 2.5,
         },
         WallLightDef {
             kind: "test-light".into(),
             col: 0,
             row: 0,
             side: WallSide::South,
+            height: 2.5,
         },
         WallLightDef {
             kind: "test-light".into(),
             col: 0,
             row: 0,
             side: WallSide::East,
+            height: 2.5,
         },
         WallLightDef {
             kind: "test-light".into(),
             col: 0,
             row: 0,
             side: WallSide::West,
+            height: 2.5,
         },
     ];
 
@@ -71,13 +100,14 @@ fn light_y_uses_level_offset() {
         col: 0,
         row: 0,
         side: WallSide::North,
+        height: 2.5,
     }];
 
     let geometry = geometry(1, 1);
     let lights = generate_wall_lights(&geometry, &level, 2, &defs, CarrierId::WORLD);
 
     assert_eq!(lights.len(), 1);
-    assert!((lights[0].pos.y - (2.0 * LEVEL_HEIGHT + geometry.wall_light_height())).abs() < 1e-5);
+    assert!((lights[0].pos.y - (2.0 * LEVEL_HEIGHT + 2.5)).abs() < 1e-5);
 }
 
 #[test]
@@ -90,12 +120,14 @@ fn drops_def_without_a_wall_on_the_named_side() {
             col: 0,
             row: 0,
             side: WallSide::North,
+            height: 2.5,
         },
         WallLightDef {
             kind: "test-light".into(),
             col: 0,
             row: 0,
             side: WallSide::South,
+            height: 2.5,
         },
     ];
 
@@ -113,6 +145,7 @@ fn drops_def_with_out_of_bounds_cell() {
         col: 5,
         row: 5,
         side: WallSide::North,
+        height: 2.5,
     }];
 
     let lights = generate_wall_lights(&geometry(1, 1), &level, 0, &defs, CarrierId::WORLD);

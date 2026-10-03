@@ -24,8 +24,6 @@
 
 - **Looking at a map:** make the capture above one `mapauthor` command taking a standing point and a view, so an author checks proportions, light, and materials before a playtest.
 
-- **Wall light height:** a light hangs at a fixed fraction of its wall section, which is chest height on a 2 m section and knee height on a 1.4 m one; the builder picks the storey that puts it nearest head height. Let a light say its height.
-
 - **Pressure-plate sizing:** author plate size and activation area independently of the grid. The Primer's 2 m grid gives 1 m plates.
 
 - **Editor preview scope:** Jump Path flies open air at full speed from a tile edge. Missing: the run-up, obstacles, ramps, and bridges stopping a flight (a flight under an overhanging slab reads as clear), crouch, ramp takeoffs, mid-flight equipment or gravity changes, switches, carriers, and a wall-portal capture outline. Steering samples fixed directions and one entry rule; search the input instead. `mapauthor jump` and `fling` inherit all of it.
