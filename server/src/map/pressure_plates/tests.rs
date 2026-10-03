@@ -424,6 +424,17 @@ fn clicks(messages: &[ServerMessage]) -> usize {
         .count()
 }
 
+// Which way each click said a switch went.
+fn click_directions(messages: &[ServerMessage]) -> Vec<bool> {
+    messages
+        .iter()
+        .filter_map(|msg| match msg {
+            ServerMessage::PressurePlate(click) => Some(click.switched_on),
+            _ => None,
+        })
+        .collect()
+}
+
 fn firework_interval_ticks() -> u32 {
     ((FIREWORK_SHOW_SECS + FIREWORK_COOLDOWN_SECS) * 30.0).round() as u32
 }
@@ -636,6 +647,36 @@ fn a_lone_player_toggles_a_barrier_kind_with_each_press() {
     app.update();
     assert!(turned_off(&app).is_empty());
     assert_eq!(switch_lines(&drain(&mut rx), "lobby"), ["The lobby switch turned off"]);
+}
+
+#[test]
+fn a_plate_clicks_only_when_it_turns_its_switch_on_or_off() {
+    for (activation, expected) in [
+        (
+            SwitchActivation::Momentary,
+            [vec![true], vec![false], vec![true], vec![false]],
+        ),
+        (SwitchActivation::Toggle, [vec![true], vec![], vec![false], vec![]]),
+        (SwitchActivation::Latch, [vec![true], vec![], vec![], vec![]]),
+    ] {
+        let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
+        configure_switches(&mut app, activation, DeathTrigger::Never);
+        let (entity, mut rx) = standing_player(&mut app, 1);
+        step_off(&mut app, entity);
+        app.update();
+        drain(&mut rx);
+        let mut heard = Vec::new();
+        for on in [true, false, true, false] {
+            if on {
+                step_on(&mut app, entity);
+            } else {
+                step_off(&mut app, entity);
+            }
+            app.update();
+            heard.push(click_directions(&drain(&mut rx)));
+        }
+        assert_eq!(heard, expected, "{activation:?}: on, off, on, off");
+    }
 }
 
 #[test]

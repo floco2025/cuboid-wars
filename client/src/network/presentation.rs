@@ -9,7 +9,7 @@ pub(super) fn handle_pressure_plate_message(
     commands: &mut Commands,
     context: &mut ServerMessageContext,
 ) {
-    let sound = if message.pressed {
+    let sound = if message.switched_on {
         "plate_press"
     } else {
         "plate_release"

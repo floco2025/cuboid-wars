@@ -666,13 +666,13 @@ pub struct SHealthPotionCollected {
     pub health: Health,
 }
 
-// A pressure plate transitioned this tick: `pressed` is true when some alive
-// player just stepped onto it, false when the last alive
-// player stepped off. Broadcast — any client may hear the click. Edge-triggered
-// side-effect; durable state (which fields are currently off) rides `SSnapshot`.
+// Plates turned a switch on (`switched_on`) or off this tick; stepping on or
+// off a plate without that is silent. Broadcast — any client may hear the
+// click. Edge-triggered side-effect; durable state (which fields are
+// currently off) rides `SSnapshot`.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPressurePlate {
-    pub pressed: bool,
+    pub switched_on: bool,
 }
 
 // A portal end was placed or moved. Latency cue for the placement visual and

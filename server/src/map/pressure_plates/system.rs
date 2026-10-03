@@ -82,29 +82,23 @@ pub(crate) fn pressure_plates_system(
         quest_board.locked_switches(),
     );
     let held: HashSet<usize> = holders.keys().copied().collect();
-    let edges = inputs.update(&mut switches, logged_in, alive, held.clone(), plates, tick.0);
+    let edges = inputs.update(&mut switches, logged_in, alive, held, plates, tick.0);
+    let changes = PlateChanges::new(&holders, &edges, &switch_state, &switches.state(), plates);
 
-    // Edge-triggered cues: at most one press and one release cue per tick,
-    // regardless of how many plates flipped — the messages carry no plate
-    // identity, so collapsing simultaneous flips is lossless. Persistent state
-    // lives in `SwitchState` + snapshot; these are pure click/clunk SFX.
-    if held.difference(&edges.prev_held).next().is_some() {
-        broadcast_to_all(&players, ServerMessage::PressurePlate(SPressurePlate { pressed: true }));
-    }
-    if edges.prev_held.difference(&held).next().is_some() {
-        broadcast_to_all(
-            &players,
-            ServerMessage::PressurePlate(SPressurePlate { pressed: false }),
-        );
+    // At most one click each way per tick: the cue names no switch, so
+    // collapsing simultaneous changes loses nothing.
+    for (switched_on, changed) in [(true, !changes.on.is_empty()), (false, !changes.off.is_empty())] {
+        if changed {
+            broadcast_to_all(&players, ServerMessage::PressurePlate(SPressurePlate { switched_on }));
+        }
     }
 
     PlateFeed {
         players: &players,
         feed: &server_gameplay_config.feed,
         switch_table: &switch_table,
-        plates,
     }
-    .emit(&holders, &edges, &switch_state, &switches.state());
+    .emit(&changes);
 
     if switches.fireworks_due(tick.0, quest_board.locked_switches()) {
         broadcast_firework_show(&players);
@@ -119,13 +113,55 @@ pub(crate) fn pressure_plates_system(
     }
 }
 
+// What the plates did this tick: each switch they turned on, with whoever
+// gets the credit, and each they turned off. A switch that a reset or a
+// change of activation mode turned off is in neither.
+struct PlateChanges {
+    on: Vec<(SwitchId, PlayerId)>,
+    off: Vec<SwitchId>,
+}
+
+impl PlateChanges {
+    fn new(
+        holders: &HashMap<usize, PlayerId>,
+        edges: &PlateEdges,
+        before: &SwitchState,
+        after: &SwitchState,
+        plates: &[PressurePlateRuntime],
+    ) -> Self {
+        let held: HashSet<usize> = holders.keys().copied().collect();
+        let held_per_switch = held_count_per_switch(&held, plates);
+        let prev_held_per_switch = held_count_per_switch(&edges.prev_held, plates);
+        let on = after
+            .active_switches
+            .iter()
+            .copied()
+            .filter(|switch| !before.is_active(*switch))
+            .filter_map(|switch| {
+                presser_of_switch(switch, holders, &edges.prev_held, plates).map(|presser| (switch, presser))
+            })
+            .collect();
+        let off = before
+            .active_switches
+            .iter()
+            .copied()
+            .filter(|switch| !after.is_active(*switch))
+            .filter(|switch| {
+                let held_now = held_per_switch.get(switch).copied().unwrap_or(0);
+                let held_before = prev_held_per_switch.get(switch).copied().unwrap_or(0);
+                edges.flipped.contains(switch) || held_now < held_before
+            })
+            .collect();
+        Self { on, off }
+    }
+}
+
 // The feed's view of the plates: who turned a switch on, and which switches
 // went off.
 struct PlateFeed<'a> {
     players: &'a PlayerMap,
     feed: &'a FeedConfig,
     switch_table: &'a SwitchTable,
-    plates: &'a [PressurePlateRuntime],
 }
 
 impl PlateFeed<'_> {
@@ -136,48 +172,25 @@ impl PlateFeed<'_> {
             .to_owned()
     }
 
-    fn emit(&self, holders: &HashMap<usize, PlayerId>, edges: &PlateEdges, before: &SwitchState, after: &SwitchState) {
-        let held: HashSet<usize> = holders.keys().copied().collect();
-        let held_per_switch = held_count_per_switch(&held, self.plates);
-        let prev_held_per_switch = held_count_per_switch(&edges.prev_held, self.plates);
-
-        for switch in after
-            .active_switches
-            .iter()
-            .copied()
-            .filter(|switch| !before.is_active(*switch))
-        {
-            let Some(presser) = presser_of_switch(switch, holders, &edges.prev_held, self.plates) else {
-                continue;
-            };
-            let name = self.players.display_name(&presser);
+    fn emit(&self, changes: &PlateChanges) {
+        for (switch, presser) in &changes.on {
             emit_feed(
                 self.players,
                 self.feed,
                 FeedAudience::Everyone,
                 FeedEvent::SwitchOn {
-                    name,
-                    switch_name: self.switch_name(switch),
+                    name: self.players.display_name(presser),
+                    switch_name: self.switch_name(*switch),
                 },
             );
         }
-        for switch in before
-            .active_switches
-            .iter()
-            .copied()
-            .filter(|switch| !after.is_active(*switch))
-        {
-            let held_now = held_per_switch.get(&switch).copied().unwrap_or(0);
-            let held_before = prev_held_per_switch.get(&switch).copied().unwrap_or(0);
-            if !edges.flipped.contains(&switch) && held_now >= held_before {
-                continue;
-            }
+        for switch in &changes.off {
             emit_feed(
                 self.players,
                 self.feed,
                 FeedAudience::Everyone,
                 FeedEvent::SwitchOff {
-                    switch_name: self.switch_name(switch),
+                    switch_name: self.switch_name(*switch),
                 },
             );
         }
