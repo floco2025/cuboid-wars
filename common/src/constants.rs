@@ -34,7 +34,8 @@ pub const ITEM_HOVER_HEIGHT: f32 = 1.25;
 // Ladders. Freestanding climbable elements anchored on grid edges. One-sided:
 // the rail side (front) climbs and fences; the back is passed through. No
 // Rapier collider — the character step queries the derived volumes directly.
-pub const LADDER_WIDTH: f32 = 1.2;
+// The width fits between the walls at the ends of a 1 m edge.
+pub const LADDER_WIDTH: f32 = 0.8;
 // How far the climb volume reaches in front of the rail plane (the back of
 // a ladder is not a ladder).
 pub const LADDER_VOLUME_DEPTH: f32 = 0.8;

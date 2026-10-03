@@ -80,14 +80,14 @@ fn primer_course_connects_every_chamber_and_starts_the_fireworks() {
     // The pit drop leaves the wall sideways; the ledge drop leaves it at the speed of a 15 m fall.
     assert!(crossings[0]["velocity_after"][2].as_f64().expect("lobby fling") < -15.0);
     assert!(crossings[3]["velocity_after"][2].as_f64().expect("finale fling") > 25.0);
-    assert_eq!(report["steps"][41]["state"]["active_switches"], json!(["island"]));
+    assert_eq!(report["steps"][42]["state"]["active_switches"], json!(["island"]));
     let collected: Vec<_> = events(&report)
         .filter(|event| event["kind"] == "item_collected")
         .map(|event| event["item"].clone())
         .collect();
     assert_eq!(collected, [json!("key"), json!("speed"), json!("low_gravity")]);
     assert!(events(&report).any(|event| event["kind"] == "equipment_erased"));
-    let after_erasure = &report["steps"][53]["state"]["player"];
+    let after_erasure = &report["steps"][54]["state"]["player"];
     assert_eq!(
         (after_erasure["speed"].as_bool(), after_erasure["low_gravity"].as_bool()),
         (Some(false), Some(false))
@@ -132,20 +132,20 @@ fn the_corridor_side_of_the_hidden_wall_refuses_portals() {
 #[test]
 fn the_bridge_drops_a_player_who_skips_the_plate() {
     let (_folder, mut script) = scenario("portal_primer");
-    script.actions.truncate(35);
+    script.actions.truncate(36);
     script
         .actions
         .extend([walk([0.0, -1.0], 40), advance(60), check(DECK3.0, DECK3.1)]);
     let report = script.run().expect("walk onto the dark bridge");
     assert!(events(&report).any(|event| event["kind"] == "player_died"));
-    assert_eq!(report["steps"][35]["state"]["active_switches"], json!([]));
+    assert_eq!(report["steps"][36]["state"]["active_switches"], json!([]));
     assert!(!events(&report).any(|event| event["kind"] == "checkpoint_reached" && event["checkpoint"] == 3));
 }
 
 #[test]
 fn the_gate_holds_a_player_without_the_key() {
     let (_folder, mut script) = scenario("portal_primer");
-    script.actions.truncate(38);
+    script.actions.truncate(39);
     script.actions.extend([
         walk([1.0, 0.0], 10),
         walk([0.0, -1.0], 85),
@@ -153,7 +153,7 @@ fn the_gate_holds_a_player_without_the_key() {
         check(DECK3.0, DECK3.1),
     ]);
     let report = script.run().expect("walk into the gate");
-    let last = &report["steps"][41];
+    let last = &report["steps"][42];
     assert_eq!(last["result"]["reason"], "outside_region");
     assert_eq!(last["state"]["active_switches"], json!(["island"]));
     let feet = &last["state"]["player"]["position"];
@@ -170,7 +170,7 @@ fn the_gate_holds_a_player_without_the_key() {
 #[test]
 fn the_ramp_gap_needs_speed_and_the_refill_deck_offers_a_retry() {
     let (_folder, mut script) = scenario("portal_primer");
-    script.actions.truncate(42);
+    script.actions.truncate(43);
     script.actions.extend([
         walk([0.0, -1.0], 10),
         walk([1.0, 0.0], 89),
@@ -192,18 +192,18 @@ fn the_ramp_gap_needs_speed_and_the_refill_deck_offers_a_retry() {
         check(LANDING4.0, LANDING4.1),
     ]);
     let report = script.run().expect("refill and retry");
-    assert_passed(&report["steps"][46]);
-    assert_eq!(report["steps"][46]["state"]["player"]["speed"], false);
-    assert_passed(&report["steps"][55]);
-    assert_passed(&report["steps"][59]);
-    assert_eq!(report["steps"][59]["state"]["player"]["checkpoint"], 4);
+    assert_passed(&report["steps"][47]);
+    assert_eq!(report["steps"][47]["state"]["player"]["speed"], false);
+    assert_passed(&report["steps"][56]);
+    assert_passed(&report["steps"][60]);
+    assert_eq!(report["steps"][60]["state"]["player"]["checkpoint"], 4);
     assert!(!events(&report).any(|event| event["kind"] == "player_died"));
 }
 
 #[test]
 fn the_summit_needs_low_gravity() {
     let (_folder, mut script) = scenario("portal_primer");
-    script.actions.truncate(43);
+    script.actions.truncate(44);
     script.actions.extend([
         jump([1.0, 0.0], 30),
         walk([0.0, -1.0], 10),
@@ -215,11 +215,11 @@ fn the_summit_needs_low_gravity() {
         check(SUMMIT.0, SUMMIT.1),
     ]);
     let report = script.run().expect("jump without low gravity");
-    assert_passed(&report["steps"][46]);
-    assert_eq!(report["steps"][46]["state"]["player"]["low_gravity"], false);
+    assert_passed(&report["steps"][47]);
+    assert_eq!(report["steps"][47]["state"]["player"]["low_gravity"], false);
     assert!(events(&report).any(|event| event["kind"] == "player_died"));
-    assert_eq!(report["steps"][50]["result"]["reason"], "outside_region");
-    assert_eq!(report["steps"][50]["state"]["player"]["checkpoint"], 4);
+    assert_eq!(report["steps"][51]["result"]["reason"], "outside_region");
+    assert_eq!(report["steps"][51]["state"]["player"]["checkpoint"], 4);
 }
 
 // Low gravity floats down to any floor it can reach, so nothing but the
@@ -229,9 +229,9 @@ fn the_summit_needs_low_gravity() {
 #[test]
 fn the_tower_keeps_out_a_player_who_still_has_low_gravity() {
     for (kept, detour) in [
-        (48, vec![walk([1.0, 1.0], 60)]),
-        (52, vec![walk([0.0, 1.0], 12), advance(10), walk([1.0, 0.0], 24)]),
-        (52, vec![jump([1.0, 0.0], 50)]),
+        (49, vec![walk([1.0, 1.0], 60)]),
+        (53, vec![walk([0.0, 1.0], 12), advance(10), walk([1.0, 0.0], 24)]),
+        (53, vec![jump([1.0, 0.0], 50)]),
     ] {
         let (_folder, mut script) = scenario("portal_primer");
         script.actions.truncate(kept);
@@ -255,7 +255,7 @@ fn the_tower_keeps_out_a_player_who_still_has_low_gravity() {
 #[test]
 fn the_ledge_drop_kills_without_its_portals_and_needs_no_pickup_with_them() {
     let (_folder, mut script) = scenario("portal_primer");
-    let finale = script.actions.split_off(54);
+    let finale = script.actions.split_off(55);
     script
         .actions
         .extend([walk([1.0, 0.0], 12), advance(100), check(SUMMIT.0, SUMMIT.1)]);
@@ -264,7 +264,7 @@ fn the_ledge_drop_kills_without_its_portals_and_needs_no_pickup_with_them() {
     assert!(events(&report).any(|event| event["kind"] == "player_fall_damage"));
     assert!(events(&report).any(|event| event["kind"] == "player_died"));
     assert!(!events(&report).any(|event| event["kind"] == "fireworks_started"));
-    let respawned = &report["steps"][56];
+    let respawned = &report["steps"][57];
     assert_passed(respawned);
     assert_eq!(respawned["state"]["player"]["checkpoint"], 5);
 
