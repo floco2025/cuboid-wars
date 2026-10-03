@@ -123,8 +123,8 @@ the right point.
 - **Gatehouse** is the first building: a hub, an exit behind three gates,
   and the three rooms that lower them, the Drop, the Cistern, and the Firing
   Line, each proved by a scripted route and a sweep of other entries. Its
-  first playtests gave the principles above on portals, walking in, looks,
-  and puzzle depth; the next decides whether its rooms are fun.
+  playtests gave the principles above on portals, walking in, looks, and
+  puzzle depth.
 - **The tools** build a map from a script, draw it as text, measure jumps and
   flings, and run a scripted route through the real game, headless or in a
   window. The builder writes buildings: rooms with ceilings and doorways,
@@ -146,11 +146,8 @@ the right point.
    a pair is enough. Showing that a route has no shortcut by other moves still
    needs a bot that plays at the level of intent and searches; looking at a
    map should become one command.
-2. **Gatehouse's playtest.** Three rooms stand and pass the self-checks;
-   the next playtest judges them as puzzles, and the first two already went
-   through one revision each from what a playtest showed.
-3. **Playtest lessons** written back here as principles and as room patterns
+2. **Playtest lessons** written back here as principles and as room patterns
    that worked.
-4. **The puzzle before the geometry:** what the player learns and in what
+3. **The puzzle before the geometry:** what the player learns and in what
    order, then rooms, then the building. Then pacing across several maps, and
    two-player twists.

@@ -4,7 +4,9 @@ use super::super::tests::test_map_layout;
 use crate::{
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{Barrier, Carrier, CarrierId, FieldId, Position, PressurePlate, SwitchId, SwitchState},
+    protocol::{
+        Barrier, Carrier, CarrierId, FieldId, Position, PressurePlate, RampDirection, RampShape, SwitchId, SwitchState,
+    },
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
 
@@ -37,6 +39,29 @@ fn walls_and_slabs_are_boxes_and_a_ramp_is_a_wedge() {
     let ramp = &solids[2];
     assert!(!ramp.is_box());
     assert_eq!(ramp.faces.len(), 5);
+}
+
+#[test]
+fn shallow_planks_do_not_fill_their_bounding_boxes() {
+    for direction in [
+        RampDirection::North,
+        RampDirection::South,
+        RampDirection::East,
+        RampDirection::West,
+    ] {
+        let mut layout = test_map_layout();
+        layout.walls.clear();
+        layout.floors.clear();
+        let ramp = &mut layout.ramps[0];
+        ramp.x2 = ramp.x1 + 100.0;
+        ramp.z2 = ramp.z1 + 100.0;
+        ramp.height = 2.0;
+        ramp.direction = direction;
+        ramp.shape = RampShape::Plank;
+        let solids = CollisionWorld::from_map_layout(&layout).structural_solids();
+        assert_eq!(solids.len(), 1);
+        assert!(!solids[0].is_box(), "{direction:?} plank fills its bounds");
+    }
 }
 
 // Shadows and footprints walk a face's edges, so its corners must lie in

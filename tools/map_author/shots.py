@@ -24,7 +24,7 @@ WALL_CLEARANCE = 0.02
 FACING = 0.9
 # A body is set down this far above its floor, clear of a plate, and given these ticks to land.
 STAND_LIFT = 0.15
-SETTLE_TICKS = 10
+STAND_SETTLE_TICKS = 10
 Point = tuple[float, float, float]
 
 
@@ -225,7 +225,7 @@ def read_probe(stand: Stand, targets: list[Target], result: dict) -> list[Shot]:
 # The body settles at the first point first, so a plate under it has
 # switched what it switches before the shots.
 def probe(ctx: MapContext, stands: list[Stand], targets: list[Target], run=game.run) -> list[list[Shot]]:
-    actions = [{"action": "advance", "ticks": SETTLE_TICKS}, *(probe_action(stand, targets) for stand in stands)]
+    actions = [{"action": "advance", "ticks": STAND_SETTLE_TICKS}, *(probe_action(stand, targets) for stand in stands)]
     report = run(ctx, stands[0].feet, actions)
     return [read_probe(stand, targets, step["result"]) for stand, step in zip(stands, report["steps"][1:], strict=True)]
 

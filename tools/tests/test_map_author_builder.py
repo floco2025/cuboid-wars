@@ -247,6 +247,32 @@ class MapBuilderTests(ConfigTestCase):
         with self.assertRaisesRegex(BuildError, "positive"):
             b.light(1, (4, 7), "S", kind="utility", height=0.0)
 
+    def test_light_heights_at_and_near_storey_boundaries_save_at_the_requested_height(self):
+        pin_geometry(level_height=1.6, floor_thickness=0.2)
+        for height in (1.6, 3.2, 4.8, 6.4, 1.60001, 0.00001):
+            with self.subTest(height=height):
+                b = builder(levels=6)
+                b.room("hall", level=1, at=(2, 2), size=(6, 6), storeys=4)
+                b.checkpoint(0, level="hall", at=(3, 3), size=(1, 1))
+                b.light(1, (3, 2), "N", kind="utility", height=height)
+                root, _ = b.document()
+                [(level, light)] = [
+                    (level, light) for level, records in enumerate(root["levels"]) for light in records["lights"]
+                ]
+                self.assertGreater(light["height"], 0)
+                self.assertAlmostEqual((level - 1) * 1.6 + light["height"], height)
+
+    def test_room_lights_at_storey_boundaries_use_the_section_below(self):
+        pin_geometry(level_height=1.6, floor_thickness=0.2)
+        b = builder()
+        b.room("hall", level=1, at=(2, 2), size=(6, 6), storeys=2)
+        b.checkpoint(0, level="hall", at=(3, 3), size=(1, 1))
+        for height in (1.6, 3.2):
+            self.assertGreater(b.room_lights("hall", "utility", height=height), 0)
+        root, _ = b.document()
+        self.assertEqual({level for level, records in enumerate(root["levels"]) if records["lights"]}, {1, 2})
+        self.assertEqual({light["height"] for records in root["levels"] for light in records["lights"]}, {1.6})
+
     def test_faces_change_one_material_of_what_stands_there(self):
         b = MapBuilder("obby", cols=12, rows=12, levels=3, solid="portal-resistant", portal="slab", default="slab")
         b.room("hall", level=0, at=(2, 2), size=(4, 4))

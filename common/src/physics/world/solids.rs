@@ -40,7 +40,11 @@ impl Solid {
     // Whether the solid fills its bounds: an axis-aligned box.
     #[must_use]
     pub fn is_box(&self) -> bool {
-        self.faces.len() == 6 && self.faces.iter().all(|face| face.normal.abs().max_element() > 0.999)
+        self.faces.len() == 6
+            && self
+                .faces
+                .iter()
+                .all(|face| [Vec3::X, Vec3::Y, Vec3::Z].contains(&face.normal.abs()))
     }
 }
 

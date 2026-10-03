@@ -58,5 +58,4 @@ first fling without its exit portal, the hidden wall shot from the corridor,
 the bridge before the plate, the gate without the key, the ramp gap without
 speed and the refill retry, the summit without low gravity, the tower shut to
 a player who kept low gravity (past the summit, beside the doorway, over the
-wall), and the ledge drop without its portals. Visibility, discovery, and
-pacing still need a human playtest.
+wall), and the ledge drop without its portals.

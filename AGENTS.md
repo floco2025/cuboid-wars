@@ -246,6 +246,7 @@ Model tests load shipped GLBs through `client/src/tests/assets.rs` (`test_assets
 - `README.md` is for players: what the game is, how to run it, controls. No rules, config paths, editor workflows, or a line per feature; it is not a changelog.
 - `PLAN.md` is the high-level game plan, for the human and the AI alike: the goal, priorities, what is fun, how we work, design principles, and the roadmap, in plain language. Read it before map or gameplay design work. No mechanics, tool reference, or follow-up lists.
 - `AGENTS.md` is loaded every session, so it holds only what the code cannot supply: settled decisions and rejected alternatives, invariants spanning crates, conventions, workflows, the config semantics a map author sees, and where things live. Mechanisms, numbers, and step-by-step behaviour belong in code comments. Write at the depth of the sibling entries.
+- No document hands the user work: no pending playtests, reviews, or other tasks for them in `PLAN.md`, `TODO.md`, READMEs, or here. Say what needs them in the conversation.
 
 ## Commits & pull requests
 

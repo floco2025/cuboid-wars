@@ -12,7 +12,7 @@ from . import game
 from .context import MapContext
 from .describe import labelled_platforms
 from .index import MapIndex
-from .shots import Point, Shot, Stand, candidates, named_targets, probe, stand_at, verdict
+from .shots import STAND_SETTLE_TICKS, Point, Shot, Stand, candidates, named_targets, probe, stand_at, verdict
 
 MOVE_RE = re.compile(r"^move\s+(-?[0-9.]+)\s*,\s*(-?[0-9.]+)\s+x(\d+)((?:\s+(?:jump|crouch))*)$")
 ADVANCE_RE = re.compile(r"^advance\s+x?(\d+)$")
@@ -151,7 +151,8 @@ class Outcome:
 
 
 def _attempt(pair: tuple[Placement, Placement] | None, moves: list[dict], wait: int) -> list[dict]:
-    actions = [{"action": "reset"}]
+    # Shots and the baseline both start with the plate and pickup state the probe saw.
+    actions = [{"action": "reset"}, {"action": "advance", "ticks": STAND_SETTLE_TICKS}]
     for end, placement in zip("ab", pair or ()):
         actions += [placement.action(end), {"action": "advance", "ticks": wait}]
     return [*actions, *moves, {"action": "inspect"}]

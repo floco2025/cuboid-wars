@@ -111,12 +111,39 @@ class SweepTests(ConfigTestCase):
         self.assertEqual(lines[-1], f"1 reach the goal: {PAD} + {WEST_PANEL}")
         probe, plain, attempts = run.calls
         self.assertEqual([action["action"] for action in probe], ["advance", "probe"])
-        self.assertEqual([action["action"] for action in plain], ["reset", "move", "advance", "inspect"])
+        self.assertEqual([action["action"] for action in plain], ["reset", "advance", "move", "advance", "inspect"])
         kinds = [action["action"] for action in attempts]
-        self.assertEqual(kinds[:8], ["reset", "place", "advance", "place", "advance", "move", "advance", "inspect"])
-        self.assertEqual((attempts[1]["end"], attempts[3]["end"], attempts[2]["ticks"]), ("a", "b", 4))
-        self.assertAlmostEqual(attempts[1]["eye"][1], 3.8)
+        self.assertEqual(
+            kinds[:9], ["reset", "advance", "place", "advance", "place", "advance", "move", "advance", "inspect"]
+        )
+        self.assertEqual((attempts[2]["end"], attempts[4]["end"], attempts[3]["ticks"]), ("a", "b", 4))
+        self.assertAlmostEqual(attempts[2]["eye"][1], 3.8)
         self.assertEqual(kinds.count("reset"), 2)
+
+    def test_pairs_reached_through_a_field_opened_by_the_starting_plate_are_tried(self):
+        ctx = hall()
+        base = game(lambda placed: (1 if len(placed) == 2 else 0, player([-5.5, 2.2, -7.2])))
+        starts = []
+
+        def run(ctx, spawn, actions):
+            report = base(ctx, spawn, actions)
+            ticks = 0
+            for action, step in zip(actions, report["steps"], strict=True):
+                kind = action["action"]
+                if kind == "reset":
+                    ticks = 0
+                elif kind == "advance":
+                    ticks += action["ticks"]
+                elif kind in ("place", "probe", "move"):
+                    starts.append(ticks)
+                    if ticks < 6:
+                        step["result"] = {"status": "rejected", "reason": "invalid_placement"}
+            return report
+
+        text = sweep(ctx, "L1:4,6", MOVES, goal="L1:2,2:6,4", run=run)
+        self.assertNotIn("not placed", text)
+        self.assertIn("2 of 2 pairs carry the body through a portal", text)
+        self.assertTrue(all(ticks >= 6 for ticks in starts), starts)
 
     def test_pairs_that_change_nothing_are_counted_not_listed(self):
         ctx = hall()

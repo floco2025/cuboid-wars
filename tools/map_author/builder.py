@@ -4,6 +4,7 @@ the editor's writer saves it, so a build script is the map's source."""
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 
 from map_editor.catalogs import MapCatalogs, load_actor_kinds, load_wall_light_kinds, map_layout_path
 from map_editor.constants import ACTOR_ZONE_LIST, FACES, ITEM_KEY_TYPE, ITEM_TYPES, WALL_LIGHT_HEIGHT_FRACTION
@@ -413,16 +414,24 @@ class MapBuilder:
         kinds = load_wall_light_kinds()
         if kind not in kinds:
             raise BuildError(f"unknown light kind {kind!r}; one of {', '.join(kinds)}")
-        if height <= 0:
-            raise BuildError("a light hangs a positive number of metres above its floor")
-        storeys, local = divmod(height, self.frame.level_height)
-        index = self._level(self._level(level) + int(storeys))
+        index, local = self._light_level(level, height)
         col, row = at
         error = light_placement_error(self.data, index, col, row, side)
         if error:
             raise BuildError(f"light at ({col}, {row}) {side}: {error}")
-        light = {"col": col, "row": row, "side": side, "kind": kind, "height": round(local, 3)}
+        light = {"col": col, "row": row, "side": side, "kind": kind, "height": local}
         self.data["levels"][index]["lights"].append(light)
+
+    def _light_level(self, level, height: float) -> tuple[int, float]:
+        if not isfinite(height) or height <= 0:
+            raise BuildError("a light hangs a finite positive number of metres above its floor")
+        storeys, local = divmod(height, self.frame.level_height)
+        # A boundary belongs to the section below, keeping the record's height positive.
+        if local == 0:
+            storeys -= 1
+            local = self.frame.level_height
+        index = self._level(self._level(level) + int(storeys))
+        return index, round(local, 3) or local
 
     # Lights along a room's walls, one every `every` cells where a wall
     # stands, in one row `height` metres above the floor of its storey
@@ -448,9 +457,7 @@ class MapBuilder:
             height = WALL_LIGHT_HEIGHT_FRACTION * (
                 self.footprint.doorway * self.frame.level_height - self.frame.floor_thickness
             )
-        index = piece.level + storey + int(height // self.frame.level_height)
-        if index >= self.level_count:
-            raise BuildError(f"{room}: a light {height:g} m above storey {storey} leaves the map")
+        index, _ = self._light_level(piece.level + storey, height)
         walls = {edge_key(w): w for w in self.data["levels"][index]["walls"]}
         c0, r0, c1, r1 = piece.rect
         placed = 0
