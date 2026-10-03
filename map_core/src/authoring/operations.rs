@@ -142,6 +142,7 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
         | "nested_map_rest_points"
         | "nested_map_footprints"
         | "nested_map_starts_at_end_2"
+        | "pressure_plate_sides"
         | "ramp_landing_edges" => geometry::dispatch(op, a)?,
         "preview_physics" | "jump_preview" | "portal_frame" => crate::preview::dispatch(op, a)?,
         _ => bail!("Unknown map operation: {op}"),

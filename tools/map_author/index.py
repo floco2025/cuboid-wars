@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import hypot
+from math import hypot, sqrt
 
 from map_editor.geometry import ramp_cells_on_level, zone_rect
 from map_editor.normalization import expand_face_materials
@@ -12,7 +12,7 @@ from .context import MapContext
 from .edges import EdgeKey, cells_of_edge, edge_of_side, edges_of_record, front_cell
 
 # PORTAL_PLATE_CLEARANCE in common/src/constants.rs: a plate this close to a floor portal blocks it.
-PLATE_CLEARANCE = 1.2
+PLATE_CLEARANCE = 1.7 / sqrt(2)
 NOT_PORTALABLE = "face material is not portalable"
 Cell = tuple[int, int]
 

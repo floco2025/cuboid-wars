@@ -667,7 +667,7 @@ pub struct SHealthPotionCollected {
 }
 
 // A pressure plate transitioned this tick: `pressed` is true when some alive
-// player just stepped onto its inner-25% rect, false when the last alive
+// player just stepped onto it, false when the last alive
 // player stepped off. Broadcast — any client may hear the click. Edge-triggered
 // side-effect; durable state (which fields are currently off) rides `SSnapshot`.
 #[derive(Debug, Clone, Encode, Decode)]

@@ -32,7 +32,7 @@ from map_editor.constants import (
 )
 from map_editor.dependencies import MapDependencies
 from map_editor.dialogs import ActorSpawnFieldsDialog
-from map_editor.editing import paint_floors
+from map_editor.editing import paint_edges, paint_floors
 from map_editor.io import write_map
 from map_editor.nesting import NestedMotion
 from map_editor.normalization import empty_map
@@ -682,6 +682,22 @@ class WindowTests(WindowTestCase):
             QTest.qWait(100)
         self.assertEqual(changed.count(), 2)
         self.assertEqual(window.grid_cell_size, 5.0)
+
+    def test_plates_take_the_games_size_and_follow_edits_beside_them(self):
+        window = self.window
+        window.grid_cell_size, window.wall_width_cells = 1.0, 0.2
+        data = paint_floors(empty_map(7, 7), 0, (0, 0, 7, 7), DEFAULT_ALIAS)
+        data["pressure_plates"] = [{"level": 0, "col": 3, "row": 3, "switch": "a"}]
+        window.doc.replace_with_new(data)
+        plate = window.map_data["pressure_plates"][0]
+        self.assertAlmostEqual(window.plate_side(plate), 1.7, msg="open floor")
+        self.assertAlmostEqual(
+            window.plate_side({"level": 0, "col": 4, "row": 3}), 0.7, msg="one about to go beside it"
+        )
+        self.assertAlmostEqual(window.plate_side(plate), 1.7, msg="unplaced, it shrinks nothing")
+        window.apply_change("Place Wall", paint_edges(window.map_data, 0, (3, 3), (3, 4), material=DEFAULT_ALIAS))
+        self.assertAlmostEqual(window.plate_side(plate), 0.7, msg="a wall on its edge")
+        self.assertFalse(window.canvas.grab().isNull())
 
     def test_large_map_fits_and_paints_an_item_and_invalid_nested_nudges(self):
         window = self.window

@@ -63,6 +63,11 @@ def ramp_slope(ramp: dict, cell_size: float, level_height: float):
     return call("ramp_slope", ramp, cell_size, level_height)
 
 
+# Each plate's side in metres, in the document's order, as the game sizes it.
+def pressure_plate_sides(data: dict, cell_size: float, wall_thickness: float) -> list[float]:
+    return call("pressure_plate_sides", data, cell_size, wall_thickness)
+
+
 # Python, not map_core: the canvas calls these per record on every mouse move (see `grid_int` in core.py).
 def ramp_rect(ramp: dict) -> tuple[int, int, int, int]:
     return zone_rect(ramp)

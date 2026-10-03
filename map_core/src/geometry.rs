@@ -1,10 +1,13 @@
 //! Grid geometry, independent of the renderer and editor widgets.
 use crate::values::*;
 use anyhow::{Result, bail};
-use common::{constants::CHARACTER_MAX_SLOPE, protocol::RampDirection};
+use common::{
+    constants::{CHARACTER_MAX_SLOPE, PRESSURE_PLATE_GAP, PRESSURE_PLATE_SIDE},
+    protocol::RampDirection,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub fn normalized_wall([a, b, c, d]: [i32; 4]) -> [i32; 4] {
     if (c, d) < (a, b) { [c, d, a, b] } else { [a, b, c, d] }
@@ -145,6 +148,97 @@ pub fn landing_edges(ramps: &[Value], level: i64) -> BTreeSet<(char, i32, i32)> 
     }
     edges
 }
+// A pressure plate is PRESSURE_PLATE_SIDE wide on its cell's centre where the
+// floor around it has room. It shrinks only to keep its clearance from the
+// walls, fields, and ladders on its level, from cells without a slab or with
+// a ramp, and from the plates beside it, and never below half a cell. One
+// side per plate, in metres, in the document's order.
+pub fn pressure_plate_sides(data: &Value, cell: f64, wall_thickness: f64) -> Vec<f64> {
+    let plates = list(data, "pressure_plates");
+    let full = f64::from(PRESSURE_PLATE_SIDE) / 2.0;
+    let clearance = wall_thickness / 2.0 + f64::from(PRESSURE_PLATE_GAP);
+    // Cells around the plate's own, far enough for every cell and edge the
+    // full plate and its clearance can touch.
+    let reach = ((full + clearance) / cell + 0.5).ceil() as i32;
+    let mut rooms = BTreeMap::new();
+    plates
+        .iter()
+        .enumerate()
+        .map(|(index, plate)| {
+            let level = i(plate, "level");
+            let room = rooms.entry(level).or_insert_with(|| PlateRoom::on_level(data, level));
+            let [col, row] = [i(plate, "col"), i(plate, "row")].map(|n| n as i32);
+            let center = [(f64::from(col) + 0.5) * cell, (f64::from(row) + 0.5) * cell];
+            let mut half = full;
+            let mut keep_clear = |bounds: [i32; 4]| {
+                half = half.min(square_reach(center, bounds.map(|n| f64::from(n) * cell)) - clearance);
+            };
+            for c in col - reach..=col + reach {
+                for r in row - reach..=row + reach {
+                    if !room.slabs.contains(&[c, r]) {
+                        keep_clear([c, r, c + 1, r + 1]);
+                    }
+                    for edge in [[c, r, c + 1, r], [c, r, c, r + 1]] {
+                        if room.edges.contains(&edge) {
+                            keep_clear(edge);
+                        }
+                    }
+                }
+            }
+            for (other, neighbour) in plates.iter().enumerate() {
+                if other != index && i(neighbour, "level") == level {
+                    let apart = (i(neighbour, "col") - i64::from(col))
+                        .abs()
+                        .max((i(neighbour, "row") - i64::from(row)).abs());
+                    half = half.min(apart as f64 * cell / 2.0 - clearance);
+                }
+            }
+            2.0 * half.max(full.min(cell / 4.0))
+        })
+        .collect()
+}
+// What a plate keeps clear of on one level: everything but the cells with a
+// slab and no ramp, and the grid edges walls, fields, and ladders stand on.
+struct PlateRoom {
+    slabs: BTreeSet<[i32; 2]>,
+    edges: BTreeSet<[i32; 4]>,
+}
+impl PlateRoom {
+    fn on_level(data: &Value, level: i64) -> Self {
+        let level_data = usize::try_from(level)
+            .ok()
+            .and_then(|index| list(data, "levels").get(index));
+        let records = |name| level_data.map_or(&[][..], |level_data| list(level_data, name));
+        let ramps = cells_on_level(list(data, "ramps"), level);
+        let slabs = ["floors", "inaccessible_floors", "terrain"]
+            .into_iter()
+            .flat_map(records)
+            .map(|cell| [i(cell, "col") as i32, i(cell, "row") as i32])
+            .filter(|cell| !ramps.contains(cell))
+            .collect();
+        let ladders = list(data, "ladders")
+            .iter()
+            .filter(|ladder| {
+                let lower = i(ladder, "lower_level");
+                (lower..lower + ladder.get("levels").map_or(1, int)).contains(&level)
+            })
+            .filter_map(|ladder| {
+                wall_endpoints(i(ladder, "col") as i32, i(ladder, "row") as i32, s(ladder, "side")).ok()
+            });
+        let edges = ["walls", "barriers", "erasers"]
+            .into_iter()
+            .flat_map(records)
+            .map(edge)
+            .chain(ladders)
+            .collect();
+        Self { slabs, edges }
+    }
+}
+// How far a square centred on `center` grows before it touches `bounds`.
+fn square_reach([x, z]: [f64; 2], [x0, z0, x1, z1]: [f64; 4]) -> f64 {
+    let gap = |v: f64, lo: f64, hi: f64| (lo - v).max(v - hi).max(0.0);
+    gap(x, x0, x1).max(gap(z, z0, z1))
+}
 pub fn overlap(a: [i64; 4], b: [i64; 4]) -> bool {
     a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]
 }
@@ -272,6 +366,7 @@ pub fn dispatch(op: &str, a: &Value) -> Result<Value> {
         "nested_map_starts_at_end_2" => {
             json!(s(&a[0], "motion") == "follow_switch" && a[0].get("initially_on") != Some(&json!(false)))
         }
+        "pressure_plate_sides" => json!(pressure_plate_sides(&a[0], number(&a[1]), number(&a[2]))),
         "ramp_landing_edges" => json!(
             (0..list(&a[0], "levels").len())
                 .map(|level| landing_edges(list(&a[0], "ramps"), level as i64))

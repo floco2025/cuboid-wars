@@ -24,6 +24,7 @@ from .editing import (
 )
 from .normalization import plate_cell_error
 from .geometry import (
+    pressure_plate_sides,
     ramp_error,
     ramp_rect,
     rect_from_cells,
@@ -240,6 +241,24 @@ class PlacementMixin:
             for plate in self.map_data.get("pressure_plates", [])
             if plate["level"] == self.current_level and (plate["col"], plate["row"]) == (col, row)
         ]
+
+    # A placed plate's side in cells, or one's about to be placed: one
+    # map_core call per document, and one per cell a new plate is shown on.
+    def plate_side(self, plate: dict) -> float:
+        key = plate["level"], plate["col"], plate["row"]
+        if key not in self._plate_sides:
+            plates = self.map_data["pressure_plates"]
+            placed = [(p["level"], p["col"], p["row"]) for p in plates]
+            if key in placed:
+                self._plate_sides.update(zip(placed, self._game_plate_sides(plates)))
+            else:
+                self._plate_sides[key] = self._game_plate_sides([*plates, plate])[-1]
+        return self._plate_sides[key]
+
+    def _game_plate_sides(self, plates: list[dict]) -> list[float]:
+        cell = self.grid_cell_size
+        data = {**self.map_data, "pressure_plates": plates}
+        return [side / cell for side in pressure_plate_sides(data, cell, self.wall_width_cells * cell)]
 
     def _add_plate(self, plate: dict, label: str) -> None:
         error = plate_cell_error(self.map_data, plate["level"], plate["col"], plate["row"])

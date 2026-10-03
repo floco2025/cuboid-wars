@@ -407,7 +407,7 @@ pub struct ItemDef {
     pub field: Option<String>,
 }
 
-// A single-cell plate operating one of the map's switches by id (see
+// A plate on one cell operating one of the map's switches by id (see
 // `pressure_plates_system`); what the switch drives is declared on its
 // targets.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Serialize)]

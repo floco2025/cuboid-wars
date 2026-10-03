@@ -1,5 +1,5 @@
 use std::{
-    f32::consts::{FRAC_PI_4, FRAC_PI_6},
+    f32::consts::{FRAC_1_SQRT_2, FRAC_PI_4, FRAC_PI_6},
     time::Duration,
 };
 
@@ -23,8 +23,11 @@ pub const BARRIER_THICKNESS_FRACTION: f32 = 1.0 / 6.0;
 pub const BRIDGE_THICKNESS_FRACTION: f32 = 0.25;
 
 // Pressure plates use one fixed box, including the model's clipped corners.
-// The tread's 3 cm press travel is purely visual.
-pub const PRESSURE_PLATE_SIDE_CELLS: f32 = 0.5;
+// The tread's 3 cm press travel is purely visual. A plate is
+// PRESSURE_PLATE_SIDE wide where its floor has room (`pressure_plate_sides`
+// in map_core) and keeps the gap from whatever makes it shrink.
+pub const PRESSURE_PLATE_SIDE: f32 = 1.7;
+pub const PRESSURE_PLATE_GAP: f32 = 0.05;
 pub const PRESSURE_PLATE_HEIGHT: f32 = 0.11;
 
 // Items hover this far above their position, the floor plane of their level:
@@ -165,10 +168,10 @@ pub const PORTAL_RIM_SCALE: f32 = 1.06;
 // rest on); pressure-plate keep-outs apply only to portals on them.
 pub const PORTAL_STANDABLE_NORMAL_Y: f32 = 0.5;
 // Fixture keep-outs the aperture must respect: margin around a wall light,
-// and around a pressure plate's center (plates constrain only standable
-// portals — they live on floors).
+// and around a pressure plate's center, the largest plate's half-diagonal
+// (plates constrain only standable portals — they live on floors).
 pub const PORTAL_LIGHT_CLEARANCE: f32 = 0.4;
-pub const PORTAL_PLATE_CLEARANCE: f32 = 1.2;
+pub const PORTAL_PLATE_CLEARANCE: f32 = PRESSURE_PLATE_SIDE * FRAC_1_SQRT_2;
 // A fixture farther than this from the aperture plane cannot overlap it.
 pub const PORTAL_FIXTURE_PLANE_DEPTH: f32 = 0.5;
 // Blast knockback rotated through a portal keeps the explosion speed cap.

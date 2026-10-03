@@ -44,19 +44,22 @@ const FIREWORKS_SWITCH: SwitchId = SwitchId(2);
 const SPARE_SWITCH: SwitchId = SwitchId(3);
 const FIREWORK_COOLDOWN_SECS: f32 = 1.0;
 
+// Narrower than its cell, so the cell's corners lie off it.
+const PLATE_SIDE: f32 = CELL / 2.0;
+
 fn make_plate(level: u8, col: i32, row: i32) -> PressurePlateRuntime {
     PressurePlateRuntime {
         carrier: CarrierId::WORLD,
         level,
         col,
         row,
+        side: PLATE_SIDE,
         switch: LOBBY_SWITCH,
     }
 }
 
-// Grid 1x1 centers the world origin on the cell at (0, 0), so the plate
-// covers world-x in [-CELL/2, CELL/2] and the inner-50% rect is
-// [-CELL/4, CELL/4] on each axis.
+// Grid 1x1 centers the world origin on the cell at (0, 0), so the plate's
+// square is [-PLATE_SIDE/2, PLATE_SIDE/2] on each axis.
 fn geom() -> MapGeometry {
     geometry(1, 1)
 }
@@ -69,12 +72,9 @@ fn dead_center_triggers() {
 }
 
 #[test]
-fn just_inside_inner_rect_triggers() {
+fn just_inside_the_plate_triggers() {
     let plate = make_plate(0, 0, 0);
-    // Inner rect goes from cell_x + 0.25*size to cell_x + 0.75*size.
-    // cell_x for col=0 on a 1x1 grid is -size/2. So inner-rect minimum x
-    // is -size/2 + 0.25*size = -0.25 * size. Sample just inside.
-    let just_inside = -0.25 * CELL + 0.01;
+    let just_inside = -PLATE_SIDE / 2.0 + 0.01;
     let pos = Position {
         x: just_inside,
         y: 0.0,
@@ -84,10 +84,10 @@ fn just_inside_inner_rect_triggers() {
 }
 
 #[test]
-fn just_outside_inner_rect_does_not_trigger() {
+fn just_outside_the_plate_does_not_trigger() {
     let plate = make_plate(0, 0, 0);
-    // Just outside the inner-50% rect on x; z still centered.
-    let outside_x = -0.25 * CELL - 0.01;
+    // Just outside the plate on x; z still centered.
+    let outside_x = -PLATE_SIDE / 2.0 - 0.01;
     let pos = Position {
         x: outside_x,
         y: 0.0,
@@ -99,8 +99,7 @@ fn just_outside_inner_rect_does_not_trigger() {
 #[test]
 fn corner_of_cell_does_not_trigger() {
     let plate = make_plate(0, 0, 0);
-    // Cell corner sits at +/- size/2 on both axes — well outside the
-    // inner-50% rect.
+    // Cell corner sits at +/- CELL/2 on both axes, off the plate.
     let pos = Position {
         x: CELL / 2.0,
         y: 0.0,
@@ -172,6 +171,7 @@ fn firework_plate() -> PressurePlateRuntime {
         level: 0,
         col: 0,
         row: 0,
+        side: PLATE_SIDE,
         switch: FIREWORKS_SWITCH,
     }
 }

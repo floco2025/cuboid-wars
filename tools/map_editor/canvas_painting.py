@@ -241,7 +241,14 @@ class CanvasPaintingMixin:
             painter.save()
             painter.setOpacity(0.5)
             self._paint_pressure_plate(
-                painter, cell, {"col": col, "row": row, "switch": self.window.recent_pressure_plate_switch}
+                painter,
+                cell,
+                {
+                    "level": self.window.current_level,
+                    "col": col,
+                    "row": row,
+                    "switch": self.window.recent_pressure_plate_switch,
+                },
             )
             painter.restore()
             return
@@ -344,7 +351,8 @@ class CanvasPaintingMixin:
         color = switch_color(self.window.switch_colors, plate.get("switch"))
         painter.save()
         painter.translate((plate["col"] + 0.5) * cell, (plate["row"] + 0.5) * cell)
-        painter.scale(cell * 0.5, cell * 0.5)
+        side = self.window.plate_side(plate)
+        painter.scale(cell * side, cell * side)
 
         def octagon(side, cut):
             half = side / 2

@@ -28,23 +28,17 @@ pub(crate) fn pressure_plates_collision_system(
     }
 }
 
-// Is `pos`, in the plate's carrier frame, inside this plate's inner
-// 25%-by-area square AND on the plate's level? Y matches within half a
-// storey of the plate's floor, which keeps a player on the floor above from
-// triggering a plate one level down.
+// Is `pos`, in the plate's carrier frame, on this plate's square AND on the
+// plate's level? Y matches within half a storey of the plate's floor, which
+// keeps a player on the floor above from triggering a plate one level down.
 #[must_use]
 pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &MapGeometry) -> bool {
     if (pos.y - geometry.level_y(plate.level)).abs() >= geometry.level_height() / 2.0 {
         return false;
     }
-    let cell = geometry.cell_size();
-    let cell_x = geometry.cell_to_world_x(plate.col);
-    let cell_z = geometry.cell_to_world_z(plate.row);
-    let min_x = cell_x + cell * 0.25;
-    let max_x = cell_x + cell * 0.75;
-    let min_z = cell_z + cell * 0.25;
-    let max_z = cell_z + cell * 0.75;
-    pos.x >= min_x && pos.x <= max_x && pos.z >= min_z && pos.z <= max_z
+    let half = plate.side / 2.0;
+    (pos.x - geometry.cell_center_x(plate.col)).abs() <= half
+        && (pos.z - geometry.cell_center_z(plate.row)).abs() <= half
 }
 
 // Each switch uses its configured activation over the plates that name it:

@@ -195,16 +195,17 @@ pub struct PlacedItem {
 }
 
 // Server-side runtime form of a pressure plate. Keeps the original
-// (col, row) grid coords so `player_on_plate` can compute the inner-25%
-// rect each tick. The wire variant (`common::protocol::PressurePlate`)
-// carries world coords for the client renderer; this one stays in grid
-// space.
-#[derive(Clone, Debug, PartialEq, Eq)]
+// (col, row) grid coords and the compiled side so `player_on_plate` can test
+// the plate's square each tick. The wire variant
+// (`common::protocol::PressurePlate`) carries world coords for the client
+// renderer; this one stays in grid space.
+#[derive(Clone, Debug, PartialEq)]
 pub struct PressurePlateRuntime {
     pub carrier: CarrierId,
     pub level: u8,
     pub col: i32,
     pub row: i32,
+    pub side: f32,
     pub switch: SwitchId,
 }
 

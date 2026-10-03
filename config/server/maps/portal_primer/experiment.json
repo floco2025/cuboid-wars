@@ -69,6 +69,10 @@
     { "action": "check", "min": [54, -0.1, -12], "max": [66, 0.1, 16] },
     { "action": "move", "direction": [0, 1], "ticks": 40 },
     { "action": "advance", "ticks": 15 },
-    { "action": "check", "min": [60.5, -0.1, 12.5], "max": [61.5, 0.2, 13.5] }
+    {
+      "action": "check",
+      "min": [60.15, -0.1, 12.15],
+      "max": [61.85, 0.2, 13.85]
+    }
   ]
 }

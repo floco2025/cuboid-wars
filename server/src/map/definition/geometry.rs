@@ -13,14 +13,17 @@ use crate::map::{
     ramps, trim, walls,
 };
 use common::{
-    constants::{LADDER_WIDTH, PRESSURE_PLATE_SIDE_CELLS},
+    constants::LADDER_WIDTH,
     map::MapGeometry,
     protocol::{
         Barrier, CarrierId, Checkpoint, Eraser, FaceMaterials, FieldTable, Floor, ItemType, Ladder, LightBridge,
         PressurePlate, Ramp, TerrainCell, Wall, WallLight,
     },
 };
-use map_core::schema::{LadderDef, LevelDef, MapDef, RampDef, WallSide};
+use map_core::{
+    geometry::pressure_plate_sides,
+    schema::{LadderDef, LevelDef, MapDef, RampDef, WallSide},
+};
 
 // One map's records, each born on `carrier` in this map's own frame, appended
 // to the tree's layout and config.
@@ -45,7 +48,7 @@ pub(super) fn compile_geometry(
         .map(|level| floor_mask(map_def, level, true))
         .collect();
 
-    let pressure_plates = pressure_plates(map_def, scope, carrier)?;
+    let pressure_plates = pressure_plates(map_def, &geometry, scope, carrier)?;
     let level_grids = compile_level_grids(map_def, &regular_floor_masks, &slab_masks, &ramp_specs);
     let (walls, wall_materials) = compile_walls(&level_grids, &geometry, &assets, carrier);
     let barriers = compile_barriers(map_def, scope, &slab_masks, &geometry, carrier)?;
@@ -102,7 +105,7 @@ pub(super) fn compile_geometry(
             center_x: geometry.cell_center_x(p.col),
             center_y: geometry.level_y(p.level),
             center_z: geometry.cell_center_z(p.row),
-            side: geometry.cell_size() * PRESSURE_PLATE_SIDE_CELLS,
+            side: p.side,
             switch: p.switch,
             carrier,
         }));
@@ -470,19 +473,27 @@ fn compile_light_bridges(
 
 fn pressure_plates(
     map_def: &MapDef,
+    geometry: &MapGeometry,
     scope: &CompileScope,
     carrier: CarrierId,
 ) -> anyhow::Result<Vec<PressurePlateRuntime>> {
+    let sides = pressure_plate_sides(
+        &serde_json::to_value(map_def)?,
+        f64::from(geometry.cell_size()),
+        f64::from(geometry.wall_thickness()),
+    );
     map_def
         .pressure_plates
         .iter()
+        .zip(sides)
         .enumerate()
-        .map(|(idx, p)| {
+        .map(|(idx, (p, side))| {
             Ok(PressurePlateRuntime {
                 carrier,
                 level: level_tag(p.level as usize),
                 col: p.col,
                 row: p.row,
+                side: side as f32,
                 switch: scope
                     .switch_table
                     .resolve(&p.switch)

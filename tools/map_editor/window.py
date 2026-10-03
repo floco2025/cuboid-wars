@@ -301,6 +301,7 @@ class EditorWindow(
     def adopt_catalogs(self, map_name: str, catalogs: MapCatalogs) -> None:
         self._map_issues = None
         self._document_issues = None
+        self._plate_sides = {}
         catalogs = catalogs.for_layout(self.doc.root_data)
         self.catalog_map = map_name
         self.field_colors = catalogs.field_colors
@@ -487,6 +488,7 @@ class EditorWindow(
     def _on_document_changed(self, before: dict) -> None:
         self._map_issues = None
         self._document_issues = None
+        self._plate_sides = {}
         switched = self.displayed_map != self.doc.active_map
         if switched:
             self.clear_selection()
