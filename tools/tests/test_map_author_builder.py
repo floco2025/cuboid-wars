@@ -177,8 +177,15 @@ class MapBuilderTests(ConfigTestCase):
         self.assertEqual(b.data["levels"][1]["erasers"], [])
         with self.assertRaisesRegex(BuildError, "leaves its 5-cell wall"):
             b.doorway("hall", "N", 4, width=2)
-        with self.assertRaisesRegex(BuildError, "storeys tall"):
+        with self.assertRaisesRegex(BuildError, "fits storeys"):
             b.doorway("hall", "E", storeys=3)
+        b.field("glass")
+        b.doorway("hall", "E", 1, storey=1, field="glass")
+        self.assertIn((7, 3, 7, 4), {edge_key(w) for w in b.data["levels"][0]["walls"]})
+        self.assertNotIn((7, 3, 7, 4), {edge_key(w) for w in b.data["levels"][1]["walls"]})
+        self.assertIn((7, 3, 7, 4), {edge_key(e) for e in b.data["levels"][1]["barriers"]})
+        with self.assertRaisesRegex(BuildError, "fits storeys"):
+            b.doorway("hall", "E", storey=2)
         b.platform("deck", level=0, at=(10, 10), size=(2, 2))
         with self.assertRaisesRegex(BuildError, "not a room"):
             b.doorway("deck", "N")

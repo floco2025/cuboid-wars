@@ -639,6 +639,30 @@ fn a_lone_player_toggles_a_barrier_kind_with_each_press() {
 }
 
 #[test]
+fn a_latch_stays_on_through_later_presses_until_a_death_reset() {
+    let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
+    configure_switches(&mut app, SwitchActivation::Latch, DeathTrigger::Solo);
+    let (entity, mut rx) = standing_player(&mut app, 1);
+    step_off(&mut app, entity);
+    app.update();
+    assert!(turned_off(&app).is_empty());
+
+    for _ in 0..2 {
+        step_on(&mut app, entity);
+        app.update();
+        step_off(&mut app, entity);
+        app.update();
+        assert_eq!(turned_off(&app), [LOBBY], "a latch never turns off on a press");
+    }
+    let lines = switch_lines(&drain(&mut rx), "lobby");
+    assert_eq!(lines.len(), 1, "{lines:?}");
+
+    die(&mut app, 1);
+    app.update();
+    assert!(turned_off(&app).is_empty());
+}
+
+#[test]
 fn a_first_login_prints_no_off_lines() {
     let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
     app.update();

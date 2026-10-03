@@ -22,6 +22,9 @@ ON_TARGET = 0.3
 WALL_CLEARANCE = 0.02
 # The cosine between a hit's normal and its target's from which they are one surface.
 FACING = 0.9
+# A body is set down this far above its floor, clear of a plate, and given these ticks to land.
+STAND_LIFT = 0.15
+SETTLE_TICKS = 10
 Point = tuple[float, float, float]
 
 
@@ -77,11 +80,12 @@ class Shot:
 
 
 # `L<level>:<x>,<z>` in cells: a body standing there on that level's floor.
+# It starts just above a plate's height and settles onto whatever is there.
 def stand_at(ctx: MapContext, spec: str) -> Stand:
     level, gx, gz = parse_point(spec)
     x, z = ctx.frame.grid_to_world(gx, gz)
     y = ctx.frame.level_y(level)
-    return Stand(f"L{level} ({gx:g}, {gz:g})", (x, y, z), (x, y + game.eye_height(ctx), z))
+    return Stand(f"L{level} ({gx:g}, {gz:g})", (x, y + STAND_LIFT, z), (x, y + game.eye_height(ctx), z))
 
 
 # Evenly spread points along `cells` cells, one per `step` cells that fit.
@@ -218,9 +222,12 @@ def read_probe(stand: Stand, targets: list[Target], result: dict) -> list[Shot]:
     return shots
 
 
+# The body settles at the first point first, so a plate under it has
+# switched what it switches before the shots.
 def probe(ctx: MapContext, stands: list[Stand], targets: list[Target], run=game.run) -> list[list[Shot]]:
-    report = run(ctx, stands[0].feet, [probe_action(stand, targets) for stand in stands])
-    return [read_probe(stand, targets, step["result"]) for stand, step in zip(stands, report["steps"], strict=True)]
+    actions = [{"action": "advance", "ticks": SETTLE_TICKS}, *(probe_action(stand, targets) for stand in stands)]
+    report = run(ctx, stands[0].feet, actions)
+    return [read_probe(stand, targets, step["result"]) for stand, step in zip(stands, report["steps"][1:], strict=True)]
 
 
 def _point(values) -> str:

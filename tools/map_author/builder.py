@@ -367,10 +367,11 @@ class MapBuilder:
             raise BuildError(f"{name!r} is a {piece.kind}, not a room")
         return piece
 
-    # An opening in a room's wall, `width` cells wide and `storeys` tall,
-    # `offset` cells from the wall's west or north end and centred without
-    # one. `eraser` fills it with an equipment eraser and `field` with a
-    # barrier of that field.
+    # An opening in a room's wall, `width` cells wide and `storeys` tall from
+    # its storey `storey`, `offset` cells from the wall's west or north end
+    # and centred without one. `eraser` fills it with an equipment eraser
+    # and `field` with a barrier of that field: a window is an opening a
+    # storey up filled with a field.
     def doorway(
         self,
         room: str,
@@ -379,6 +380,7 @@ class MapBuilder:
         *,
         width: int = 1,
         storeys: int | None = None,
+        storey: int = 0,
         eraser: bool = False,
         field: str | None = None,
     ) -> None:
@@ -389,11 +391,11 @@ class MapBuilder:
         offset = (span - width) // 2 if offset is None else offset
         if width < 1 or offset < 0 or offset + width > span:
             raise BuildError(f"{room}: a doorway {width} wide at offset {offset} leaves its {span}-cell wall")
-        storeys = min(self.footprint.doorway, piece.levels) if storeys is None else storeys
-        if not 1 <= storeys <= piece.levels:
-            raise BuildError(f"{room}: a doorway is 1 to {piece.levels} storeys tall")
+        storeys = min(self.footprint.doorway, piece.levels - storey) if storeys is None else storeys
+        if storey < 0 or storeys < 1 or storey + storeys > piece.levels:
+            raise BuildError(f"{room}: an opening fits storeys 0 to {piece.levels - 1}")
         start, end = self._side_segment(piece.rect, side, offset, width)
-        for storey in range(piece.level, piece.level + storeys):
+        for storey in range(piece.level + storey, piece.level + storey + storeys):
             level = self.data["levels"][storey]
             removed = {edge_key(w) for w in level["walls"] if self._on_segment(w, start, end)}
             level["walls"] = [w for w in level["walls"] if edge_key(w) not in removed]

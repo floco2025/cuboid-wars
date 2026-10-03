@@ -4,8 +4,6 @@
 
 - **Navigation search exhaustion:** a connected route whose A* search exceeds the per-query budget fails repeatedly, including some long Hotel detours. Continue such searches across ticks under the shared work cap.
 
-- **Lintel gap:** a wall section standing over an opening lower than its room starts a floor's thickness above the opening, and the jamb beside it ends that much below it: a notch at each top corner of the door and no band under the wall. The stacked-wall trim covers only edges where both sections stand; emit it under every upper section no slab covers. Gatehouse avoids it with doorways as tall as their rooms.
-
 - **Review capture on macOS:** with Peekaboo 4.6 the launch in `tools/game_review/macos/README.md` reports an unverifiable receipt and `window list` and `see` cannot find the review app. Launching the binary with `--spawn` and `--look`, reading the window id from `CGWindowListCopyWindowInfo` by process id, and `screencapture -l` works.
 
 ## Enhancements

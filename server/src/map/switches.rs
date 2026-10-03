@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use common::{
-    config::{DeathTrigger, SwitchConfig, SwitchHold},
+    config::{DeathTrigger, SwitchActivation, SwitchConfig, SwitchHold},
     constants::FIREWORK_SHOW_SECS,
     map::CarrierRun,
     protocol::{
@@ -159,8 +159,11 @@ impl Switches {
                     SwitchHold::Everyone => usize::from(input.occupied && !switch.occupied),
                 };
                 for _ in 0..presses {
-                    switch.set_active(!switch.active, tick);
-                    flipped.push(SwitchId(index as u16));
+                    let active = switch.config.activation == SwitchActivation::Latch || !switch.active;
+                    if active != switch.active {
+                        switch.set_active(active, tick);
+                        flipped.push(SwitchId(index as u16));
+                    }
                 }
             }
             switch.occupied = input.occupied;

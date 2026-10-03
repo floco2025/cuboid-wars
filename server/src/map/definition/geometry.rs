@@ -49,7 +49,15 @@ pub(super) fn compile_geometry(
     let level_grids = compile_level_grids(map_def, &regular_floor_masks, &slab_masks, &ramp_specs);
     let (walls, wall_materials) = compile_walls(&level_grids, &geometry, &assets, carrier);
     let barriers = compile_barriers(map_def, scope, &slab_masks, &geometry, carrier)?;
-    let (floors, floor_materials) = compile_floors(&level_grids, &slab_masks, &ramp_specs, &geometry, &assets, carrier);
+    let (floors, floor_materials) = compile_floors(
+        map_def,
+        &level_grids,
+        &slab_masks,
+        &ramp_specs,
+        &geometry,
+        &assets,
+        carrier,
+    );
     let light_bridges = flush_light_bridges(
         compile_light_bridges(map_def, &geometry, scope, carrier)?,
         &floors,
@@ -243,6 +251,7 @@ fn compile_barriers(
 }
 
 fn compile_floors(
+    map_def: &MapDef,
     level_grids: &[LevelGrid],
     slab_masks: &[Mask],
     ramp_specs: &[ramps::RampSpec],
@@ -267,15 +276,16 @@ fn compile_floors(
         }
         let mut tier = floors::emit_floor_tier(m, &ramp_landings, geometry, level, y, carrier);
         if level_idx > 0 {
-            tier.extend(trim::emit_stacked_wall_trim(
+            let mut barriers = EdgeGrid::new(geometry.grid_cols, geometry.grid_rows);
+            for barrier in &map_def.levels[level_idx].barriers {
+                set_edge(&mut barriers, [barrier.c0, barrier.r0, barrier.c1, barrier.r1]);
+            }
+            let band = trim::band_edges(
                 &level_grids[level_idx - 1].edges,
                 &level_grids[level_idx].edges,
-                m,
-                geometry,
-                level,
-                y,
-                carrier,
-            ));
+                &barriers,
+            );
+            tier.extend(trim::emit_wall_trim(&band, m, geometry, level, y, carrier));
         }
         let (merged_floors, merged_materials) = floors::merge_floors(tier, assets);
         all_floors.extend(merged_floors);

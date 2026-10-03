@@ -47,7 +47,7 @@ impl MaterialRules {
         //      floor cell. Detect it by shape and use *that* cell directly,
         //      so the strip inherits its long-side neighbour's material
         //      rather than a diagonal cell's.
-        //   3. Stacked-wall trim: the wall it caps.
+        //   3. Wall trim: the wall under it, or standing on it.
         //   4. Any cardinal neighbour of the midpoint that has a floor.
         //   5. Adjacent wall on this level.
         let mid_col = self.geometry.cell_col_containing_x(f32::midpoint(floor.x1, floor.x2));
@@ -117,12 +117,12 @@ impl MaterialRules {
             .cloned()
     }
 
-    // A stacked-wall trim is a wall's width, centred on the wall's grid
-    // line, and sits on the lower wall below the upper level's floor plane,
-    // so it continues the lower wall's faces. Asking the midpoint cell's
-    // edges in a fixed order instead hands a corner cell's strip the end caps
-    // of the wall it meets, and a floor beside the strip hands it that
-    // floor's sides.
+    // A wall trim is a wall's width, centred on the wall's grid line, and
+    // sits below the upper level's floor plane: it continues the faces of
+    // the wall under it, or of the wall standing on it when nothing is
+    // under it. Asking the midpoint cell's edges in a fixed order instead
+    // hands a corner cell's strip the end caps of the wall it meets, and a
+    // floor beside the strip hands it that floor's sides.
     fn capped_wall_materials(&self, floor: &Floor) -> Option<FaceMaterials> {
         let x = f32::midpoint(floor.x1, floor.x2);
         let z = f32::midpoint(floor.z1, floor.z2);
@@ -147,7 +147,11 @@ impl MaterialRules {
         };
         let (a, b) = wall_edge_key(from, to);
         let lower = floor.level.checked_sub(1)?;
-        self.segments.walls.get(&(lower, a, b)).cloned()
+        self.segments
+            .walls
+            .get(&(lower, a, b))
+            .or_else(|| self.segments.walls.get(&(floor.level, a, b)))
+            .cloned()
     }
 
     fn is_on_grid_z(&self, z: f32) -> bool {

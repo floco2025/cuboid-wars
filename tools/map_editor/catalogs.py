@@ -72,7 +72,7 @@ def field_colors(root: dict) -> dict[str, str]:
     return {entry["id"]: entry["color"] for entry in field_entries(root) if isinstance(entry.get("color"), str)}
 
 
-SWITCH_ACTIVATIONS = ("momentary", "toggle", "auto")
+SWITCH_ACTIVATIONS = ("momentary", "toggle", "auto", "latch")
 SWITCH_RESETS = ("never", "solo", "any", "all")
 SWITCH_HOLDS = ("any", "everyone")
 

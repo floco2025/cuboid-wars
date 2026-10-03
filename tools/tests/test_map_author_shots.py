@@ -8,10 +8,13 @@ UPPER = ["wall:L2:5,2:N:1", "wall:L2:7,2:N:1"]
 PAD = "floor:L1:9.5,6.5"
 
 
+# The game answers a probe per target; the tick of standing before it is a step of its own.
 def answers(by_target):
     def run(ctx, spawn, actions):
-        (action,) = actions
-        return {"steps": [{"result": {"status": "probed", "shots": [by_target(t) for t in action["targets"]]}}]}
+        settle, action = actions
+        assert settle["action"] == "advance"
+        shots = [by_target(t) for t in action["targets"]]
+        return {"steps": [{"result": {"status": "advanced"}}, {"result": {"status": "probed", "shots": shots}}]}
 
     return run
 
@@ -40,7 +43,7 @@ class CandidateTests(ConfigTestCase):
 
     def test_a_stand_is_feet_on_a_level_with_the_eye_above(self):
         stand = stand_at(hall(), "L1:4,6")
-        self.assertEqual((stand.label, stand.feet), ("L1 (4, 6)", (-6.0, 2.2, -4.0)))
+        self.assertEqual((stand.label, stand.feet), ("L1 (4, 6)", (-6.0, 2.35, -4.0)))
         self.assertAlmostEqual(stand.eye[1], 3.8)
 
 
@@ -100,12 +103,12 @@ class ShotTests(ConfigTestCase):
 
         def run(ctx, spawn, actions):
             asked.append((spawn, actions))
-            shots = [{"target": t, "status": "no_surface"} for t in actions[0]["targets"]]
-            return {"steps": [{"result": {"status": "probed", "shots": shots}}]}
+            shots = [{"target": t, "status": "no_surface"} for t in actions[1]["targets"]]
+            return {"steps": [{"result": {"status": "advanced"}}, {"result": {"status": "probed", "shots": shots}}]}
 
         text = shots(ctx, "L1:4,6", ["wall:L1:3,2:N", "ramp:L0:16,3"], run=run)
-        ((spawn, (action,)),) = asked
-        self.assertEqual(spawn, (-6.0, 2.2, -4.0))
+        ((spawn, (_settle, action)),) = asked
+        self.assertEqual(spawn, (-6.0, 2.35, -4.0))
         self.assertEqual((action["action"], len(action["targets"])), ("probe", 2))
         self.assertAlmostEqual(action["eye"][1], 3.8)
         self.assertIn("wall:L1:3,2:N", text)

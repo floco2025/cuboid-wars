@@ -20,13 +20,16 @@ pub enum SwitchActivation {
     Toggle,
     #[default]
     Auto,
+    // On at the first press and on it stays; only a death reset turns it off.
+    Latch,
 }
 
 impl SwitchActivation {
+    // Whether presses switch it, as against occupancy holding it.
     pub fn is_toggle(self, logged_in: usize) -> bool {
         match self {
             Self::Momentary => false,
-            Self::Toggle => true,
+            Self::Toggle | Self::Latch => true,
             Self::Auto => logged_in == 1,
         }
     }

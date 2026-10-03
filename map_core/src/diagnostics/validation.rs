@@ -136,7 +136,7 @@ pub fn validate_catalog(catalog: &str, entries: &Value) -> Result<()> {
         ensure!(catalog == "switches" || !color.is_null(), "{name}: a color is required");
         if catalog == "switches" {
             for (field, choices) in [
-                ("activation", &["momentary", "toggle", "auto"][..]),
+                ("activation", &["momentary", "toggle", "auto", "latch"][..]),
                 ("reset_on_player_death", &["never", "solo", "any", "all"][..]),
                 ("held", &["any", "everyone"][..]),
             ] {

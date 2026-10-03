@@ -17,6 +17,10 @@ mod encounter_tests;
 #[cfg(test)]
 #[path = "tests/fixtures.rs"]
 mod fixtures;
+
+#[cfg(test)]
+#[path = "tests/gatehouse.rs"]
+mod gatehouse_tests;
 #[cfg(test)]
 #[path = "tests/movement.rs"]
 mod movement_tests;

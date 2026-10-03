@@ -82,9 +82,15 @@ the right point.
   floor in reach, so a goal it must not reach is a closed room entered through
   an eraser doorway.
 - **No way in at a walk.** A body that walks, steps, or hops into one portal
-  leaves the other with almost no speed and drops from it, or drifts along
-  it. So nothing a portal can open on lies above the goal or within a few
-  metres beside it: the goal and the walls and ceiling around it are metal.
+  leaves the other with no more than the speed of a short fall: a few metres
+  of reach from a wall, nothing upward. So where a room's answer is a flight,
+  nothing a portal can open on lies above the goal or within a few metres
+  beside it: the goal and the walls and ceiling around it are metal.
+- **Show the goal, hide the path.** The player sees at once what must be
+  done and spends the room on how. The obvious try fails visibly, for a
+  physical reason the player can see, and both ends of the pair matter. A
+  plate beside the window it opens, framing the surface to shoot, is a
+  tutorial, not a puzzle.
 - **Recovery after mistakes.** Losing a required boost leaves a way to refill
   and retry, and every checkpoint has usable equipment and a route onward.
 - **Ordinary skill.** The main route needs momentum from an ordinary takeoff
@@ -114,9 +120,11 @@ the right point.
 - **Portal Primer** is the one AI-authored map: one line of chambers, open-air
   except its finale, on a 2 m grid. It shows the tools work more than it is
   fun.
-- **Gatehouse** is the first building, under construction: a hub, an exit
-  behind three gates, and the first of its rooms. Its first playtest gave the
-  principles above on portals, walking in, and looks.
+- **Gatehouse** is the first building: a hub, an exit behind three gates,
+  and the three rooms that lower them, the Drop, the Cistern, and the Firing
+  Line, each proved by a scripted route and a sweep of other entries. Its
+  first playtests gave the principles above on portals, walking in, looks,
+  and puzzle depth; the next decides whether its rooms are fun.
 - **The tools** build a map from a script, draw it as text, measure jumps and
   flings, and run a scripted route through the real game, headless or in a
   window. The builder writes buildings: rooms with ceilings and doorways,
@@ -138,9 +146,9 @@ the right point.
    a pair is enough. Showing that a route has no shortcut by other moves still
    needs a bot that plays at the level of intent and searches; looking at a
    map should become one command.
-2. **A first small building to playtest.** A hub and three portal rooms in
-   Obby's manner, each yielding a key or a switch, all needed for the exit,
-   handed over once it passes the self-checks.
+2. **Gatehouse's playtest.** Three rooms stand and pass the self-checks;
+   the next playtest judges them as puzzles, and the first two already went
+   through one revision each from what a playtest showed.
 3. **Playtest lessons** written back here as principles and as room patterns
    that worked.
 4. **The puzzle before the geometry:** what the player learns and in what

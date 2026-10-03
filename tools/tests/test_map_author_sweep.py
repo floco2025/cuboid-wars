@@ -25,9 +25,9 @@ def game(ends, path=(PAD_POINT,)):
 
     def run(ctx, spawn, actions):
         calls.append(actions)
-        if actions[0]["action"] == "probe":
-            results = []
-            for action in actions:
+        if actions[-1]["action"] == "probe":
+            results = [{"result": {"status": "advanced"}}]
+            for action in actions[1:]:
                 shots = []
                 for target in action["targets"]:
                     hit = {"position": target, "normal": NORTH if target[1] > 3 else [0.0, 1.0, 0.0]}
@@ -110,7 +110,7 @@ class SweepTests(ConfigTestCase):
         self.assertEqual(lines[-2], "2 of 2 pairs carry the body through a portal")
         self.assertEqual(lines[-1], f"1 reach the goal: {PAD} + {WEST_PANEL}")
         probe, plain, attempts = run.calls
-        self.assertEqual(len(probe), 1)
+        self.assertEqual([action["action"] for action in probe], ["advance", "probe"])
         self.assertEqual([action["action"] for action in plain], ["reset", "move", "advance", "inspect"])
         kinds = [action["action"] for action in attempts]
         self.assertEqual(kinds[:8], ["reset", "place", "advance", "place", "advance", "move", "advance", "inspect"])
@@ -123,7 +123,7 @@ class SweepTests(ConfigTestCase):
         run = game(lambda placed: (0, player([-6.0, 2.2, -4.0])))
         lines = sweep(ctx, "L1:4,6", MOVES, also_from=["L1:8,8"], run=run).splitlines()
         self.assertEqual(lines[2:], ["2 pairs end as without portals", "0 of 2 pairs carry the body through a portal"])
-        self.assertEqual(len(run.calls[0]), 2)
+        self.assertEqual(len(run.calls[0]), 3)
         lines = sweep(ctx, "L1:4,6", MOVES, goal="L1:2,2:12,10", run=run).splitlines()
         self.assertEqual(lines[1], "no portals: ends L1 cell (4.0, 6.0) on L1.a  GOAL")
         self.assertEqual(lines[-1], "2 reach the goal: the 2 that end as without portals")

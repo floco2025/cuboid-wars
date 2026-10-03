@@ -28,8 +28,10 @@
   },
   "portals": "auto",
   "power_ups": {
+    "single_shot": { "mode": "pickup", "duration_secs": null },
     "portal_gun": { "mode": "always" },
     "speed": { "mode": "pickup", "duration_secs": null },
     "low_gravity": { "mode": "pickup", "duration_secs": null }
-  }
+  },
+  "combat": { "damage": { "actors": { "turret": { "beam_dps": 150.0 } } } }
 }

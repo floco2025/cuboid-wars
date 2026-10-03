@@ -17,13 +17,6 @@ pub(super) struct HorizontalSegment {
 
 impl HorizontalSegment {
     #[must_use]
-    pub fn overlap(self, other: Self) -> Option<Self> {
-        let x1 = self.x1.max(other.x1);
-        let x2 = self.x2.min(other.x2);
-        (x2 > x1).then_some(Self { x1, x2, z: self.z })
-    }
-
-    #[must_use]
     pub fn floor_strip(self, y: f32, thickness: f32, half_width: f32, level: u8, carrier: CarrierId) -> Floor {
         Floor {
             x1: self.x1,
@@ -46,13 +39,6 @@ pub(super) struct VerticalSegment {
 }
 
 impl VerticalSegment {
-    #[must_use]
-    pub fn overlap(self, other: Self) -> Option<Self> {
-        let z1 = self.z1.max(other.z1);
-        let z2 = self.z2.min(other.z2);
-        (z2 > z1).then_some(Self { x: self.x, z1, z2 })
-    }
-
     #[must_use]
     pub fn floor_strip(self, y: f32, thickness: f32, half_width: f32, level: u8, carrier: CarrierId) -> Floor {
         Floor {
