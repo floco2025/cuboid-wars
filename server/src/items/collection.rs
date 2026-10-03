@@ -6,6 +6,7 @@ use crate::{
     items::{ItemMap, ItemPlacement},
     network::{FeedAudience, FeedEvent, broadcast_to_all, emit_feed},
     players::{PlayerInfo, PlayerMap},
+    portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, QuestEvent, record_event},
 };
 use common::{
@@ -33,7 +34,15 @@ pub fn item_collection_system(
     gameplay_config: Res<GameplayConfig>,
     mut quest_board: ResMut<QuestBoard>,
     quest_catalog: Res<QuestCatalog>,
+    portals: Option<Res<PortalMap>>,
+    portal_assignments: Option<Res<PortalAssignments>>,
 ) {
+    let holds_portals = |id: &PlayerId| {
+        portals
+            .as_deref()
+            .zip(portal_assignments.as_deref())
+            .is_some_and(|(portals, assignments)| portals.controls_any(assignments.get(id)))
+    };
     let mut available_items: Vec<_> = items
         .iter()
         .filter_map(|(item_id, item_info)| {
@@ -72,6 +81,7 @@ pub fn item_collection_system(
             ) || !pickup_has_effect(
                 item_type,
                 player_info,
+                holds_portals(player_id),
                 player_health.get(entity).ok(),
                 &gameplay_config,
                 &server_gameplay_config,
@@ -140,10 +150,12 @@ pub fn item_collection_system(
 
 // A pickup that would change nothing stays in the world for someone who can
 // use it: an already-held key, a pack for a full missile bay, a potion at
-// full health. Timed power-ups always count — the pickup resets their timer.
+// full health, an eraser with nothing to erase or close. Timed power-ups
+// always count — the pickup resets their timer.
 fn pickup_has_effect(
     item_type: ItemType,
     player_info: &PlayerInfo,
+    holds_portals: bool,
     health: Option<&Health>,
     gameplay_config: &GameplayConfig,
     server_gameplay_config: &ServerGameplayConfig,
@@ -154,7 +166,9 @@ fn pickup_has_effect(
         ItemType::HealthPotion => {
             health.is_none_or(|health| health.0 < server_gameplay_config.combat.health.player.max)
         }
-        ItemType::EquipmentEraser => !player_info.life.outcomes.erase_equipment && player_info.has_erasable_equipment(),
+        ItemType::EquipmentEraser => {
+            !player_info.life.outcomes.erase_equipment && (player_info.has_erasable_equipment() || holds_portals)
+        }
         ItemType::Gold => true,
         item => PowerUpKind::from_item_type(item).is_some_and(|kind| !player_info.has_permanent(kind)),
     }

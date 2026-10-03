@@ -13,6 +13,7 @@ use crate::{
     },
     map::{CellGrid, EdgeGrid, LevelGrid, MapConfig},
     players::{PlayerInfo, PlayerMap, PowerUpState},
+    portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog},
     test_geometry::geometry,
 };
@@ -21,8 +22,8 @@ use common::{
     constants::{CHARACTER_CONTACT_OFFSET, PRESSURE_PLATE_HEIGHT},
     map::Carriers,
     protocol::{
-        CarrierId, FieldId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, PowerUpKind,
-        ServerMessage,
+        CarrierId, FieldId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Portal, PortalEnd,
+        PortalMode, Position, PowerUpKind, ServerMessage,
     },
 };
 
@@ -41,6 +42,7 @@ fn pickups_without_effect_stay_in_the_world() {
     assert!(!pickup_has_effect(
         ItemType::HealthPotion,
         &player,
+        false,
         Some(&Health(max_health)),
         &config,
         &server_config
@@ -48,6 +50,7 @@ fn pickups_without_effect_stay_in_the_world() {
     assert!(pickup_has_effect(
         ItemType::HealthPotion,
         &player,
+        false,
         Some(&Health(max_health / 2.0)),
         &config,
         &server_config
@@ -56,6 +59,7 @@ fn pickups_without_effect_stay_in_the_world() {
     assert!(pickup_has_effect(
         ItemType::MissilePack,
         &player,
+        false,
         None,
         &config,
         &server_config
@@ -64,6 +68,7 @@ fn pickups_without_effect_stay_in_the_world() {
     assert!(!pickup_has_effect(
         ItemType::MissilePack,
         &player,
+        false,
         None,
         &config,
         &server_config
@@ -73,6 +78,7 @@ fn pickups_without_effect_stay_in_the_world() {
     assert!(!pickup_has_effect(
         ItemType::Key(FieldId(0)),
         &player,
+        false,
         None,
         &config,
         &server_config
@@ -80,10 +86,27 @@ fn pickups_without_effect_stay_in_the_world() {
     assert!(pickup_has_effect(
         ItemType::Key(FieldId(1)),
         &player,
+        false,
         None,
         &config,
         &server_config
     ));
+
+    let empty_handed = self::player();
+    for (holds_portals, expected) in [(false, false), (true, true)] {
+        assert_eq!(
+            pickup_has_effect(
+                ItemType::EquipmentEraser,
+                &empty_handed,
+                holds_portals,
+                None,
+                &config,
+                &server_config
+            ),
+            expected,
+            "an eraser with nothing to take but open portals: {holds_portals}"
+        );
+    }
 }
 
 #[test]
@@ -97,6 +120,7 @@ fn active_power_ups_are_still_collected_to_reset_their_timer() {
     assert!(pickup_has_effect(
         ItemType::SpeedPowerUp,
         &player,
+        false,
         None,
         &config,
         &server_config
@@ -104,6 +128,7 @@ fn active_power_ups_are_still_collected_to_reset_their_timer() {
     assert!(pickup_has_effect(
         ItemType::Gold,
         &player,
+        false,
         None,
         &config,
         &server_config
@@ -851,5 +876,38 @@ fn eraser_pickup_waits_for_equipment_and_wins_over_a_same_tick_boost() {
             .filter(|m| matches!(m, ServerMessage::EquipmentErased(_)))
             .count(),
         1
+    );
+}
+
+#[test]
+fn an_eraser_pickup_is_taken_by_an_empty_handed_player_with_open_portals() {
+    let mut app = test_app();
+    let id = PlayerId(1);
+    spawn_player(&mut app, id, Position::default());
+    let mut assignments = PortalAssignments::new(PortalMode::Both);
+    assignments.assign(id);
+    let mut portals = PortalMap::default();
+    portals.set(Portal {
+        pair: assignments.get(&id).pair().expect("portal pair missing"),
+        end: PortalEnd::A,
+        pos: Position::default(),
+        nx: 0.0,
+        ny: 0.0,
+        nz: 1.0,
+        yaw: 0.0,
+        carrier: CarrierId::WORLD,
+    });
+    app.insert_resource(assignments).insert_resource(portals);
+    let eraser = spawn_item(&mut app, 1, ItemType::EquipmentEraser, Position::default(), random(0.0));
+    app.update();
+    assert!(app.world().resource::<ItemMap>().get(&eraser).is_none());
+    assert!(
+        app.world()
+            .resource::<PlayerMap>()
+            .get(&id)
+            .expect("player missing")
+            .life
+            .outcomes
+            .erase_equipment
     );
 }

@@ -80,12 +80,18 @@ the right point.
 - **Necessary traversal.** An ordinary jump, a drop, another portal placement,
   or air steering must not bypass a puzzle. Low gravity floats down to any
   floor in reach, so a goal it must not reach is a closed room entered through
-  an eraser doorway.
-- **No way in at a walk.** A body that walks, steps, or hops into one portal
-  leaves the other with no more than the speed of a short fall: a few metres
-  of reach from a wall, nothing upward. So where a room's answer is a flight,
-  nothing a portal can open on lies above the goal or within a few metres
-  beside it: the goal and the walls and ceiling around it are metal.
+  an eraser doorway. An eraser doorway also closes the portals a player
+  brings in, so a room whose answer must be found inside it starts with none.
+- **No way in at a walk.** Walking or hopping into a portal gives little
+  speed. Out of a floor portal that is enough to rise only about 3 m. Out of
+  a wall or a ceiling portal the body falls instead, and since nothing slows
+  a flight, even that little speed carries it ten metres or more sideways
+  before it lands. So a goal is safe from a walk-in when it stands more than
+  3 m above every portal surface near it, not when it is far from them.
+  Where a room's answer is a fast fling, the walls above that height and the
+  ceiling near the goal are metal, which takes no portal. A walk-in can be
+  the answer when how to walk in is the puzzle, as in the Vat; then it is
+  the only one that works.
 - **Show the goal, hide the path.** The player sees at once what must be
   done and spends the room on how. The obvious try fails visibly, for a
   physical reason the player can see, and both ends of the pair matter. A
@@ -123,9 +129,9 @@ the right point.
 - **Portal Primer** is the one AI-authored map: one line of chambers, open-air
   except its finale, on a 2 m grid. It shows the tools work more than it is
   fun.
-- **Gatehouse** is the first building: a hub, an exit behind three gates,
-  and the three rooms that lower them, the Drop, the Cistern, and the Firing
-  Line, each proved by a scripted route. Its playtests gave the principles
+- **Gatehouse** is the first building: a hub, an exit behind four gates,
+  and the four rooms that lower them, the Drop, the Cistern, the Firing Line,
+  and the Vat, each proved by a scripted route. Its playtests gave the principles
   above on portals, walking in, looks, and puzzle depth.
 - **The tools** build a map from a script, draw it as text, measure jumps and
   flings, and run a scripted route through the real game, headless or in a

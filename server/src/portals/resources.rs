@@ -35,6 +35,16 @@ impl PortalMap {
         true
     }
 
+    // Whether any open end is one the access controls.
+    #[must_use]
+    pub fn controls_any(&self, access: PortalAccess) -> bool {
+        access.pair().and_then(|pair| self.0.get(&pair)).is_some_and(|ends| {
+            [(PortalEnd::A, ends.a), (PortalEnd::B, ends.b)]
+                .into_iter()
+                .any(|(end, portal)| portal.is_some() && access.allows(end))
+        })
+    }
+
     // Returns true when the access controlled any portal to remove.
     pub fn remove_access(&mut self, access: PortalAccess) -> bool {
         match access {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gatehouse: a hub whose exit three gates bar, and a room that lowers each."""
+"""Gatehouse: a hub whose exit four gates bar, and a room that lowers each."""
 
 import sys
 from pathlib import Path
@@ -19,12 +19,14 @@ for level, name in {0: "Pits", GROUND: "Ground", 5: "Ceilings", 6: "Roof", 8: "H
 b.switch("drop", activation="latch", reset="never", color="#00ccff")
 b.switch("cistern", activation="latch", reset="never", color="#ffcc00")
 b.switch("firing", activation="latch", reset="solo", color="#ff5533")
+b.switch("vat", activation="latch", reset="never", color="#aa66ff")
 b.switch("finish", activation="momentary", reset="never", color="#33dd66")
 # The shield stands only while its plate is held.
 b.switch("shield", activation="momentary", reset="never", color="#88ddff")
-for gate in ("drop", "cistern", "firing"):
+for gate in ("drop", "cistern", "firing", "vat"):
     b.field(gate, switch=gate, initially_on=True)
 b.field("cistern-gate", switch="cistern", initially_on=True, color="#ffcc00")
+b.field("vat-gate", switch="vat", initially_on=True, color="#aa66ff")
 b.field("shield", switch="shield", initially_on=False, color="#88ddff")
 
 # Room 1, the Drop. The landing by the door looks down a pit at a metal block
@@ -50,17 +52,18 @@ b.plate(level="block", at=(7, 26), switch="drop")
 # Room 2, the Cistern. A hall five storeys tall with an open metal tank three
 # storeys tall standing two cells off its east wall, the plate at the bottom
 # behind a tall gate that shows the inside and, looking up through it, the
-# hall's ceiling where a roof would be. The tank is metal inside and out, and
-# so is the ceiling over it and the gap beside it, so nothing opens inside and
-# a fall from above lands beside it. The way in is a wall portal above the
-# rim: a body dropping into a floor portal leaves it a storey over the tank
-# with the speed of its fall, enough to carry over the rim and down inside,
-# while a portal below the rim throws it at the tank's side. The tank's plate
-# opens the gate and the hub's.
-b.room("hall", level=GROUND, at=(22, 4), size=(16, 16), storeys=5, floor="floor", inside="brick", ceiling="ceiling")
+# hall's metal ceiling where a roof would be. Only the hall's floor and the
+# two lowest storeys of its walls take a portal, and a body that walks or
+# hops into one rises from them less than the tank is tall, so no way in
+# starts in the hall. The way in is the long fall in the Drop: off the landing
+# into a portal in the pit and out of one on the hall floor beside the tank,
+# high over the rim and down inside. The tank's plate opens the gate and the
+# hub's.
+b.room("hall", level=GROUND, at=(22, 4), size=(16, 16), storeys=5, floor="floor", inside="brick", ceiling="metal")
+for at, side in (((22, 4), "N"), ((22, 4), "W"), ((37, 4), "E"), ((22, 19), "S")):
+    b.face_wall(GROUND + 2, at, side, "metal", length=16, storeys=3)
 METAL = dict(floor="metal", inside="metal", outside="metal")
 b.room("tank", level=GROUND, at=(30, 9), size=(6, 5), storeys=3, ceiling=False, **METAL)
-b.face_slab(GROUND + 5, (9, 7), (29, 8), "metal", face="bottom")
 b.plate(level="tank", at=(32, 11), switch="cistern")
 b.doorway("tank", "S", 2, width=2, storeys=2, field="cistern-gate")
 
@@ -98,12 +101,32 @@ for level in (GROUND + 2, GROUND + 3):
 b.plate(level="range", at=(38, 28), switch="shield")
 b.plate(level="range", at=(53, 25), switch="firing")
 
-b.room("exit", level=GROUND, at=(28, 32), size=(4, 10), storeys=2, **HUB)
+# Room 4, the Vat. A hall five storeys tall with an open metal vat three
+# storeys tall two cells off its east wall, the plate at the bottom behind a
+# gate, as in the Cistern. Here the floor is metal, so neither a hop nor a
+# long fall from another room comes up beside the vat, and the walls above
+# the second storey and the ceiling over the vat and a cell around it are
+# metal too. The way in is down from the ceiling beside the vat: a body that
+# runs into a low wall portal at an angle leaves the ceiling with the run's
+# sideways speed, which carries it over the rim, while a straight run drops it
+# beside the vat. Its doorway is an eraser, which closes the portals a body
+# brings in, so the answer is found inside. The vat's plate opens its gate
+# and the hub's.
+b.room("works", level=GROUND, at=(32, 32), size=(16, 12), storeys=5, floor="metal", inside="brick", ceiling="ceiling")
+for at, side, length in (((32, 32), "N", 16), ((32, 32), "W", 12), ((47, 32), "E", 12), ((32, 43), "S", 16)):
+    b.face_wall(GROUND + 2, at, side, "metal", length=length, storeys=3)
+b.room("vat", level=GROUND, at=(40, 36), size=(6, 5), storeys=3, ceiling=False, **METAL)
+b.face_slab(GROUND + 5, (9, 7), (39, 35), "metal", face="bottom")
+b.plate(level="vat", at=(43, 38), switch="vat")
+b.doorway("vat", "W", 1, width=2, storeys=2, field="vat-gate")
+b.doorway("hub", "S", 9, width=2, eraser=True)
+
+b.room("exit", level=GROUND, at=(28, 32), size=(4, 12), storeys=2, **HUB)
 b.doorway("hub", "S", 4, width=4)
-for row, gate in ((34, "drop"), (36, "cistern"), (38, "firing")):
+for row, gate in ((34, "drop"), (36, "cistern"), (38, "firing"), (40, "vat")):
     for level in (GROUND, GROUND + 1):
         b.barrier(level=level, start=(28, row), end=(32, row), field=gate)
-b.plate(level="exit", at=(30, 40), switch="finish")
+b.plate(level="exit", at=(30, 42), switch="finish")
 b.fireworks("finish")
 
 # One row of lights where people walk, at the height a single wall would
@@ -120,6 +143,9 @@ for row in (6, 16):
 for at, side in (((30, 11), "W"), ((35, 11), "E")):
     b.light(level=GROUND, at=at, side=side, kind="utility", height=2.4)
 b.room_lights("range", "utility", every=4, sides="NS")
+b.room_lights("works", "utility", every=4, sides="NWS")
+for at, side in (((40, 40), "W"), ((45, 38), "E")):
+    b.light(level=GROUND, at=at, side=side, kind="utility", height=2.4)
 b.light(level=GROUND, at=(53, 25), side="N", kind="utility", height=1.9)
 
 b.save()

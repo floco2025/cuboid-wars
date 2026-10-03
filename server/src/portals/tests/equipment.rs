@@ -1,5 +1,8 @@
 use super::*;
-use crate::players::{PlayerInfo, PowerUpState};
+use crate::{
+    config::RespawnConfig,
+    players::{PlayerInfo, PowerUpState, erase_equipment_system},
+};
 use common::protocol::{CarrierId, PlayerId, Portal, PortalEnd, PortalMode, Position};
 use crossbeam_channel::unbounded;
 
@@ -66,5 +69,66 @@ fn gun_loss_removes_controlled_ends_and_preserves_assignments_and_equipped_partn
                 assert_eq!(app.world().resource::<PortalAssignments>().get(&PlayerId(1)), access);
             }
         }
+    }
+}
+
+#[test]
+fn an_eraser_closes_its_players_portals_keeps_an_always_held_gun_and_cues_once() {
+    for carries_a_pickup in [false, true] {
+        let mut always_active = [false; PowerUpKind::COUNT];
+        always_active[PowerUpKind::PortalGun.index()] = true;
+        let mut players = PlayerMap::new(RespawnConfig::default(), always_active);
+        let (tx, rx) = unbounded();
+        let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
+        info.connection.logged_in = true;
+        if carries_a_pickup {
+            info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Permanent;
+        }
+        info.life.outcomes.erase_equipment = true;
+        players.insert(PlayerId(1), info);
+        let mut assignments = PortalAssignments::new(PortalMode::Both);
+        assignments.assign(PlayerId(1));
+        let pair = assignments.get(&PlayerId(1)).pair().expect("portal pair missing");
+        let mut portals = PortalMap::default();
+        for end in [PortalEnd::A, PortalEnd::B] {
+            portals.set(Portal {
+                pair,
+                end,
+                pos: Position::default(),
+                nx: 0.0,
+                ny: 0.0,
+                nz: 1.0,
+                yaw: 0.0,
+                carrier: CarrierId::WORLD,
+            });
+        }
+        let mut app = App::new();
+        app.insert_resource(players)
+            .insert_resource(assignments)
+            .insert_resource(portals)
+            .add_systems(
+                Update,
+                (
+                    erased_portals_system,
+                    erase_equipment_system,
+                    unequipped_portals_cleanup_system,
+                )
+                    .chain(),
+            );
+        app.update();
+
+        assert!(app.world().resource::<PortalMap>().snapshot_portals().is_empty());
+        let info = app
+            .world()
+            .resource::<PlayerMap>()
+            .get(&PlayerId(1))
+            .expect("player missing");
+        assert!(info.has(PowerUpKind::PortalGun), "the gun stays");
+        assert!(!info.has(PowerUpKind::Speed), "the pickup goes");
+        let cues = rx
+            .try_iter()
+            .filter(|message| matches!(message, ServerMessage::EquipmentErased(_)))
+            .count();
+        assert_eq!(cues, 1, "carries a pickup: {carries_a_pickup}");
     }
 }
