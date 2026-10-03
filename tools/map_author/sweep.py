@@ -150,9 +150,11 @@ class Outcome:
         )
 
 
-def _attempt(pair: tuple[Placement, Placement] | None, moves: list[dict], wait: int) -> list[dict]:
+def _attempt(
+    start: game.Start, feet, pair: tuple[Placement, Placement] | None, moves: list[dict], wait: int
+) -> list[dict]:
     # Shots and the baseline both start with the plate and pickup state the probe saw.
-    actions = [{"action": "reset"}, {"action": "advance", "ticks": STAND_SETTLE_TICKS}]
+    actions = [*start.begin(feet), {"action": "advance", "ticks": STAND_SETTLE_TICKS}]
     for end, placement in zip("ab", pair or ()):
         actions += [placement.action(end), {"action": "advance", "ticks": wait}]
     return [*actions, *moves, {"action": "inspect"}]
@@ -177,14 +179,14 @@ def _end(ctx: MapContext, labels: dict, outcome: Outcome, full: float | None = N
 
 # The portals the standing points open, and those named for either end of a
 # pair, or all of them.
-def _reach(ctx: MapContext, stand_spec: str, also_from, entries, exits, run):
+def _reach(ctx: MapContext, stand_spec: str, also_from, entries, exits, run, start: game.Start):
     stands: list[Stand] = [stand_at(ctx, spec) for spec in (stand_spec, *also_from)]
     known = candidates(ctx)
     named = named_targets(ctx, [*entries, *exits], known)
     targets = list({target.spec: target for target in (*known, *named)}.values())
     if not targets:
         raise ValueError("the map has no portalable surface")
-    shots = [shot for results in probe(ctx, stands, targets, run) for shot in results]
+    shots = [shot for results in probe(ctx, stands, targets, run, start) for shot in results]
     found = placements(shots)
 
     def chosen(specs) -> list[Placement]:
@@ -230,30 +232,34 @@ def sweep(
     also_from=(),
     goal: str | None = None,
     run=game.run,
+    start: game.Start = game.Start(),
 ) -> str:
     moves = parse_moves(moves_text)
     target = Goal.parse(goal) if goal else None
-    stands, found, firsts, seconds = _reach(ctx, stand_spec, also_from, entries, exits, run)
+    stands, found, firsts, seconds = _reach(ctx, stand_spec, also_from, entries, exits, run, start)
     wait = game.cooldown_ticks(ctx)
-    plain = run(ctx, stands[0].feet, _attempt(None, moves, wait))
-    full = (plain["initial"]["player"] or {}).get("health")
-    baseline = Outcome.read(plain["steps"])
+    feet = stands[0].feet
+    begun = len(start.begin(feet))
+    plain = run(ctx, start.spawn_for(feet), _attempt(start, feet, None, moves, wait))
+    full = (plain["steps"][begun - 1]["state"]["player"] or {}).get("health")
+    baseline = Outcome.read(plain["steps"][begun:])
     # Only a portal on the body's way is ever entered, so unless the ends are
     # named, one end of every pair is such a portal.
     reach = 2 * ctx.settings.portal_half_height + PATH_MARGIN
-    near = firsts if entries else _on_path(firsts, plain["steps"], reach)
+    near = firsts if entries else _on_path(firsts, plain["steps"][begun:], reach)
     pairs = _pairs(near, seconds)
     labels = {(level, cell): label for label, level, cells, _ in labelled_platforms(MapIndex(ctx)) for cell in cells}
     lines = [
-        f"sweep from {stands[0].label}: {len(found)} portals in reach, {len(near)} on the way, {len(pairs)} pairs, "
+        f"sweep from {stands[0].label}{start.label}: {len(found)} portals in reach, {len(near)} on the way, "
+        f"{len(pairs)} pairs, "
         f"moves: {moves_text.strip()}",
         f"no portals: {_end(ctx, labels, baseline, full)}" + (_goal(ctx, target, baseline)),
     ]
     if not pairs:
         return "\n".join([*lines, "the moves pass no portal a shot from here opens"])
-    blocks = [_attempt(pair, moves, wait) for pair in pairs]
-    steps = iter(run(ctx, stands[0].feet, [action for block in blocks for action in block])["steps"])
-    outcomes = [Outcome.read([next(steps) for _ in block]) for block in blocks]
+    blocks = [_attempt(start, feet, pair, moves, wait) for pair in pairs]
+    steps = iter(run(ctx, start.spawn_for(feet), [action for block in blocks for action in block])["steps"])
+    outcomes = [Outcome.read([next(steps) for _ in block][begun:]) for block in blocks]
     entered, unmoved, overlapping, reached = 0, 0, 0, []
     for (a, b), outcome in zip(pairs, outcomes):
         pair = f"{a.label} + {b.label}"
@@ -355,9 +361,10 @@ def walk_in(
     exits=(),
     also_from=(),
     run=game.run,
+    start: game.Start = game.Start(),
 ) -> str:
     target = Goal.parse(goal)
-    stands, found, firsts, seconds = _reach(ctx, stand_spec, also_from, entries, exits, run)
+    stands, found, firsts, seconds = _reach(ctx, stand_spec, also_from, entries, exits, run, start)
     wait = game.cooldown_ticks(ctx)
     # Where a slow body leaves a portal depends on the exit and on how it
     # went in, not on which floor or wall it went into: one floor and one
@@ -378,7 +385,7 @@ def walk_in(
             tried.add(kind)
             for name, spawn, moves in slow_entries(ctx, entry):
                 block = [
-                    {"action": "reset", "spawn": list(spawn)},
+                    *start.begin(spawn),
                     entry.action("a"),
                     {"action": "advance", "ticks": wait},
                     exit.action("b"),
@@ -388,21 +395,22 @@ def walk_in(
                 ]
                 attempts.append((entry, exit, name, len(block)))
                 actions.extend(block)
-    lines = [f"walk-in from {stands[0].label}: {len(found)} portals in reach, {len(seconds)} exits"]
+    lines = [f"walk-in from {stands[0].label}{start.label}: {len(found)} portals in reach, {len(seconds)} exits"]
     if not attempts:
         return "\n".join([*lines, "no portal in reach has a floor to walk, step, or hop into it from"])
-    report = run(ctx, stands[0].feet, actions)
-    full = (report["initial"]["player"] or {}).get("health")
+    report = run(ctx, start.spawn_for(stands[0].feet), actions)
+    begun = len(start.begin(stands[0].feet))
     labels = {(level, cell): label for label, level, cells, _ in labelled_platforms(MapIndex(ctx)) for cell in cells}
     steps = iter(report["steps"])
     blocked = entered = 0
     reached = []
     for entry, exit, name, length in attempts:
         block = [next(steps) for _ in range(length)]
-        if block[0]["result"]["status"] != "reset":
+        if block[begun - 1]["result"]["status"] not in ("reset", "teleported"):
             blocked += 1
             continue
-        outcome = Outcome.read(block)
+        full = (block[begun - 1]["state"]["player"] or {}).get("health")
+        outcome = Outcome.read(block[begun:])
         if outcome.refused or not outcome.crossings:
             continue
         entered += 1

@@ -105,3 +105,40 @@ fn a_reset_into_geometry_is_refused_and_changes_nothing() {
     assert_eq!(step["result"]["status"], "rejected", "{step}");
     assert_eq!(step["state"], report["initial"]);
 }
+
+#[test]
+fn a_teleport_moves_the_body_at_rest_and_keeps_what_the_script_built() {
+    let (_folder, mut script) = walled_floor();
+    script.actions = vec![
+        Action::Place {
+            end: End::A,
+            eye: EYE,
+            target: PORTAL_WALL,
+        },
+        Action::Move {
+            direction: [1.0, 0.0],
+            ticks: 6,
+            crouch: false,
+            jump: false,
+        },
+        Action::Teleport { feet: [0.0, 0.0, -6.0] },
+        Action::Advance { ticks: 3 },
+        Action::Teleport {
+            feet: [-10.0, 0.0, -12.0],
+        },
+    ];
+    let report = script.run().expect("teleports");
+    let moved = &report["steps"][2];
+    assert_eq!(moved["result"]["status"], "teleported", "{moved}");
+    let settled = &report["steps"][3]["state"];
+    assert!(close(&settled["player"]["position"], [0.0, 0.0, -6.0]), "{settled}");
+    assert!(
+        close(&settled["player"]["reported_position"], [0.0, 0.0, -6.0]),
+        "the server adopts it: {settled}"
+    );
+    assert_eq!(settled["player"]["horizontal_velocity"], json!([0.0, 0.0, 0.0]));
+    assert_eq!(settled["portals"].as_array().expect("portals").len(), 1);
+    let refused = &report["steps"][4];
+    assert_eq!(refused["result"]["status"], "rejected", "{refused}");
+    assert_eq!(refused["state"], *settled);
+}

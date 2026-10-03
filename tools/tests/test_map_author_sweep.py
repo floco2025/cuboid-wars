@@ -1,5 +1,10 @@
+import json
+import tempfile
+from pathlib import Path
+
 from author_fixtures import hall
 from config_fixtures import ConfigTestCase
+from map_author.game import Start
 from map_author.sweep import Goal, parse_moves, sweep, walk_in
 
 MOVES = "move 0,-1 x40 jump; advance 20"
@@ -20,14 +25,21 @@ def player(position, support="ground", health=500.0):
 # A game in which the pad and the panel's lower storey open a portal, a move
 # walks `path`, and an attempt ends where `ends` says for the portals it
 # placed: its crossings and the player, or OVERLAP for a pair the game refuses.
-def game(ends, path=(PAD_POINT,)):
+def game(ends, path=(PAD_POINT,), refused=lambda feet: False):
     calls = []
 
     def run(ctx, spawn, actions):
         calls.append(actions)
         if actions[-1]["action"] == "probe":
-            results = [{"result": {"status": "advanced"}}]
-            for action in actions[1:]:
+            results = []
+            for action in actions:
+                if action["action"] == "teleport":
+                    status = "rejected" if refused(tuple(action["feet"])) else "teleported"
+                    results.append({"result": {"status": status}})
+                    continue
+                if action["action"] != "probe":
+                    results.append({"result": {"status": "advanced"}})
+                    continue
                 shots = []
                 for target in action["targets"]:
                     hit = {"position": target, "normal": NORTH if target[1] > 3 else [0.0, 1.0, 0.0]}
@@ -48,7 +60,9 @@ def game(ends, path=(PAD_POINT,)):
             if kind == "place":
                 placed.append(tuple(action["target"]))
             crossings, state = ends(tuple(placed))
-            result = {"status": {"reset": "reset", "place": "submitted"}.get(kind, "done")}
+            result = {"status": {"reset": "reset", "place": "submitted", "teleport": "teleported"}.get(kind, "done")}
+            if kind == "teleport" and refused(tuple(action["feet"])):
+                result = {"status": "rejected", "reason": "player overlaps geometry"}
             if crossings == OVERLAP and len(placed) == 2 and kind == "place":
                 result = {"status": "rejected", "reason": "portal_overlap"}
             events = [{"kind": "player_step", "position": list(point)} for point in path] if kind == "move" else []
@@ -208,3 +222,69 @@ class WalkInTests(ConfigTestCase):
         run = game(lambda placed: (1 if len(placed) == 2 else 0, player([0.0, 2.2, 0.0])))
         lines = walk_in(hall(), "L1:4,6", "L1:2,2:6,4", run=run).splitlines()
         self.assertEqual(lines[-1], "none reaches the goal")
+
+
+# A route that crosses a portal on its way, then stands still.
+ROUTE = {
+    "spawn": [1.0, 2.2, 1.0],
+    "actions": [
+        {"action": "move", "direction": [0, -1], "ticks": 10},
+        {"action": "inspect"},
+        {"action": "advance", "ticks": 5},
+    ],
+}
+
+
+def route_start(test, step: int) -> Start:
+    folder = tempfile.TemporaryDirectory()
+    test.addCleanup(folder.cleanup)
+    path = Path(folder.name) / "route.json"
+    path.write_text(json.dumps(ROUTE), encoding="utf-8")
+    return Start.after(f"{path}:{step}")
+
+
+class AfterTests(ConfigTestCase):
+    def test_a_route_is_replayed_through_the_named_step(self):
+        start = route_start(self, 1)
+        self.assertEqual(start.prefix, tuple(ROUTE["actions"][:2]))
+        self.assertEqual(start.spawn, (1.0, 2.2, 1.0))
+        self.assertEqual(start.label, " after step 1 of route.json")
+        with self.assertRaisesRegex(ValueError, "no step 3"):
+            route_start(self, 3)
+        with self.assertRaisesRegex(ValueError, "is not <route.json>:<step>"):
+            Start.after("route.json")
+
+    def test_every_attempt_starts_from_the_routes_state_and_counts_only_its_own_crossings(self):
+        ctx = hall()
+        start = player([-6.0, 2.2, -4.0])
+
+        # Nothing placed is the route's own crossing, which no attempt counts.
+        def ends(placed):
+            if not placed:
+                return 1, start
+            if out_of_the_west_panel(placed):
+                return 1, player([-5.5, 2.2, -7.2])
+            return 0, start
+
+        run = game(ends)
+        lines = sweep(ctx, "L1:4,6", MOVES, goal="L1:2,2:6,4", run=run, start=route_start(self, 1)).splitlines()
+        self.assertTrue(lines[0].startswith("sweep from L1 (4, 6) after step 1 of route.json: "), lines[0])
+        self.assertIn(f"{PAD} + {WEST_PANEL}: crosses 1, ends L1 cell (4.5, 2.8) on L1.a  GOAL", lines)
+        probe, plain, attempts = run.calls
+        self.assertEqual([action["action"] for action in probe], ["move", "inspect", "teleport", "advance", "probe"])
+        self.assertEqual(probe[2]["feet"], [-6.0, 2.35, -4.0])
+        begin = ["reset", "move", "inspect", "teleport", "advance"]
+        self.assertEqual([action["action"] for action in plain][:5], begin)
+        self.assertEqual([action["action"] for action in attempts][:7], [*begin, "place", "advance"])
+
+    def test_a_teleport_the_game_refuses_is_a_start_inside_geometry(self):
+        ctx = hall()
+        stand = (-6.0, 2.35, -4.0)
+        nowhere = game(lambda placed: (0, None), refused=lambda feet: True)
+        with self.assertRaisesRegex(ValueError, "leaves no body to stand at L1 \\(4, 6\\)"):
+            walk_in(ctx, "L1:4,6", "L1:2,2:6,4", run=nowhere, start=route_start(self, 2))
+        walled = game(lambda placed: (0, player(list(stand))), refused=lambda feet: feet != stand)
+        lines = walk_in(ctx, "L1:4,6", "L1:2,2:6,4", run=walled, start=route_start(self, 2)).splitlines()
+        self.assertEqual(lines[1], "0 entries tried, 0 pass through a portal, 14 start inside geometry")
+        teleports = [action for action in walled.calls[1] if action["action"] == "teleport"]
+        self.assertEqual(len(teleports), 14)

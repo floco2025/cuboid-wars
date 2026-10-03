@@ -67,6 +67,7 @@ impl Executor {
             Action::Fire => self.session.fire(),
             Action::Check { min, max, grounded } => Ok(self.session.check(min, max, grounded)),
             Action::Inspect => Ok(json!({"status":"inspected"})),
+            Action::Teleport { feet } => self.session.teleport(feet),
             Action::Reset { spawn } => {
                 let visual = self.session.visual_messages.is_some();
                 let mut script = self.script.clone();

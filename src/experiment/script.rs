@@ -70,6 +70,12 @@ pub(super) enum Action {
         #[serde(default)]
         spawn: Option<[f32; 3]>,
     },
+    // Set the living body down at rest with its feet at `feet`, keeping
+    // everything the script has built up: a sweep starts each attempt from a
+    // route's state this way.
+    Teleport {
+        feet: [f32; 3],
+    },
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
@@ -132,6 +138,10 @@ impl Script {
                 Action::Reset { spawn: Some(spawn) } => ensure!(
                     spawn.iter().all(|n| n.is_finite()),
                     "action {index}: reset spawn must be finite"
+                ),
+                Action::Teleport { feet } => ensure!(
+                    feet.iter().all(|n| n.is_finite()),
+                    "action {index}: teleport feet must be finite"
                 ),
                 Action::Probe { eye, targets } => ensure!(
                     !targets.is_empty() && eye.iter().chain(targets).flatten().all(|n| n.is_finite()),

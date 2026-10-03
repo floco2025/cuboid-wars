@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
 
@@ -34,6 +35,41 @@ def run(ctx: MapContext, spawn, actions: list[dict]) -> dict:
     if result.returncode:
         raise ValueError(f"the game refused the experiment: {result.stderr.strip()[-2000:]}")
     return json.loads(result.stdout)
+
+
+# Where every attempt of a check begins: a fresh session with the body at
+# the attempt's start, or a route's state through one of its steps with the
+# body moved there, so a late step is tried with what the route built up.
+@dataclass(frozen=True)
+class Start:
+    spawn: tuple[float, ...] | None = None
+    prefix: tuple[dict, ...] = ()
+    # How the checks name it after their standing point.
+    label: str = ""
+
+    # `<route.json>:<step>`, the step numbered as `proof` prints it.
+    @classmethod
+    def after(cls, spec: str) -> Start:
+        path, _, step = spec.rpartition(":")
+        if not path or not step.isdigit():
+            raise ValueError(f"--after {spec!r} is not <route.json>:<step>")
+        script = json.loads(Path(path).read_text(encoding="utf-8"))
+        actions, last = script["actions"], int(step)
+        if last >= len(actions):
+            raise ValueError(f"{path} has steps 0 to {len(actions) - 1}, so no step {last}")
+        return cls(tuple(script["spawn"]), tuple(actions[: last + 1]), f" after step {last} of {Path(path).name}")
+
+    def spawn_for(self, feet):
+        return self.spawn if self.prefix else feet
+
+    # The actions that bring a run that has just begun to `feet`.
+    def lead(self, feet) -> list[dict]:
+        return [*self.prefix, {"action": "teleport", "feet": list(feet)}] if self.prefix else []
+
+    # The actions that begin another attempt in the same run at `feet`; the
+    # last one's status says whether the body could stand there.
+    def begin(self, feet) -> list[dict]:
+        return [{"action": "reset"}, *self.lead(feet)] if self.prefix else [{"action": "reset", "spawn": list(feet)}]
 
 
 def _setting(ctx: MapContext, path: str) -> float:

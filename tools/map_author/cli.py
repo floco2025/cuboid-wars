@@ -10,6 +10,7 @@ from pathlib import Path
 
 from map_editor.catalogs import map_layout_path
 
+from . import game
 from .context import MapContext
 from .describe import plan, summary
 from .measure import jump, parse_surface, parse_takeoff, ranges, surface, where
@@ -62,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     aim.add_argument("map")
     aim.add_argument("--from", dest="stand", required=True, help="L<level>:<x>,<z> in cells, where the body stands")
     aim.add_argument("surfaces", nargs="*", help="surfaces to aim at (default: every portalable one)")
+    aim.add_argument("--after", help="<route.json>:<step>: shoot with the state the route has after that step")
 
     pairs = commands.add_parser("sweep", help="where moves end for every pair of portals in reach, in the game")
     pairs.add_argument("map")
@@ -74,6 +76,9 @@ def main(argv: list[str] | None = None) -> int:
     pairs.add_argument("--exit", action="append", default=[], help="the other on this surface only (repeatable)")
     pairs.add_argument("--also-from", action="append", default=[], help="another point the portals are shot from")
     pairs.add_argument("--goal", help="L<level>:<c0>,<r0>:<c1>,<r1> in cells: mark the pairs that end there")
+    pairs.add_argument(
+        "--after", help="<route.json>:<step>: start every attempt with the route's state after that step"
+    )
 
     proof = commands.add_parser("proof", help="summarize an experiment report (a file, or - for stdin)")
     proof.add_argument("map")
@@ -130,11 +135,21 @@ def run(args) -> int:
     elif args.command == "ranges":
         print(ranges(ctx))
     elif args.command == "shots":
-        print(shots(ctx, args.stand, args.surfaces))
+        print(shots(ctx, args.stand, args.surfaces, start=_start(args)))
     elif args.command == "sweep" and args.walk_in:
         if not args.goal or args.moves:
             raise ValueError("--walk-in takes a --goal and no --moves")
-        print(walk_in(ctx, args.stand, args.goal, entries=args.entry, exits=args.exit, also_from=args.also_from))
+        print(
+            walk_in(
+                ctx,
+                args.stand,
+                args.goal,
+                entries=args.entry,
+                exits=args.exit,
+                also_from=args.also_from,
+                start=_start(args),
+            )
+        )
     elif args.command == "sweep":
         if not args.moves:
             raise ValueError("a sweep needs --moves, or --walk-in with a --goal")
@@ -147,9 +162,14 @@ def run(args) -> int:
                 exits=args.exit,
                 also_from=args.also_from,
                 goal=args.goal,
+                start=_start(args),
             )
         )
     elif args.command == "proof":
         text = sys.stdin.read() if args.report == "-" else Path(args.report).read_text(encoding="utf-8")
         print(summarize(json.loads(text), ctx.frame))
     return 0
+
+
+def _start(args) -> game.Start:
+    return game.Start.after(args.after) if args.after else game.Start()

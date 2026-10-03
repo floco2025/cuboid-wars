@@ -139,7 +139,7 @@ the right point.
   lights, enemy zones, any texture a map names, and portal surfaces sized to
   the grid. The AI can ask the game what a shot from a standing point opens,
   where its moves end for every pair of portals on its way, and whether
-  walking into any pair reaches the goal. It can look at a map by launching
+  walking into any pair reaches the goal, fresh or partway through a route. It can look at a map by launching
   the game at a chosen spot and capturing the window, by hand so far. It
   cannot yet search for a route or for a shortcut by other moves.
 - **Tried in earlier courses, absent from the Primer:** shooting an enemy

@@ -55,6 +55,18 @@ impl Owner {
         self.reports.begin_body(player.generation);
     }
 
+    // The same body set down at rest elsewhere; the next report carries it to
+    // the server, which adopts it like any other.
+    pub fn teleport(&mut self, position: Position) {
+        let state = PlayerMovementState::new(position, PlayerMoveIntent::NONE, 0.0, self.motion.face_yaw.0);
+        self.motion = PlayerMotionBundle::from(&state);
+        self.position = position;
+        self.previous_position = position;
+        self.crossed_last_step = false;
+        self.jump = JumpRequest::default();
+        self.step = LocalMovementStep::default();
+    }
+
     // Server state supplies observed geometry, bodies and abilities. Only this
     // owner integrates the player, through the same tick as the rendered
     // client; CMove and CMoveOutcome carry its result back.

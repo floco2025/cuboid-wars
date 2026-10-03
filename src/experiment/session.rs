@@ -516,15 +516,37 @@ impl Session {
             .context("experiment player missing")?;
         if let Some(entity) = player.entity() {
             let position = world.get::<Position>(entity).context("player position missing")?;
-            let collision = world.resource::<CollisionWorld>();
-            let physics = world.resource::<GameplayConfig>().player.physics();
-            let passable = passable_fields(&player.life.held_keys, &world.resource::<SwitchState>().open_fields);
-            ensure!(
-                !collision.character_penetrates_solid(position, physics, &passable),
-                "player overlaps geometry"
-            );
+            ensure!(!self.overlaps_geometry(position)?, "player overlaps geometry");
         }
         Ok(())
+    }
+
+    fn overlaps_geometry(&self, position: &Position) -> Result<bool> {
+        let world = self.server.world();
+        let player = world
+            .resource::<PlayerMap>()
+            .get(&self.id)
+            .context("experiment player missing")?;
+        let collision = world.resource::<CollisionWorld>();
+        let physics = world.resource::<GameplayConfig>().player.physics();
+        let passable = passable_fields(&player.life.held_keys, &world.resource::<SwitchState>().open_fields);
+        Ok(collision.character_penetrates_solid(position, physics, &passable))
+    }
+
+    pub fn teleport(&mut self, feet: [f32; 3]) -> Result<Value> {
+        let position = Position {
+            x: feet[0],
+            y: feet[1],
+            z: feet[2],
+        };
+        if !self.alive() {
+            return Ok(json!({"status": "rejected", "reason": "player_dead"}));
+        }
+        if self.overlaps_geometry(&position)? {
+            return Ok(json!({"status": "rejected", "reason": "player overlaps geometry"}));
+        }
+        self.owner.teleport(position);
+        Ok(json!({"status": "teleported"}))
     }
 }
 

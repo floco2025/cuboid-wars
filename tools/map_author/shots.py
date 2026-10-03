@@ -224,10 +224,22 @@ def read_probe(stand: Stand, targets: list[Target], result: dict) -> list[Shot]:
 
 # The body settles at the first point first, so a plate under it has
 # switched what it switches before the shots.
-def probe(ctx: MapContext, stands: list[Stand], targets: list[Target], run=game.run) -> list[list[Shot]]:
-    actions = [{"action": "advance", "ticks": STAND_SETTLE_TICKS}, *(probe_action(stand, targets) for stand in stands)]
-    report = run(ctx, stands[0].feet, actions)
-    return [read_probe(stand, targets, step["result"]) for stand, step in zip(stands, report["steps"][1:], strict=True)]
+def probe(
+    ctx: MapContext, stands: list[Stand], targets: list[Target], run=game.run, start: game.Start = game.Start()
+) -> list[list[Shot]]:
+    lead = start.lead(stands[0].feet)
+    actions = [
+        *lead,
+        {"action": "advance", "ticks": STAND_SETTLE_TICKS},
+        *(probe_action(stand, targets) for stand in stands),
+    ]
+    report = run(ctx, start.spawn_for(stands[0].feet), actions)
+    if lead and (moved := report["steps"][len(lead) - 1]["result"])["status"] != "teleported":
+        raise ValueError(
+            f"after its step {len(start.prefix) - 1} the route leaves no body to stand at {stands[0].label}: {moved}"
+        )
+    steps = report["steps"][len(lead) + 1 :]
+    return [read_probe(stand, targets, step["result"]) for stand, step in zip(stands, steps, strict=True)]
 
 
 def _point(values) -> str:
@@ -280,13 +292,13 @@ def _overview(results: list[Shot]) -> list[str]:
 
 # Named surfaces get the game's verdict each; without any, every surface is
 # tried and the ones that open are summed up by stretch of wall and slab.
-def shots(ctx: MapContext, stand_spec: str, specs=(), run=game.run) -> str:
+def shots(ctx: MapContext, stand_spec: str, specs=(), run=game.run, start: game.Start = game.Start()) -> str:
     stand = stand_at(ctx, stand_spec)
     known = candidates(ctx)
     targets = named_targets(ctx, specs, known) if specs else known
     if not targets:
         return f"shots from {stand.label}: the map has no portalable surface"
-    (results,) = probe(ctx, [stand], targets, run)
+    (results,) = probe(ctx, [stand], targets, run, start)
     lines = [f"shots from {stand.label}, eye world {_point(stand.eye)}: {len(targets)} targets"]
     if specs:
         width = max(len(target.spec) for target in targets)
