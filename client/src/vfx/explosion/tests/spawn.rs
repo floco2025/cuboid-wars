@@ -46,7 +46,6 @@ fn explode(map_layout: &MapLayout, center: Vec3, blast_radius: f32) -> (World, V
             },
             &ExplosionSurfaces {
                 collision_world: &collision_world,
-                map_layout,
                 carriers: &carriers,
                 carrier_entities: &carrier_entities,
             },

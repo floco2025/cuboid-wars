@@ -13,6 +13,7 @@ mod meshes;
 mod portal_backing;
 mod rays;
 mod shape_cast;
+mod solids;
 mod surface_materials;
 
 pub use carrier_sync::carriers_advance_system;
@@ -21,6 +22,7 @@ pub use ladders::LadderVolume;
 pub use meshes::{CollisionMesh, CollisionSource};
 pub use rays::WorldSurfaceHit;
 pub use shape_cast::ShapeCastHit;
+pub use solids::{Solid, SolidFace};
 
 #[cfg(test)]
 mod tests;

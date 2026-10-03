@@ -4,12 +4,15 @@ use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
     config::ClientSettings,
     fields::{
-        FieldAssets, FieldMeshes, FieldPiece, FieldSurface, FieldSurfaces, VisualField, fade_target, merge_fields,
+        FieldAssets, FieldMeshes, FieldPiece, FieldSurface, FieldSurfaces, VisualField, fade_target,
         spawn_patterned_surface,
     },
     materials::{FieldMaterial, field_material},
 };
-use common::protocol::{MapLayout, MapSettings, SwitchState};
+use common::{
+    physics::CollisionWorld,
+    protocol::{MapLayout, SwitchState},
+};
 
 #[derive(Component)]
 pub struct BarrierMarker;
@@ -21,7 +24,7 @@ pub struct BarrierMarker;
 pub fn barriers_spawn_system(
     mut commands: Commands,
     map_layout: Res<MapLayout>,
-    settings: Res<MapSettings>,
+    collision_world: Res<CollisionWorld>,
     client_settings: Res<ClientSettings>,
     field_meshes: Res<FieldMeshes>,
     field_assets: Res<FieldAssets>,
@@ -44,12 +47,9 @@ pub fn barriers_spawn_system(
     surfaces.forget(FieldPiece::Barrier);
 
     let config = client_settings.vfx.fields;
-    let fields = merge_fields(
-        layout.barriers.iter().map(VisualField::from_barrier),
-        &layout.floors,
-        settings.geometry.floor_thickness,
-    );
-    for field in fields {
+    let solids = collision_world.structural_solids();
+    // One pane per piece: the server has stacked and joined them, and their colliders with them.
+    for field in layout.barriers.iter().map(VisualField::from_barrier) {
         let id = field.field.expect("barrier visual missing its field");
         let color = field_assets.base_color(id);
         let material = materials.add(field_material(
@@ -79,8 +79,8 @@ pub fn barriers_spawn_system(
                     &field_meshes,
                     &material,
                     field_assets.visual(id),
-                    field.panel_rects(&layout),
-                    field.frame_rects(&layout),
+                    field.panel_rects(&solids),
+                    field.frame_rects(&solids),
                     field.rect.center(),
                     field.thickness,
                     &root,

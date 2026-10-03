@@ -8,11 +8,16 @@ use super::{
 use crate::map::GrassBurn;
 use common::{
     map::Carriers,
-    protocol::{CarrierId, Floor, MapLayout, Ramp, Wall},
+    physics::{Solid, SolidFace},
+    protocol::CarrierId,
 };
 
-// How far a record may sit off the mark's plane and still be the surface it lies on.
+// How far a face may sit off the mark's plane and still be the surface it lies on.
 const COPLANAR_TOLERANCE: f32 = 0.02;
+// How far behind a face a blast buried in its solid still marks it: one
+// inside a thin wall scorches both its faces, one that burst on a slab does
+// not scorch the ceiling under it.
+const BURIED_REACH: f32 = 0.15;
 
 // A point of a surface an explosion reaches, in world space.
 #[derive(Clone, Copy)]
@@ -22,9 +27,9 @@ pub(crate) struct SurfaceContact {
     pub(crate) carrier: CarrierId,
 }
 
-// A mark on a surface, in the frame of the surface's carrier like the map
-// record it marks, so it rides a tile with the tile. `region` is where that
-// surface actually is, in the mark's own plane.
+// A mark on a plane of the built world, in the frame of that plane's
+// carrier so it rides with it. `region` is where the plane actually carries
+// a surface the blast reaches, in the mark's own plane.
 #[derive(Clone)]
 pub(crate) struct ScorchPlacement {
     pub(super) transform: Transform,
@@ -53,13 +58,21 @@ impl ScorchPlacement {
         (self.normal.dot(Vec3::Y) > 0.999).then(|| {
             GrassBurn::new(
                 self.carrier,
-                self.transform.translation - self.normal * SCORCH_SURFACE_OFFSET,
-                self.transform.scale.x * 0.5,
+                self.surface_point(),
+                self.radius(),
                 style.rotation(),
                 style.mesh_index,
                 self.region.clone(),
             )
         })
+    }
+
+    fn surface_point(&self) -> Vec3 {
+        self.transform.translation - self.normal * SCORCH_SURFACE_OFFSET
+    }
+
+    fn radius(&self) -> f32 {
+        self.transform.scale.x * 0.5
     }
 
     // The carrier-space half-space `normal · p <= offset`, in the mark's own plane.
@@ -73,24 +86,61 @@ impl ScorchPlacement {
         }
     }
 
-    // The column above and below a footprint `(min_x, max_x, min_z, max_z)`.
-    fn footprint(&self, bounds: (f32, f32, f32, f32)) -> Convex {
-        let (min_x, max_x, min_z, max_z) = bounds;
-        vec![
-            self.half_plane(Vec3::NEG_X, -min_x),
-            self.half_plane(Vec3::X, max_x),
-            self.half_plane(Vec3::NEG_Z, -min_z),
-            self.half_plane(Vec3::Z, max_z),
-        ]
+    // Whether the face lies in the mark's plane and faces the way the mark does.
+    fn lies_on(&self, face: &SolidFace) -> bool {
+        face.normal.dot(self.normal) > 0.999
+            && self.normal.dot(face.corners[0] - self.surface_point()).abs() <= COPLANAR_TOLERANCE
+    }
+
+    // Whether the mark's disc comes near the face at all.
+    fn reaches(&self, face: &SolidFace) -> bool {
+        let (min, max) = face
+            .corners
+            .iter()
+            .fold((Vec3::INFINITY, Vec3::NEG_INFINITY), |(min, max), &corner| {
+                (min.min(corner), max.max(corner))
+            });
+        let point = self.surface_point();
+        let radius = Vec3::splat(self.radius());
+        min.cmple(point + radius).all() && max.cmpge(point - radius).all()
+    }
+
+    // The part of the mark's plane the face covers.
+    fn footprint(&self, face: &SolidFace) -> Convex {
+        let middle = face.corners.iter().sum::<Vec3>() / face.corners.len() as f32;
+        face.corners
+            .iter()
+            .enumerate()
+            .map(|(index, &start)| {
+                let end = face.corners[(index + 1) % face.corners.len()];
+                let mut outward = (end - start).cross(face.normal);
+                if outward.dot(start - middle) < 0.0 {
+                    outward = -outward;
+                }
+                self.half_plane(outward, outward.dot(start))
+            })
+            .collect()
+    }
+
+    // Keep the mark on the faces of its plane; a plane with none, such as
+    // open terrain, keeps the whole disc.
+    fn keep_faces(&mut self, solids: &[Solid]) {
+        self.region.keep = solids
+            .iter()
+            .filter(|solid| solid.carrier == self.carrier)
+            .flat_map(|solid| &solid.faces)
+            .filter(|face| self.lies_on(face) && self.reaches(face))
+            .map(|face| self.footprint(face))
+            .collect();
     }
 }
 
 // The mark the blast at `world_center` leaves where it reached the ground:
-// on the coplanar floors, wall tops, and ramps around the contact, and
-// nowhere a wall or a floor shadows.
+// on every face around the contact that lies in its plane, and nowhere
+// another solid shadows.
 pub(crate) fn ground_scorch_placement(
     contact: SurfaceContact,
-    map_layout: &MapLayout,
+    solids: &[Solid],
     carriers: &Carriers,
     world_center: Vec3,
     diameter: f32,
@@ -100,212 +150,108 @@ pub(crate) fn ground_scorch_placement(
     let point = pose.inverse_transform_point(contact.point);
     let center = pose.inverse_transform_point(world_center);
     let mut placement = ScorchPlacement::new(point, contact.normal, contact.carrier, diameter, style);
-    let radius = diameter * 0.5;
-    let near = |(min_x, max_x, min_z, max_z): (f32, f32, f32, f32)| {
-        min_x <= point.x + radius && max_x >= point.x - radius && min_z <= point.z + radius && max_z >= point.z - radius
-    };
-    let level = contact.normal.y > 0.999;
-    let on_carrier = |carrier: CarrierId| carrier == contact.carrier;
-
-    let mut keep = Vec::new();
-    for floor in map_layout.floors.iter().filter(|floor| on_carrier(floor.carrier)) {
-        if level && (floor.y - point.y).abs() <= COPLANAR_TOLERANCE && near(floor.bounds_xz()) {
-            keep.push(placement.footprint(floor.bounds_xz()));
-        }
-    }
-    for wall in map_layout.walls.iter().filter(|wall| on_carrier(wall.carrier)) {
-        let bounds = wall_bounds_xz(wall);
-        if level && (wall.y + wall.height - point.y).abs() <= COPLANAR_TOLERANCE && near(bounds) {
-            keep.push(placement.footprint(bounds));
-        }
-    }
-    for ramp in map_layout.ramps.iter().filter(|ramp| on_carrier(ramp.carrier)) {
-        let Some((normal, offset)) = ramp_plane(ramp) else {
-            continue;
-        };
-        if normal.dot(contact.normal) > 0.999
-            && (normal.dot(point) - offset).abs() <= COPLANAR_TOLERANCE
-            && near(ramp.bounds_xz())
-        {
-            keep.push(placement.footprint(ramp.bounds_xz()));
-        }
-    }
-    placement.region.keep = keep;
-    placement.region.cut = shadows(&placement, map_layout, center, radius);
+    placement.keep_faces(solids);
+    placement.region.cut = shadows(&placement, solids, center);
     placement
 }
 
-// The marks the blast at `world_center` leaves on the wall faces within
-// reach: each on its wall's rectangle, and nowhere another wall or a floor
-// shadows.
-pub(crate) fn wall_scorch_placements(
-    map_layout: &MapLayout,
+// The marks the blast at `world_center` leaves on the other planes within
+// reach: one per plane, where the blast's sphere cuts it, on every face
+// lying in that plane, so stacked or adjoining solids share one mark across
+// their seams. A blast buried in a solid marks the faces just in front of
+// it from inside. `ground` is the contact that already has its own mark.
+pub(crate) fn face_scorch_placements(
+    solids: &[Solid],
     carriers: &Carriers,
     world_center: Vec3,
     scorch_radius: f32,
     reach_factor: f32,
     style: ScorchStyle,
+    ground: Option<SurfaceContact>,
 ) -> Vec<ScorchPlacement> {
     let mut placements = Vec::<ScorchPlacement>::new();
-    for wall in &map_layout.walls {
-        let center = carriers.pose(wall.carrier).inverse_transform_point(world_center);
-        let Some(segment) = WallSegment::new(wall) else {
-            continue;
-        };
-        let (closest, side, signed_side_distance) = segment.closest(center);
-        let normals: &[Vec3] = if signed_side_distance.abs() <= wall.width * 0.5 {
-            &[side, -side]
-        } else if signed_side_distance > 0.0 {
-            &[side]
-        } else {
-            &[-side]
-        };
-
-        let bottom = wall.y;
-        let top = wall.y + wall.height;
-        for normal in normals {
-            let point = Vec3::new(
-                closest.x + normal.x * wall.width * 0.5,
-                center.y.clamp(bottom, top),
-                closest.z + normal.z * wall.width * 0.5,
-            );
-            let distance = center.distance(point);
-            let Some(diameter) = wall_scorch_diameter(scorch_radius, distance, reach_factor) else {
+    for solid in solids {
+        let pose = carriers.pose(solid.carrier);
+        let center = pose.inverse_transform_point(world_center);
+        let height = |face: &SolidFace| face.normal.dot(center - face.corners[0]);
+        let buried = solid.faces.iter().all(|face| height(face) <= 0.0);
+        for face in &solid.faces {
+            let height = height(face);
+            if height <= 0.0 && !(buried && height >= -BURIED_REACH) {
+                continue;
+            }
+            if let Some(existing) = placements
+                .iter_mut()
+                .find(|existing| existing.carrier == solid.carrier && existing.lies_on(face))
+            {
+                if existing.reaches(face) {
+                    let footprint = existing.footprint(face);
+                    existing.region.keep.push(footprint);
+                }
+                continue;
+            }
+            let on_ground = ground.is_some_and(|ground| {
+                ground.carrier == solid.carrier
+                    && face.normal.dot(ground.normal) > 0.999
+                    && ground
+                        .normal
+                        .dot(face.corners[0] - pose.inverse_transform_point(ground.point))
+                        .abs()
+                        <= COPLANAR_TOLERANCE
+            });
+            if on_ground {
+                continue;
+            }
+            let Some(diameter) = face_scorch_diameter(scorch_radius, height.abs(), reach_factor) else {
                 continue;
             };
-            let mut placement = ScorchPlacement::new(point, *normal, wall.carrier, diameter, style);
-            placement.region.keep = vec![vec![
-                placement.half_plane(-segment.direction, -segment.start.dot(segment.direction)),
-                placement.half_plane(segment.direction, segment.end.dot(segment.direction)),
-                placement.half_plane(Vec3::NEG_Y, -bottom),
-                placement.half_plane(Vec3::Y, top),
-            ]];
-            placement.region.cut = shadows(&placement, map_layout, center, diameter * 0.5);
-            insert_merging_coincident(&mut placements, placement);
+            let mut placement = ScorchPlacement::new(
+                center - face.normal * height,
+                face.normal,
+                solid.carrier,
+                diameter,
+                style,
+            );
+            if !placement.reaches(face) {
+                continue;
+            }
+            placement.region.keep.push(placement.footprint(face));
+            placements.push(placement);
         }
+    }
+    for placement in &mut placements {
+        let center = carriers.pose(placement.carrier).inverse_transform_point(world_center);
+        placement.region.cut = shadows(placement, solids, center);
     }
     placements
 }
 
-// Where no blast from `center` reaches on the mark's plane: what the walls,
-// floors, and ramps within reach hide. Each face the blast sees shadows the
-// pyramid from the blast through its edges past its plane, and together a
-// body's faces shadow exactly what it hides, so a blast reaches over a low
-// wall and around a short one while a floor or a ramp hides the storey beyond
-// it. The surface a mark sits on lies behind its own face and shadows nothing
-// of it.
-fn shadows(placement: &ScorchPlacement, map_layout: &MapLayout, center: Vec3, radius: f32) -> Vec<Convex> {
+// Where no blast from `center` reaches on the mark's plane: what the solids
+// within reach hide. Each face the blast sees shadows the pyramid from the
+// blast through its edges past its plane, and together a solid's faces
+// shadow exactly what it hides, so a blast reaches over a low wall and
+// around a short one while a slab or a ramp hides the storey beyond it. The
+// surface a mark sits on lies behind its own face and shadows nothing of it.
+fn shadows(placement: &ScorchPlacement, solids: &[Solid], center: Vec3) -> Vec<Convex> {
     let mark = placement.transform.translation;
-    let low = center.min(mark - Vec3::splat(radius));
-    let high = center.max(mark + Vec3::splat(radius));
-    let on_carrier = |carrier: CarrierId| carrier == placement.carrier;
-    let walls = map_layout
-        .walls
+    let radius = Vec3::splat(placement.radius());
+    let low = center.min(mark - radius);
+    let high = center.max(mark + radius);
+    solids
         .iter()
-        .filter(|wall| on_carrier(wall.carrier))
-        .filter_map(wall_prism);
-    let floors = map_layout
-        .floors
-        .iter()
-        .filter(|floor| on_carrier(floor.carrier))
-        .map(floor_prism);
-    let ramps = map_layout
-        .ramps
-        .iter()
-        .filter(|ramp| on_carrier(ramp.carrier))
-        .filter_map(ramp_prism);
-    walls
-        .chain(floors)
-        .chain(ramps)
-        .filter(|prism| {
-            let (min, max) = prism.bounds();
-            min.cmple(high).all() && max.cmpge(low).all()
-        })
-        .flat_map(|prism| prism.faces())
-        .filter(|(facing, corners)| facing.dot(center - corners[0]) > 0.0)
-        .map(|(facing, corners)| shadow_of(placement, center, facing, &corners))
+        .filter(|solid| solid.carrier == placement.carrier && solid.min.cmple(high).all() && solid.max.cmpge(low).all())
+        .flat_map(|solid| &solid.faces)
+        .filter(|face| face.normal.dot(center - face.corners[0]) > 0.0)
+        .map(|face| shadow_of(placement, center, face))
         .collect()
 }
 
-// A convex base polygon swept along `extrusion`: a wall's or a floor's slab,
-// a ramp's wedge.
-struct Prism {
-    base: Vec<Vec3>,
-    extrusion: Vec3,
-}
-
-impl Prism {
-    fn bounds(&self) -> (Vec3, Vec3) {
-        self.base
-            .iter()
-            .flat_map(|&corner| [corner, corner + self.extrusion])
-            .fold((Vec3::INFINITY, Vec3::NEG_INFINITY), |(min, max), corner| {
-                (min.min(corner), max.max(corner))
-            })
-    }
-
-    // Every face with its outward normal.
-    fn faces(&self) -> Vec<(Vec3, Vec<Vec3>)> {
-        let centroid = self.base.iter().sum::<Vec3>() / self.base.len() as f32 + self.extrusion * 0.5;
-        let lid: Vec<Vec3> = self.base.iter().map(|&corner| corner + self.extrusion).collect();
-        let mut faces = vec![(self.extrusion, lid), (-self.extrusion, self.base.clone())];
-        for (index, &start) in self.base.iter().enumerate() {
-            let end = self.base[(index + 1) % self.base.len()];
-            let mut normal = (end - start).cross(self.extrusion);
-            if normal.dot(start - centroid) < 0.0 {
-                normal = -normal;
-            }
-            faces.push((normal, vec![start, end, end + self.extrusion, start + self.extrusion]));
-        }
-        faces
-    }
-}
-
-fn wall_prism(wall: &Wall) -> Option<Prism> {
-    let segment = WallSegment::new(wall)?;
-    let half = segment.side() * (wall.width * 0.5);
-    let bottom = Vec3::Y * wall.y;
-    Some(Prism {
-        base: vec![
-            segment.start - half + bottom,
-            segment.end - half + bottom,
-            segment.end + half + bottom,
-            segment.start + half + bottom,
-        ],
-        extrusion: Vec3::Y * wall.height,
-    })
-}
-
-fn floor_prism(floor: &Floor) -> Prism {
-    let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
-    let bottom = floor.y - floor.thickness;
-    Prism {
-        base: vec![
-            Vec3::new(min_x, bottom, min_z),
-            Vec3::new(max_x, bottom, min_z),
-            Vec3::new(max_x, bottom, max_z),
-            Vec3::new(min_x, bottom, max_z),
-        ],
-        extrusion: Vec3::Y * floor.thickness,
-    }
-}
-
-// The ramp's volume, a wedge or a plank: its cross-section along the run,
-// swept across the width.
-fn ramp_prism(ramp: &Ramp) -> Option<Prism> {
-    ramp.surface_normal()?;
-    let prism = ramp.prism();
-    Some(Prism {
-        base: prism.profile,
-        extrusion: prism.sweep,
-    })
-}
-
-// The shadow of a convex face lit from `center`: past its plane, inside the
+// The shadow of a face lit from `center`: past its plane, inside the
 // pyramid from `center` through its edges.
-fn shadow_of(placement: &ScorchPlacement, center: Vec3, facing: Vec3, corners: &[Vec3]) -> Convex {
+fn shadow_of(placement: &ScorchPlacement, center: Vec3, face: &SolidFace) -> Convex {
+    let corners = &face.corners;
     let middle = corners.iter().sum::<Vec3>() / corners.len() as f32;
-    let mut shadow = vec![placement.half_plane(facing, facing.dot(middle))];
+    let mut shadow = vec![placement.half_plane(face.normal, face.normal.dot(middle))];
     for (index, &start) in corners.iter().enumerate() {
         let end = corners[(index + 1) % corners.len()];
         let mut normal = (end - start).cross(center - start);
@@ -317,62 +263,11 @@ fn shadow_of(placement: &ScorchPlacement, center: Vec3, facing: Vec3, corners: &
     shadow
 }
 
-struct WallSegment {
-    start: Vec3,
-    end: Vec3,
-    direction: Vec3,
-    length: f32,
-}
-
-impl WallSegment {
-    fn new(wall: &Wall) -> Option<Self> {
-        let start = Vec3::new(wall.x1, 0.0, wall.z1);
-        let end = Vec3::new(wall.x2, 0.0, wall.z2);
-        let length = start.distance(end);
-        (length > f32::EPSILON).then(|| Self {
-            start,
-            end,
-            direction: (end - start) / length,
-            length,
-        })
-    }
-
-    fn side(&self) -> Vec3 {
-        Vec3::new(-self.direction.z, 0.0, self.direction.x)
-    }
-
-    // The segment point nearest `p` on the ground plane, the side axis, and
-    // `p`'s signed distance along it.
-    fn closest(&self, p: Vec3) -> (Vec3, Vec3, f32) {
-        let flat = Vec3::new(p.x, 0.0, p.z);
-        let progress = ((flat - self.start).dot(self.direction) / self.length).clamp(0.0, 1.0);
-        let closest = self.start + (self.end - self.start) * progress;
-        let side = self.side();
-        (closest, side, (flat - closest).dot(side))
-    }
-}
-
-fn wall_bounds_xz(wall: &Wall) -> (f32, f32, f32, f32) {
-    let half = wall.width * 0.5;
-    (
-        wall.x1.min(wall.x2) - half,
-        wall.x1.max(wall.x2) + half,
-        wall.z1.min(wall.z2) - half,
-        wall.z1.max(wall.z2) + half,
-    )
-}
-
-// A ramp's surface as `normal · p = offset`.
-fn ramp_plane(ramp: &Ramp) -> Option<(Vec3, f32)> {
-    let normal = ramp.surface_normal()?;
-    Some((normal, normal.dot(ramp.corners().low[0])))
-}
-
-fn wall_scorch_diameter(scorch_radius: f32, wall_distance: f32, reach_factor: f32) -> Option<f32> {
-    if wall_distance > scorch_radius * reach_factor {
+fn face_scorch_diameter(scorch_radius: f32, face_distance: f32, reach_factor: f32) -> Option<f32> {
+    if face_distance > scorch_radius * reach_factor {
         return None;
     }
-    surface_cross_section_diameter(scorch_radius, wall_distance)
+    surface_cross_section_diameter(scorch_radius, face_distance)
 }
 
 pub(crate) fn surface_cross_section_diameter(radius: f32, surface_distance: f32) -> Option<f32> {
@@ -380,25 +275,6 @@ pub(crate) fn surface_cross_section_diameter(radius: f32, surface_distance: f32)
         return None;
     }
     Some(2.0 * radius.mul_add(radius, -surface_distance * surface_distance).sqrt())
-}
-
-// Adjoining wall sections meet at one face point and give the same mark
-// twice, each cut to its own rectangle; one mark on both rectangles covers
-// the seam.
-fn insert_merging_coincident(placements: &mut Vec<ScorchPlacement>, candidate: ScorchPlacement) {
-    if let Some(existing) = placements.iter_mut().find(|existing| {
-        existing.carrier == candidate.carrier
-            && existing.normal.dot(candidate.normal) > 0.999
-            && existing
-                .transform
-                .translation
-                .distance_squared(candidate.transform.translation)
-                < 1e-6
-    }) {
-        existing.region.keep.extend(candidate.region.keep);
-        return;
-    }
-    placements.push(candidate);
 }
 
 #[cfg(test)]

@@ -3,20 +3,15 @@ use super::{
     assets::{BlastRadii, ExplosionAssets, shockwave_mesh},
     particles::{ExplosionVfxBudget, SurfacePlane},
     scorch::{
-        SCORCH_SURFACE_OFFSET, ScorchStyle, SurfaceContact, ground_scorch_placement, spawn_scorch_mark,
-        surface_cross_section_diameter, wall_scorch_placements,
+        SCORCH_SURFACE_OFFSET, ScorchStyle, SurfaceContact, face_scorch_placements, ground_scorch_placement,
+        spawn_scorch_mark, surface_cross_section_diameter,
     },
     shards::spawn_shard_cloud,
     smoke::spawn_smoke_cloud,
 };
 use crate::{carriers::CarrierEntities, constants::*};
 use bevy::{light::NotShadowCaster, prelude::*};
-use common::{
-    config::GameplayConfig,
-    map::Carriers,
-    physics::CollisionWorld,
-    protocol::{MapLayout, Position},
-};
+use common::{config::GameplayConfig, map::Carriers, physics::CollisionWorld, protocol::Position};
 use rand::rng;
 
 const SHOCKWAVE_SURFACE_OFFSET: f32 = 0.05;
@@ -38,7 +33,6 @@ pub struct ExplosionSpawnCtx<'a> {
     pub explosion_assets: &'a ExplosionAssets,
     pub gameplay_config: &'a GameplayConfig,
     pub collision_world: &'a CollisionWorld,
-    pub map_layout: &'a MapLayout,
     pub carriers: &'a Carriers,
     pub carrier_entities: &'a CarrierEntities,
     pub blast_radii: &'a BlastRadii,
@@ -48,7 +42,6 @@ impl<'a> ExplosionSpawnCtx<'a> {
     fn surfaces(&self) -> ExplosionSurfaces<'a> {
         ExplosionSurfaces {
             collision_world: self.collision_world,
-            map_layout: self.map_layout,
             carriers: self.carriers,
             carrier_entities: self.carrier_entities,
         }
@@ -59,7 +52,6 @@ impl<'a> ExplosionSpawnCtx<'a> {
 // the carrier roots a mark hangs under.
 struct ExplosionSurfaces<'a> {
     collision_world: &'a CollisionWorld,
-    map_layout: &'a MapLayout,
     carriers: &'a Carriers,
     carrier_entities: &'a CarrierEntities,
 }
@@ -155,7 +147,6 @@ fn spawn_explosion(
     } = spec;
     let ExplosionSurfaces {
         collision_world,
-        map_layout,
         carriers,
         carrier_entities,
     } = *surfaces;
@@ -218,14 +209,17 @@ fn spawn_explosion(
     let scorch_diameter = 2.0 * reach_radius * EXPLOSION_SCORCH_BLAST_DIAMETER_FACTOR;
     let scorch_radius = scorch_diameter * 0.5;
     let scorch_style = ScorchStyle::random(explosion_assets.scorch_variants.len(), &mut rng);
-    if let Some(surface) = ground_surface
-        && let Some(diameter) = surface_cross_section_diameter(scorch_radius, center.distance(surface.point))
+    // A mark and whatever shadows it lie inside the blast's own sphere, a
+    // slanted contact a little beyond it.
+    let solids = collision_world.structural_solids_near(carriers, center, scorch_diameter);
+    let ground_contact = ground_surface.map(|surface| SurfaceContact {
+        point: surface.point,
+        normal: surface.normal,
+        carrier: surface.carrier,
+    });
+    if let Some(contact) = ground_contact
+        && let Some(diameter) = surface_cross_section_diameter(scorch_radius, center.distance(contact.point))
     {
-        let contact = SurfaceContact {
-            point: surface.point,
-            normal: surface.normal,
-            carrier: surface.carrier,
-        };
         spawn_scorch_mark(
             commands,
             meshes,
@@ -233,18 +227,19 @@ fn spawn_explosion(
             budget,
             explosion_assets,
             carrier_entities,
-            ground_scorch_placement(contact, map_layout, carriers, center, diameter, scorch_style),
+            ground_scorch_placement(contact, &solids, carriers, center, diameter, scorch_style),
             scorch_style,
             EXPLOSION_SCORCH_MAX_ACTIVE,
         );
     }
-    for placement in wall_scorch_placements(
-        map_layout,
+    for placement in face_scorch_placements(
+        &solids,
         carriers,
         center,
         scorch_radius,
         EXPLOSION_SCORCH_WALL_REACH_FACTOR,
         scorch_style,
+        ground_contact,
     ) {
         spawn_scorch_mark(
             commands,

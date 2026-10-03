@@ -6,6 +6,7 @@ use crate::{
 use bevy::prelude::*;
 use common::{
     map::{Carriers, Grounds},
+    physics::CollisionWorld,
     protocol::{CarrierId, Floor, MapLayout},
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -127,6 +128,7 @@ pub(super) fn grounds_cell_center(cell: IVec2) -> Vec2 {
 pub fn grass_sources_reset_system(
     mut commands: Commands,
     layout: Res<MapLayout>,
+    collision_world: Res<CollisionWorld>,
     debug_colors: Res<DebugColors>,
     mut sources: ResMut<GrassSources>,
     mut chunks: ResMut<GrassChunks>,
@@ -144,12 +146,12 @@ pub fn grass_sources_reset_system(
     });
     sources.entries.clear();
     if layout.is_changed() {
+        let solids = collision_world.structural_solids();
         sources.clearance = std::iter::once(CarrierId::WORLD)
-            .chain(layout.floors.iter().map(|f| f.carrier))
-            .chain(layout.ramps.iter().map(|r| r.carrier))
+            .chain(solids.iter().map(|solid| solid.carrier))
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()
-            .map(|carrier| (carrier, Arc::new(GrassClearance::new(&layout, carrier))))
+            .map(|carrier| (carrier, Arc::new(GrassClearance::new(&solids, carrier))))
             .collect();
         sources.grounds = layout.grounds.clone().map(|grounds| GroundsGrass {
             level: grounds.settings.level,

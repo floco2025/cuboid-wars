@@ -4,7 +4,10 @@ use bevy::{
     asset::RenderAssetUsages, camera::primitives::Aabb, mesh::Indices, prelude::*,
     render::render_resource::PrimitiveTopology,
 };
-use common::protocol::{CheckpointKind, MapLayout};
+use common::{
+    physics::CollisionWorld,
+    protocol::{CheckpointKind, MapLayout},
+};
 
 use super::checkpoint_paint::CheckpointPaint;
 use crate::{
@@ -206,6 +209,7 @@ fn group_badge_mesh() -> Mesh {
 pub(crate) fn checkpoints_spawn_system(
     mut commands: Commands,
     layout: Res<MapLayout>,
+    collision_world: Res<CollisionWorld>,
     carriers: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
     mut paint: CheckpointPaint,
@@ -219,6 +223,7 @@ pub(crate) fn checkpoints_spawn_system(
         commands.entity(entity).despawn();
     }
     let mut paint_materials = HashMap::new();
+    let solids = collision_world.structural_solids();
     // The start has no flag or paint: nothing marks where players begin.
     for checkpoint in layout.checkpoints.iter().filter(|checkpoint| checkpoint.number != 0) {
         let number = checkpoint.number;
@@ -233,7 +238,7 @@ pub(crate) fn checkpoints_spawn_system(
                 Visibility::Inherited,
             ))
             .with_children(|parent| {
-                paint.spawn(parent, checkpoint, &layout, &mut paint_materials);
+                paint.spawn(parent, checkpoint, &layout, &solids, &mut paint_materials);
                 parent.spawn((
                     Mesh3d(assets.base_mesh.clone()),
                     MeshMaterial3d(assets.pole.clone()),

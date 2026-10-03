@@ -1,8 +1,13 @@
 use super::*;
+use crate::test_fixtures::structural_solids;
 use common::protocol::{CarrierId, FieldId, Floor, Wall};
 
+fn visuals(layout: &MapLayout) -> Vec<BridgeVisual> {
+    bridge_visuals(layout, &structural_solids(layout))
+}
+
 fn bridge_surface_rects(bridge: &LightBridge, walls: &[Wall]) -> Vec<Rect> {
-    bridge_visuals(&MapLayout {
+    visuals(&MapLayout {
         light_bridges: vec![*bridge],
         walls: walls.to_vec(),
         ..Default::default()
@@ -143,7 +148,7 @@ fn connected_bridge_frames_cover_only_the_outline_once_including_concave_corners
             light_bridges: bridges,
             ..Default::default()
         };
-        let visual = bridge_visuals(&layout).remove(0);
+        let visual = visuals(&layout).remove(0);
         let inside = |point: Vec2| visual.surfaces.iter().any(|rect| rect.contains(point));
         for xs in cuts.windows(2) {
             for zs in cuts.windows(2) {
@@ -179,7 +184,7 @@ fn frames_are_clipped_by_solids_but_not_by_another_carrier() {
         floors: vec![floor],
         ..Default::default()
     };
-    let visual = bridge_visuals(&layout).remove(0);
+    let visual = visuals(&layout).remove(0);
     for rect in visual.frames.iter().chain(&visual.surfaces) {
         assert!(rect.min.y >= 0.25 && rect.max.y <= 3.75);
     }
@@ -195,7 +200,7 @@ fn frames_are_clipped_by_solids_but_not_by_another_carrier() {
         }],
         ..layout
     };
-    let visual = bridge_visuals(&layout).remove(0);
+    let visual = visuals(&layout).remove(0);
     assert!(visual.frames.iter().any(|rect| rect.contains(Vec2::new(2.0, -0.2))));
 }
 
@@ -218,7 +223,7 @@ fn adjacent_kinds_have_their_own_frames_without_coplanar_overlap() {
         light_bridges: vec![a, b],
         ..Default::default()
     };
-    let visuals = bridge_visuals(&layout);
+    let visuals = visuals(&layout);
     assert_eq!(visuals.len(), 2);
     assert!(visuals[0].frames.iter().any(|rect| rect.contains(Vec2::new(3.95, 2.0))));
     assert!(visuals[1].frames.iter().any(|rect| rect.contains(Vec2::new(4.05, 2.0))));

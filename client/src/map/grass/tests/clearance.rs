@@ -1,5 +1,10 @@
 use super::*;
-use common::protocol::RampDirection;
+use crate::test_fixtures::structural_solids;
+use common::protocol::{Floor, MapLayout, Ramp, RampDirection, RampShape, Wall};
+
+fn clearance(layout: &MapLayout, carrier: CarrierId) -> GrassClearance {
+    GrassClearance::new(&structural_solids(layout), carrier)
+}
 
 fn ramp() -> Ramp {
     Ramp {
@@ -24,14 +29,14 @@ fn blades_clear_the_low_end_of_planks_but_grow_under_the_high_end() {
         ramps: vec![ramp()],
         ..default()
     };
-    let clearance = GrassClearance::new(&layout, CarrierId::WORLD);
-    assert!(!clearance.allows(Vec3::new(0.2, 0.0, 0.0)));
-    assert!(!clearance.allows(Vec3::new(3.0, 1.0, 0.0))); // rising grounds under the plank
-    assert!(clearance.allows(Vec3::new(8.0, 0.0, 0.0)));
-    assert!(clearance.allows(Vec3::new(0.2, 0.0, 4.0)));
+    let plank = clearance(&layout, CarrierId::WORLD);
+    assert!(!plank.allows(Vec3::new(0.2, 0.0, 0.0)));
+    assert!(!plank.allows(Vec3::new(3.0, 1.0, 0.0))); // rising grounds under the plank
+    assert!(plank.allows(Vec3::new(8.0, 0.0, 0.0)));
+    assert!(plank.allows(Vec3::new(0.2, 0.0, 4.0)));
     layout.ramps[0].shape = RampShape::Solid;
-    assert!(!GrassClearance::new(&layout, CarrierId::WORLD).allows(Vec3::new(8.0, 0.0, 0.0)));
-    assert!(GrassClearance::new(&layout, CarrierId(1)).allows(Vec3::new(8.0, 0.0, 0.0)));
+    assert!(!clearance(&layout, CarrierId::WORLD).allows(Vec3::new(8.0, 0.0, 0.0)));
+    assert!(clearance(&layout, CarrierId(1)).allows(Vec3::new(8.0, 0.0, 0.0)));
 }
 
 #[test]
@@ -49,11 +54,34 @@ fn support_floors_allow_blades_but_low_overhead_slabs_exclude_them() {
         }],
         ..default()
     };
-    assert!(GrassClearance::new(&layout, CarrierId::WORLD).allows(Vec3::ZERO));
+    assert!(clearance(&layout, CarrierId::WORLD).allows(Vec3::ZERO));
     layout.floors.push(Floor {
         y: 0.4,
         ..layout.floors[0]
     });
-    assert!(!GrassClearance::new(&layout, CarrierId::WORLD).allows(Vec3::ZERO));
-    assert!(GrassClearance::new(&layout, CarrierId::WORLD).allows(Vec3::Y * 0.4));
+    assert!(!clearance(&layout, CarrierId::WORLD).allows(Vec3::ZERO));
+    assert!(clearance(&layout, CarrierId::WORLD).allows(Vec3::Y * 0.4));
+}
+
+// A blade beside a wall only leans into its face; one inside it never shows.
+#[test]
+fn blades_grow_up_to_a_wall_and_not_inside_it() {
+    let layout = MapLayout {
+        walls: vec![Wall {
+            x1: -5.0,
+            x2: 5.0,
+            z1: 1.0,
+            z2: 1.0,
+            width: 0.2,
+            y: 0.0,
+            height: 3.0,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        ..default()
+    };
+    let wall = clearance(&layout, CarrierId::WORLD);
+    assert!(wall.allows(Vec3::new(0.0, 0.0, 0.85)));
+    assert!(!wall.allows(Vec3::new(0.0, 0.0, 1.0)));
+    assert!(wall.allows(Vec3::new(0.0, 0.0, 1.15)));
 }

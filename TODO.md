@@ -4,6 +4,8 @@
 
 - **Navigation search exhaustion:** a connected route whose A* search exceeds the per-query budget fails repeatedly, including some long Hotel detours. Continue such searches across ticks under the shared work cap.
 
+- **Gatehouse's Firing Line can be walked:** a body that walks from the door into the pen under the turret's fire arrives with about 230 of 500 health, presses the plate, and leaves by the intended return portal with about 80, so the shield and the entry portal are optional. `walking_to_the_pen_and_back_is_lethal` covers only the walk both ways. The walk in must be lethal while the intended return stays survivable.
+
 - **Review capture on macOS:** with Peekaboo 4.6 the launch in `tools/game_review/macos/README.md` reports an unverifiable receipt and `window list` and `see` cannot find the review app. Launching the binary with `--spawn` and `--look`, reading the window id from `CGWindowListCopyWindowInfo` by process id, and `screencapture -l` works.
 
 ## Enhancements

@@ -1,5 +1,8 @@
 use bevy::prelude::*;
-use common::protocol::{MapLayout, MapSettings};
+use common::{
+    physics::CollisionWorld,
+    protocol::{MapLayout, MapSettings},
+};
 
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
@@ -37,6 +40,7 @@ impl FromWorld for EraserAssets {
 pub(crate) fn erasers_spawn_system(
     mut commands: Commands,
     layout: Res<MapLayout>,
+    collision_world: Res<CollisionWorld>,
     settings: Res<MapSettings>,
     carriers: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
@@ -51,12 +55,13 @@ pub(crate) fn erasers_spawn_system(
         commands.entity(entity).despawn();
     }
     let floor_thickness = settings.geometry.floor_thickness;
+    let solids = collision_world.structural_solids();
     let fields = merge_fields(
         layout
             .erasers
             .iter()
             .map(|eraser| VisualField::from_eraser(eraser, floor_thickness)),
-        &layout.floors,
+        &solids,
         floor_thickness,
     );
     for field in fields {
@@ -68,6 +73,6 @@ pub(crate) fn erasers_spawn_system(
                 field.transform(),
                 Visibility::Inherited,
             ))
-            .with_children(|parent| spawn_field_visual(parent, &meshes, &assets.visual, &field, &layout));
+            .with_children(|parent| spawn_field_visual(parent, &meshes, &assets.visual, &field, &solids));
     }
 }

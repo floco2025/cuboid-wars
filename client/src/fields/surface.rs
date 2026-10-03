@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::protocol::{CarrierId, Floor, MapLayout};
+use common::{physics::Solid, protocol::CarrierId};
 
 pub(crate) fn surface_frame_rects(surfaces: &[Rect], thickness: f32) -> Vec<Rect> {
     let mut frame = Vec::new();
@@ -59,28 +59,27 @@ pub(super) fn surface_edges(surfaces: &[Rect]) -> Vec<Rect> {
     edges
 }
 
+// How far a solid may stop short of the surface's slab and still cut it, and
+// the thinnest piece a cut leaves: collider bounds carry float rounding the
+// surfaces' own grid coordinates do not.
+const CLIP_EPSILON: f32 = 1e-4;
+
+// The parts of the surfaces no structural box on their carrier covers: the
+// surfaces lie in the plane `plane` across `axes`, and a box cuts them where
+// it comes within `depth` of that plane.
 pub(crate) fn clip_surface_rects(
     mut surfaces: Vec<Rect>,
-    layout: &MapLayout,
+    solids: &[Solid],
     carrier: CarrierId,
     axes: [usize; 2],
     plane: f32,
     depth: f32,
 ) -> Vec<Rect> {
-    let walls = layout.walls.iter().filter(|wall| wall.carrier == carrier).map(|wall| {
-        let start = Vec3::new(wall.x1, wall.y, wall.z1);
-        let end = Vec3::new(wall.x2, wall.y + wall.height, wall.z2);
-        let pad = if wall.z1 == wall.z2 { Vec3::Z } else { Vec3::X } * (wall.width / 2.0);
-        (start.min(end) - pad, start.max(end) + pad)
-    });
-    let floors = layout
-        .floors
-        .iter()
-        .filter(|floor| floor.carrier == carrier)
-        .map(floor_bounds);
     let normal = 3 - axes[0] - axes[1];
-    for (min, max) in walls.chain(floors) {
-        if min[normal] > plane + depth || max[normal] < plane - depth {
+    let reach = depth + CLIP_EPSILON;
+    for solid in solids.iter().filter(|solid| solid.carrier == carrier && solid.is_box()) {
+        let (min, max) = (solid.min, solid.max);
+        if min[normal] > plane + reach || max[normal] < plane - reach {
             continue;
         }
         let cut = Rect::new(min[axes[0]], min[axes[1]], max[axes[0]], max[axes[1]]);
@@ -90,14 +89,6 @@ pub(crate) fn clip_surface_rects(
             .collect();
     }
     surfaces
-}
-
-pub(super) fn floor_bounds(floor: &Floor) -> (Vec3, Vec3) {
-    let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
-    (
-        Vec3::new(min_x, floor.y - floor.thickness, min_z),
-        Vec3::new(max_x, floor.y, max_z),
-    )
 }
 
 fn subtract_rect(surface: Rect, cut: Rect) -> Vec<Rect> {
@@ -125,6 +116,6 @@ fn subtract_rect(surface: Rect, cut: Rect) -> Vec<Rect> {
         },
     ]
     .into_iter()
-    .filter(|rect| rect.width() > 0.0 && rect.height() > 0.0)
+    .filter(|rect| rect.width() > CLIP_EPSILON && rect.height() > CLIP_EPSILON)
     .collect()
 }

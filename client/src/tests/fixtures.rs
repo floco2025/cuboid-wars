@@ -5,7 +5,8 @@ use common::{
     config::{GameplayConfig, KnockbackConfig, MapGeometryConfig, MapMovementConfig, PlayerMovementConfig},
     constants::BARRIER_THICKNESS_FRACTION,
     map::MapGeometry,
-    protocol::{MapSettings, PortalMode},
+    physics::{CollisionWorld, Solid},
+    protocol::{Carrier, CarrierId, CarrierMotion, MapLayout, MapSettings, PortalMode, Position},
 };
 
 use bevy::{audio::GlobalVolume, prelude::*};
@@ -121,3 +122,37 @@ pub(crate) fn follow_camera() -> FollowCameraConfig {
 
 pub(crate) const PORTAL_HALF_WIDTH: f32 = 0.7;
 pub(crate) const PORTAL_HALF_HEIGHT: f32 = 1.3;
+
+// The structural solids of a layout, for code that reads the collision
+// world's geometry. Records may name carriers the layout does not list:
+// each gets one parked at the origin.
+pub(crate) fn structural_solids(layout: &MapLayout) -> Vec<Solid> {
+    let mut layout = layout.clone();
+    let highest = layout
+        .walls
+        .iter()
+        .map(|wall| wall.carrier)
+        .chain(layout.floors.iter().map(|floor| floor.carrier))
+        .chain(layout.ramps.iter().map(|ramp| ramp.carrier))
+        .chain(layout.barriers.iter().map(|barrier| barrier.carrier))
+        .chain(layout.light_bridges.iter().map(|bridge| bridge.carrier))
+        .map(|carrier| usize::from(carrier.0))
+        .max()
+        .unwrap_or(0);
+    while layout.carriers.len() < highest {
+        layout.carriers.push(Carrier {
+            motion: CarrierMotion::default(),
+            initially_on: true,
+            parent: CarrierId::WORLD,
+            level: 0,
+            levels: 0,
+            from: Position::default(),
+            to: Position::default(),
+            travel_ticks: 60,
+            pause_ticks: 0,
+            phase_ticks: 0,
+            switch: None,
+        });
+    }
+    CollisionWorld::from_map_layout(&layout).structural_solids()
+}

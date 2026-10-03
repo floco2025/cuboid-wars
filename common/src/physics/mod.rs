@@ -25,6 +25,6 @@ pub use portals::{
 };
 pub use watchdog::ProgressWatchdog;
 pub use world::{
-    CollisionMesh, CollisionSource, CollisionWorld, LadderVolume, ShapeCastHit, WorldSurfaceHit,
+    CollisionMesh, CollisionSource, CollisionWorld, LadderVolume, ShapeCastHit, Solid, SolidFace, WorldSurfaceHit,
     carriers_advance_system,
 };

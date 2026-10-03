@@ -4,7 +4,7 @@ use common::{
     map::Carriers,
     math::angle_delta_radians,
     physics::CollisionWorld,
-    protocol::{MapLayout, MissileId, MissileMovementState, Position},
+    protocol::{MissileId, MissileMovementState, Position},
 };
 
 use super::{MissileImpact, MissileMap, MissileVelocity, RemoteMissileMotion};
@@ -56,7 +56,6 @@ pub(crate) struct MissileExplosionParams<'w> {
     explosion_assets: Res<'w, ExplosionAssets>,
     gameplay_config: Res<'w, GameplayConfig>,
     collision_world: Res<'w, CollisionWorld>,
-    map_layout: Res<'w, MapLayout>,
     carriers: Res<'w, Carriers>,
     carrier_entities: Res<'w, CarrierEntities>,
     blast_radii: Res<'w, BlastRadii>,
@@ -74,7 +73,6 @@ impl MissileExplosionParams<'_> {
             explosion_assets: &self.explosion_assets,
             gameplay_config: &self.gameplay_config,
             collision_world: &self.collision_world,
-            map_layout: &self.map_layout,
             carriers: &self.carriers,
             carrier_entities: &self.carrier_entities,
             blast_radii: &self.blast_radii,

@@ -1,5 +1,5 @@
 use bevy::{light::NotShadowCaster, prelude::*};
-use common::protocol::MapLayout;
+use common::physics::Solid;
 
 use super::{FieldMeshes, FieldVisual, PaneVisual, VisualField, field_pane_mesh};
 use crate::{constants::FIELD_EDGE_FADE_WIDTH, materials::FieldMaterial};
@@ -10,17 +10,17 @@ pub(crate) fn spawn_field_visual(
     meshes: &FieldMeshes,
     visual: &PaneVisual,
     field: &VisualField,
-    layout: &MapLayout,
+    solids: &[Solid],
 ) {
     let center = field.rect.center();
-    for rect in field.panel_rects(layout) {
+    for rect in field.panel_rects(solids) {
         spawn_scaled(parent, &meshes.panel, &visual.surface, rect, center, 1.0);
     }
     spawn_frames(
         parent,
         meshes,
         &visual.frame,
-        field.frame_rects(layout),
+        field.frame_rects(solids),
         center,
         field.thickness,
     );

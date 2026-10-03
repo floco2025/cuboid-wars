@@ -2,7 +2,10 @@ use super::{
     super::variants::{ScorchStyle, scorch_variant},
     *,
 };
-use common::protocol::{Floor, Ramp, RampDirection, RampShape, SwitchState, Wall};
+use common::{
+    physics::CollisionWorld,
+    protocol::{Floor, MapLayout, Ramp, RampDirection, RampShape, SwitchState, Wall},
+};
 use rand::{SeedableRng, rngs::SmallRng};
 
 const WALL_HEIGHT: f32 = 3.0;
@@ -44,6 +47,18 @@ fn style() -> ScorchStyle {
     ScorchStyle::random(1, &mut SmallRng::seed_from_u64(7))
 }
 
+fn solids(layout: &MapLayout) -> Vec<Solid> {
+    CollisionWorld::from_map_layout(layout).structural_solids()
+}
+
+// The marks on the other planes that survive their cuts, as a blast spawns them.
+fn face_marks(layout: &MapLayout, center: Vec3, radius: f32, ground: Option<SurfaceContact>) -> Vec<ScorchPlacement> {
+    face_scorch_placements(&solids(layout), &carriers(layout), center, radius, 1.0, style(), ground)
+        .into_iter()
+        .filter(|placement| !placement.region.apply(&scorch_variant(0)).triangles.is_empty())
+        .collect()
+}
+
 // The mark's vertices in its carrier's frame.
 fn points(placement: &ScorchPlacement) -> Vec<Vec3> {
     let variant = placement.region.apply(&scorch_variant(0));
@@ -65,13 +80,20 @@ fn ground(layout: &MapLayout, point: Vec3, normal: Vec3, diameter: f32) -> Scorc
         normal,
         carrier: CarrierId::WORLD,
     };
-    ground_scorch_placement(contact, layout, &carriers(layout), point + Vec3::Y, diameter, style())
+    ground_scorch_placement(
+        contact,
+        &solids(layout),
+        &carriers(layout),
+        point + Vec3::Y,
+        diameter,
+        style(),
+    )
 }
 
 #[test]
-fn wall_cross_section_stops_at_reach_limit() {
-    assert!(wall_scorch_diameter(2.0, 1.21, 0.6).is_none());
-    assert!(wall_scorch_diameter(2.0, 1.20, 0.6).is_some());
+fn face_cross_section_stops_at_reach_limit() {
+    assert!(face_scorch_diameter(2.0, 1.21, 0.6).is_none());
+    assert!(face_scorch_diameter(2.0, 1.20, 0.6).is_some());
 }
 
 #[test]
@@ -157,7 +179,7 @@ fn a_blast_above_a_low_wall_marks_the_floor_beyond_its_shadow() {
     };
     let placement = ground_scorch_placement(
         contact,
-        &layout,
+        &solids(&layout),
         &carriers(&layout),
         Vec3::new(0.0, 2.0, 0.0),
         8.0,
@@ -171,7 +193,7 @@ fn a_blast_above_a_low_wall_marks_the_floor_beyond_its_shadow() {
 }
 
 #[test]
-fn a_floor_between_storeys_hides_the_wall_mark_below_it() {
+fn a_floor_between_storeys_hides_the_wall_face_below_it() {
     let layout = MapLayout {
         floors: vec![
             floor(-10.0, -10.0, 10.0, 10.0),
@@ -192,18 +214,18 @@ fn a_floor_between_storeys_hides_the_wall_mark_below_it() {
         ],
         ..default()
     };
-    let placements = wall_scorch_placements(&layout, &carriers(&layout), Vec3::new(0.0, 5.0, 0.0), 3.0, 1.0, style());
-    assert_eq!(placements.len(), 2);
-    let below = placements
-        .iter()
-        .find(|placement| placement.transform.translation.y < 4.0)
-        .expect("mark on the lower storey's wall");
-    assert!(below.region.apply(&scorch_variant(0)).triangles.is_empty());
-    let above = placements
-        .iter()
-        .find(|placement| placement.transform.translation.y >= 4.0)
-        .expect("mark on the upper storey's wall");
-    assert!(points(above).iter().all(|p| p.y >= 4.0 - 1e-3));
+    let ground = SurfaceContact {
+        point: Vec3::new(0.0, 4.0, 0.0),
+        normal: Vec3::Y,
+        carrier: CarrierId::WORLD,
+    };
+    // Both sections share the plane and so one mark, which the slab between
+    // the storeys cuts off the lower one.
+    let marks = face_marks(&layout, Vec3::new(0.0, 5.0, 0.0), 3.0, Some(ground));
+    assert_eq!(marks.len(), 1);
+    let points = points(&marks[0]);
+    assert!(points.iter().all(|p| p.y >= 4.0 - 1e-3 && (p.z - 0.885).abs() < 1e-3));
+    assert!(points.iter().any(|p| p.y < 4.1));
 }
 
 #[test]
@@ -229,7 +251,7 @@ fn a_blast_over_a_hole_marks_the_floor_below_only_through_it() {
     };
     let placement = ground_scorch_placement(
         contact,
-        &layout,
+        &solids(&layout),
         &carriers(&layout),
         Vec3::new(0.0, 8.0, 0.0),
         8.0,
@@ -269,16 +291,15 @@ fn a_ramp_hides_the_wall_beneath_it_and_takes_its_own_mark() {
         ..default()
     };
     let center = Vec3::new(2.0, 2.5, 0.0);
-    let placements = wall_scorch_placements(&layout, &carriers(&layout), center, 3.0, 1.0, style());
-    assert_eq!(placements.len(), 1);
-    assert!(placements[0].region.apply(&scorch_variant(0)).triangles.is_empty());
-
     let contact = SurfaceContact {
         point: Vec3::new(2.0, 1.0, 0.0),
         normal: Vec3::new(-0.5, 1.0, 0.0).normalize(),
         carrier: CarrierId::WORLD,
     };
-    let on_ramp = ground_scorch_placement(contact, &layout, &carriers(&layout), center, 3.0, style());
+    // The wall inside the ramp and the floor under it are within reach and out of sight.
+    assert!(face_marks(&layout, center, 3.0, Some(contact)).is_empty());
+
+    let on_ramp = ground_scorch_placement(contact, &solids(&layout), &carriers(&layout), center, 3.0, style());
     assert!(points(&on_ramp).iter().any(|p| (p.x - 2.0).abs() > 1.0));
 }
 
@@ -288,11 +309,75 @@ fn marks_on_adjoining_wall_sections_cover_the_seam() {
         walls: vec![wall(-4.0, 1.0, 0.0, 1.0), wall(0.0, 1.0, 4.0, 1.0)],
         ..default()
     };
-    let placements = wall_scorch_placements(&layout, &carriers(&layout), Vec3::new(0.0, 1.0, 0.0), 2.0, 1.0, style());
+    let placements = face_marks(&layout, Vec3::new(0.0, 1.0, 0.0), 2.0, None);
     assert_eq!(placements.len(), 1);
     let points = points(&placements[0]);
     assert!(points.iter().any(|p| p.x < -0.5));
     assert!(points.iter().any(|p| p.x > 0.5));
+}
+
+// A wall two sections tall is two walls and the trim strip that fills the
+// floor band between them: one face to a blast.
+#[test]
+fn a_mark_spans_stacked_wall_sections_and_the_band_between_them() {
+    let layout = MapLayout {
+        walls: vec![
+            Wall {
+                height: 1.4,
+                ..wall(-2.0, 1.0, 2.0, 1.0)
+            },
+            Wall {
+                y: 1.6,
+                height: 1.4,
+                ..wall(-2.0, 1.0, 2.0, 1.0)
+            },
+        ],
+        floors: vec![Floor {
+            y: 1.6,
+            thickness: 0.2,
+            ..floor(-2.0, 0.9, 2.0, 1.1)
+        }],
+        ..default()
+    };
+    let placements = face_marks(&layout, Vec3::new(0.0, 1.5, 0.0), 2.0, None);
+    assert_eq!(placements.len(), 1);
+    let points = points(&placements[0]);
+    assert!(points.iter().all(|p| (p.z - 0.885).abs() < 1e-3));
+    assert!(points.iter().any(|p| p.y < 1.3));
+    assert!(points.iter().any(|p| p.y > 1.45 && p.y < 1.55));
+    assert!(points.iter().any(|p| p.y > 1.7));
+}
+
+#[test]
+fn a_blast_inside_a_thin_wall_marks_both_its_faces() {
+    let layout = MapLayout {
+        walls: vec![wall(-2.0, 1.0, 2.0, 1.0)],
+        ..default()
+    };
+    let placements = face_marks(&layout, Vec3::new(0.0, 1.5, 1.0), 2.0, None);
+    let mut sides: Vec<f32> = placements
+        .iter()
+        .map(|placement| placement.transform.translation.z)
+        .collect();
+    sides.sort_by(f32::total_cmp);
+    assert_eq!(sides.len(), 2);
+    assert!((sides[0] - 0.885).abs() < 1e-3 && (sides[1] - 1.115).abs() < 1e-3);
+}
+
+#[test]
+fn the_ground_contact_keeps_its_one_mark() {
+    let layout = MapLayout {
+        floors: vec![floor(-10.0, -10.0, 10.0, 10.0)],
+        ..default()
+    };
+    let center = Vec3::new(0.0, 0.5, 0.0);
+    let ground = SurfaceContact {
+        point: Vec3::ZERO,
+        normal: Vec3::Y,
+        carrier: CarrierId::WORLD,
+    };
+    assert!(face_marks(&layout, center, 2.0, Some(ground)).is_empty());
+    assert_eq!(face_marks(&layout, center, 2.0, None).len(), 1);
 }
 
 #[test]
@@ -329,7 +414,7 @@ fn wall_mark_is_cut_to_the_wall_rectangle() {
         walls: vec![wall(-2.0, 1.0, 2.0, 1.0)],
         ..default()
     };
-    let placements = wall_scorch_placements(&layout, &carriers(&layout), Vec3::new(1.5, 2.5, 0.0), 2.0, 1.0, style());
+    let placements = face_marks(&layout, Vec3::new(1.5, 2.5, 0.0), 2.0, None);
     assert_eq!(placements.len(), 1);
     let placement = &placements[0];
     assert_eq!(placement.transform.scale, Vec3::splat(placement.transform.scale.x));
@@ -351,7 +436,7 @@ fn a_nearer_wall_shadows_the_mark_on_the_wall_behind() {
         walls: vec![wall(-1.0, 1.0, 1.0, 1.0), wall(-10.0, 3.0, 10.0, 3.0)],
         ..default()
     };
-    let placements = wall_scorch_placements(&layout, &carriers(&layout), Vec3::new(0.0, 1.0, 0.0), 5.0, 1.0, style());
+    let placements = face_marks(&layout, Vec3::new(0.0, 1.0, 0.0), 5.0, None);
     assert_eq!(placements.len(), 2);
     let behind = placements
         .iter()

@@ -1,7 +1,10 @@
 use std::mem;
 
 use bevy::prelude::*;
-use common::protocol::{LightBridge, MapLayout};
+use common::{
+    physics::Solid,
+    protocol::{LightBridge, MapLayout},
+};
 
 use crate::fields::{clip_surface_rects, surface_frame_rects};
 
@@ -13,7 +16,7 @@ pub(super) struct BridgeVisual {
     pub frames: Vec<Rect>,
 }
 
-pub(super) fn bridge_visuals(layout: &MapLayout) -> Vec<BridgeVisual> {
+pub(super) fn bridge_visuals(layout: &MapLayout, solids: &[Solid]) -> Vec<BridgeVisual> {
     let mut groups: Vec<BridgeVisual> = Vec::new();
     for bridge in &layout.light_bridges {
         let (x1, x2, z1, z2) = bridge.bounds_xz();
@@ -48,10 +51,10 @@ pub(super) fn bridge_visuals(layout: &MapLayout) -> Vec<BridgeVisual> {
             })
             .filter(|rect| rect.min.x < rect.max.x && rect.min.y < rect.max.y)
             .collect();
-        group.frames = clip_surface_rects(frames, layout, bridge.carrier, [0, 2], bridge.y, bridge.thickness / 2.0);
+        group.frames = clip_surface_rects(frames, solids, bridge.carrier, [0, 2], bridge.y, bridge.thickness / 2.0);
         group.surfaces = clip_surface_rects(
             mem::take(&mut group.surfaces),
-            layout,
+            solids,
             bridge.carrier,
             [0, 2],
             bridge.y,

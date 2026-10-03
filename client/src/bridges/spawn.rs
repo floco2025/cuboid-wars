@@ -9,7 +9,10 @@ use crate::{
     fields::{FieldAssets, FieldMeshes, FieldPiece, FieldSurface, FieldSurfaces, fade_target, spawn_patterned_surface},
     materials::{FieldMaterial, field_material},
 };
-use common::protocol::{MapLayout, SwitchState};
+use common::{
+    physics::CollisionWorld,
+    protocol::{MapLayout, SwitchState},
+};
 
 #[derive(Component)]
 pub struct LightBridgeMarker;
@@ -21,6 +24,7 @@ pub struct LightBridgeMarker;
 pub fn bridges_spawn_system(
     mut commands: Commands,
     map_layout: Res<MapLayout>,
+    collision_world: Res<CollisionWorld>,
     client_settings: Res<ClientSettings>,
     field_meshes: Res<FieldMeshes>,
     field_assets: Res<FieldAssets>,
@@ -42,7 +46,7 @@ pub fn bridges_spawn_system(
     surfaces.forget(FieldPiece::Bridge);
 
     let config = client_settings.vfx.fields;
-    for visual in bridge_visuals(&map_layout) {
+    for visual in bridge_visuals(&map_layout, &collision_world.structural_solids()) {
         let bridge = &visual.bridge;
         let (x1, x2, z1, z2) = bridge.bounds_xz();
         let center = Rect::new(x1, z1, x2, z2).center();

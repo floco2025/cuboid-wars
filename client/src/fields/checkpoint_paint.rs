@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use bevy::{ecs::system::SystemParam, light::NotShadowCaster, prelude::*};
-use common::protocol::{Checkpoint, MapLayout, MapSettings};
+use common::{
+    physics::Solid,
+    protocol::{Checkpoint, MapLayout, MapSettings},
+};
 
 use super::{clip_surface_rects, surface_frame_rects};
 use crate::{
@@ -27,6 +30,7 @@ impl CheckpointPaint<'_> {
         parent: &mut ChildSpawnerCommands,
         checkpoint: &Checkpoint,
         layout: &MapLayout,
+        solids: &[Solid],
         cache: &mut HashMap<String, Handle<StandardMaterial>>,
     ) {
         let footprint = Rect::new(checkpoint.min_x, checkpoint.min_z, checkpoint.max_x, checkpoint.max_z);
@@ -34,7 +38,7 @@ impl CheckpointPaint<'_> {
         let outline = surface_frame_rects(&[footprint], CHECKPOINT_OUTLINE_WIDTH);
         let outline = clip_surface_rects(
             outline,
-            layout,
+            solids,
             checkpoint.carrier,
             [0, 2],
             checkpoint.y + CHECKPOINT_PAINT_OFFSET,

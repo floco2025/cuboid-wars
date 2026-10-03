@@ -14,12 +14,7 @@ use crate::{
     projectiles::{ProjectileAssets, spawn_ember_projectile},
     vfx::{BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, spawn_missile_explosion},
 };
-use common::{
-    config::GameplayConfig,
-    map::Carriers,
-    physics::CollisionWorld,
-    protocol::{MapLayout, Position},
-};
+use common::{config::GameplayConfig, map::Carriers, physics::CollisionWorld, protocol::Position};
 
 // ============================================================================
 // Show shape
@@ -277,7 +272,6 @@ pub struct FireworkVfx<'w> {
     blast_radii: Res<'w, BlastRadii>,
     gameplay_config: Res<'w, GameplayConfig>,
     collision_world: Res<'w, CollisionWorld>,
-    map_layout: Res<'w, MapLayout>,
     carriers: Res<'w, Carriers>,
     carrier_entities: Res<'w, CarrierEntities>,
 }
@@ -394,7 +388,6 @@ fn pop(commands: &mut Commands, vfx: &mut FireworkVfx, assets: &FireworkAssets, 
         explosion_assets: &vfx.explosion_assets,
         gameplay_config: &vfx.gameplay_config,
         collision_world: &vfx.collision_world,
-        map_layout: &vfx.map_layout,
         carriers: &vfx.carriers,
         carrier_entities: &vfx.carrier_entities,
         blast_radii: &vfx.blast_radii,

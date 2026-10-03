@@ -192,6 +192,7 @@ All movable ground actors use surface navigation; flying actors keep incremental
 - Coordinates: Bevy Y-up, metres. Wire format: `bincode` 2.
 - Network reviews follow the **Self-repairing state** contract in the protocol header; temporary inconsistencies alone are accepted behaviour.
 - `score` persists across deaths; do not confuse with `health`. Server "dead" (`PlayerInfo::is_dead()`, no entity) and client `LocalPlayerInfo.is_dead` are separate flags in separate crates; do not unify them.
+- Layout records are compiler input: the renderer builds each record's own mesh and the collision world its collider. Whatever else needs to know where the structure is asks `CollisionWorld` (rays, casts, `structural_solids` for the convex faces in a carrier's frame) and never reads the wall, floor, and ramp records, which miss trim strips and any geometry a record does not name.
 - Mesh UVs come from the record's position in its carrier's frame, `(carrier_center + rotation * local_pos) · uv_axis / tile_size`, never from the mesh's local position, so a carried texture never swims.
 
 ## Map editor (`tools/editor.py`)

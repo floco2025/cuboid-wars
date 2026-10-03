@@ -1,9 +1,12 @@
 use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::*;
-use common::protocol::{Barrier, CarrierId, Eraser, FieldId, Floor, MapLayout};
+use common::{
+    physics::Solid,
+    protocol::{Barrier, CarrierId, Eraser, FieldId},
+};
 
-use super::surface::{clip_surface_rects, floor_bounds, surface_frame_rects};
+use super::surface::{clip_surface_rects, surface_frame_rects};
 
 const MERGE_EPSILON: f32 = 1e-4;
 
@@ -68,23 +71,23 @@ impl VisualField {
         })
     }
 
-    pub fn panel_rects(&self, layout: &MapLayout) -> Vec<Rect> {
-        self.exposed_rects(vec![self.rect], layout, 0.0)
+    pub fn panel_rects(&self, solids: &[Solid]) -> Vec<Rect> {
+        self.exposed_rects(vec![self.rect], solids, 0.0)
     }
 
-    pub fn frame_rects(&self, layout: &MapLayout) -> Vec<Rect> {
+    pub fn frame_rects(&self, solids: &[Solid]) -> Vec<Rect> {
         self.exposed_rects(
             surface_frame_rects(&[self.rect], self.thickness),
-            layout,
+            solids,
             self.thickness / 2.0,
         )
     }
 
-    fn exposed_rects(&self, surfaces: Vec<Rect>, layout: &MapLayout, depth: f32) -> Vec<Rect> {
-        clip_surface_rects(surfaces, layout, self.carrier, [self.axis, 1], self.plane, depth)
+    fn exposed_rects(&self, surfaces: Vec<Rect>, solids: &[Solid], depth: f32) -> Vec<Rect> {
+        clip_surface_rects(surfaces, solids, self.carrier, [self.axis, 1], self.plane, depth)
     }
 
-    fn can_merge(&self, other: &Self, floors: &[Floor], floor_thickness: f32, stack: bool) -> bool {
+    fn can_merge(&self, other: &Self, solids: &[Solid], floor_thickness: f32, stack: bool) -> bool {
         if self.field != other.field
             || self.carrier != other.carrier
             || self.axis != other.axis
@@ -105,12 +108,14 @@ impl VisualField {
         if joint > self.rect.max.y.min(other.rect.max.y) + floor_thickness + MERGE_EPSILON {
             return false;
         }
-        let mut covered: Vec<_> = floors
+        // A slab under the upper pane, on the pane's plane, covers the
+        // stretch of the opening it spans.
+        let mut covered: Vec<_> = solids
             .iter()
-            .filter(|floor| floor.carrier == self.carrier)
-            .filter_map(|floor| {
-                let (min, max) = floor_bounds(floor);
-                (near(floor.y, joint)
+            .filter(|solid| solid.carrier == self.carrier && solid.is_box())
+            .filter_map(|solid| {
+                let (min, max) = (solid.min, solid.max);
+                (near(max.y, joint)
                     && min[2 - self.axis] <= self.plane
                     && self.plane <= max[2 - self.axis]
                     && min[self.axis] < self.rect.max.x
@@ -119,7 +124,7 @@ impl VisualField {
             })
             .collect();
         covered.sort_by(|a, b| a.0.total_cmp(&b.0));
-        // Wall trim covers only the ends; a separating floor must span the entire opening.
+        // Wall trim covers only the ends; a separating slab must span the entire opening.
         let mut end = self.rect.min.x;
         for (min, max) in covered {
             if min > end + MERGE_EPSILON {
@@ -131,19 +136,22 @@ impl VisualField {
     }
 }
 
+// Eraser panes drawn as few as their openings: stacked panes join across a
+// floorless storey gap and neighbours join along a wall. A barrier needs
+// none of it: the server stacks and joins its pieces, colliders included.
 pub(crate) fn merge_fields(
     fields: impl IntoIterator<Item = VisualField>,
-    floors: &[Floor],
+    solids: &[Solid],
     floor_thickness: f32,
 ) -> Vec<VisualField> {
     // Stack before joining neighbors so authored order cannot leave internal frames in a rectangular grid.
-    let stacked = merge_runs(fields, floors, floor_thickness, true);
-    merge_runs(stacked, floors, floor_thickness, false)
+    let stacked = merge_runs(fields, solids, floor_thickness, true);
+    merge_runs(stacked, solids, floor_thickness, false)
 }
 
 fn merge_runs(
     fields: impl IntoIterator<Item = VisualField>,
-    floors: &[Floor],
+    solids: &[Solid],
     floor_thickness: f32,
     stack: bool,
 ) -> Vec<VisualField> {
@@ -151,7 +159,7 @@ fn merge_runs(
     for mut field in fields {
         let mut index = 0;
         while index < merged.len() {
-            if field.can_merge(&merged[index], floors, floor_thickness, stack) {
+            if field.can_merge(&merged[index], solids, floor_thickness, stack) {
                 let other = merged.swap_remove(index);
                 let last_level = field
                     .level

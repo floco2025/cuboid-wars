@@ -11,6 +11,7 @@ fn app() -> App {
         .init_resource::<GrassChunks>()
         .init_resource::<DebugColors>()
         .init_resource::<Carriers>()
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
         .insert_resource(MapLayout {
             grounds: Some(Grounds::new(
                 [(-10.0, 10.0, -10.0, 10.0)],

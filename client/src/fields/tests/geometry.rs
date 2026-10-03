@@ -1,5 +1,13 @@
 use super::*;
-use common::protocol::Wall;
+use crate::test_fixtures::structural_solids;
+use common::protocol::{Floor, MapLayout, Wall};
+
+fn slabs(floors: &[Floor]) -> Vec<Solid> {
+    structural_solids(&MapLayout {
+        floors: floors.to_vec(),
+        ..Default::default()
+    })
+}
 
 fn barrier() -> Barrier {
     Barrier {
@@ -98,7 +106,7 @@ fn adjacent_panes_merge_without_internal_frames_but_not_across_fields_or_carrier
         let merged = merge_fields([c, a, b], &[], 0.5);
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0].rect, Rect::new(0.0, 0.0, 12.0, 3.5));
-        assert_eq!(merged[0].frame_rects(&MapLayout::default()).len(), 4);
+        assert_eq!(merged[0].frame_rects(&[]).len(), 4);
         for other in [
             VisualField {
                 field: Some(FieldId(1)),
@@ -152,7 +160,7 @@ fn stacked_fields_bridge_floorless_gaps_and_keep_floor_separated_storeys_apart()
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0].rect, Rect::new(0.0, 0.0, 4.0, 7.5));
         assert_eq!(merged[0].levels, 2);
-        assert_eq!(merge_fields([upper, lower], &[floor(4.0)], 0.5).len(), 2);
+        assert_eq!(merge_fields([upper, lower], &slabs(&[floor(4.0)]), 0.5).len(), 2);
     }
 }
 
@@ -205,18 +213,19 @@ fn stacked_fields_merge_between_wall_trim_without_leaving_an_open_seam() {
                 floors,
                 ..Default::default()
             };
-            let merged = merge_fields([upper, lower], &layout.floors, 0.5);
+            let solids = structural_solids(&layout);
+            let merged = merge_fields([upper, lower], &solids, 0.5);
             assert_eq!(merged.len(), 1);
             let seam = Rect::new(0.25, 3.5, 3.75, 4.0);
             let covered: f32 = merged[0]
-                .panel_rects(&layout)
+                .panel_rects(&solids)
                 .iter()
                 .map(|rect| overlap_area(*rect, seam))
                 .sum();
             assert_eq!(covered, seam.width() * seam.height());
             assert!(
                 merged[0]
-                    .frame_rects(&layout)
+                    .frame_rects(&solids)
                     .iter()
                     .all(|rect| overlap_area(*rect, seam) == 0.0)
             );
@@ -233,18 +242,18 @@ fn adjoining_floor_pieces_together_separate_stacked_fields() {
         ..lower
     };
     let floors = [Floor { x1: 2.0, ..floor(4.0) }, Floor { x2: 2.0, ..floor(4.0) }];
-    assert_eq!(merge_fields([lower, upper], &floors, 0.5).len(), 2);
+    assert_eq!(merge_fields([lower, upper], &slabs(&floors), 0.5).len(), 2);
     let other_carrier = floors.map(|floor| Floor {
         carrier: CarrierId(1),
         ..floor
     });
-    assert_eq!(merge_fields([lower, upper], &other_carrier, 0.5).len(), 1);
+    assert_eq!(merge_fields([lower, upper], &slabs(&other_carrier), 0.5).len(), 1);
 }
 
 #[test]
 fn free_standing_frame_has_complete_corners_without_overlapping_faces() {
     let field = field(None);
-    let rects = field.frame_rects(&MapLayout::default());
+    let rects = field.frame_rects(&[]);
     let area: f32 = rects.iter().map(|rect| rect.width() * rect.height()).sum();
     let expected = 2.0 * field.thickness * (field.rect.width() + field.rect.height());
     assert!((area - expected).abs() < 1e-5);
@@ -275,6 +284,7 @@ fn walls_hide_only_the_covered_frame_and_pane_sections() {
         ..Default::default()
     };
     let covered = Rect::new(-0.25, 0.0, 0.25, 2.0);
+    let layout = structural_solids(&layout);
     for rect in field.frame_rects(&layout).into_iter().chain(field.panel_rects(&layout)) {
         assert_eq!(overlap_area(rect, covered), 0.0);
         assert!(rect.min.y >= 0.0);
@@ -293,8 +303,8 @@ fn walls_hide_only_the_covered_frame_and_pane_sections() {
         ..Default::default()
     };
     assert_eq!(
-        field.frame_rects(&other_carrier),
-        field.frame_rects(&MapLayout::default())
+        field.frame_rects(&structural_solids(&other_carrier)),
+        field.frame_rects(&[])
     );
     let coplanar = MapLayout {
         walls: vec![Wall {
@@ -307,5 +317,5 @@ fn walls_hide_only_the_covered_frame_and_pane_sections() {
         }],
         ..Default::default()
     };
-    assert!(field.panel_rects(&coplanar).is_empty());
+    assert!(field.panel_rects(&structural_solids(&coplanar)).is_empty());
 }

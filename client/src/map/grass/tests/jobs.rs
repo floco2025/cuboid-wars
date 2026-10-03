@@ -202,10 +202,10 @@ fn terrain_and_exterior_meshes_apply_the_same_physical_clearance() {
         carrier: CarrierId::WORLD,
     };
     let clearance = Arc::new(GrassClearance::new(
-        &MapLayout {
+        &crate::test_fixtures::structural_solids(&MapLayout {
             ramps: vec![ramp],
             ..default()
-        },
+        }),
         CarrierId::WORLD,
     ));
     let mut visual = visual();
