@@ -198,7 +198,7 @@ fn reported_fizzle_is_relayed_once_and_does_not_replace_a_portal() {
 
 #[test]
 fn assignments_and_body_lifecycle_guard_placements() {
-    let mut fixture = Fixture::new(PortalMode::Single);
+    let mut fixture = Fixture::new(PortalMode::Auto);
     let id = PlayerId(1);
     let portal = fixture.portal(id, PortalEnd::A, 2.0);
     for invalid in [

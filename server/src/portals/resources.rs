@@ -63,9 +63,9 @@ impl PortalMap {
 }
 
 // Portal slots handed out at login under the map's fixed portal mode:
-// `both` gives each slot its own pair, `single` pairs adjacent slots as ends
+// `both` gives each slot its own pair, `auto` pairs adjacent slots as ends
 // A/B so two players share one pair. A freed slot is reused first, so a
-// partner's replacement joins the same pair. A lone `single` player holds
+// partner's replacement joins the same pair. A lone `auto` player holds
 // both ends of their pair — same pair id, so nothing they placed moves — and
 // the ends split A/B again once the adjacent slot fills.
 #[derive(Resource)]
@@ -125,8 +125,8 @@ impl PortalAssignments {
     fn access(&self, slot: usize) -> PortalAccess {
         let pair = |index: usize| PortalPairId(u32::try_from(index + 1).expect("portal pair slot exceeds u32"));
         match self.mode {
-            PortalMode::Single if self.is_solo() => PortalAccess::Both { pair: pair(slot / 2) },
-            PortalMode::Single => PortalAccess::Single {
+            PortalMode::Auto if self.is_solo() => PortalAccess::Both { pair: pair(slot / 2) },
+            PortalMode::Auto => PortalAccess::Single {
                 pair: pair(slot / 2),
                 end: if slot.is_multiple_of(2) {
                     PortalEnd::A

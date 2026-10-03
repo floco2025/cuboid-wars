@@ -84,7 +84,7 @@ const fn both(pair: u32) -> PortalAccess {
 
 #[test]
 fn single_assignments_pair_adjacent_slots_and_reuse_vacancies() {
-    let mut assignments = PortalAssignments::new(PortalMode::Single);
+    let mut assignments = PortalAssignments::new(PortalMode::Auto);
     assert_eq!(assignments.assign(PlayerId(10)), both(1));
     assert_eq!(assignments.assign(PlayerId(11)), single(1, PortalEnd::B));
     assert_eq!(assignments.get(&PlayerId(10)), single(1, PortalEnd::A));
@@ -98,7 +98,7 @@ fn single_assignments_pair_adjacent_slots_and_reuse_vacancies() {
 
 #[test]
 fn a_lone_single_mode_player_keeps_their_pair_id_in_either_slot() {
-    let mut assignments = PortalAssignments::new(PortalMode::Single);
+    let mut assignments = PortalAssignments::new(PortalMode::Auto);
     assignments.assign(PlayerId(10));
     assignments.assign(PlayerId(11));
     assignments.release(&PlayerId(10));
@@ -111,7 +111,7 @@ fn a_lone_single_mode_player_keeps_their_pair_id_in_either_slot() {
 
 #[test]
 fn release_reports_the_access_held_before_the_slot_empties() {
-    let mut assignments = PortalAssignments::new(PortalMode::Single);
+    let mut assignments = PortalAssignments::new(PortalMode::Auto);
     assignments.assign(PlayerId(10));
     assignments.assign(PlayerId(11));
     assert_eq!(assignments.release(&PlayerId(11)), single(1, PortalEnd::B));

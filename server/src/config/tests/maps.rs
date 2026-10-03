@@ -391,8 +391,8 @@ fn map_entry_accepts_single_or_both_portal_ownership() {
     let both = parse_map_entry("both", Some("clear")).expect("map entry JSON is invalid");
     assert_eq!(both.settings.portals, PortalMode::Both);
 
-    let single = parse_map_entry("single", Some("clear")).expect("map entry JSON is invalid");
-    assert_eq!(single.settings.portals, PortalMode::Single);
+    let auto = parse_map_entry("auto", Some("clear")).expect("map entry JSON is invalid");
+    assert_eq!(auto.settings.portals, PortalMode::Auto);
 }
 
 #[test]

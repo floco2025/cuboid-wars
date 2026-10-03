@@ -102,6 +102,10 @@ the right point.
 - **Enemies** as part of a room's problem, in small doses.
 - **Solvable alone.** Every room works for one player; two-player twists come
   on top.
+- **Split portals in co-op.** Two players share one pair and place one end
+  each, so a room's solution must also work when the two ends are shot by
+  different people from different places, and the natural twist is a plate
+  one player holds that opens something for the other.
 
 ## Where we are
 

@@ -5,7 +5,7 @@ use crossbeam_channel::unbounded;
 
 #[test]
 fn gun_loss_removes_controlled_ends_and_preserves_assignments_and_equipped_partners() {
-    for mode in [PortalMode::Single, PortalMode::Both] {
+    for mode in [PortalMode::Auto, PortalMode::Both] {
         for count in [1, 2] {
             for loss in ["expiry", "death", "eraser"] {
                 let mut app = App::new();

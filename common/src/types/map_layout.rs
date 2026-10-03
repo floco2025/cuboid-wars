@@ -416,10 +416,12 @@ pub struct MapSettings {
     pub fields: Vec<FieldDef>,
 }
 
+// `both` gives every player a pair; `auto` gives two players one pair
+// between them, an end each, and a lone player both ends of theirs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PortalMode {
-    Single,
+    Auto,
     Both,
 }
 

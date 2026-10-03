@@ -265,7 +265,7 @@ class ControlTests(unittest.TestCase):
             layout = empty_map(3, 3)
             layout["fields"] = [{"id": "barrier_1", "color": "#f0c020"}, {"id": "bridge_1", "color": "#30d8ff"}]
             layout["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "field": "bridge_1"}]
-            obby = self.map_folder(directory, "obby", {"portals": "single"}, layout)
+            obby = self.map_folder(directory, "obby", {"portals": "auto"}, layout)
             hotel = self.map_folder(directory, "hotel", {"portals": "both"}, empty_map(3, 3))
             settings = {path: path.with_name("settings.json").read_text() for path in (obby, hotel)}
             doc = MapDocument(obby)

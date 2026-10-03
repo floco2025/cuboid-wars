@@ -26,7 +26,7 @@
     "floor_thickness": 0.2,
     "wall_thickness": 0.2
   },
-  "portals": "both",
+  "portals": "auto",
   "power_ups": {
     "portal_gun": { "mode": "always" },
     "speed": { "mode": "pickup", "duration_secs": null },

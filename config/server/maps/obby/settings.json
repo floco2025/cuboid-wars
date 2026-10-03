@@ -28,7 +28,7 @@
       "air_lateral_deceleration": 0.0
     }
   },
-  "portals": "single",
+  "portals": "auto",
   "power_ups": {
     "single_shot": { "mode": "pickup", "duration_secs": null },
     "multi_shot": { "duration_secs": null },
