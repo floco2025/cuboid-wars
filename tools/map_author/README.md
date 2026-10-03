@@ -26,7 +26,7 @@ cargo run --release -- --experiment config/server/maps/<map>/experiment.json | p
 
 ## Workflow
 
-1. Register the map in `config/server/gameplay.json::maps` and write its `settings.json`: start from `portal_primer`'s, set `geometry` (the Primer has 2 m cells; `PLAN.md` asks for 1 m), and give `textures` an alias per role, a floor, wall, and ceiling material from Hotel's beside the `solid` and `portal` pair. The tools never write either file.
+1. Register the map in `config/server/gameplay.json::maps` and write its `settings.json`: start from `gatehouse`'s, set `geometry` (`PLAN.md` asks for 1 m cells), give `textures` an alias per role, a floor, wall, and ceiling material from Hotel's beside the `solid` and `portal` pair, and keep the whole `movement` block, so a proved route does not move with the defaults and a flight keeps its speed (no air braking). The tools never write either file.
 2. Write `build.py` (below), run `build`, read the summary it prints.
 3. `describe` for the plan of each level; `surface`, `jump`, `fling`, and `ranges` for the physics of each gap and portal pair. Place landings where a flight comes down, not where it looks right.
 4. `shots` from each point a portal is shot from, `sweep` with the moves of each puzzle step, and `sweep --walk-in` for each goal (Asking the game): the intended pair reaches the goal, and walking into a pair never does.

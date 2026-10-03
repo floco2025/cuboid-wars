@@ -30,10 +30,10 @@ once pressed it stays pressed. The Firing Line's resets when you die.
    wall a storey above the rim and fall into the tank. Lower on the wall and
    you fly into the tank's side. The tank's plate opens the gate and the hub's.
 3. **The Firing Line.** The turret on the plinth sees the whole floor and
-   kills in about three seconds; the plate inside the door raises a shield in
+   kills in under a second; the plate on the threshold raises a shield in
    front of it while you stand there. The turret cannot see into the pen
    under its own feet, where the room's plate is. From the shield plate, put
-   one portal on the pen's back wall and the other on the floor beside you,
-   step off and through. Walk back the same way and you will not make it;
-   from inside the pen, move your second portal onto the wall by the door
-   first. With two players, one holds the shield while the other walks.
+   one portal on the pen's back wall. Step back into the foyer, out of the
+   turret's sight, put the other on the foyer's north wall, and walk through;
+   the same pair brings you back unseen. With two players, one holds the
+   shield while the other walks.

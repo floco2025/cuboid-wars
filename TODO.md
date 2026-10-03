@@ -4,7 +4,7 @@
 
 - **Navigation search exhaustion:** a connected route whose A* search exceeds the per-query budget fails repeatedly, including some long Hotel detours. Continue such searches across ticks under the shared work cap.
 
-- **Gatehouse's Firing Line can be walked:** a body that walks from the shield plate into the pen under the turret's fire presses the plate on the way and leaves by the intended return portal with about 150 of 500 health, and walking back instead leaves about 50, so the shield and the entry portal are optional and `walking_to_the_pen_and_back_is_lethal` fails. Turret damage alone cannot separate these from the intended route, whose return is also under fire: at 230 damage per second the walk in dies, but the intended route ends with about 70. The walk in must be lethal while the intended return stays comfortably survivable.
+- **Gatehouse's Cistern can be walked into:** walking, stepping, or hopping into a portal pair whose exit is high on the hall's east wall drifts over the rim into the open tank: `sweep gatehouse --from L3:30,18 --walk-in --goal L3:30,9:36,14` finds 16 such entries with air braking and 15 without. Moving the tank two or three cells west moves the shortcut to the west wall. The room's answer is a fling from a wall a few metres from the goal, which the no-way-in-at-a-walk principle in PLAN.md rules out; it needs a different answer.
 
 - **Review capture on macOS:** with Peekaboo 4.6 the launch in `tools/game_review/macos/README.md` reports an unverifiable receipt and `window list` and `see` cannot find the review app. Launching the binary with `--spawn` and `--look`, reading the window id from `CGWindowListCopyWindowInfo` by process id, and `screencapture -l` works.
 

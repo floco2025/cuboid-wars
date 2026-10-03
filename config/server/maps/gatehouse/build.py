@@ -71,31 +71,31 @@ b.checkpoint(0, level="hub", at=(29, 25), size=(2, 2))
 b.doorway("hub", "W", 5, width=2)
 b.doorway("hub", "N", 5, width=2)
 
-# Room 3, the Firing Line. A range four storeys tall with a turret on a
-# two-storey metal plinth across its far end, in sight of everything on the
-# floor but the pen under its own feet: a metal box in the plinth's face, open
-# to the range, the plate at its back and the wall behind it brick. The plate
-# inside the door raises a field along the plinth's edge that stops the beam
-# while it is held. Alone, the shield covers the shots: one portal into the
-# pen's back wall, the other on the floor beside the plate, then a step off it
-# and through, and the same way back; walking is seconds of fire each way,
-# more than a body has. In co-op one player holds the shield while the other
-# walks. The foyer's doors are offset so no line from the turret reaches the
-# hub. The pen's plate opens the hub's gate and resets when its presser dies.
-b.room("foyer", level=GROUND, at=(36, 24), size=(2, 5), storeys=2, **HUB)
+# Room 3, the Firing Line. A range four storeys tall with a turret at the
+# front edge of a two-storey metal plinth across its far end, in sight of
+# everything on the floor but the pen under its own feet: a metal box in the
+# plinth's face, open to the range, the plate at its back and the wall behind
+# it brick. The plate on the threshold raises a field along the plinth's edge
+# that stops the beam while it is held, long enough to aim at the pen's back
+# wall. The other portal goes on the foyer's north wall, which the turret
+# cannot see, and the pair carries a body in and back unseen. Walking the
+# range is more than a second of fire, more than a body has. In co-op one
+# player holds the shield while the other walks. The foyer's doors are offset
+# so no line from the turret reaches the hub. The pen's plate opens the hub's
+# gate and resets when its presser dies.
+b.room("foyer", level=GROUND, at=(36, 24), size=(2, 6), storeys=2, **HUB)
 b.doorway("foyer", "W", 1, width=2)
-b.doorway("foyer", "E", 3, width=2)
+b.doorway("foyer", "E", 3, width=3)
 b.room("range", level=GROUND, at=(38, 21), size=(17, 10), storeys=4, floor="floor", inside="brick", ceiling="ceiling")
-b.doorway("range", "W", 6, width=2)
+b.doorway("range", "W", 6, width=3)
 b.platform("plinth", level=GROUND + 2, at=(52, 21), size=(3, 10), material="metal")
 for start, end in (((52, 21), (52, 25)), ((52, 27), (52, 31)), ((52, 25), (55, 25)), ((52, 27), (55, 27))):
     b.wall(level=GROUND, start=start, end=end, material="metal", storeys=2)
 b.face_slab(GROUND, (3, 2), (52, 25), "metal")
-b.actor_zone("turret", level="plinth", size=(1, 2), at=(54, 25))
+b.actor_zone("turret", level="plinth", size=(1, 2), at=(52, 25))
 for level in (GROUND + 2, GROUND + 3):
     b.barrier(level=level, start=(52, 21), end=(52, 31), field="shield")
-for row in (27, 28):
-    b.plate(level="range", at=(38, row), switch="shield")
+b.plate(level="range", at=(38, 28), switch="shield")
 b.plate(level="range", at=(53, 25), switch="firing")
 
 b.room("exit", level=GROUND, at=(28, 32), size=(4, 10), storeys=2, **HUB)

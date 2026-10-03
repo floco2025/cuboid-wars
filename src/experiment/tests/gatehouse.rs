@@ -10,10 +10,13 @@ fn events(report: &Value) -> impl Iterator<Item = &Value> {
         .flat_map(|step| step["events"].as_array().expect("events"))
 }
 
-fn health(report: &Value, step: usize) -> f64 {
-    report["steps"][step]["state"]["player"]["health"]
-        .as_f64()
-        .expect("player health")
+fn lowest_health(report: &Value) -> f64 {
+    report["steps"]
+        .as_array()
+        .expect("steps")
+        .iter()
+        .filter_map(|step| step["state"]["player"]["health"].as_f64())
+        .fold(f64::INFINITY, f64::min)
 }
 
 fn walk(direction: [f32; 2], ticks: u32) -> Action {
@@ -30,7 +33,7 @@ fn advance(ticks: u32) -> Action {
 }
 
 // The route's step that stands on the Firing Line's shield plate.
-const SHIELD_PLATE: usize = 71;
+const SHIELD_PLATE: usize = 69;
 
 #[test]
 fn gatehouse_course_lowers_every_gate_and_starts_the_fireworks() {
@@ -65,8 +68,8 @@ fn gatehouse_course_lowers_every_gate_and_starts_the_fireworks() {
     );
     assert!(events(&report).any(|event| event["kind"] == "fireworks_started"));
     assert!(!events(&report).any(|event| event["kind"] == "player_died" || event["kind"] == "player_fall_damage"));
-    // The turret costs the route some health and no life.
-    assert!(health(&report, last) < 500.0);
+    // The turret sees the route only stepping onto and off the shield plate.
+    assert!(lowest_health(&report) > 400.0, "{}", lowest_health(&report));
 }
 
 #[test]
@@ -89,22 +92,20 @@ fn the_shield_plate_stops_the_turret_while_it_is_held() {
 }
 
 #[test]
-fn walking_to_the_pen_and_back_is_lethal() {
+fn walking_from_the_shield_to_the_pen_is_lethal() {
     let (_folder, mut script) = scenario("gatehouse");
     script.actions.truncate(SHIELD_PLATE + 1);
-    script.actions.extend([
-        walk([0.0, -1.0], 12),
-        walk([1.0, 0.0], 60),
-        advance(20),
-        Action::Inspect,
-        walk([-1.0, 0.0], 60),
-        advance(20),
-    ]);
+    script.actions.extend([walk([1.0, -0.2], 60), advance(20)]);
     let report = script.run().expect("walk the firing line");
-    let at_the_pen = &report["steps"][SHIELD_PLATE + 4]["state"]["player"];
-    assert!(at_the_pen["position"][0].as_f64().expect("x") > 24.0, "{at_the_pen}");
-    assert!(at_the_pen["health"].as_f64().expect("health") < 300.0, "{at_the_pen}");
     assert!(events(&report).any(|event| event["kind"] == "player_died"));
+    assert!(
+        report["steps"]
+            .as_array()
+            .expect("steps")
+            .iter()
+            .all(|step| !step["state"]["active_switches"].to_string().contains("firing")),
+        "the pen's plate stays unpressed"
+    );
 }
 
 #[test]

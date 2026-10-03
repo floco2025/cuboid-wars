@@ -93,6 +93,9 @@ the right point.
   tutorial, not a puzzle.
 - **Recovery after mistakes.** Losing a required boost leaves a way to refill
   and retry, and every checkpoint has usable equipment and a route onward.
+- **Flight keeps its speed.** In the air a body keeps its speed and
+  direction unless the player steers against it, as a Portal player expects:
+  letting go of a key never shortens a fling.
 - **Ordinary skill.** The main route needs momentum from an ordinary takeoff
   or fall, portal orientation, and ordinary steering. Expert air control may
   reward optional routes only.
@@ -122,9 +125,8 @@ the right point.
   fun.
 - **Gatehouse** is the first building: a hub, an exit behind three gates,
   and the three rooms that lower them, the Drop, the Cistern, and the Firing
-  Line, each proved by a scripted route and a sweep of other entries. Its
-  playtests gave the principles above on portals, walking in, looks, and
-  puzzle depth.
+  Line, each proved by a scripted route. Its playtests gave the principles
+  above on portals, walking in, looks, and puzzle depth.
 - **The tools** build a map from a script, draw it as text, measure jumps and
   flings, and run a scripted route through the real game, headless or in a
   window. The builder writes buildings: rooms with ceilings and doorways,

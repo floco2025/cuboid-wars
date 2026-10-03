@@ -26,6 +26,22 @@
     "floor_thickness": 0.2,
     "wall_thickness": 0.2
   },
+  "movement": {
+    "gravity": 25.0,
+    "low_gravity": 5.0,
+    "player": {
+      "move_speed": 8.0,
+      "move_speed_ladder": 0.3,
+      "move_speed_power_up": 1.5,
+      "jump_speed": 12.0,
+      "ground_acceleration": 20.0,
+      "ground_deceleration": 30.0,
+      "ground_lateral_deceleration": 40.0,
+      "air_acceleration": 5.0,
+      "air_deceleration": 0.0,
+      "air_lateral_deceleration": 0.0
+    }
+  },
   "portals": "auto",
   "power_ups": {
     "single_shot": { "mode": "pickup", "duration_secs": null },
@@ -33,5 +49,5 @@
     "speed": { "mode": "pickup", "duration_secs": null },
     "low_gravity": { "mode": "pickup", "duration_secs": null }
   },
-  "combat": { "damage": { "actors": { "turret": { "beam_dps": 150.0 } } } }
+  "combat": { "damage": { "actors": { "turret": { "beam_dps": 600.0 } } } }
 }
