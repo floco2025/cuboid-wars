@@ -27,8 +27,9 @@ HUB = dict(floor="hub-floor", inside="hub-wall", outside="outside", ceiling="cei
 # Course 1, the Gallery. The hall is eight storeys tall with a chasm across
 # its floor and the goal on a ledge at its east end, two storeys above the
 # chasm's floor, so nothing in it climbs out. Only a band high on its west
-# wall takes a portal, and it is seen only through the gallery's window, a
-# storey tall so no body falls through. The speed comes from the shaft beside
+# wall takes a portal, shot from the chasm's floor, a jump up through a door
+# from the shaft's floor, or through the gallery's window, a storey tall so
+# no body falls through. The speed comes from the shaft beside
 # the hall, whose floor takes a portal and is seen best from the landing by
 # the hub's door: a running jump off the landing into it throws a body out of
 # the band into the chasm, while one off the gallery, five storeys up and

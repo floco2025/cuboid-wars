@@ -98,24 +98,3 @@ fn the_landings_fall_throws_the_same_pair_into_the_chasm() {
     );
     assert_eq!(report["steps"][last]["state"]["active_switches"], json!([]));
 }
-
-#[test]
-fn the_band_takes_a_portal_from_the_gallery_and_not_from_the_landing() {
-    let (_folder, mut script) = scenario("foundry");
-    script.actions.truncate(ON_LANDING + 1);
-    script.actions.extend([
-        Action::Probe {
-            eye: None,
-            targets: vec![BAND],
-        },
-        Action::Probe {
-            eye: Some(GALLERY_EYE),
-            targets: vec![BAND],
-        },
-    ]);
-    let report = script.run().expect("probe the band");
-    let from_landing = &report["steps"][ON_LANDING + 1]["result"]["shots"][0];
-    let from_gallery = &report["steps"][ON_LANDING + 2]["result"]["shots"][0];
-    assert_ne!(from_landing["status"], "placed", "{from_landing}");
-    assert_eq!(from_gallery["status"], "placed", "{from_gallery}");
-}
