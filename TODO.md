@@ -4,6 +4,8 @@
 
 - **Navigation search exhaustion:** a connected route whose A* search exceeds the per-query budget fails repeatedly, including some long Hotel detours. Continue such searches across ticks under the shared work cap.
 
+- **Falling while wedged on an edge:** a body whose rounded bottom rests on an edge it cannot stand on, such as a pressure plate's corner beside a wall, is held in place but counts as airborne, so gravity keeps adding speed; when it slides free it lands with all of it. In Foundry a body that landed between the Gallery's plate and the far wall died stepping onto the plate at 27.5 m/s. The plate now stands clear of the wall; the motor should treat a held body as supported or stop its fall speed growing.
+
 - **Review capture on macOS:** with Peekaboo 4.6 the launch in `tools/game_review/macos/README.md` reports an unverifiable receipt and `window list` and `see` cannot find the review app. Launching the binary with `--spawn` and `--look`, reading the window id from `CGWindowListCopyWindowInfo` by process id, and `screencapture -l` works.
 
 ## Enhancements

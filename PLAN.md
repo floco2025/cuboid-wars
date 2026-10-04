@@ -133,6 +133,9 @@ the right point.
   and the four rooms that lower them, the Drop, the Cistern, the Firing Line,
   and the Vat, each proved by a scripted route. Its playtests gave the principles
   above on portals, walking in, looks, and puzzle depth.
+- **Foundry** is the second building, whose courses chain two or three
+  decisions each. Its first, the Gallery, stands: a long fall prepared
+  from two places, proved by a route and by sweeps of other entries.
 - **The tools** build a map from a script, draw it as text, measure jumps and
   flings, and run a scripted route through the real game, headless or in a
   window. The builder writes buildings: rooms with ceilings and doorways,
