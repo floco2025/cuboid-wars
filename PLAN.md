@@ -50,6 +50,9 @@ the right point.
   so it is not learned twice.
 - **Obby is edited by hand.** The AI does not change its layout or retune its
   movement.
+- **One game.** Every map plays the same movement, pickups, and grid: the
+  defaults. A map changes only what its idea needs. Hotel is older than them
+  and keeps its own.
 
 ## Design principles
 
@@ -78,15 +81,15 @@ the right point.
   erasers that take them away. Erasure keeps the body's velocity; losing low
   gravity changes gravity at once.
 - **Necessary traversal.** An ordinary jump, a drop, another portal placement,
-  or air steering must not bypass a puzzle. Low gravity floats down to any
-  floor in reach, so a goal it must not reach is a closed room entered through
-  an eraser doorway. An eraser doorway also closes the portals a player
+  or air steering must not bypass a puzzle. Low gravity carries a jump three
+  storeys up, so a goal it must not reach stands higher than that or in a
+  room entered through an eraser doorway. An eraser doorway also closes the portals a player
   brings in, so a room whose answer must be found inside it starts with none.
 - **No way in at a walk.** Walking or hopping into a portal gives little
   speed. Out of a floor portal that is enough to rise only about 3 m. Out of
   a wall or a ceiling portal the body falls instead, and since nothing slows
-  a flight, even that little speed carries it ten metres or more sideways
-  before it lands. So a goal is safe from a walk-in when it stands more than
+  a flight, even that little speed carries it metres sideways before it
+  lands. So a goal is safe from a walk-in when it stands more than
   3 m above every portal surface near it, not when it is far from them.
   Where a room's answer is a fast fling, the walls above that height and the
   ceiling near the goal are metal, which takes no portal. A walk-in can be

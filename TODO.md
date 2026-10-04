@@ -10,6 +10,8 @@
 
 ## Enhancements
 
+- **Portal Primer's movement:** it still overrides the shared movement with Hotel's, because its open-air chambers were tuned to it: a 4.4 m drop that must carry 4.7 m out to a pad, a run-up jump at 12 m/s, and a summit only a 14.4 m light jump reaches. Re-author those chambers for the shared numbers, or retire the map now that Gatehouse and Foundry cover what it shows.
+
 - **Player stair stepping:** the motor steps over ledges up to `CHARACTER_STEP_HEIGHT`, 0.2 m; taller is a wall. No shipped map needs more (ramps, ladders, jumps). Needed once a map authors stairs or generated courses put knee-high blocks in the way; Source steps 0.45 m at our scale. Raising Rapier's autostep alone stalled a 0.4 m step, since the capsule's rounded bottom catches the ledge's edge: it needs a capsule-aware step solver. Keep the actor limit, which the navigation mesh assumes; cover low ceilings, ledges narrower than the body, and steps onto carriers.
 
 - **Missile search cleanup:** in `client/src/missiles/search.rs` every neighbour edge repeats its node's start-overlap query, about a third of the budget; judge edges by travel alone. `AirGraph::endpoint_candidates` probes every carrier grid at any distance; apply the reach gate `neighbors` uses. `MissileFlight.route_status`, `RouteStatus`, `SearchBudget.used`, and `AirGraph::path` are test-only code in production files.

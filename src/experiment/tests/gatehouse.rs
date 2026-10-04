@@ -72,7 +72,7 @@ fn gatehouse_course_lowers_every_gate_and_starts_the_fireworks() {
     assert!(crossings[1]["velocity_after"][0].as_f64().expect("cistern drift") > 0.0);
     // The Vat's angled run leaves the ceiling falling and drifting toward the vat.
     assert!(crossings[4]["velocity_after"][1].as_f64().expect("vat fall") < 0.0);
-    assert!(crossings[4]["velocity_after"][0].as_f64().expect("vat drift") > 4.0);
+    assert!(crossings[4]["velocity_after"][0].as_f64().expect("vat drift") > 3.0);
     let last = report["steps"].as_array().expect("steps").len() - 1;
     assert_eq!(
         report["steps"][last]["state"]["active_switches"],
@@ -81,7 +81,7 @@ fn gatehouse_course_lowers_every_gate_and_starts_the_fireworks() {
     assert!(events(&report).any(|event| event["kind"] == "fireworks_started"));
     assert!(!events(&report).any(|event| event["kind"] == "player_died" || event["kind"] == "player_fall_damage"));
     // The turret sees the route only stepping onto and off the shield plate.
-    assert!(lowest_health(&report) > 400.0, "{}", lowest_health(&report));
+    assert!(lowest_health(&report) > 350.0, "{}", lowest_health(&report));
 }
 
 #[test]

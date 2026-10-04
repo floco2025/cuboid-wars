@@ -70,7 +70,7 @@ fn a_jump_clears_a_gap_that_walking_cannot() {
     script.actions = vec![
         Action::Move {
             direction: [1.0, 0.0],
-            ticks: 12,
+            ticks: 19,
             crouch: false,
             jump: false,
         },
@@ -104,6 +104,30 @@ fn a_jump_clears_a_gap_that_walking_cannot() {
 }
 
 #[test]
+fn a_walk_ends_standing_on_its_point_or_says_how_far_short_a_wall_stopped_it() {
+    let (_folder, mut script) = turret_room();
+    script.actions = vec![
+        Action::WalkTo {
+            target: [-6.0, -2.0],
+            ticks: 120,
+        },
+        Action::WalkTo {
+            target: [6.0, -2.0],
+            ticks: 120,
+        },
+    ];
+    let report = script.run().expect("walk");
+    let arrived = &report["steps"][0];
+    assert_eq!(arrived["result"]["status"], "arrived", "{arrived}");
+    let position = &arrived["state"]["player"]["position"];
+    let off = (position[0].as_f64().expect("x") + 6.0).hypot(position[2].as_f64().expect("z") + 2.0);
+    assert!(off < 0.1, "{position}");
+    let blocked = &report["steps"][1]["result"];
+    assert_eq!(blocked["status"], "short", "{blocked}");
+    assert!(blocked["distance"].as_f64().expect("distance") > 5.0, "{blocked}");
+}
+
+#[test]
 fn a_wall_portal_turns_held_movement_and_reports_the_owners_exit_position() {
     let floors: Vec<_> = (0..10)
         .flat_map(|col| (0..10).map(move |row| json!({"col":col,"row":row,"all":"solid"})))
@@ -128,7 +152,7 @@ fn a_wall_portal_turns_held_movement_and_reports_the_owners_exit_position() {
         Action::Portal { end: End::B },
         Action::Move {
             direction: [0.0, -1.0],
-            ticks: 50,
+            ticks: 75,
             crouch: false,
             jump: false,
         },

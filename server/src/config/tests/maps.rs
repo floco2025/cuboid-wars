@@ -304,7 +304,9 @@ fn validate_maps_rejects_invalid_latitude() {
 #[test]
 fn map_entry_inherits_the_default_weather() {
     let entry = parse_map_entry("both", None).expect("weather should come from the defaults");
-    assert_eq!(entry.weather, WeatherMode::Auto);
+    let default: WeatherMode =
+        serde_json::from_value(fixtures::gameplay_defaults()["weather"].clone()).expect("default weather missing");
+    assert_eq!(entry.weather, default);
 }
 
 #[test]

@@ -55,6 +55,13 @@ pub(super) enum Action {
         #[serde(default)]
         jump: bool,
     },
+    // A walk to a point that ends there whatever the movement numbers: at
+    // most `ticks`, heading for `target` (x, z) and letting go where the
+    // ground's braking stops the body on it.
+    WalkTo {
+        target: [f32; 2],
+        ticks: u32,
+    },
     Check {
         min: [f32; 3],
         max: [f32; 3],
@@ -147,12 +154,12 @@ impl Script {
                     !targets.is_empty() && eye.iter().chain(targets).flatten().all(|n| n.is_finite()),
                     "action {index}: probe needs finite targets and a finite eye"
                 ),
-                Action::Advance { ticks } | Action::Move { ticks, .. } => {
+                Action::Advance { ticks } | Action::Move { ticks, .. } | Action::WalkTo { ticks, .. } => {
                     ensure!(*ticks > 0, "action {index}: ticks must be positive");
-                    if let Action::Move { direction, .. } = action {
+                    if let Action::Move { direction: plane, .. } | Action::WalkTo { target: plane, .. } = action {
                         ensure!(
-                            direction.iter().all(|n| n.is_finite()),
-                            "action {index}: direction must be finite"
+                            plane.iter().all(|n| n.is_finite()),
+                            "action {index}: direction and target must be finite"
                         );
                     }
                 }

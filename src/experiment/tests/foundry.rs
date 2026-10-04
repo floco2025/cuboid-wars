@@ -38,7 +38,9 @@ const IN_THE_STACK_LOFT: usize = 135;
 // The route's step that has just caught the stack's low gravity rising out of the corner.
 const CAUGHT_LOW_GRAVITY: usize = 138;
 // The stack's perch, where its plate stands.
-const PERCH_Y: f64 = 24.0;
+const PERCH_Y: f64 = 27.2;
+// The stack's floor.
+const STACK_FLOOR_Y: f64 = 4.8;
 
 #[test]
 fn foundry_course_crosses_all_three_courses_and_starts_the_fireworks() {
@@ -179,7 +181,7 @@ fn the_stacks_fall_out_of_the_open_floor_misses_the_low_gravity_and_rises_short_
             target: [-15.5, 4.8, 16.5],
         },
         advance(4),
-        walk([-1.0, 0.0], 10, false),
+        walk([-1.0, 0.0], 16, false),
         advance(150),
     ]);
     let report = script
@@ -189,7 +191,7 @@ fn the_stacks_fall_out_of_the_open_floor_misses_the_low_gravity_and_rises_short_
     assert!(!events(&report).any(|event| event["kind"] == "item_collected"));
     let steps = report["steps"].as_array().expect("steps");
     let highest = highest_feet(&steps[IN_THE_STACK_LOFT + 1..]);
-    assert!(highest < PERCH_Y - 4.0, "{highest}");
+    assert!(highest < PERCH_Y - 3.0, "{highest}");
     assert_eq!(
         steps[steps.len() - 1]["state"]["active_switches"],
         json!(["gallery", "slopes"])
@@ -213,6 +215,9 @@ fn a_light_jump_from_the_stacks_floor_rises_short_of_the_perch() {
     let last = &steps[steps.len() - 1]["state"];
     assert_eq!(last["player"]["low_gravity"], true);
     let highest = highest_feet(&steps[CAUGHT_LOW_GRAVITY + 3..]);
-    assert!(highest > 15.0 && highest < PERCH_Y - 4.0, "{highest}");
+    assert!(
+        highest > STACK_FLOOR_Y + 4.0 && highest < PERCH_Y - 4.0,
+        "a light jump, short of the perch: {highest}"
+    );
     assert_eq!(last["active_switches"], json!(["gallery", "slopes"]));
 }

@@ -27,6 +27,9 @@ use super::{
     script::{End, Script},
 };
 
+// How near its point a walk ends, and how slow a body counts as standing.
+const WALK_TO_TOLERANCE: f32 = 0.05;
+
 pub(super) struct Shot {
     pub id: u64,
     pub position: Position,
@@ -466,6 +469,32 @@ impl Session {
             self.owner.motion.face_yaw.0 = heading;
         }
         self.jump_requested = jump;
+    }
+
+    // Heads for `target`, or lets go once ground braking would stop the body
+    // on it; true when the body stands still there.
+    pub fn steer_to(&mut self, target: [f32; 2]) -> bool {
+        let offset = [target[0] - self.owner.position.x, target[1] - self.owner.position.z];
+        let velocity = self.owner.motion.horizontal_velocity.0;
+        let speed = velocity.x.hypot(velocity.z);
+        let braking = self
+            .server
+            .world()
+            .resource::<MapSettings>()
+            .movement
+            .player
+            .ground_deceleration;
+        if offset[0].hypot(offset[1]) <= (speed * speed / (2.0 * braking)).max(WALK_TO_TOLERANCE) {
+            self.end_move();
+            speed < WALK_TO_TOLERANCE
+        } else {
+            self.begin_move(offset, false, false);
+            false
+        }
+    }
+
+    pub fn distance_to(&self, target: [f32; 2]) -> f32 {
+        (target[0] - self.owner.position.x).hypot(target[1] - self.owner.position.z)
     }
 
     pub fn end_move(&mut self) {

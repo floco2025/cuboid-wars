@@ -56,7 +56,7 @@ impl Executor {
                 self.remaining = ticks;
                 return Ok(());
             }
-            Action::Advance { ticks } => {
+            Action::Advance { ticks } | Action::WalkTo { ticks, .. } => {
                 self.remaining = ticks;
                 return Ok(());
             }
@@ -94,7 +94,18 @@ impl Executor {
         if !self.running() {
             return Ok(());
         }
-        let moving = matches!(self.script.actions[self.steps.len()], Action::Move { .. });
+        let walk = match self.script.actions[self.steps.len()] {
+            Action::WalkTo { target, .. } => Some(target),
+            _ => None,
+        };
+        let moving = walk.is_some() || matches!(self.script.actions[self.steps.len()], Action::Move { .. });
+        if let Some(target) = walk
+            && self.session.alive()
+            && self.session.steer_to(target)
+        {
+            self.complete(json!({"status": "arrived", "ticks": self.advanced}));
+            return Ok(());
+        }
         if !moving || self.session.alive() {
             self.session
                 .advance()
@@ -103,7 +114,11 @@ impl Executor {
             self.remaining -= 1;
         }
         if self.remaining == 0 || (moving && !self.session.alive()) {
-            let result = if moving {
+            let result = if let Some(target) = walk {
+                self.session.end_move();
+                json!({"status": if self.remaining == 0 {"short"} else {"interrupted"}, "ticks": self.advanced,
+                    "distance": self.session.distance_to(target)})
+            } else if moving {
                 self.session.end_move();
                 json!({"status": if self.remaining == 0 {"simulated"} else {"interrupted"}, "ticks":self.advanced})
             } else {

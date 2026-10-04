@@ -90,20 +90,22 @@ fn gameplay() -> Value {
     gameplay["weapons"]["portals"]["range"] = json!(100.0);
     gameplay["weapons"]["portals"]["size"] = json!({"width": 1.4, "height": 2.6});
     gameplay["weapons"]["portals"]["funnel"] = json!({"capture_margin": 0.6, "capture_growth": 0.8});
-    gameplay["movement"]["low_gravity"] = json!(5.0);
+    gameplay["movement"]["low_gravity"] = json!(13.2);
     gameplay["player_fall"] = json!({"safe_distance": 8.0, "lethal_distance": 15.0});
     gameplay["movement"]["projectile_speed"] = json!(90.0);
     gameplay["movement"]["gravity"] = json!(25.0);
     gameplay["combat"]["damage"]["projectile"] = json!(60.0);
     let player = json!({
-        "move_speed": 8.0,
+        "move_speed": 5.1,
+        "move_speed_ladder": 0.45,
+        "move_speed_power_up": 1.818,
         "jump_speed": 12.0,
         "ground_acceleration": 20.0,
         "ground_deceleration": 30.0,
         "ground_lateral_deceleration": 40.0,
-        "air_acceleration": 5.0,
-        "air_deceleration": 5.0,
-        "air_lateral_deceleration": 5.0,
+        "air_acceleration": 3.0,
+        "air_deceleration": 0.0,
+        "air_lateral_deceleration": 0.0,
     });
     for (key, value) in player.as_object().expect("movement rates") {
         gameplay["movement"]["player"][key] = value.clone();

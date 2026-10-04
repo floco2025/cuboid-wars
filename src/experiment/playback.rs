@@ -57,6 +57,10 @@ impl Playback {
             .iter()
             .find_map(|action| match action {
                 Action::Move { direction, .. } if *direction != [0.0, 0.0] => Some(direction[0].atan2(direction[1])),
+                Action::WalkTo { target, .. } => {
+                    let spawn = executor.script.spawn;
+                    Some((target[0] - spawn[0]).atan2(target[1] - spawn[2]))
+                }
                 _ => None,
             })
             .unwrap_or(executor.session.owner.motion.face_yaw.0);
@@ -166,6 +170,7 @@ impl Playback {
             Action::Aim { .. } => true,
             Action::Reset { .. } => false,
             Action::Move { direction, .. } if *direction != [0.0, 0.0] => false,
+            Action::WalkTo { .. } => false,
             _ => self.aiming,
         };
         if self.continuous

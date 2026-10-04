@@ -87,12 +87,12 @@ fn a_map_override_replaces_one_leaf_and_inherits_the_rest() {
     let defaults = TestConfigDir::shipped_gameplay();
     assert_eq!(movement.gravity, 24.0);
     assert_eq!(
-        f64::from(movement.low_gravity),
-        defaults["movement"]["low_gravity"].as_f64().expect("default")
+        movement.low_gravity,
+        defaults["movement"]["low_gravity"].as_f64().expect("default") as f32
     );
     assert_eq!(
-        f64::from(movement.player.move_speed),
-        defaults["movement"]["player"]["move_speed"].as_f64().expect("default")
+        movement.player.move_speed,
+        defaults["movement"]["player"]["move_speed"].as_f64().expect("default") as f32
     );
 }
 

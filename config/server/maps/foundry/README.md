@@ -41,11 +41,12 @@ the air. A course's plate latches and opens its bar in the exit corridor.
 3. **The Float.** The door in the hub's west wall leads through an eraser
    into the stack, a metal chimney with a perch and the plate high on its
    west wall. Low gravity hangs in its south-west corner, out of a jump's
-   reach. With it a jump floats high but not to the perch, and a fall from
-   anywhere else in the stack is too slow without it. Fall heavy and rise
-   light: put one portal on the chute's floor, shot through its mouth, and
-   the other in the corner under the low gravity, climb the ladder in the
-   shaft by the vestibule to the loft, and drop through its hatch. You come
-   up out of the corner, catch the low gravity on the way, and float past
-   the perch; steer onto it. Float down and leave through the eraser, which
-   takes the low gravity back.
+   reach, and the perch is out of reach of a jump with it. The loft's hatch
+   drops you down the chute fast enough to rise most of the way, but not all
+   of it. Fall heavy and rise light: put one portal on the chute's floor,
+   shot through its mouth, and the other in the corner under the low
+   gravity, climb the ladder in the shaft by the vestibule to the loft, and
+   drop through its hatch. You come up out of the corner, catch the low
+   gravity on the way, and rise past the perch; steer onto it. The ladder on
+   the perch's east side leads down; jump off its foot and leave through the
+   eraser, which takes the low gravity back.

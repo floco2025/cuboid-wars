@@ -27,25 +27,25 @@ cargo run --release -- --experiment <map> | python3 tools/mapauthor.py proof <ma
 
 ## Workflow
 
-1. Register the map in `config/server/gameplay.json::maps` and write its `settings.json`: start from `gatehouse`'s, set `geometry` (`PLAN.md` asks for 1 m cells), give `textures` an alias per role, a floor, wall, and ceiling material from Hotel's beside the `solid` and `portal` pair, and keep the whole `movement` block, so a proved route does not move with the defaults and a flight keeps its speed (no air braking). The tools never write either file.
+1. Register the map in `config/server/gameplay.json::maps` and write its `settings.json`: `textures` with an alias per role, a floor, wall, and ceiling material from Hotel's beside the `solid` and `portal` pair, and nothing else the map's idea does not need; whatever overrides a default comes first in the file, in `gameplay.json`'s order, the map's own content after it. `gameplay.json`'s defaults are the one game every map plays: 1 m cells and 1.6 m storeys, the shared movement, pickups that last until death or erasure, and the portal gun always held. The tools never write either file.
 2. Write `build.py` (below), run `build`, read the summary it prints.
 3. `describe` for the plan of each level; `surface`, `jump`, `fling`, and `ranges` for the physics of each gap and portal pair. Place landings where a flight comes down, not where it looks right.
 4. `shots` from each point a portal is shot from, `sweep` with the moves of each puzzle step, and `sweep --walk-in` for each goal (Asking the game): the intended pair reaches the goal, and walking into a pair never does.
 5. Write `experiment.json` beside the layout (format under Proving a route), run it, read `proof`. Every `aim`, `check`, and `spawn` is in world metres; `describe` and `where` give them.
-6. Iterate until the route passes, then pin it in `src/experiment/tests/` like `primer.rs`, on `scenario`, which pins the movement rates the course was proved against: the completion run and the failures the course is built on (a missing portal, a skipped pickup, a plate not pressed). A route the runner cannot finish because the player died ends the run at the next `aim`; truncate the script to see the report up to there.
+6. Iterate until the route passes, then pin it in `src/experiment/tests/` like `foundry.rs`, on `scenario`, which pins the shared movement numbers the course was proved against: the completion run and the failures the course is built on (a missing portal, a skipped pickup, a plate not pressed). A route the runner cannot finish because the player died ends the run at the next `aim`; truncate the script to see the report up to there.
 7. `python3 tools/editor.py <map>` opens the result; Check Map must be clean.
 
 ## Coordinates
 
 Cells and levels everywhere in the tools: `(col, row)` with columns along x and rows along z, rects end-exclusive, level L's floor top at `L * level_height`. The grid is centred on the world origin, so world x = `col * cell - cols * cell / 2`, the same for z, and feet y = `L * level_height`. Scripts take world metres; `where` converts both ways. A takeoff `L4:11,17:E` leaves cell (11, 17) on level 4 over its east edge; a surface `wall:L4:6,17:W` is the wall on the west side of cell (6, 17) with its portal facing that cell, and `floor:L2:37,42` a floor point at cell coordinates (37, 42), which is the corner shared by cells 36 and 37. A takeoff and a wall take an optional `:<along>` from 0 at the edge's west or north end to 1 at the other, the middle without one: `wall:L1:6,2:N:1` centres a portal on the point cells 6 and 7 share, where a portal two cells wide belongs.
 
-## Rules of thumb at the portal-course geometry
+## Rules of thumb at the shared defaults
 
-Cell 2.0 m, level 2.2 m, floors and walls 0.2 m thick; a wall section is 2.0 m tall. Defaults: move 8 m/s, jump 12 m/s (apex 2.88 m, so a jump clears one storey and not two), gravity 25, low gravity 5 (apex 14.4 m), the speed pickup ×1.5, air braking 5 m/s² with input released. Fall damage starts at an 8 m equivalent drop and is lethal at 15 m; a 4.4 m drop costs nothing. The body is 0.6 m wide and 1.8 m tall, eyes at 1.62 m. The funnel pulls a falling body onto a floor portal from 0.6 m plus 0.8 m per second still to fall, and never changes its velocity, so a fling leaves at the angle it entered.
+Cell 1.0 m, level 1.6 m, floors and walls 0.2 m thick. Move 5.1 m/s, jump 12 m/s (apex 2.88 m, so a jump clears one storey and not two), gravity 25, low gravity 13.2 (apex 5.45 m: three storeys and not four), the speed pickup ×1.818 (9.3 m/s), air steering 3 m/s² and no air braking, so a flight keeps its speed. A running jump carries about 4.9 m, 8.9 m with speed. Fall damage starts at an 8 m equivalent drop and is lethal at 15 m; a light body lands like one that fell about half as far. The body is 0.6 m wide and 1.8 m tall, eyes at 1.62 m. The funnel pulls a falling body onto a floor portal from 0.6 m plus 0.8 m per second still to fall, and never changes its velocity, so a fling leaves at the angle it entered.
 
-Low gravity carries a jump tens of metres and lands softly from any height, so a goal it must not reach needs walls and a roof entered through an `eraser` edge; eraser pickups can be walked around.
+Low gravity carries a jump three storeys up and a run about twice as far, so a goal it must not reach stands four storeys above every floor near it or in a room entered through an `eraser` edge; eraser pickups can be walked around. A pickup reaches its player through the server, so a gravity change in flight arrives a tick or two late: leave metres of margin on a flight that catches one.
 
-Do not trust these for a gap: run `ranges` once per map and `jump` at the actual edge. Released input brakes hard in the air; a player crossing a gap holds forward, which is the `held` row and the `--air-control` lines.
+Do not trust these for a gap: run `ranges` once per map and `jump` at the actual edge. A player crossing a gap holds forward, which is the `held` row and the `--air-control` lines.
 
 ## Portal backing
 
@@ -127,6 +127,7 @@ Playback starts paused: Space plays or pauses, Enter runs one action, R restarts
 | Action | Behavior |
 | --- | --- |
 | `move`, `direction: [x, z]`, `ticks: N` | Hold a direction for N ticks; magnitude is ignored, `[0, 0]` holds nothing. Optional `crouch: true`; `jump: true` attempts one jump on the first tick. |
+| `walk_to`, `target: [x, z]`, `ticks: N` | Walk to a point on the ground and stop on it, in at most N ticks: `arrived`, or `short` with the distance left when something stops the body. Where a walk ends does not change with the movement numbers, so a route walks with it and keeps `move` for run-ups, jumps, and steering in the air. |
 | `advance`, `ticks: N` | N ticks with no movement input. |
 | `aim`, `target: [x, y, z]` | Aim from the eye at a world point, no time passes. |
 | `portal`, `end: "a"` or `"b"` | A portal shot with the current aim under the normal placement rules. |

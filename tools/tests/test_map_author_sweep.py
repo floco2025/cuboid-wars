@@ -201,6 +201,12 @@ class SweepTests(ConfigTestCase):
         ):
             sweep(ctx, "L1:4,6", MOVES, entries=["ramp:L0:16,3"], run=run)
 
+    def test_a_named_end_that_opens_where_a_sample_did_is_that_portal(self):
+        ctx = hall()
+        run = game(lambda placed: (len(placed) // 2, player([-5.5, 2.2, -7.2])), path=())
+        text = sweep(ctx, "L1:4,6", MOVES, entries=[WEST_PANEL], exits=["floor:L1:9.55,6.5"], run=run)
+        self.assertIn("1 pairs", text)
+
 
 class WalkInTests(ConfigTestCase):
     def test_every_exit_is_tried_from_one_floor_and_one_wall_entry(self):

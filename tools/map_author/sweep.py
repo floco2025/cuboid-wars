@@ -121,11 +121,16 @@ def placements(shots: list[Shot]) -> list[Placement]:
         if not shot.opens:
             continue
         position, normal = tuple(shot.portal["position"]), tuple(shot.portal["normal"])
-        if any(dist(position, other.position) <= SAME_PORTAL and dist(normal, other.normal) <= 0.1 for other in found):
+        if any(_same_portal(shot, other) for other in found):
             continue
         target = shot.target
         found.append(Placement(target.spec, shot.stand.eye, target.point, position, normal, target.walk_up))
     return found
+
+
+def _same_portal(shot: Shot, placement: Placement) -> bool:
+    position, normal = tuple(shot.portal["position"]), tuple(shot.portal["normal"])
+    return dist(position, placement.position) <= SAME_PORTAL and dist(normal, placement.normal) <= 0.1
 
 
 # What one attempt did, read from its steps of the report.
@@ -199,7 +204,9 @@ def _reach(ctx: MapContext, stand_spec: str, also_from, entries, exits, run, sta
             return found
         picked = []
         for spec in specs:
-            matches = [placement for placement in found if placement.label == spec]
+            # A named surface may open where a sample already did: that is its portal too.
+            opened = [shot for shot in shots if shot.target.spec == spec and shot.opens]
+            matches = [p for p in found if p.label == spec or any(_same_portal(shot, p) for shot in opened)]
             if not matches:
                 tried = "; ".join(f"from {s.stand.label}: {verdict(s)}" for s in shots if s.target.spec == spec)
                 raise ValueError(f"{spec} opens no portal: {tried}")

@@ -35,7 +35,7 @@ def summarize(report: dict, frame: GridFrame) -> str:
         if notes:
             words.append("  " + " | ".join(notes))
         lines.append(" ".join(words))
-        if action["action"] in ("move", "advance", "check", "reset") and state.get("player"):
+        if action["action"] in ("move", "walk_to", "advance", "check", "reset") and state.get("player"):
             lines.append(" " * 39 + _position(state["player"], frame))
         if action["action"] == "check":
             totals["checks"] += 1
@@ -75,6 +75,8 @@ def _action(action: dict) -> str:
     if kind == "move":
         flags = (" crouch" if action.get("crouch") else "") + (" jump" if action.get("jump") else "")
         return f"move ({action['direction'][0]:g},{action['direction'][1]:g}) x{action['ticks']}{flags}"
+    if kind == "walk_to":
+        return f"walk to ({action['target'][0]:g}, {action['target'][1]:g}) x{action['ticks']}"
     if kind == "advance":
         return f"advance x{action['ticks']}"
     if kind == "aim":
@@ -108,6 +110,10 @@ def _result(action: dict, result: dict) -> str:
         return f"interrupted after {result.get('ticks')} ticks"
     if status == "simulated":
         return f"simulated {result.get('ticks')} ticks"
+    if status == "arrived":
+        return f"arrived in {result.get('ticks')} ticks"
+    if status == "short":
+        return f"SHORT by {result.get('distance'):.2f} m after {result.get('ticks')} ticks"
     if status == "probed":
         shots = result.get("shots", [])
         return f"{sum(shot['status'] == 'placed' for shot in shots)} of {len(shots)} shots open a portal"

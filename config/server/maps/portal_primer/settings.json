@@ -1,4 +1,18 @@
 {
+  "geometry": { "grid_cell_size": 2.0, "level_height": 2.2 },
+  "movement": {
+    "low_gravity": 5.0,
+    "player": {
+      "move_speed": 8.0,
+      "move_speed_ladder": 0.3,
+      "move_speed_power_up": 1.5,
+      "air_acceleration": 5.0,
+      "air_deceleration": 5.0,
+      "air_lateral_deceleration": 5.0
+    }
+  },
+  "portals": "both",
+  "combat": { "health": { "player": { "max": 500.0, "regen_rate": 0.0 } } },
   "textures": {
     "solid": { "material": "steelplate1", "portalable": false },
     "portal": { "material": "titanium-scuffed", "portalable": true }
@@ -12,20 +26,5 @@
       "equipment_eraser": 0.0
     }
   },
-  "quests": [],
-  "weather": "clear",
-  "geometry": {
-    "grid_cell_size": 2.0,
-    "level_height": 2.2,
-    "floor_thickness": 0.2,
-    "wall_thickness": 0.2
-  },
-  "portals": "both",
-  "power_ups": {
-    "portal_gun": { "mode": "always" },
-    "single_shot": { "mode": "pickup", "duration_secs": null },
-    "speed": { "mode": "pickup", "duration_secs": null },
-    "low_gravity": { "mode": "pickup", "duration_secs": null }
-  },
-  "combat": { "health": { "player": { "max": 500.0, "regen_rate": 0.0 } } }
+  "quests": []
 }

@@ -1,4 +1,16 @@
 {
+  "geometry": {
+    "grid_cell_size": 4.0,
+    "level_height": 2.4,
+    "floor_thickness": 0.4,
+    "wall_thickness": 0.4
+  },
+  "movement": { "gravity": 24.0, "player": { "air_acceleration": 0.0 } },
+  "power_ups": { "portal_gun": { "mode": "pickup", "duration_secs": null } },
+  "combat": {
+    "health": { "actors": { "turret": { "max": 50.0 } } },
+    "damage": { "actors": { "turret": { "beam_dps": 40.0 } } }
+  },
   "textures": {
     "pedestal": { "material": "stucco1", "portalable": false },
     "portal": { "material": "titanium-scuffed", "portalable": true },
@@ -6,36 +18,6 @@
     "walkway": { "material": "steelplate1", "portalable": false }
   },
   "grounds": { "level": 0 },
-  "geometry": {
-    "grid_cell_size": 4.0,
-    "level_height": 2.4,
-    "wall_thickness": 0.4
-  },
-  "weather": "clear",
-  "combat": {
-    "health": { "actors": { "turret": { "max": 50.0 } } },
-    "damage": { "actors": { "turret": { "beam_dps": 40.0 } } }
-  },
-  "movement": {
-    "gravity": 24.0,
-    "low_gravity": 13.2,
-    "player": {
-      "move_speed": 5.1,
-      "move_speed_ladder": 0.45,
-      "move_speed_power_up": 1.818,
-      "air_acceleration": 0.0,
-      "air_deceleration": 0.0,
-      "air_lateral_deceleration": 0.0
-    }
-  },
-  "portals": "auto",
-  "power_ups": {
-    "single_shot": { "mode": "pickup", "duration_secs": null },
-    "multi_shot": { "duration_secs": null },
-    "portal_gun": { "duration_secs": null },
-    "speed": { "duration_secs": null },
-    "low_gravity": { "duration_secs": null }
-  },
   "random_items": null,
   "placed_items": {
     "respawn_secs": {

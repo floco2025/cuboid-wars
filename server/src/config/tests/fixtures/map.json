@@ -1,8 +1,14 @@
 {
-  "grounds": null,
-  "textures": {
-    "basement-floor": { "material": "test", "portalable": true },
-    "slab": { "material": "test", "portalable": true }
+  "geometry": {
+    "grid_cell_size": 3.4,
+    "level_height": 4.4,
+    "floor_thickness": 0.4,
+    "wall_thickness": 0.3
+  },
+  "power_ups": {
+    "single_shot": { "mode": "pickup", "duration_secs": 120.0 },
+    "speed": { "duration_secs": 30.0 },
+    "low_gravity": { "duration_secs": 20.0 }
   },
   "combat": {
     "health": {
@@ -15,14 +21,15 @@
       }
     }
   },
+  "textures": {
+    "basement-floor": { "material": "test", "portalable": true },
+    "slab": { "material": "test", "portalable": true }
+  },
+  "grounds": null,
   "random_items": {
     "weights": { "health_potion": 1 },
     "max_number": 3,
     "despawn_secs": 20.0
-  },
-  "power_ups": {
-    "single_shot": { "mode": "pickup", "duration_secs": 120.0 },
-    "low_gravity": { "duration_secs": 20.0 }
   },
   "placed_items": {
     "respawn_secs": {

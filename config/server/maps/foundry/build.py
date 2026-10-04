@@ -119,14 +119,15 @@ b.platform("top", level=6, at=(43, 28), size=(5, 4), material="hub-floor")
 b.doorway("corridor", "S", 13, width=2, storeys=2, storey=3, field="slopes-door")
 b.doorway("hub", "E", 8, width=2)
 
-# Course 3, the Float. A heavy fall builds speed and a light body rises far
-# on it: the stack's low gravity hangs out of a jump's reach over a corner,
-# where a floor portal opens under it however it is shot, so it is caught
-# rising out of that portal after a fall from the loft and carries the body
-# past the perch, which neither a heavy fling nor a light jump reaches. The
-# stack is entered through an eraser, so low gravity never leaves it, and
-# nothing standing in it is within a light jump of the perch.
-FLOAT = GROUND + 12
+# Course 3, the Float. A heavy fall builds speed and a light body rises
+# farther on it: the stack's low gravity hangs out of a jump's reach over a
+# corner, where a floor portal opens under it however it is shot, so it is
+# caught rising out of that portal after the fall from the loft and carries
+# the body past the perch, which the same fall without it does not reach. The
+# stack is entered through an eraser, so low gravity never leaves it. The
+# perch's ladder ends out of a light jump's reach, so it only leads down.
+FLOAT = GROUND + 14
+LOFT = GROUND + 11
 b.level_name(FLOAT, "Perch")
 b.room(
     "stack",
@@ -143,27 +144,28 @@ b.face_wall(GROUND, (4, 30), "N", "brick", length=12, storeys=2)
 b.face_wall(GROUND, (4, 41), "S", "brick", length=8, storeys=2)
 b.face_wall(GROUND, (4, 30), "W", "brick", length=12, storeys=2)
 b.item("low_gravity", GROUND + 4, (5, 40))
-b.platform("perch", level=FLOAT, at=(4, 33), size=(4, 4), material="metal")
-b.plate(level="perch", at=(6, 35), switch="float")
+b.platform("perch", level=FLOAT, at=(4, 33), size=(4, 5), material="metal")
+b.plate(level="perch", at=(6, 34), switch="float")
+b.ladder(lower_level=GROUND + 5, landing=(7, 34), side="E", levels=FLOAT - GROUND - 5)
 
 b.room(
     "chute2",
     level=GROUND,
     at=(12, 38),
     size=(3, 3),
-    storeys=8,
+    storeys=LOFT - GROUND,
     floor="floor",
     inside="metal",
     outside="metal",
     ceiling=False,
 )
 b.doorway("chute2", "W", 0, width=3, storeys=2)
-b.room("loft2", level=GROUND + 8, at=(11, 36), size=(5, 6), storeys=2, **METAL)
+b.room("loft2", level=LOFT, at=(11, 36), size=(5, 6), storeys=2, **METAL)
 b.hole("loft2", (3, 3), (12, 38))
-b.room("stair2", level=GROUND, at=(14, 34), size=(2, 2), storeys=10, **METAL)
+b.room("stair2", level=GROUND, at=(14, 34), size=(2, 2), storeys=LOFT - GROUND + 2, **METAL)
 b.doorway("stair2", "W", 0, width=2)
-b.doorway("stair2", "S", 0, width=2, storeys=2, storey=8)
-b.ladder(lower_level=GROUND, landing=(15, 36), side="N", levels=8)
+b.doorway("stair2", "S", 0, width=2, storeys=2, storey=LOFT - GROUND)
+b.ladder(lower_level=GROUND, landing=(15, 36), side="N", levels=LOFT - GROUND)
 
 b.room("vestibule", level=GROUND, at=(16, 30), size=(4, 2), storeys=2, **HUB)
 b.doorway("vestibule", "W", 0, width=2, eraser=True)
