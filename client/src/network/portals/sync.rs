@@ -36,6 +36,7 @@ pub(in crate::network) fn sync_portals(
             &context.collision_world,
             &context.carriers,
             context.gameplay_config.portals.size,
+            context.gameplay_config.player.physics(),
         );
     }
 }

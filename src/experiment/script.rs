@@ -179,6 +179,17 @@ impl Script {
     }
 }
 
+// A map's own script by the map's name, or any script by its `.json` path.
+pub fn script_path(script: &str) -> PathBuf {
+    if script.ends_with(".json") {
+        return PathBuf::from(script);
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("config/server/maps")
+        .join(script)
+        .join("experiment.json")
+}
+
 pub fn run_file(path: &Path) -> Result<()> {
     let report = Script::load(path)?.run()?;
     serde_json::to_writer_pretty(io::stdout().lock(), &report)?;

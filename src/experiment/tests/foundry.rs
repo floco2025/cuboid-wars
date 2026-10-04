@@ -31,9 +31,11 @@ const ON_LANDING: usize = 4;
 // Where the route shoots the hall's band from: the gallery's east end, through its window.
 const GALLERY_EYE: [f32; 3] = [-5.5, 14.42, -2.92];
 const BAND: [f32; 3] = [-13.9, 12.6, -10.0];
+// The route's step that stands in the loft beside the hatch, both portals open.
+const IN_THE_LOFT: usize = 85;
 
 #[test]
-fn foundry_course_crosses_the_gallery_and_starts_the_fireworks() {
+fn foundry_course_crosses_the_gallery_and_the_slopes_and_starts_the_fireworks() {
     let (_folder, script) = scenario("foundry");
     let report = script.run().expect("foundry course");
     for step in report["steps"].as_array().expect("steps") {
@@ -50,15 +52,23 @@ fn foundry_course_crosses_the_gallery_and_starts_the_fireworks() {
     let crossings: Vec<_> = events(&report)
         .filter(|event| event["kind"] == "player_portal_crossing")
         .collect();
-    assert_eq!(crossings.len(), 1, "the gallery's fall out of the band");
+    assert_eq!(
+        crossings.len(),
+        2,
+        "the gallery's fall out of the band, the hatch's out of the shallow ramp"
+    );
     // The run off the gallery comes out of the band as lift.
     let velocity = &crossings[0]["velocity_after"];
     assert!(velocity[0].as_f64().expect("fling") > 24.0, "{velocity}");
     assert!(velocity[1].as_f64().expect("lift") > 0.0, "{velocity}");
+    // The hatch's fall leaves the shallow ramp along its normal, steeply up toward the ledge.
+    let velocity = &crossings[1]["velocity_after"];
+    assert!(velocity[1].as_f64().expect("rise") > 20.0, "{velocity}");
+    assert!(velocity[0].as_f64().expect("drift") > 5.0, "{velocity}");
     let last = report["steps"].as_array().expect("steps").len() - 1;
     assert_eq!(
         report["steps"][last]["state"]["active_switches"],
-        json!(["gallery", "finish"])
+        json!(["gallery", "slopes", "finish"])
     );
     assert!(events(&report).any(|event| event["kind"] == "fireworks_started"));
     assert!(!events(&report).any(|event| event["kind"] == "player_died" || event["kind"] == "player_fall_damage"));
@@ -97,4 +107,37 @@ fn the_landings_fall_throws_the_same_pair_into_the_chasm() {
         "on the chasm's floor: {player}"
     );
     assert_eq!(report["steps"][last]["state"]["active_switches"], json!([]));
+}
+
+#[test]
+fn the_steep_ramp_throws_the_hatchs_fall_flat_into_the_ledges_face() {
+    let (_folder, mut script) = scenario("foundry");
+    script.actions.truncate(IN_THE_LOFT + 1);
+    script.actions.extend([
+        Action::Place {
+            end: End::B,
+            eye: [19.0, 1.62, 16.5],
+            target: [15.0, 1.6, 16.5],
+        },
+        advance(4),
+        walk([1.0, 0.0], 15, false),
+        advance(90),
+    ]);
+    let report = script.run().expect("drop through the hatch onto the steep ramp");
+    let crossing = events(&report)
+        .find(|event| event["kind"] == "player_portal_crossing")
+        .expect("the hatch's fall crosses");
+    let velocity = &crossing["velocity_after"];
+    assert!(
+        velocity[0].as_f64().expect("drift") > velocity[1].as_f64().expect("rise"),
+        "flatter than 45°: {velocity}"
+    );
+    let last = report["steps"].as_array().expect("steps").len() - 1;
+    let player = &report["steps"][last]["state"]["player"];
+    assert!(
+        player["position"][1].as_f64().expect("y").abs() < 0.1,
+        "back on the pit floor: {player}"
+    );
+    assert_eq!(report["steps"][last]["state"]["active_switches"], json!(["gallery"]));
+    assert!(!events(&report).any(|event| event["kind"] == "player_died"));
 }

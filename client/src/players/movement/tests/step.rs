@@ -818,6 +818,7 @@ fn a_walk_into_a_sliding_tiles_portal_sinks_with_the_tile_and_leaves_its_speed_b
             &world,
             &carriers,
             gameplay.portals.size,
+            player_physics(),
         );
         let step = step_player_movement(PlayerMovementStep {
             start: pos,
@@ -916,6 +917,7 @@ fn slider_portal_flight(feet: Position, vertical: f32, horizontal: Vec3, ticks: 
             &world,
             &carriers,
             gameplay.portals.size,
+            player_physics(),
         );
         let step = step_player_movement(PlayerMovementStep {
             start: pos,

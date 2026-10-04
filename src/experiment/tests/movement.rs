@@ -157,6 +157,48 @@ fn a_wall_portal_turns_held_movement_and_reports_the_owners_exit_position() {
 }
 
 #[test]
+fn a_body_landing_on_a_portal_on_a_low_ramp_sinks_through_the_floor_under_it_and_crosses() {
+    let floors: Vec<_> = (0..10)
+        .flat_map(|col| (0..10).map(move |row| json!({"col":col,"row":row,"all":"solid"})))
+        .collect();
+    let layout = json!({"map": {"fireworks": null, "grid_cols":10,"grid_rows":10,
+        "checkpoints":[{"level":0,"cols":[0,1],"rows":[0,1],"number":0,"type":"individual"}],
+        "ramps":[{"lower_level":0,"levels":1,"cols":[2,8],"rows":[4,6],"direction":"W","shape":"solid",
+            "all":"solid","top":"portal"}],
+        "levels":[
+            {"name":"Slope", "floors":floors, "walls":[{"c0":8,"r0":2,"c1":9,"r1":2,"all":"portal"}]},
+            {"name":"Above", "floors":[], "walls":[]}
+        ]
+    }});
+    let (_folder, mut script) = chamber(layout, [-18.0, 0.0, -18.0]);
+    script.actions = vec![
+        Action::Place {
+            end: End::A,
+            eye: [17.0, 1.62, 0.0],
+            target: [7.6, 0.8, 0.0],
+        },
+        Action::Advance { ticks: 4 },
+        Action::Place {
+            end: End::B,
+            eye: [14.0, 1.62, -6.0],
+            target: [14.0, 1.62, -12.0],
+        },
+        Action::Advance { ticks: 4 },
+        Action::Teleport { feet: [7.6, 4.0, 0.0] },
+        Action::Advance { ticks: 40 },
+    ];
+    let report = script.run().expect("drop onto the ramp's portal");
+    for step in &report["steps"].as_array().expect("steps")[..3] {
+        assert_ne!(step["result"]["status"], "fizzled", "{step}");
+    }
+    assert!(
+        events(&report).any(|event| event["kind"] == "player_portal_crossing"),
+        "{}",
+        report["steps"][5]["state"]["player"]
+    );
+}
+
+#[test]
 fn a_void_fall_is_reported_and_respawn_establishes_a_new_owned_body() {
     let (_folder, mut script) = turret_room();
     script.spawn = [0.0, -26.0, 10.0];

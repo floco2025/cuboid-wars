@@ -45,8 +45,8 @@ reappear at once, so a retry never runs short.
 ## Automated route
 
 ```sh
-cargo run --release -- --experiment config/server/maps/portal_primer/experiment.json | python3 tools/mapauthor.py proof portal_primer -
-cargo run --release -- --play-experiment config/server/maps/portal_primer/experiment.json
+cargo run --release -- --experiment portal_primer | python3 tools/mapauthor.py proof portal_primer -
+cargo run --release -- --play-experiment portal_primer
 cargo test --release -p cuboid-wars primer_tests
 ```
 

@@ -33,7 +33,13 @@ impl Harness {
         let collision = CollisionWorld::from_map_layout(&layout);
         let carriers = Carriers::from_layout(&layout);
         let gameplay = test_fixtures::gameplay_config();
-        let portals = PortalSet::rebuild(portals, &collision, &carriers, gameplay.portals.size);
+        let portals = PortalSet::rebuild(
+            portals,
+            &collision,
+            &carriers,
+            gameplay.portals.size,
+            gameplay.player.physics(),
+        );
         Self {
             entity: Entity::from_raw_u32(1).expect("entity"),
             collision,

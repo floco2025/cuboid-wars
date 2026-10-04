@@ -45,6 +45,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let env = CharacterEnvironment {
         ladder_mode: LadderMode::Automatic,
@@ -138,6 +139,7 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let env = CharacterEnvironment {
         ladder_mode: LadderMode::Automatic,
@@ -297,6 +299,7 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let env = CharacterEnvironment {
         ladder_mode: LadderMode::Automatic,

@@ -148,6 +148,7 @@ fn a_carried_portal_follows_its_carrier_after_a_refresh() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     assert!(set.has_carried());
     let before = frames(&set).0.center;
@@ -175,6 +176,7 @@ fn a_body_dropped_into_a_sliding_aperture_exits_the_wall_portal() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let physics = player_physics();
     let start = Position {
@@ -213,6 +215,7 @@ fn a_body_dropped_where_the_aperture_was_lands_on_the_tile() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let physics = player_physics();
     let start = Position { x: 0.0, y: 0.2, z: 0.0 };
@@ -237,6 +240,7 @@ fn a_rider_beside_the_aperture_rides_a_full_cycle_without_a_hop() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let physics = player_physics();
     let start = Position {
@@ -276,6 +280,7 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let physics = player_physics();
     let half_y = physics.movement_collider.height / 2.0;
@@ -320,6 +325,7 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     assert!(
         stale
@@ -375,6 +381,7 @@ fn a_static_portal_ignores_a_carrier_floor_passing_behind_it() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
 
     let excluded = set.collision_exclusions(Vec3::ZERO, player_physics());
@@ -403,7 +410,13 @@ fn velocity_relative_to_the_entrys_carrier_is_velocity_relative_to_the_exits() {
 
     // Into the sliding floor portal, out of the static wall: a body falling
     // along with the tile leaves the wall straight, at its fall speed alone.
-    let set = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers, size);
+    let set = PortalSet::rebuild(
+        &[carried_portal(0.0), wall_portal()],
+        &world,
+        &carriers,
+        size,
+        player_physics(),
+    );
     let sink = |set: &PortalSet, horizontal: Vec3, carried: Vec3| {
         let from = tile - centre + Vec3::Y * 0.05 - carriers.displacement(TILE);
         let to = tile - centre - Vec3::Y * 0.05;
@@ -453,6 +466,7 @@ fn velocity_relative_to_the_entrys_carrier_is_velocity_relative_to_the_exits() {
         &world,
         &carriers,
         size,
+        player_physics(),
     );
     let wall = Vec3::new(0.0, 1.6, -9.85);
     let hop = set

@@ -52,8 +52,8 @@ fn modes_are_mutually_exclusive() {
 #[test]
 fn experiment_mode_accepts_only_its_script() {
     assert_eq!(
-        parse(&["--experiment", "trial.json"]).expect("experiment").experiment,
-        Some(PathBuf::from("trial.json"))
+        parse(&["--experiment", "gatehouse"]).expect("experiment").experiment,
+        Some("gatehouse".to_owned())
     );
     for arguments in [
         &["--host"][..],
@@ -87,7 +87,7 @@ fn playing_an_experiment_accepts_window_options_and_rejects_other_world_sources(
         "Player",
     ])
     .expect("interactive experiment rejected");
-    assert_eq!(cli.play_experiment, Some(PathBuf::from("trial.json")));
+    assert_eq!(cli.play_experiment, Some("trial.json".to_owned()));
     assert!(cli.window.windowed);
     for args in [
         &["--experiment", "other.json"][..],

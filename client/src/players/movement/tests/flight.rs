@@ -192,8 +192,7 @@ fn gates(entry: (Vec3, Vec3), exit: (Vec3, Vec3)) -> Gates {
         &[portal(PortalEnd::A, entry), portal(PortalEnd::B, exit)],
         &world,
         &carriers,
-        gameplay.portals.size,
-    );
+        gameplay.portals.size, player_physics());
     Gates {
         world,
         gameplay,

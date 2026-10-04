@@ -295,6 +295,7 @@ impl Session {
             world.resource::<CollisionWorld>(),
             world.resource::<Carriers>(),
             config.portals.size,
+            config.player.physics(),
         );
         let (messages, mut events) = self.owner.step(
             world,

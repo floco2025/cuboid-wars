@@ -192,10 +192,8 @@ struct PortalPairGates {
     b: PortalGate,
 }
 
-// How deep behind the plane the backing lookup reaches (covers wall and
-// floor slabs), and how far to each side of the plane a body keeps its
+// How far past its own reach to each side of the plane a body keeps its
 // exclusion — entry, crossing, and emergence all stay collision-free.
-const BACKING_DEPTH: f32 = 0.5;
 const TRANSIT_MARGIN: f32 = 0.3;
 // Longest per-tick displacement legitimate motion can produce (terminal
 // fall plus knockback, with slack); larger jumps are external teleports.
@@ -226,7 +224,9 @@ impl PortalSet {
         collision_world: &CollisionWorld,
         carriers: &Carriers,
         size: PortalSize,
+        physics: CharacterPhysicsConfig,
     ) -> Self {
+        let shape = character_movement_shape(physics);
         let mut portals = portals.to_vec();
         portals.sort_by_key(|portal| (portal.pair.0, portal.end == PortalEnd::B));
         let mut pairs = Vec::new();
@@ -238,8 +238,8 @@ impl PortalSet {
                 continue;
             };
             pairs.push(PortalPairGates {
-                a: gate_from_portal(a, collision_world, carriers, size),
-                b: gate_from_portal(b, collision_world, carriers, size),
+                a: gate_from_portal(a, collision_world, carriers, size, &shape),
+                b: gate_from_portal(b, collision_world, carriers, size, &shape),
             });
         }
         Self { pairs }
@@ -526,15 +526,19 @@ fn gate_from_portal(
     collision_world: &CollisionWorld,
     carriers: &Carriers,
     size: PortalSize,
+    shape: &Capsule,
 ) -> PortalGate {
     let frame = PortalFrame::from_portal(portal, carriers, size);
     // The backing is taken once, at this tick's pose: a rigid carrier keeps
-    // the same colliders flush behind its aperture wherever it goes.
+    // the same colliders flush behind its aperture wherever it goes. It
+    // reaches as deep as a body sinks before its centre crosses, which on a
+    // low ramp is the floor under the wedge.
     let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
+    let depth = corridor_reach(shape, &frame);
     let backing = collision_world.portal_backing_colliders(
         frame.center,
         frame.normal,
-        Vec3::new(size.half_width(), size.half_height(), BACKING_DEPTH / 2.0),
+        Vec3::new(size.half_width(), size.half_height(), depth / 2.0),
         rotation,
         portal.carrier,
     );

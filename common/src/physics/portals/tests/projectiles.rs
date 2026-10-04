@@ -139,6 +139,7 @@ fn half_placed_pair_is_inert() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     assert!(set.is_empty());
     let hop = set.projectile_hop(

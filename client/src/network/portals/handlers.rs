@@ -22,6 +22,7 @@ pub(in crate::network) fn handle_portal_opened_message(
             &context.collision_world,
             &context.carriers,
             context.gameplay_config.portals.size,
+            context.gameplay_config.player.physics(),
         );
     }
     if message.shooter == my_player_id {

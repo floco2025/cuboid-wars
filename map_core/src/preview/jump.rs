@@ -156,7 +156,13 @@ impl Pair {
         ];
         let world = CollisionWorld::from_map_layout(&MapLayout::default());
         Self {
-            set: PortalSet::rebuild(&records, &world, &Carriers::default(), physics.portal_size),
+            set: PortalSet::rebuild(
+                &records,
+                &world,
+                &Carriers::default(),
+                physics.portal_size,
+                physics.character(),
+            ),
             world,
             entry: physics.frame(&portals.entry),
             exit: portals.exit.as_ref().map(|exit| physics.frame(exit)),

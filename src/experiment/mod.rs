@@ -8,7 +8,7 @@ mod script;
 mod session;
 
 pub use play::play_file;
-pub use script::run_file;
+pub use script::{run_file, script_path};
 
 #[cfg(test)]
 #[path = "tests/encounter.rs"]

@@ -4,12 +4,12 @@ A hub, courses that each chain a few portal decisions, and an exit they open:
 the second building authored by an AI with `tools/mapauthor.py`, after
 Gatehouse, whose rooms teach one idea each. `build.py` beside this file is
 its source and writes `layout.json`; `experiment.json` is the route its tests
-prove. One course, the Gallery, stands so far.
+prove. Two courses, the Gallery and the Slopes, stand so far.
 
 ```sh
 cargo run --release -- --map foundry
 python3 tools/mapauthor.py build foundry
-cargo run --release -- --play-experiment config/server/maps/foundry/experiment.json
+cargo run --release -- --play-experiment foundry
 ```
 
 Storeys are 1.6 m on a 1 m grid. Brick, tile, linoleum, and plaster take a
@@ -28,3 +28,13 @@ the air. A course's plate latches and opens its bar in the exit corridor.
    the landing into the floor portal throws you short, into the chasm. A
    running jump off the gallery's west end does not: you fly out of the band
    and over the chasm onto the ledge.
+2. **The Slopes.** The door in the hub's south wall, east of the exit, opens
+   on a balcony over a pit. Across it stands a metal ledge with the plate,
+   too high to climb, and on the pit floor two ramps face it, a gentle one
+   and a steep one, both taking a portal. A portal throws you out square to
+   its surface, so the steeper ramp throws you flatter: into the ledge's
+   face. A fall from the balcony is too slow for either. Shoot the gentle
+   ramp from the balcony and the chute's floor through its mouth on the pit
+   floor, climb the ladder in the shaft against the balcony's west wall to the loft, and drop
+   through its hatch: eight storeys down the chute, out of the gentle ramp,
+   and onto the ledge. Its door leads back to the hub.

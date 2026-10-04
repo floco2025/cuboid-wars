@@ -10,7 +10,7 @@ from map_editor.catalogs import MapCatalogs, load_actor_kinds, load_wall_light_k
 from map_editor.constants import ACTOR_ZONE_LIST, FACES, ITEM_KEY_TYPE, ITEM_TYPES, WALL_LIGHT_HEIGHT_FRACTION
 from map_editor.editing import paint_bridges, paint_edges, paint_erasers, paint_floors, place_plate, place_ramp
 from map_editor.editing import placement_materials
-from map_editor.erasing import lights_off_edges
+from map_editor.erasing import erase_floors, lights_off_edges
 from map_editor.geometry import ramp_error, ramp_slope
 from map_editor.io import write_map
 from map_editor.normalization import (
@@ -181,6 +181,11 @@ class MapBuilder:
         rect = self._place(size, at, **where)
         self.data = paint_floors(self.data, index, rect, self._alias(material, self.default), blocked=blocked)
         return self._register(Piece(name, "platform", index, *rect))
+
+    # Cells with no floor slab on `level`: a hatch, or a shaft through the floors it crosses.
+    def hole(self, level, size, at=None, *, up=0, down=0, **where) -> None:
+        index = self._level(level, up, down)
+        self.data = erase_floors(self.data, index, self._place(size, at, **where))
 
     # A pad a floor portal fits on either way round, unless `size` says otherwise.
     def portal_floor(self, name: str, level, size=None, at=None, *, up=0, down=0, **where) -> Piece:

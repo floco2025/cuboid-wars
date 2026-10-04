@@ -290,9 +290,34 @@ fn compile_floors(
             );
             tier.extend(trim::emit_wall_trim(&band, m, geometry, level, y, carrier));
         }
-        let (merged_floors, merged_materials) = floors::merge_floors(tier, assets);
-        all_floors.extend(merged_floors);
-        all_materials.extend(merged_materials);
+        // A portal opens only colliders wholly behind its plane, so the floor
+        // under a ramp merges apart from the floor beyond its toe: a body
+        // sinking into a slope portal then passes the slab beneath the wedge.
+        let footprints: Vec<(f32, f32, f32, f32)> = ramp_specs
+            .iter()
+            .filter(|ramp| ramp.lower_level == level_idx as u32)
+            .map(|ramp| ramp.to_ramp(geometry, carrier).bounds_xz())
+            .collect();
+        let under = |floor: &Floor| {
+            let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
+            let (x, z) = ((min_x + max_x) / 2.0, (min_z + max_z) / 2.0);
+            footprints
+                .iter()
+                .position(|&(x1, x2, z1, z2)| (x1..x2).contains(&x) && (z1..z2).contains(&z))
+        };
+        let mut groups: Vec<(Option<usize>, Vec<Floor>)> = Vec::new();
+        for floor in tier {
+            let key = under(&floor);
+            match groups.iter_mut().find(|(group, _)| *group == key) {
+                Some((_, members)) => members.push(floor),
+                None => groups.push((key, vec![floor])),
+            }
+        }
+        for (_, group) in groups {
+            let (merged_floors, merged_materials) = floors::merge_floors(group, assets);
+            all_floors.extend(merged_floors);
+            all_materials.extend(merged_materials);
+        }
     }
     (all_floors, all_materials)
 }

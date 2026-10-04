@@ -8,7 +8,6 @@ A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and renet.
 ![Cuboid Wars Screenshot](client/assets/screenshot4.png)
 ![Cuboid Wars Screenshot](client/assets/screenshot5.png)
 
-
 ## Overview
 
 Cuboid Wars is a networked 3D game on multi-level maps, from combat arenas

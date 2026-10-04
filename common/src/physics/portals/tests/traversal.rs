@@ -394,6 +394,7 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let physics = player_physics();
     let inside_from = Vec3::new(0.4, 0.7, placement.pos.z + 0.15);
@@ -514,6 +515,7 @@ fn a_carried_gate_is_straddled_where_it_is_drawn() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let physics = player_physics();
     let current = tile_center(&carriers);

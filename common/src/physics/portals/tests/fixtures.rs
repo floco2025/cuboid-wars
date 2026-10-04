@@ -60,6 +60,7 @@ pub(crate) fn pair(a_pos: Vec3, a_normal: Vec3, b_pos: Vec3, b_normal: Vec3) -> 
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     )
 }
 
@@ -136,6 +137,7 @@ pub(crate) fn moving_projectile_portals(
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     (world, set)
 }

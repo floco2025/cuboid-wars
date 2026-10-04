@@ -51,8 +51,7 @@ impl Course {
             ],
             &world,
             &carriers,
-            config.portals.size,
-        );
+            config.portals.size, player_physics());
         Self {
             world,
             config,
@@ -308,8 +307,7 @@ fn sloping_and_sliding_apertures_capture_off_center_falls() {
             ],
             &ramp.world,
             &ramp.carriers,
-            ramp.config.portals.size,
-        );
+            ramp.config.portals.size, player_physics());
         let (hops, pos, _) = ramp.fall(Vec3::new(1.2, 10.0, 1.4), Vec3::Y * -20.0, hz, hz * 2, usize::MAX);
         assert!(hops > 0, "ramp {hz} Hz: {pos:?}");
         let mut sliding = Course::from_layout(
@@ -347,8 +345,7 @@ fn sloping_and_sliding_apertures_capture_off_center_falls() {
             &[entry, portal(PortalEnd::B, Vec3::new(20.0, 4.0, 0.0), Vec3::NEG_Y)],
             &sliding.world,
             &sliding.carriers,
-            sliding.config.portals.size,
-        );
+            sliding.config.portals.size, player_physics());
         let (hops, pos, _) = sliding.fall(Vec3::new(1.2, 5.0, 0.5), Vec3::Y * -10.0, hz, hz * 2, usize::MAX);
         assert!(hops > 0, "moving {hz} Hz: {pos:?}");
     }
@@ -364,8 +361,7 @@ fn an_apex_beside_a_ceiling_portal_is_not_an_approach() {
         ],
         &course.world,
         &course.carriers,
-        course.config.portals.size,
-    );
+        course.config.portals.size, player_physics());
     let result = course.step(
         Vec3::new(0.8, 3.0, 0.3).into(),
         Vec3::ZERO,

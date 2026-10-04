@@ -27,6 +27,7 @@ fn pair(a_pos: Vec3, a_normal: Vec3, b_pos: Vec3, b_normal: Vec3) -> PortalSet {
         &CollisionWorld::from_map_layout(&MapLayout::default()),
         &Carriers::default(),
         gameplay.portals.size,
+        gameplay.player.physics(),
     )
 }
 

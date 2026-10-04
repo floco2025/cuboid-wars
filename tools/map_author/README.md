@@ -22,7 +22,7 @@ python3 tools/mapauthor.py shots <map> --from L1:4,6 [surface ...]
 python3 tools/mapauthor.py sweep <map> --from L1:4,6 --moves "move 0,-1 x40; advance 20" [--goal L1:2,2:6,4]
 python3 tools/mapauthor.py sweep <map> --from L1:4,6 --walk-in --goal L1:2,2:6,4
 python3 tools/mapauthor.py sweep <map> --after <route.json>:52 --from L1:4,6 ...   # shots, sweep, or walk-in with a route's state
-cargo run --release -- --experiment config/server/maps/<map>/experiment.json | python3 tools/mapauthor.py proof <map> -
+cargo run --release -- --experiment <map> | python3 tools/mapauthor.py proof <map> -
 ```
 
 ## Workflow
@@ -70,7 +70,7 @@ b.platform("landing", level=4, size=(4, 4), east_of="lobby", gap=6, shift=0)
 b.save()
 ```
 
-Placement is `at=(col, row)` or exactly one of `east_of`, `west_of`, `north_of`, `south_of` naming an earlier piece, with `gap` cells between and `shift` cells along the shared edge; `level` is a number or a piece's name, with `up` and `down`. Pieces: `platform`, `portal_floor(name, level, size=None)`, which also turns a floor already there into a pad, `portal_wall(name, level, at, side, length=None)`, which makes the face into the cell portalable and keeps the other faces of a wall already there, `wall(level, start, end, material=None, storeys=1)` between grid points, `bridge(..., field=)`, `barrier(level, start, end, field=)`, `eraser(level, start, end)`, `ramp(name, lower_level, size, direction=, levels=1, shape="solid")` where `direction` is the side it rises toward and the slope must be climbable, `ladder(lower_level, landing, side, levels=1)` on a side of its top landing cell, `checkpoint(number, level, size, ...)`, `plate(level, at, switch=)`, `item(type, level, at, field=None)`, `switch(id, activation=, reset=, held=, color=)`, `field(id, switch=, initially_on=, color=)`, `fireworks(switch)`. `save()` normalizes, validates, raises `BuildError` with the validator's messages, writes the layout, and prints the summary. Out of scope: terrain, grounds, nested maps, random items, quests.
+Placement is `at=(col, row)` or exactly one of `east_of`, `west_of`, `north_of`, `south_of` naming an earlier piece, with `gap` cells between and `shift` cells along the shared edge; `level` is a number or a piece's name, with `up` and `down`. Pieces: `platform`, `hole(level, size, at)`, which takes the floor slabs out of a footprint for a hatch or a shaft, `portal_floor(name, level, size=None)`, which also turns a floor already there into a pad, `portal_wall(name, level, at, side, length=None)`, which makes the face into the cell portalable and keeps the other faces of a wall already there, `wall(level, start, end, material=None, storeys=1)` between grid points, `bridge(..., field=)`, `barrier(level, start, end, field=)`, `eraser(level, start, end)`, `ramp(name, lower_level, size, direction=, levels=1, shape="solid", material=None, allow_steep=False)` where `direction` is the side it rises toward, `material` is an alias or a dict per face whose `top` is the slope at any steepness, and a slope too steep to climb needs `allow_steep`, `ladder(lower_level, landing, side, levels=1)` on a side of its top landing cell, `checkpoint(number, level, size, ...)`, `plate(level, at, switch=)`, `item(type, level, at, field=None)`, `switch(id, activation=, reset=, held=, color=)`, `field(id, switch=, initially_on=, color=)`, `fireworks(switch)`. `save()` normalizes, validates, raises `BuildError` with the validator's messages, writes the layout, and prints the summary. Out of scope: terrain, grounds, nested maps, random items, quests.
 
 A building is rooms:
 
@@ -110,13 +110,13 @@ The summary's portal-ready list and `surface` are grid rules, and `jump` and `fl
 ## Proving a route
 
 ```sh
-cargo run --release -- --map <map>                                                    # play it
-cargo run --release -- --experiment config/server/maps/<map>/experiment.json         # headless, report on stdout
-cargo run --release -- --play-experiment config/server/maps/<map>/experiment.json    # step through it
-cargo test --release -p cuboid-wars                                                   # route and runner tests
+cargo run --release -- --map <map>                  # play it
+cargo run --release -- --experiment <map>           # headless, report on stdout
+cargo run --release -- --play-experiment <map>      # step through it
+cargo test --release -p cuboid-wars                 # route and runner tests
 ```
 
-A map's `experiment.json` sits beside its `layout.json` and `settings.json`; its README holds the walkthrough. Headless mode needs no window, listener, or registry entry; invalid scripts are process errors, failed checks are report entries.
+A map's `experiment.json` sits beside its `layout.json` and `settings.json`, and the map's name finds it; a path ending in `.json` runs any other script. The map's README holds the walkthrough. Headless mode needs no window, listener, or registry entry; invalid scripts are process errors, failed checks are report entries.
 
 Playback starts paused: Space plays or pauses, Enter runs one action, R restarts, Esc opens the menu. The view is the one a player would have: level along the direction of travel, starting on the script's first move, and on the target from an `aim` until the next move. Mouse look, zoom, and V inspect a paused scene; the next control or tick eases the view back. Continuous playback holds briefly after an `aim`, a `portal`, and a `place` so the view arrives and the result shows. Pausing and holding stop the owner and the server alike, so waiting adds no ticks. Playback re-executes the script; it is not a recording, and randomness is unseeded.
 

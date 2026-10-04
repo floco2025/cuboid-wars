@@ -612,6 +612,7 @@ fn moving_projectile_portals(entry_travel: Vec3, exit_travel: Vec3, obstacles: &
         &world,
         &carriers,
         crate::test_fixtures::gameplay_config().portals.size,
+        crate::test_fixtures::gameplay_config().player.physics(),
     );
     (world, set)
 }

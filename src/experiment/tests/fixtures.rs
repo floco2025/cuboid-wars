@@ -1,16 +1,13 @@
-use super::script::Script;
+use super::script::{Script, script_path};
 use serde_json::{Value, json};
-use std::{fs, path::PathBuf};
+use std::fs;
 use tempfile::TempDir;
 
 // A shipped map's own script, over gameplay defaults that pin what its route
 // was proved against.
 pub(super) fn scenario(name: &str) -> (TempDir, Script) {
     let folder = TempDir::new().expect("experiment directory");
-    let example = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("config/server/maps")
-        .join(name);
-    let mut script = Script::load(&example.join("experiment.json")).expect("example script");
+    let mut script = Script::load(&script_path(name)).expect("example script");
     script.gameplay = folder.path().join("gameplay.json");
     fs::write(&script.gameplay, gameplay().to_string()).expect("write test defaults");
     (folder, script)

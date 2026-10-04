@@ -275,6 +275,7 @@ fn wall_portal_near_ramp_excludes_only_wall_backing() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let physics = player_physics();
     let origin = Vec3::new(-1.5, center_y - physics.movement_collider.height / 2.0, z);
@@ -326,6 +327,7 @@ fn wall_portal_across_a_stacked_wall_opens_its_trim_strip() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let physics = player_physics();
     let origin = Vec3::new(0.0, LEVEL_HEIGHT - physics.movement_collider.height / 2.0, -0.5);
@@ -371,6 +373,7 @@ fn wall_portal_keeps_the_floor_it_stands_on_solid() {
             .expect("fixture gameplay")
             .portals
             .size,
+        player_physics(),
     );
     let physics = player_physics();
     let origin = Vec3::new(0.0, 1.0 - physics.movement_collider.height / 2.0, -0.5);
@@ -628,6 +631,7 @@ fn configured_portal_size_controls_fit_overlap_and_aperture_crossings() {
             &world,
             &carriers,
             config.size,
+            player_physics(),
         );
         assert_eq!(
             set.projectile_hop(Vec3::new(0.5, 2.0, 1.0), Vec3::NEG_Z * 10.0, 0.2, 0.01, 0.2)

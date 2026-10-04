@@ -8,7 +8,7 @@ its tests prove.
 ```sh
 cargo run --release -- --map gatehouse
 python3 tools/mapauthor.py build gatehouse
-cargo run --release -- --play-experiment config/server/maps/gatehouse/experiment.json
+cargo run --release -- --play-experiment gatehouse
 ```
 
 Storeys are 1.6 m on a 1 m grid: a jump clears one and not two. Brick, tile,

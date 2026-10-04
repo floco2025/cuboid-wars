@@ -134,9 +134,10 @@ the right point.
   and the Vat, each proved by a scripted route. Its playtests gave the principles
   above on portals, walking in, looks, and puzzle depth.
 - **Foundry** is the second building, whose courses chain two or three
-  decisions each. Its first, the Gallery, stands: a fling across a chasm
-  that only a fall from the high gallery carries far enough, proved by a
-  route and by sweeps of other entries.
+  decisions each. Two stand, each proved by a route and by sweeps of other
+  entries: the Gallery, a fling across a chasm that only a fall from the high
+  gallery carries far enough, and the Slopes, where the ramp a portal stands
+  on sets the angle of the throw.
 - **The tools** build a map from a script, draw it as text, measure jumps and
   flings, and run a scripted route through the real game, headless or in a
   window. The builder writes buildings: rooms with ceilings and doorways,

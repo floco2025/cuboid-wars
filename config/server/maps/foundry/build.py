@@ -17,9 +17,12 @@ for level, name in {0: "Pits", GROUND: "Ground", 8: "Gallery"}.items():
 
 # A course's plate latches: crossing it again on the way out undoes nothing.
 b.switch("gallery", activation="latch", reset="never", color="#00ccff")
+b.switch("slopes", activation="latch", reset="never", color="#ffcc00")
 b.switch("finish", activation="momentary", reset="never", color="#33dd66")
 b.field("gallery", switch="gallery", initially_on=True)
 b.field("gallery-door", switch="gallery", initially_on=True, color="#00ccff")
+b.field("slopes", switch="slopes", initially_on=True)
+b.field("slopes-door", switch="slopes", initially_on=True, color="#ffcc00")
 
 METAL = dict(floor="metal", inside="metal", outside="metal", ceiling="metal")
 HUB = dict(floor="hub-floor", inside="hub-wall", outside="outside", ceiling="ceiling")
@@ -72,10 +75,53 @@ b.ramp("steps", lower_level=GROUND, at=(33, 18), size=(2, 2), direction="N", mat
 b.doorway("hall", "S", 23, width=2, storeys=2, storey=2, field="gallery-door")
 b.doorway("hub", "E", 0, width=2)
 
+# Course 2, the Slopes. A portal throws a body out square to its surface,
+# so the steep ramp throws it flat into the ledge's face and the shallow one
+# up and over onto it. Only an eight-storey fall is fast enough: the loft's
+# hatch over the chute, whose floor is shot through its mouth on the pit
+# floor. The balcony's fall is too slow for either ramp, and around the pit
+# only the lowest two storeys of wall take a portal, so no wall throws a
+# body high.
+SLOPE = {**dict.fromkeys(("bottom", "north", "south", "east", "west"), "metal"), "top": "pit-floor"}
+b.room("slopes", level=0, at=(29, 32), size=(19, 12), storeys=11, **METAL)
+b.face_wall(0, (34, 32), "N", "brick", length=11, storeys=2)
+b.face_wall(0, (34, 43), "S", "brick", length=11, storeys=2)
+b.platform("balcony", level=GROUND, at=(29, 32), size=(5, 12), material="metal")
+b.wall(level=0, start=(34, 32), end=(34, 40), material="brick", storeys=2)
+b.wall(level=2, start=(34, 32), end=(34, 44), material="metal")
+b.ramp("shallow", lower_level=0, at=(36, 33), size=(5, 3), direction="W", material=SLOPE)
+b.ramp("steep", lower_level=0, at=(38, 37), size=(2, 3), direction="W", levels=2, material=SLOPE, allow_steep=True)
+b.ladder(lower_level=0, landing=(33, 33), side="E", levels=3)
+b.platform("ledge2", level=6, at=(45, 32), size=(3, 12), material="metal")
+b.wall(level=0, start=(45, 32), end=(45, 44), material="metal", storeys=6)
+b.plate(level="ledge2", at=(46, 38), switch="slopes")
+
+b.room(
+    "chute", level=0, at=(31, 40), size=(3, 3), storeys=8, floor="floor", inside="metal", outside="metal", ceiling=False
+)
+b.doorway("chute", "E", 0, width=3, storeys=2)
+b.hole(GROUND, (3, 3), (31, 40))
+b.room("loft", level=8, at=(29, 37), size=(5, 7), storeys=2, **METAL)
+b.hole("loft", (3, 3), (31, 40))
+b.room("stair", level=GROUND, at=(29, 35), size=(2, 2), storeys=7, **METAL)
+b.doorway("stair", "E", 0, width=2)
+b.doorway("stair", "S", 0, width=2, storeys=2, storey=5)
+b.ladder(lower_level=GROUND, landing=(30, 37), side="N", levels=5)
+b.doorway("hub", "S", 9, width=2)
+
+# The ledge's way back: a door barred until the plate is pressed, and a ramp
+# down to a door in the hub's east wall.
+b.room("corridor", level=GROUND, at=(32, 28), size=(16, 4), storeys=5, **HUB)
+b.ramp("climb", lower_level=GROUND, at=(35, 28), size=(8, 4), direction="E", levels=3, material="hub-floor")
+b.platform("top", level=6, at=(43, 28), size=(5, 4), material="hub-floor")
+b.doorway("corridor", "S", 13, width=2, storeys=2, storey=3, field="slopes-door")
+b.doorway("hub", "E", 8, width=2)
+
 b.room("exit", level=GROUND, at=(24, 32), size=(4, 8), storeys=2, **HUB)
 b.doorway("hub", "S", 4, width=4)
 for level in (GROUND, GROUND + 1):
     b.barrier(level=level, start=(24, 34), end=(28, 34), field="gallery")
+    b.barrier(level=level, start=(24, 36), end=(28, 36), field="slopes")
 b.plate(level="exit", at=(26, 38), switch="finish")
 b.fireworks("finish")
 
@@ -83,5 +129,7 @@ b.room_lights("hub", "decorative", every=4)
 b.room_lights("exit", "decorative", every=4)
 b.room_lights("hall", "utility", every=4, storey=2)
 b.room_lights("shaft", "utility", every=4, storey=2)
+b.room_lights("slopes", "utility", every=4)
+b.room_lights("corridor", "decorative", every=4)
 
 b.save()
