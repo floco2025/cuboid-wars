@@ -96,6 +96,7 @@ class ParseTests(ConfigTestCase):
         ctx = hall()
         goal = Goal.parse("L1:2,2:6,4")
         self.assertTrue(goal.holds(ctx, player([-6.0, 2.2, -7.0])))
+        self.assertTrue(goal.holds(ctx, player([-6.0, 2.31, -7.0])), "on a plate")
         self.assertFalse(goal.holds(ctx, player([-6.0, 2.2, -7.0], "air")))
         self.assertFalse(goal.holds(ctx, player([-6.0, 4.4, -7.0])))
         self.assertFalse(goal.holds(ctx, None))

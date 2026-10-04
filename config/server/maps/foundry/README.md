@@ -4,7 +4,7 @@ A hub, courses that each chain a few portal decisions, and an exit they open:
 the second building authored by an AI with `tools/mapauthor.py`, after
 Gatehouse, whose rooms teach one idea each. `build.py` beside this file is
 its source and writes `layout.json`; `experiment.json` is the route its tests
-prove. Two courses, the Gallery and the Slopes, stand so far.
+prove: three courses, the Gallery, the Slopes, and the Float.
 
 ```sh
 cargo run --release -- --map foundry
@@ -38,3 +38,14 @@ the air. A course's plate latches and opens its bar in the exit corridor.
    floor, climb the ladder in the shaft against the balcony's west wall to the loft, and drop
    through its hatch: eight storeys down the chute, out of the gentle ramp,
    and onto the ledge. Its door leads back to the hub.
+3. **The Float.** The door in the hub's west wall leads through an eraser
+   into the stack, a metal chimney with a perch and the plate high on its
+   west wall. Low gravity hangs in its south-west corner, out of a jump's
+   reach. With it a jump floats high but not to the perch, and a fall from
+   anywhere else in the stack is too slow without it. Fall heavy and rise
+   light: put one portal on the chute's floor, shot through its mouth, and
+   the other in the corner under the low gravity, climb the ladder in the
+   shaft by the vestibule to the loft, and drop through its hatch. You come
+   up out of the corner, catch the low gravity on the way, and float past
+   the perch; steer onto it. Float down and leave through the eraser, which
+   takes the low gravity back.

@@ -9,7 +9,7 @@ from map_author.builder import MapBuilder  # noqa: E402
 
 # Brick, tile, and plaster take a portal; metal does not. A storey is 1.6 m:
 # a jump clears one and not two, a room is two tall, and a portal fills two.
-b = MapBuilder("foundry", cols=48, rows=44, levels=12, solid="metal", portal="brick", default="brick")
+b = MapBuilder("foundry", cols=48, rows=44, levels=22, solid="metal", portal="brick", default="brick")
 # The hub stands on level 3, so a course can sink below it.
 GROUND = 3
 for level, name in {0: "Pits", GROUND: "Ground", 8: "Gallery"}.items():
@@ -18,11 +18,13 @@ for level, name in {0: "Pits", GROUND: "Ground", 8: "Gallery"}.items():
 # A course's plate latches: crossing it again on the way out undoes nothing.
 b.switch("gallery", activation="latch", reset="never", color="#00ccff")
 b.switch("slopes", activation="latch", reset="never", color="#ffcc00")
+b.switch("float", activation="latch", reset="never", color="#cc66ff")
 b.switch("finish", activation="momentary", reset="never", color="#33dd66")
 b.field("gallery", switch="gallery", initially_on=True)
 b.field("gallery-door", switch="gallery", initially_on=True, color="#00ccff")
 b.field("slopes", switch="slopes", initially_on=True)
 b.field("slopes-door", switch="slopes", initially_on=True, color="#ffcc00")
+b.field("float", switch="float", initially_on=True)
 
 METAL = dict(floor="metal", inside="metal", outside="metal", ceiling="metal")
 HUB = dict(floor="hub-floor", inside="hub-wall", outside="outside", ceiling="ceiling")
@@ -117,12 +119,63 @@ b.platform("top", level=6, at=(43, 28), size=(5, 4), material="hub-floor")
 b.doorway("corridor", "S", 13, width=2, storeys=2, storey=3, field="slopes-door")
 b.doorway("hub", "E", 8, width=2)
 
-b.room("exit", level=GROUND, at=(24, 32), size=(4, 8), storeys=2, **HUB)
+# Course 3, the Float. A heavy fall builds speed and a light body rises far
+# on it: the stack's low gravity hangs out of a jump's reach over a corner,
+# where a floor portal opens under it however it is shot, so it is caught
+# rising out of that portal after a fall from the loft and carries the body
+# past the perch, which neither a heavy fling nor a light jump reaches. The
+# stack is entered through an eraser, so low gravity never leaves it, and
+# nothing standing in it is within a light jump of the perch.
+FLOAT = GROUND + 12
+b.level_name(FLOAT, "Perch")
+b.room(
+    "stack",
+    level=GROUND,
+    at=(4, 30),
+    size=(12, 12),
+    storeys=18,
+    floor="floor",
+    inside="metal",
+    outside="metal",
+    ceiling="metal",
+)
+b.face_wall(GROUND, (4, 30), "N", "brick", length=12, storeys=2)
+b.face_wall(GROUND, (4, 41), "S", "brick", length=8, storeys=2)
+b.face_wall(GROUND, (4, 30), "W", "brick", length=12, storeys=2)
+b.item("low_gravity", GROUND + 4, (5, 40))
+b.platform("perch", level=FLOAT, at=(4, 33), size=(4, 4), material="metal")
+b.plate(level="perch", at=(6, 35), switch="float")
+
+b.room(
+    "chute2",
+    level=GROUND,
+    at=(12, 38),
+    size=(3, 3),
+    storeys=8,
+    floor="floor",
+    inside="metal",
+    outside="metal",
+    ceiling=False,
+)
+b.doorway("chute2", "W", 0, width=3, storeys=2)
+b.room("loft2", level=GROUND + 8, at=(11, 36), size=(5, 6), storeys=2, **METAL)
+b.hole("loft2", (3, 3), (12, 38))
+b.room("stair2", level=GROUND, at=(14, 34), size=(2, 2), storeys=10, **METAL)
+b.doorway("stair2", "W", 0, width=2)
+b.doorway("stair2", "S", 0, width=2, storeys=2, storey=8)
+b.ladder(lower_level=GROUND, landing=(15, 36), side="N", levels=8)
+
+b.room("vestibule", level=GROUND, at=(16, 30), size=(4, 2), storeys=2, **HUB)
+b.doorway("vestibule", "W", 0, width=2, eraser=True)
+b.doorway("hub", "W", 10, width=2)
+
+b.room("exit", level=GROUND, at=(24, 32), size=(4, 10), storeys=2, **HUB)
 b.doorway("hub", "S", 4, width=4)
 for level in (GROUND, GROUND + 1):
     b.barrier(level=level, start=(24, 34), end=(28, 34), field="gallery")
     b.barrier(level=level, start=(24, 36), end=(28, 36), field="slopes")
-b.plate(level="exit", at=(26, 38), switch="finish")
+    b.barrier(level=level, start=(24, 38), end=(28, 38), field="float")
+b.plate(level="exit", at=(26, 40), switch="finish")
 b.fireworks("finish")
 
 b.room_lights("hub", "decorative", every=4)
@@ -131,5 +184,8 @@ b.room_lights("hall", "utility", every=4, storey=2)
 b.room_lights("shaft", "utility", every=4, storey=2)
 b.room_lights("slopes", "utility", every=4)
 b.room_lights("corridor", "decorative", every=4)
+b.room_lights("stack", "utility", every=4)
+b.room_lights("stack", "utility", every=4, storey=FLOAT - GROUND)
+b.room_lights("vestibule", "decorative", every=4)
 
 b.save()

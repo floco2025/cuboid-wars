@@ -59,7 +59,11 @@ def parse_moves(text: str) -> list[dict]:
     return actions
 
 
-# `L<level>:<c0>,<r0>:<c1>,<r1>` in cells: standing on that level inside the rectangle.
+# PRESSURE_PLATE_HEIGHT in common/src/constants.rs: a body on a plate stands this far above its level.
+PLATE_HEIGHT = 0.11
+
+
+# `L<level>:<c0>,<r0>:<c1>,<r1>` in cells: standing on that level inside the rectangle, on a plate or not.
 @dataclass(frozen=True)
 class Goal:
     level: int
@@ -81,7 +85,8 @@ class Goal:
             return False
         x, y, z = player["position"]
         gx, gz = ctx.frame.world_to_grid(x, z)
-        return ctx.frame.level_of_y(y) == self.level and self.c0 <= gx <= self.c1 and self.r0 <= gz <= self.r1
+        on_level = self.level in (ctx.frame.level_of_y(y), ctx.frame.level_of_y(y - PLATE_HEIGHT))
+        return on_level and self.c0 <= gx <= self.c1 and self.r0 <= gz <= self.r1
 
 
 # A portal a shot opens: the shot to repeat, where the aperture is, and

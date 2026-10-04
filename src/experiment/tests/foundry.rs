@@ -33,9 +33,15 @@ const GALLERY_EYE: [f32; 3] = [-5.5, 14.42, -2.92];
 const BAND: [f32; 3] = [-13.9, 12.6, -10.0];
 // The route's step that stands in the loft beside the hatch, both portals open.
 const IN_THE_LOFT: usize = 85;
+// The route's step that stands in the stack's loft beside its hatch, both portals open.
+const IN_THE_STACK_LOFT: usize = 135;
+// The route's step that has just caught the stack's low gravity rising out of the corner.
+const CAUGHT_LOW_GRAVITY: usize = 138;
+// The stack's perch, where its plate stands.
+const PERCH_Y: f64 = 24.0;
 
 #[test]
-fn foundry_course_crosses_the_gallery_and_the_slopes_and_starts_the_fireworks() {
+fn foundry_course_crosses_all_three_courses_and_starts_the_fireworks() {
     let (_folder, script) = scenario("foundry");
     let report = script.run().expect("foundry course");
     for step in report["steps"].as_array().expect("steps") {
@@ -54,8 +60,8 @@ fn foundry_course_crosses_the_gallery_and_the_slopes_and_starts_the_fireworks() 
         .collect();
     assert_eq!(
         crossings.len(),
-        2,
-        "the gallery's fall out of the band, the hatch's out of the shallow ramp"
+        3,
+        "the gallery's fall out of the band, the hatch's out of the shallow ramp, the stack's out of the corner"
     );
     // The run off the gallery comes out of the band as lift.
     let velocity = &crossings[0]["velocity_after"];
@@ -65,10 +71,21 @@ fn foundry_course_crosses_the_gallery_and_the_slopes_and_starts_the_fireworks() 
     let velocity = &crossings[1]["velocity_after"];
     assert!(velocity[1].as_f64().expect("rise") > 20.0, "{velocity}");
     assert!(velocity[0].as_f64().expect("drift") > 5.0, "{velocity}");
+    // The stack's fall leaves the corner straight up and catches the low gravity on the way.
+    let velocity = &crossings[2]["velocity_after"];
+    assert!(velocity[1].as_f64().expect("rise") > 20.0, "{velocity}");
+    assert_eq!(
+        report["steps"][CAUGHT_LOW_GRAVITY]["state"]["player"]["low_gravity"],
+        true
+    );
     let last = report["steps"].as_array().expect("steps").len() - 1;
     assert_eq!(
         report["steps"][last]["state"]["active_switches"],
-        json!(["gallery", "slopes", "finish"])
+        json!(["gallery", "slopes", "float", "finish"])
+    );
+    assert_eq!(
+        report["steps"][last]["state"]["player"]["low_gravity"], false,
+        "the stack's eraser keeps its low gravity in"
     );
     assert!(events(&report).any(|event| event["kind"] == "fireworks_started"));
     assert!(!events(&report).any(|event| event["kind"] == "player_died" || event["kind"] == "player_fall_damage"));
@@ -140,4 +157,62 @@ fn the_steep_ramp_throws_the_hatchs_fall_flat_into_the_ledges_face() {
     );
     assert_eq!(report["steps"][last]["state"]["active_switches"], json!(["gallery"]));
     assert!(!events(&report).any(|event| event["kind"] == "player_died"));
+}
+
+fn highest_feet(steps: &[Value]) -> f64 {
+    steps
+        .iter()
+        .flat_map(|step| step["events"].as_array().expect("events"))
+        .filter(|event| event["kind"] == "player_step")
+        .filter_map(|event| event["position"][1].as_f64())
+        .fold(f64::NEG_INFINITY, f64::max)
+}
+
+#[test]
+fn the_stacks_fall_out_of_the_open_floor_misses_the_low_gravity_and_rises_short_of_the_perch() {
+    let (_folder, mut script) = scenario("foundry");
+    script.actions.truncate(IN_THE_STACK_LOFT + 1);
+    script.actions.extend([
+        Action::Place {
+            end: End::B,
+            eye: [-14.5, 6.42, 12.5],
+            target: [-15.5, 4.8, 16.5],
+        },
+        advance(4),
+        walk([-1.0, 0.0], 10, false),
+        advance(150),
+    ]);
+    let report = script
+        .run()
+        .expect("drop through the stack's hatch, out of the open floor");
+    assert!(events(&report).any(|event| event["kind"] == "player_portal_crossing"));
+    assert!(!events(&report).any(|event| event["kind"] == "item_collected"));
+    let steps = report["steps"].as_array().expect("steps");
+    let highest = highest_feet(&steps[IN_THE_STACK_LOFT + 1..]);
+    assert!(highest < PERCH_Y - 4.0, "{highest}");
+    assert_eq!(
+        steps[steps.len() - 1]["state"]["active_switches"],
+        json!(["gallery", "slopes"])
+    );
+}
+
+#[test]
+fn a_light_jump_from_the_stacks_floor_rises_short_of_the_perch() {
+    let (_folder, mut script) = scenario("foundry");
+    script.actions.truncate(CAUGHT_LOW_GRAVITY + 1);
+    script.actions.extend([
+        advance(150),
+        Action::Teleport {
+            feet: [-17.5, 4.8, 16.5],
+        },
+        walk([0.0, -1.0], 30, true),
+        advance(150),
+    ]);
+    let report = script.run().expect("jump light under the perch");
+    let steps = report["steps"].as_array().expect("steps");
+    let last = &steps[steps.len() - 1]["state"];
+    assert_eq!(last["player"]["low_gravity"], true);
+    let highest = highest_feet(&steps[CAUGHT_LOW_GRAVITY + 3..]);
+    assert!(highest > 15.0 && highest < PERCH_Y - 4.0, "{highest}");
+    assert_eq!(last["active_switches"], json!(["gallery", "slopes"]));
 }
