@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from math import ceil, dist
+from dataclasses import dataclass, replace
+from math import ceil, dist, remainder, tau
 
 from map_editor.portal_surfaces import PORTAL_RIM_SCALE
 
@@ -98,6 +98,7 @@ class Placement:
     target: Point
     position: Point
     normal: Point
+    yaw: float
     walk_up: bool = False
 
     @property
@@ -124,13 +125,22 @@ def placements(shots: list[Shot]) -> list[Placement]:
         if any(_same_portal(shot, other) for other in found):
             continue
         target = shot.target
-        found.append(Placement(target.spec, shot.stand.eye, target.point, position, normal, target.walk_up))
+        found.append(
+            Placement(target.spec, shot.stand.eye, target.point, position, normal, shot.portal["yaw"], target.walk_up)
+        )
     return found
 
 
 def _same_portal(shot: Shot, placement: Placement) -> bool:
     position, normal = tuple(shot.portal["position"]), tuple(shot.portal["normal"])
-    return dist(position, placement.position) <= SAME_PORTAL and dist(normal, placement.normal) <= 0.1
+    if dist(position, placement.position) > SAME_PORTAL or dist(normal, placement.normal) > 0.1:
+        return False
+    # PortalFrame uses shot yaw only for near-vertical normals. A half turn
+    # has the same aperture outline but reverses the outgoing in-plane velocity.
+    vertical = abs(normal[1]) >= 0.99
+    if vertical != (abs(placement.normal[1]) >= 0.99):
+        return False
+    return not vertical or abs(remainder(shot.portal["yaw"] - placement.yaw, tau)) <= 0.1
 
 
 # What one attempt did, read from its steps of the report.
@@ -248,6 +258,7 @@ def sweep(
 ) -> str:
     moves = parse_moves(moves_text)
     target = Goal.parse(goal) if goal else None
+    start = replace(start, clear_portals=True)
     stands, found, firsts, seconds = _reach(ctx, stand_spec, also_from, entries, exits, run, start)
     wait = game.cooldown_ticks(ctx)
     feet = stands[0].feet
@@ -376,6 +387,7 @@ def walk_in(
     start: game.Start = game.Start(),
 ) -> str:
     target = Goal.parse(goal)
+    start = replace(start, clear_portals=True)
     stands, found, firsts, seconds = _reach(ctx, stand_spec, also_from, entries, exits, run, start)
     wait = game.cooldown_ticks(ctx)
     # Where a slow body leaves a portal depends on the exit and on how it
@@ -392,7 +404,7 @@ def walk_in(
         tried = set()
         for entry in firsts:
             kind = entry.floor
-            if entry is exit or kind in tried or dist(entry.position, exit.position) < CLEAR_OF_EXIT:
+            if entry is exit or (not entries and kind in tried) or dist(entry.position, exit.position) < CLEAR_OF_EXIT:
                 continue
             tried.add(kind)
             for name, spawn, moves in slow_entries(ctx, entry):

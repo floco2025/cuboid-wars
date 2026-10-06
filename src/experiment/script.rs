@@ -72,6 +72,8 @@ pub(super) enum Action {
         ticks: u32,
     },
     Inspect,
+    // Isolate a sweep's candidate pair while retaining the route's other state.
+    ClearPortals,
     // Recreate the session at `spawn`, or at the script's without one.
     Reset {
         #[serde(default)]

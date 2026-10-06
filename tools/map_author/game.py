@@ -46,6 +46,7 @@ class Start:
     prefix: tuple[dict, ...] = ()
     # How the checks name it after their standing point.
     label: str = ""
+    clear_portals: bool = False
 
     # `<route.json>:<step>`, the step numbered as `proof` prints it.
     @classmethod
@@ -64,7 +65,12 @@ class Start:
 
     # The actions that bring a run that has just begun to `feet`.
     def lead(self, feet) -> list[dict]:
-        return [*self.prefix, {"action": "teleport", "feet": list(feet)}] if self.prefix else []
+        if not self.prefix:
+            return []
+        # Clear before relocating: an old pair must neither block candidate
+        # placements nor carry the settling body away from the baseline.
+        clear = [{"action": "clear_portals"}] if self.clear_portals else []
+        return [*self.prefix, *clear, {"action": "teleport", "feet": list(feet)}]
 
     # The actions that begin another attempt in the same run at `feet`; the
     # last one's status says whether the body could stand there.

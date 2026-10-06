@@ -1,11 +1,13 @@
 import json
 import tempfile
+from math import pi
 from pathlib import Path
 
 from author_fixtures import hall
 from config_fixtures import ConfigTestCase
 from map_author.game import Start
-from map_author.sweep import Goal, parse_moves, sweep, walk_in
+from map_author.shots import Shot, Stand, Target
+from map_author.sweep import Goal, parse_moves, placements, sweep, walk_in
 
 MOVES = "move 0,-1 x40 jump; advance 20"
 NORTH = [0.0, 0.0, 1.0]
@@ -55,7 +57,7 @@ def game(ends, path=(PAD_POINT,), refused=lambda feet: False):
         initial = {"player": {"position": list(spawn), "support": "ground", "health": 500.0}}
         for action in actions:
             kind = action["action"]
-            if kind == "reset":
+            if kind in ("reset", "clear_portals"):
                 placed = []
             if kind == "place":
                 placed.append(tuple(action["target"]))
@@ -102,6 +104,27 @@ class ParseTests(ConfigTestCase):
         self.assertFalse(goal.holds(ctx, None))
         with self.assertRaises(ValueError):
             Goal.parse("L1:2,2")
+
+
+class PlacementTests(ConfigTestCase):
+    def test_floor_and_ceiling_rotations_are_distinct_but_wrapped_yaws_are_one(self):
+        stand = Stand("start", (0.0, 0.0, 0.0), (0.0, 1.6, 0.0))
+        for normal in ((0.0, 1.0, 0.0), (0.0, -1.0, 0.0), (0.0, 0.0, 1.0)):
+            with self.subTest(normal=normal):
+                target = Target("surface", (2.0, 0.0, 2.0), normal)
+                shots = [
+                    Shot(
+                        stand,
+                        target,
+                        "placed",
+                        target.point,
+                        normal,
+                        {"position": target.point, "normal": normal, "yaw": yaw},
+                    )
+                    for yaw in (0.0, pi / 2, pi, -pi, 2 * pi)
+                ]
+                found = placements(shots)
+                self.assertEqual([portal.yaw for portal in found], [0.0, pi / 2, pi] if normal[1] else [0.0])
 
 
 class SweepTests(ConfigTestCase):
@@ -207,8 +230,51 @@ class SweepTests(ConfigTestCase):
         text = sweep(ctx, "L1:4,6", MOVES, entries=[WEST_PANEL], exits=["floor:L1:9.55,6.5"], run=run)
         self.assertIn("1 pairs", text)
 
+    def test_also_from_tries_each_floor_orientation_for_a_named_end(self):
+        base = game(lambda placed: (1, player([-5.5, 2.2, -7.2])))
+
+        def run(ctx, spawn, actions):
+            report = base(ctx, spawn, actions)
+            for action, step in zip(actions, report["steps"], strict=True):
+                if action["action"] == "probe":
+                    for shot in step["result"]["shots"]:
+                        if "portal" in shot and shot["portal"]["normal"][1]:
+                            shot["portal"]["yaw"] = 0.0 if action["eye"][0] < -4 else pi / 2
+            return report
+
+        text = sweep(
+            hall(), "L1:4,6", MOVES, also_from=["L1:8,8"], entries=["floor:L1:9.55,6.5"], exits=[WEST_PANEL], run=run
+        )
+        self.assertIn("4 portals in reach, 2 on the way, 2 pairs", text)
+        self.assertIn("2 of 2 pairs carry the body through a portal", text)
+        entries = [action for action in base.calls[-1] if action["action"] == "place" and action["end"] == "a"]
+        self.assertEqual({action["eye"][0] for action in entries}, {-6.0, -2.0})
+
 
 class WalkInTests(ConfigTestCase):
+    def test_every_named_wall_entry_is_tried_when_only_the_second_reaches_the_goal(self):
+        start = player([-6.0, 2.2, -4.0])
+        run = game(
+            lambda placed: (
+                (1, player([-5.5, 2.2, -7.2])) if len(placed) == 2 and not out_of_the_west_panel(placed) else (0, start)
+            )
+        )
+        lines = walk_in(
+            hall(), "L1:4,6", "L1:2,2:6,4", entries=[WEST_PANEL, EAST_PANEL], exits=[PAD], run=run
+        ).splitlines()
+        self.assertEqual(lines[1], "4 entries tried, 2 pass through a portal, 0 start inside geometry")
+        self.assertEqual(lines[2], "SHORTCUT: 2 reach the goal without building speed")
+        self.assertTrue(all(EAST_PANEL in line for line in lines[3:]))
+
+    def test_every_named_floor_entry_is_tried(self):
+        run = game(lambda placed: (1 if len(placed) == 2 else 0, player([-5.5, 2.2, -7.2])))
+        text = walk_in(hall(), "L1:4,6", "L1:2,2:6,4", entries=[PAD, "floor:L1:9,6.5"], exits=[WEST_PANEL], run=run)
+        self.assertIn("12 entries tried, 12 pass through a portal", text)
+        entries = [
+            tuple(action["target"]) for action in run.calls[-1] if action["action"] == "place" and action["end"] == "a"
+        ]
+        self.assertEqual(len(set(entries)), 2)
+
     def test_every_exit_is_tried_from_one_floor_and_one_wall_entry(self):
         ctx = hall()
         start = player([-6.0, 2.2, -4.0])
@@ -278,11 +344,38 @@ class AfterTests(ConfigTestCase):
         self.assertTrue(lines[0].startswith("sweep from L1 (4, 6) after step 1 of route.json: "), lines[0])
         self.assertIn(f"{PAD} + {WEST_PANEL}: crosses 1, ends L1 cell (4.5, 2.8) on L1.a  GOAL", lines)
         probe, plain, attempts = run.calls
-        self.assertEqual([action["action"] for action in probe], ["move", "inspect", "teleport", "advance", "probe"])
-        self.assertEqual(probe[2]["feet"], [-6.0, 2.35, -4.0])
-        begin = ["reset", "move", "inspect", "teleport", "advance"]
-        self.assertEqual([action["action"] for action in plain][:5], begin)
-        self.assertEqual([action["action"] for action in attempts][:7], [*begin, "place", "advance"])
+        self.assertEqual(
+            [action["action"] for action in probe], ["move", "inspect", "clear_portals", "teleport", "advance", "probe"]
+        )
+        self.assertEqual(probe[3]["feet"], [-6.0, 2.35, -4.0])
+        begin = ["reset", "move", "inspect", "clear_portals", "teleport", "advance"]
+        self.assertEqual([action["action"] for action in plain][:6], begin)
+        self.assertEqual([action["action"] for action in attempts][:8], [*begin, "place", "advance"])
+
+    def test_sweeps_clear_the_routes_pair_before_the_baseline_and_each_new_pair(self):
+        ctx = hall()
+        # The replay opens the ends in the opposite order to the requested pair.
+        prefix = (
+            {"action": "place", "end": "a", "eye": [0, 4, 0], "target": [-4, 3.598, -7.9]},
+            {"action": "advance", "ticks": 4},
+            {"action": "place", "end": "b", "eye": [0, 4, 0], "target": list(PAD_POINT)},
+            {"action": "advance", "ticks": 4},
+        )
+        start = Start((1.0, 2.2, 1.0), prefix)
+        run = game(
+            lambda placed: (1, player([-5.5, 2.2, -7.2])) if len(placed) == 2 else (0, player([-6.0, 2.2, -4.0]))
+        )
+        text = sweep(ctx, "L1:4,6", MOVES, entries=[PAD], exits=[WEST_PANEL], run=run, start=start)
+        self.assertIn("no portals: ends L1 cell (4.0, 6.0)", text)
+        self.assertIn("1 of 1 pairs carry the body through a portal", text)
+        text = walk_in(ctx, "L1:4,6", "L1:2,2:6,4", entries=[PAD], exits=[WEST_PANEL], run=run, start=start)
+        self.assertIn("6 entries tried, 6 pass through a portal", text)
+        for actions in run.calls:
+            for index, action in enumerate(actions):
+                if action["action"] == "teleport":
+                    self.assertEqual(actions[index - 1], {"action": "clear_portals"})
+        self.assertFalse(start.clear_portals)
+        self.assertNotIn({"action": "clear_portals"}, start.lead([0, 0, 0]))
 
     def test_a_teleport_the_game_refuses_is_a_start_inside_geometry(self):
         ctx = hall()

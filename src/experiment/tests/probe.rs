@@ -1,7 +1,7 @@
 use serde_json::{Value, json};
 
 use crate::experiment::{
-    fixtures::chamber,
+    fixtures::{chamber, turret_room},
     script::{Action, End, Script},
 };
 use tempfile::TempDir;
@@ -141,4 +141,52 @@ fn a_teleport_moves_the_body_at_rest_and_keeps_what_the_script_built() {
     let refused = &report["steps"][4];
     assert_eq!(refused["result"]["status"], "rejected", "{refused}");
     assert_eq!(refused["state"], *settled);
+}
+
+#[test]
+fn clearing_portals_keeps_the_session_and_allows_the_pair_to_be_reversed() {
+    let (_folder, mut script) = turret_room();
+    let place = |end, target| Action::Place {
+        end,
+        eye: [-10.0, 1.62, 2.0],
+        target,
+    };
+    let north = [-10.0, 1.62, -8.0];
+    let south = [6.0, 1.62, 7.8];
+    script.actions = vec![
+        place(End::A, north),
+        Action::Advance { ticks: 4 },
+        place(End::B, south),
+        Action::Advance { ticks: 4 },
+        Action::Fire,
+        serde_json::from_value(json!({"action": "clear_portals"})).expect("clear action"),
+        Action::ClearPortals,
+        Action::Advance { ticks: 4 },
+        place(End::A, south),
+        Action::Advance { ticks: 4 },
+        place(End::B, north),
+    ];
+    let report = script.run().expect("replace pair");
+    let steps = &report["steps"];
+    for index in [0, 2, 8, 10] {
+        assert_eq!(steps[index]["result"]["status"], "submitted", "{}", steps[index]);
+    }
+    let before = &steps[4]["state"];
+    assert_eq!(before["portals"].as_array().expect("old pair").len(), 2);
+    assert!(
+        !before["projectiles"]
+            .as_array()
+            .expect("projectile in flight")
+            .is_empty()
+    );
+    let mut cleared = before.clone();
+    cleared["portals"] = json!([]);
+    for index in [5, 6] {
+        assert_eq!(steps[index]["result"]["status"], "cleared");
+        assert_eq!(steps[index]["state"], cleared, "nothing but portals changes");
+    }
+    let reversed = &steps[10]["state"]["portals"];
+    assert_eq!(reversed.as_array().expect("new pair").len(), 2);
+    assert_eq!(reversed[0]["position"], before["portals"][1]["position"]);
+    assert_eq!(reversed[1]["position"], before["portals"][0]["position"]);
 }

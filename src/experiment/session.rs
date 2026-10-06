@@ -169,6 +169,14 @@ impl Session {
         self.shoot_portal(end, eye, direction)
     }
 
+    pub fn clear_portals(&mut self) -> Value {
+        self.server
+            .world_mut()
+            .resource_mut::<PortalMap>()
+            .remove_access(self.access);
+        json!({"status": "cleared"})
+    }
+
     fn shoot_portal(&mut self, end: End, origin: Vec3, direction: Vec3) -> Result<Value> {
         let end = match end {
             End::A => PortalEnd::A,
