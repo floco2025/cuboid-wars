@@ -14,6 +14,7 @@ def player(position, support="ground", health=500.0, checkpoint=0, speed=False, 
         "checkpoint": checkpoint,
         "speed": speed,
         "low_gravity": low_gravity,
+        "keys": [],
     }
 
 
@@ -122,7 +123,7 @@ class ProofSummaryTests(unittest.TestCase):
         self.assertEqual(
             lines[-2],
             "final -> (-9.00, 4.40, 1.00)  L2 cell (5, 10)  ground  hp 500  cp 1  speed no  low gravity no  "
-            "switches []  open fields []",
+            "keys []  switches []  open fields []",
         )
         self.assertEqual(
             lines[-1],

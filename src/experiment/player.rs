@@ -31,7 +31,7 @@ pub(super) struct Owner {
 }
 
 impl Owner {
-    pub fn new(player: &Player) -> Self {
+    pub fn new(player: &Player, carriers: &Carriers) -> Self {
         let mut owner = Self {
             position: player.movement.pos,
             motion: PlayerMotionBundle::from(&player.movement),
@@ -42,13 +42,15 @@ impl Owner {
             step: LocalMovementStep::default(),
             reports: LocalMovementReports::default(),
         };
-        owner.relocate(player);
+        owner.relocate(player, carriers);
         owner
     }
 
-    pub fn relocate(&mut self, player: &Player) {
-        self.position = player.movement.pos;
-        self.previous_position = player.movement.pos;
+    pub fn relocate(&mut self, player: &Player, carriers: &Carriers) {
+        self.position = carriers
+            .pose(player.movement.carrier)
+            .transform_position(&player.movement.pos);
+        self.previous_position = self.position;
         self.motion = PlayerMotionBundle::from(&player.movement);
         self.generation = player.generation;
         self.crossed_last_step = false;

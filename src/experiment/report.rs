@@ -58,6 +58,9 @@ impl Session {
                 "portal_gun": info.has(PowerUpKind::PortalGun),
                 "speed": info.has(PowerUpKind::Speed),
                 "low_gravity": info.has(PowerUpKind::LowGravity),
+                "keys": info.life.held_keys.iter().map(|id| {
+                    world.resource::<FieldTable>().id(*id).expect("held key missing from FieldTable")
+                }).collect::<Vec<_>>(),
             })
         });
         let mut actors: Vec<_> = world
@@ -123,11 +126,20 @@ impl Session {
                     .expect("open field missing from FieldTable")
             })
             .collect();
+        let carriers = world.resource::<Carriers>();
+        let carrier_poses: Vec<_> = carriers
+            .carried_ids()
+            .map(|id| {
+                json!({"id": id.0, "position": carriers.pose(id).translation.to_array(),
+                "previous_position": carriers.previous_pose(id).translation.to_array()})
+            })
+            .collect();
         json!({"tick": self.tick(), "player": player, "aim": self.direction.to_array(),
             "actors": actors.into_iter().map(|(_, value)| value).collect::<Vec<_>>(),
             "spawning_actors": spawning,
             "portals": portals, "projectiles": projectiles,
             "active_switches": active_switches, "open_fields": open_fields,
+            "carriers": carrier_poses,
         })
     }
 }

@@ -70,7 +70,7 @@ b.platform("landing", level=4, size=(4, 4), east_of="lobby", gap=6, shift=0)
 b.save()
 ```
 
-Placement is `at=(col, row)` or exactly one of `east_of`, `west_of`, `north_of`, `south_of` naming an earlier piece, with `gap` cells between and `shift` cells along the shared edge; `level` is a number or a piece's name, with `up` and `down`. Pieces: `platform`, `hole(level, size, at)`, which takes the floor slabs out of a footprint for a hatch or a shaft, `portal_floor(name, level, size=None)`, which also turns a floor already there into a pad, `portal_wall(name, level, at, side, length=None)`, which makes the face into the cell portalable and keeps the other faces of a wall already there, `wall(level, start, end, material=None, storeys=1)` between grid points, `bridge(..., field=)`, `barrier(level, start, end, field=)`, `eraser(level, start, end)`, `ramp(name, lower_level, size, direction=, levels=1, shape="solid", material=None, allow_steep=False)` where `direction` is the side it rises toward, `material` is an alias or a dict per face whose `top` is the slope at any steepness, and a slope too steep to climb needs `allow_steep`, `ladder(lower_level, landing, side, levels=1)` on a side of its top landing cell, `checkpoint(number, level, size, ...)`, `plate(level, at, switch=)`, `item(type, level, at, field=None)`, `switch(id, activation=, reset=, held=, color=)`, `field(id, switch=, initially_on=, color=)`, `fireworks(switch)`. `save()` normalizes, validates, raises `BuildError` with the validator's messages, writes the layout, and prints the summary. Out of scope: terrain, grounds, nested maps, random items, quests.
+Placement is `at=(col, row)` or exactly one of `east_of`, `west_of`, `north_of`, `south_of` naming an earlier piece, with `gap` cells between and `shift` cells along the shared edge; `level` is a number or a piece's name, with `up` and `down`. Pieces: `platform`, `hole(level, size, at)`, which takes the floor slabs out of a footprint for a hatch or a shaft, `portal_floor(name, level, size=None)`, which also turns a floor already there into a pad, `portal_wall(name, level, at, side, length=None)`, which makes the face into the cell portalable and keeps the other faces of a wall already there, `wall(level, start, end, material=None, storeys=1)` between grid points, `bridge(..., field=)`, `barrier(level, start, end, field=)`, `eraser(level, start, end)`, `ramp(name, lower_level, size, direction=, levels=1, shape="solid", material=None, allow_steep=False)` where `direction` is the side it rises toward, `material` is an alias or a dict per face whose `top` is the slope at any steepness, and a slope too steep to climb needs `allow_steep`, `ladder(lower_level, landing, side, levels=1)` on a side of its top landing cell, `checkpoint(number, level, size, ...)`, `plate(level, at, switch=)`, `item(type, level, at, field=None)`, `switch(id, activation=, reset=, held=, color=)`, `field(id, switch=, initially_on=, color=)`, `fireworks(switch)`. `save()` normalizes, validates, raises `BuildError` with the validator's messages, writes the layout, and prints the summary. Out of scope: terrain, grounds, random items, quests.
 
 A building is rooms:
 
@@ -86,6 +86,45 @@ b.actor_zone("turret", level="vault", at=(14, 4), size=(1, 1), count=[1, 2], swi
 ```
 
 `MapBuilder(..., solid=, portal=, default=)` names the alias that takes no portal, the one that does, and the one a surface gets when its piece names none: `solid` unless told, and `portal` in a map where portals go almost anywhere. `room` writes the floor, the walls around it `storeys` tall, and the ceiling, which is the floor slab of the level above: `ceiling=False` leaves the top open, and a room built on top gives that slab its own floor material. `inside` and `outside` are the wall faces' aliases, one for all four walls or a dict per side; a wall's ends and edges take its inside, and at `save` a slab's side takes the face of the wall it lies in. Rooms may share a wall, and each keeps its own inside face. `face_wall(level, at, side, material, length=1, storeys=1)` and `face_slab(level, size, at, material, face="top")` change one face of what stands there, which is how a metal end of a room is made. `doorway(room, side, offset=None, width=1, storeys=None, eraser=False, field=None)` counts `offset` in cells from the wall's west or north end and opens as many storeys as a standing body needs. `light(level, at, side, kind=, height=)` hangs one light in a cell on its `side` wall, `height` metres above that level's floor; `room_lights(room, kind, every=3, storey=0, height=None, portal_faces=True)` hangs one row where walls stand, above the floor of its storey `storey`, part way up a single wall as tall as a room unless told, and returns how many it placed. `actor_zone(kind, level, size, ..., count=1, respawn_secs=None, beam_in_secs=0.0, roam=0.0, levels=1, switch=, initially_on=, until_checkpoint=, on_checkpoint=)` never refills a killed actor unless `respawn_secs` says so.
+
+### Moving geometry
+
+`geometry(name, cols=, rows=, levels=)` returns another builder using the
+root map's textures and settings. Author its rooms, floors, items, and plates
+in local coordinates; the root owns all switches, fields, fireworks, and
+geometry definitions. Definitions remain editable until the root is saved.
+
+```python
+car = b.geometry("car", cols=6, rows=5, levels=3)
+car.room("cabin", level=0, at=(0, 0), size=(6, 5), storeys=2)
+car.doorway("cabin", "S", width=3)
+b.switch("dispatch", reset="never")
+b.nested_map(
+    "freight",
+    geometry="car",
+    level=2,
+    at=(8, 5),
+    to=(34, 5),
+    travel_secs=5,
+    motion="follow_switch",
+    switch="dispatch",
+    initially_on=False,
+)
+```
+
+`nested_map` places the definition's cell `(0, 0)` at `at` and moves it to
+`to`, defaulting to a stationary placement. `to_level` defaults to `level`;
+`from_nudge` and `to_nudge` are triples in wall widths, floor thicknesses,
+and wall widths. Cycle motion additionally accepts `pause_secs` and
+`phase_secs`. Both endpoint footprints must fit the root grid. The root's
+native validation resolves references and checks the resulting document.
+
+The summary lists placements, endpoints, motion, switches, and nudges.
+Its surface list and the automatic `shots`/`sweep` samples still describe
+root geometry. Use explicit world-space `aim` or `probe` targets for carried
+surfaces. Experiments run carriers, their switches, rides, and portal
+crossings through the shared game simulation. Report states include held
+key names and each carrier's current and previous world positions.
 
 ## Reading the views
 

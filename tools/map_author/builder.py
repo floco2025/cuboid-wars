@@ -103,6 +103,64 @@ class MapBuilder:
         self.frame = GridFrame.for_map(name, self.data)
         self.footprint = PortalFootprint.for_map(name, self.frame)
         self.pieces: dict[str, Piece] = {}
+        self.geometries: dict[str, MapBuilder] = {}
+
+    def geometry(self, name: str, *, cols: int, rows: int, levels: int) -> MapBuilder:
+        if name in self.geometries:
+            raise BuildError(f"geometry {name!r} already exists")
+        child = MapBuilder(
+            self.name, cols, rows, levels=levels, solid=self.solid, portal=self.portal, default=self.default
+        )
+        self.geometries[name] = child
+        return child
+
+    def nested_map(
+        self,
+        name: str,
+        *,
+        geometry: str,
+        level,
+        at,
+        to=None,
+        to_level=None,
+        travel_secs: float = 1.0,
+        pause_secs: float = 0.0,
+        phase_secs: float = 0.0,
+        motion: str = "cycle",
+        switch: str | None = None,
+        initially_on: bool = True,
+        from_nudge=(0.0, 0.0, 0.0),
+        to_nudge=(0.0, 0.0, 0.0),
+    ) -> Piece:
+        if geometry not in self.geometries:
+            raise BuildError(f"no geometry named {geometry!r}")
+        child = self.geometries[geometry]
+        index = self._level(level)
+        end_level = index if to_level is None else self._level(to_level)
+        size = child.data["grid_cols"], child.data["grid_rows"]
+        rect = self._place(size, at)
+        self._place(size, at if to is None else to)
+        if max(index, end_level) + child.level_count > self.level_count:
+            raise BuildError(f"{name}: nested geometry leaves the map's levels")
+        piece = self._register(Piece(name, "nested_map", index, *rect, levels=child.level_count))
+        entry = {
+            "map": geometry,
+            "level": index,
+            "from": list(at),
+            "to": list(at if to is None else to),
+            "to_level": end_level,
+            "travel_secs": travel_secs,
+            "pause_secs": pause_secs,
+            "phase_secs": phase_secs,
+            "from_nudge": list(from_nudge),
+            "to_nudge": list(to_nudge),
+            "motion": motion,
+            "initially_on": initially_on,
+        }
+        if switch is not None:
+            entry["switch"] = switch
+        self.data["nested_maps"].append(entry)
+        return piece
 
     @property
     def level_count(self) -> int:
@@ -696,6 +754,18 @@ class MapBuilder:
     # The map the game would load, normalized, canonical, and valid, with the validator's warnings.
     def document(self) -> tuple[dict, list[str]]:
         self._dress_slab_sides()
+        definitions = {}
+        for name, child in self.geometries.items():
+            if child.geometries or any(child.data.get(key) for key in ("switches", "fields", "fireworks")):
+                raise BuildError(f"{name}: switches, fields, fireworks, and geometry definitions belong to the root")
+            child._dress_slab_sides()
+            definitions[name] = {
+                key: value
+                for key, value in child.data.items()
+                if key not in ("switches", "fields", "fireworks", "nested_geometry")
+            }
+        if definitions:
+            self.data["nested_geometry"] = definitions
         root = canonicalize_map(normalize_map(self.data))
         issues = validate_document(
             root,

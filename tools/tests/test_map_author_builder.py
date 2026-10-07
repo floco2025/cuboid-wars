@@ -16,6 +16,54 @@ def builder(levels=4):
 
 
 class MapBuilderTests(ConfigTestCase):
+    def test_nested_geometry_keeps_local_records_and_resolves_root_catalogs(self):
+        b = builder(levels=6)
+        b.platform("start", level=0, at=(0, 0), size=(3, 3))
+        b.checkpoint(0, level=0, at=(0, 0), size=(1, 1))
+        b.switch("lift", reset="never")
+        b.field("ticket")
+        b.plate(0, (1, 1), switch="lift")
+        cabin = b.geometry("cabin", cols=3, rows=3, levels=2)
+        cabin.room("inside", level=0, at=(0, 0), size=(3, 3))
+        cabin.item("key", 0, (1, 1), field="ticket")
+        b.nested_map(
+            "moving",
+            geometry="cabin",
+            level=1,
+            at=(4, 4),
+            to=(10, 8),
+            to_level=3,
+            motion="follow_switch",
+            switch="lift",
+            initially_on=False,
+            travel_secs=2.0,
+        )
+        # A definition remains live until save, so authors can detail it after placement.
+        cabin.doorway("inside", "S")
+        root, warnings = b.document()
+        self.assertEqual(warnings, [])
+        child = root["nested_geometry"]["cabin"]
+        self.assertFalse(any(key in child for key in ("switches", "fields", "fireworks")))
+        self.assertEqual(child["items"], [{"level": 0, "col": 1, "row": 1, "type": "key", "field": "ticket"}])
+        self.assertEqual(root["nested_maps"][0]["to_level"], 3)
+        self.assertEqual(b.piece("moving").rect, (4, 4, 7, 7))
+        self.assertIn("nested 'cabin': L1 (4, 4) -> L3 (10, 8), follow_switch", summary(MapContext.load("obby", root)))
+
+    def test_nested_geometry_rejects_globals_and_invalid_placements(self):
+        b = builder()
+        child = b.geometry("cabin", cols=3, rows=3, levels=2)
+        with self.assertRaisesRegex(BuildError, "already exists"):
+            b.geometry("cabin", cols=3, rows=3, levels=2)
+        with self.assertRaisesRegex(BuildError, "no geometry"):
+            b.nested_map("missing", geometry="missing", level=0, at=(1, 1))
+        with self.assertRaisesRegex(BuildError, "outside"):
+            b.nested_map("outside", geometry="cabin", level=0, at=(1, 1), to=(19, 19))
+        with self.assertRaisesRegex(BuildError, "levels"):
+            b.nested_map("high", geometry="cabin", level=0, at=(1, 1), to_level=3)
+        child.switch("local")
+        with self.assertRaisesRegex(BuildError, "belong to the root"):
+            b.document()
+
     def test_textures_must_match_their_portal_roles(self):
         with self.assertRaises(BuildError):
             MapBuilder("obby", cols=4, rows=4, levels=1, solid="slab", portal="slab")

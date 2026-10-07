@@ -58,10 +58,6 @@ impl Session {
         let (to_server, from_client) = unbounded();
         let (to_client, from_server) = unbounded();
         let mut server = script.build_server(LocalLink { to_client, from_client }, false)?;
-        ensure!(
-            server.world().resource::<MapLayout>().carriers.is_empty(),
-            "this experiment runner does not yet support carriers"
-        );
         to_server.send(ClientMessage::Login(CLogin {
             name: "Experiment".into(),
         }))?;
@@ -80,7 +76,7 @@ impl Session {
                 _ => None,
             })
             .context("server did not establish the initial player body")?;
-        let owner = Owner::new(&relocated);
+        let owner = Owner::new(&relocated, server.world().resource::<Carriers>());
         let id = bootstrap.player.id;
         let access = bootstrap.player.portal_access;
         let mut session = Self {
@@ -430,7 +426,8 @@ impl Session {
                 }
                 ServerMessage::PlayerDeath(_) => json!({"kind": "player_died"}),
                 ServerMessage::PlayerRelocated(message) if message.id == self.id => {
-                    self.owner.relocate(&message.player);
+                    self.owner
+                        .relocate(&message.player, self.server.world().resource::<Carriers>());
                     self.last_shot_time = f32::NEG_INFINITY;
                     json!({"kind": "player_relocated"})
                 }

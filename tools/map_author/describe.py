@@ -400,6 +400,16 @@ def _structure_lines(ctx: MapContext, index: MapIndex, platforms) -> list[str]:
             f"ladder L{ladder['lower_level']}->L{top} on side {ladder['side']} of cell ({ladder['col']}, {ladder['row']}), "
             f"climbed from the cell across that edge"
         )
+    for nested in data.get("nested_maps", []):
+        start, end = nested["from"], nested["to"]
+        state = "on" if nested.get("initially_on", True) else "off"
+        lines.append(
+            f"nested {nested['map']!r}: L{nested['level']} {tuple(start)} -> "
+            f"L{nested.get('to_level', nested['level'])} {tuple(end)}, "
+            f"{nested.get('motion', 'cycle')}, travel {nested['travel_secs']:g} s, "
+            f"initially {state}, switch {nested.get('switch')!r}; "
+            f"nudges {tuple(nested.get('from_nudge', (0, 0, 0)))} -> {tuple(nested.get('to_nudge', (0, 0, 0)))}"
+        )
     for level in range(index.count):
         for field, run in _edge_runs(sorted(index.barriers[level].items())):
             lines.append(f"barrier {field!r} L{level} {_run_text(run)}")

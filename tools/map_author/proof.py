@@ -57,7 +57,7 @@ def summarize(report: dict, frame: GridFrame) -> str:
     if player:
         lines.append(
             f"final {_position(player, frame)}  cp {player['checkpoint']}  speed {'yes' if player['speed'] else 'no'}  "
-            f"low gravity {'yes' if player['low_gravity'] else 'no'}  switches {final['active_switches']}  "
+            f"low gravity {'yes' if player['low_gravity'] else 'no'}  keys {player['keys']}  switches {final['active_switches']}  "
             f"open fields {final['open_fields']}"
         )
     else:

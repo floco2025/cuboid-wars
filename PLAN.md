@@ -142,15 +142,22 @@ the right point.
   carries far enough; the Slopes, where the ramp a portal stands on sets the
   angle of the throw; and the Float, where a fall builds speed heavy and the
   rise spends it light, by catching low gravity on the way up.
+- **Switchyard** explores changing routes rather than flings: a dispatched
+  freight car carries a prepared portal, an archive key takes away the floor
+  used to survey its vault, and a sliding ceiling becomes the route to a
+  signal balcony. Its independent wings, early-key recovery, and wrong moves
+  are covered by scripted tests. Whether those decisions read well and feel
+  fun has not yet been established by a playtest.
 - **The tools** build a map from a script, draw it as text, measure jumps and
   flings, and run a scripted route through the real game, headless or in a
   window. The builder writes buildings: rooms with ceilings and doorways,
-  lights, enemy zones, any texture a map names, and portal surfaces sized to
-  the grid. The AI can ask the game what a shot from a standing point opens,
+  lights, enemy zones, embedded moving geometry, any texture a map names,
+  and portal surfaces sized to the grid. The AI can ask the game what a shot from a standing point opens,
   where its moves end for every pair of portals on its way, and whether
   walking into any pair reaches the goal, fresh or partway through a route. It can look at a map by launching
   the game at a chosen spot and capturing the window, by hand so far. It
-  cannot yet search for a route or for a shortcut by other moves.
+  can now run moving maps, including carried portals and rides. It cannot
+  yet search for a route or for a shortcut by other moves.
 - **Tried in earlier courses, absent from the Primer:** shooting an enemy
   through a portal pair, a floor-to-floor launch upward with an air-steered
   catch, three ramp exits around one landing, erasure in mid-flight, a running
