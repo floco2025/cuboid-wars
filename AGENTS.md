@@ -47,7 +47,7 @@ Other paths:
 
 ## Build, run, lint, format
 
-Do not rebuild executable binaries for the user; they run `cargo run` themselves. Validate with `cargo check`, tests, and Clippy.
+Do not rebuild executable binaries for the user; they run `cargo run` themselves. The game is a prototype: fast turnaround beats certainty, and breaking something now and then is fine. Validate with `cargo check` and the tests of what you touched: work on a map runs that map's tests, not every map's. Clippy and the whole workspace run once before a commit, or when a change to shared code (movement, portals, collision, networking) could reach other maps. Running the tests takes seconds; building them is what costs, so batch edits into few builds.
 
 Invoke commands covered by saved approval prefixes directly, without redirection, environment assignments, or wrappers; in particular `/opt/homebrew/bin/blender --background --python <script>`.
 
@@ -233,13 +233,11 @@ Texture sets are freepbr.com UE packs. Use a distinct model texture only when it
 
 ## Testing
 
-Add tests selectively: algorithms, state transitions, interactions, persistence, regressions. Not cosmetic tuning, getters, duplicated constants, or restatements. When a test breaks, decide whether it caught a bug, needs simpler setup, or should go before changing expectations.
+Writing tests is what costs, so the default is no new test. Write one for an algorithm that is easy to get wrong, or for a bug that came back; never for cosmetic tuning, getters, duplicated constants, or restatements, and check everything else by playing. A test that breaks under an intended change is fixed if that is quick, deleted if not; one that breaks without an intended change caught a bug.
 
-Fixtures: a shared fixture may load a shipped configuration as the base of a whole-schema value, and every test pins the values it depends on. Whatever can be small is test-owned; do not copy a shipped file into a fixture or add production defaults for tests. Editor fixtures install catalogs before constructing windows or documents.
+Fixtures: a shared fixture may load a shipped configuration as the base of a whole-schema value, and every test pins the values it depends on. Whatever can be small is test-owned; do not copy a shipped file into a fixture or add production defaults for tests.
 
-Layout: tests live in `tests/` beside the module, one file per source file, declared at the end of the source file with `#[cfg(test)] #[path = "tests/x.rs"] mod tests;` so `super` is the module under test; directory modules declare theirs from `mod.rs`. Shared fixtures keep their names through `#[path]` (`test_geometry`, `test_fixtures`, `config::fixtures`). No inline `mod tests`, no crate-level integration test directories. Name tests after what they assert. The editor's `unittest` suite is in `tools/tests/`.
-
-Model tests load shipped GLBs through `client/src/tests/assets.rs` (`test_assets`) with a test-owned catalog and assert only runtime requirements (rig nodes, clip indices, colour spaces), never incidental counts.
+Layout: tests live in `tests/` beside the module, one file per source file that has tests worth keeping (a source file with none has no test file), declared at the end of the source file with `#[cfg(test)] #[path = "tests/x.rs"] mod tests;` so `super` is the module under test; directory modules declare theirs from `mod.rs`. Shared fixtures keep their names through `#[path]` (`test_geometry`, `test_fixtures`, `config::fixtures`). No inline `mod tests`, no crate-level integration test directories. Name tests after what they assert. The editor's `unittest` suite is in `tools/tests/`.
 
 ## Documentation
 
