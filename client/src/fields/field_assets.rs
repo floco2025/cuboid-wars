@@ -56,7 +56,3 @@ pub fn build_field_assets(
         key_mesh,
     }
 }
-
-#[cfg(test)]
-#[path = "tests/field_assets.rs"]
-mod tests;

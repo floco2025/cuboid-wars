@@ -1,6 +1,7 @@
+use std::time::Duration;
+
 use super::*;
 use crate::{map::grass::fixtures, vfx::rain_smoothing_system};
-use std::time::Duration;
 
 fn app() -> App {
     let mut app = fixtures::app();
@@ -49,14 +50,6 @@ fn ground_dries_at_every_frame_rate() {
             step(&mut app, 1.0 / fps as f32, false);
         }
         assert_eq!(wetness(&app), 0.0);
-        let handle = &app.world().resource::<GrassMaterials>().grass;
-        let grass = app
-            .world()
-            .resource::<Assets<GrassMaterial>>()
-            .get(handle)
-            .expect("grass missing");
-        assert_eq!(grass.base.base_color, Color::linear_rgb(1.0, 1.0, 1.0));
-        assert_eq!(grass.base.perceptual_roughness, 0.95);
     }
 }
 

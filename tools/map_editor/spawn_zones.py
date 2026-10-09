@@ -51,9 +51,3 @@ class SpawnZoneEditMixin:
                 if zone_spans_level(zone, self.current_level) and zone_contains_cell(zone, col, row):
                     return ZoneRef(name, index)
         return None
-
-    def selected_spawn_zone_has_fields(self):
-        return self.selected_spawn_zone_ref is not None
-
-    def edit_selected_spawn_zone_fields(self):
-        self.refresh_inspection(show=True)

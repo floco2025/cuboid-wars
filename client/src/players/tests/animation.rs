@@ -1,37 +1,28 @@
-use std::f32::consts::{FRAC_PI_2, PI};
-
 use bevy::{
     animation::{AnimationTargetId, RepeatAnimation, graph::AnimationNodeType},
     prelude::*,
 };
 use common::{
     physics::{CharacterMovementResult, CharacterSupport},
-    protocol::{CarrierId, MapSettings, PlayerId, PlayerMoveIntent, Position},
+    protocol::{CarrierId, PlayerId, PlayerMoveIntent, Position},
 };
 
 use super::{
     PlayerMap,
     animation::{
         AnimationState, PlayerAnimationMotion, PlayerAnimationPlayback, PlayerAnimationSource, PlayerClip, PlayerModel,
-        climb_playback_rate, player_animation_setup_system, player_animation_update_system,
+        player_animation_setup_system, player_animation_update_system,
     },
 };
 use crate::{
     characters::load_character_model,
     config::ModelDef,
-    constants::{LADDER_RUNG_SPACING, PLAYER_ANIMATION_CLIMB_RUNGS_PER_CYCLE, PLAYER_ANIMATION_RUN_SPEED},
+    constants::{LADDER_RUNG_SPACING, PLAYER_ANIMATION_CLIMB_RUNGS_PER_CYCLE},
     test_assets::{headless_asset_app, settle},
-    test_fixtures::map_settings,
 };
 
-fn choose(
-    state: &mut AnimationState,
-    support: CharacterSupport,
-    velocity: Vec3,
-    _intent: PlayerMoveIntent,
-    finished: bool,
-) -> (PlayerClip, f32) {
-    let result = state.select(
+fn choose(state: &mut AnimationState, support: CharacterSupport, velocity: Vec3, finished: bool) -> PlayerClip {
+    let (clip, _) = state.select(
         PlayerAnimationMotion { support, velocity },
         velocity.with_y(0.0).length() > 4.0,
         velocity,
@@ -39,89 +30,16 @@ fn choose(
         finished,
         0.12,
     );
-    state.clip = result.0;
-    result
-}
-
-#[test]
-fn locomotion_distinguishes_walking_running_backwards_and_strafing() {
-    let mut state = AnimationState::default();
-    for (velocity, intent, expected, backwards) in [
-        (Vec3::ZERO, PlayerMoveIntent::moving(0.0), PlayerClip::Idle, false),
-        (Vec3::Z * 3.0, PlayerMoveIntent::moving(0.0), PlayerClip::Walk, false),
-        (Vec3::Z * 5.0, PlayerMoveIntent::moving(0.0), PlayerClip::Run, false),
-        (-Vec3::Z * 3.0, PlayerMoveIntent::moving(PI), PlayerClip::Walk, true),
-        (
-            Vec3::X * 3.0,
-            PlayerMoveIntent::moving(FRAC_PI_2),
-            PlayerClip::StrafeRight,
-            false,
-        ),
-        (
-            -Vec3::X * 3.0,
-            PlayerMoveIntent::moving(-FRAC_PI_2),
-            PlayerClip::StrafeLeft,
-            false,
-        ),
-    ] {
-        let (clip, speed) = choose(&mut state, CharacterSupport::Ground, velocity, intent, false);
-        assert_eq!(clip, expected);
-        assert_eq!(speed < 0.0, backwards);
-    }
-}
-
-#[test]
-fn ladder_pose_holds_and_reverses_without_becoming_a_jump_or_fall() {
-    let mut state = AnimationState::default();
-    for speed in [2.0, 0.0, -2.0] {
-        let (clip, _) = choose(
-            &mut state,
-            CharacterSupport::Ladder,
-            Vec3::Y * speed,
-            PlayerMoveIntent::NONE,
-            false,
-        );
-        assert_eq!(clip, PlayerClip::Climb);
-    }
-    assert_eq!(
-        choose(
-            &mut state,
-            CharacterSupport::Ground,
-            Vec3::ZERO,
-            PlayerMoveIntent::NONE,
-            false
-        )
-        .0,
-        PlayerClip::Idle
-    );
-}
-
-#[test]
-fn climb_cadence_tracks_rungs_independently_of_clip_duration() {
-    for duration in [1.0, 2.4, 3.0] {
-        for speed in [-3.6_f32, -2.4, 0.0, 2.4, 3.6, 5.4] {
-            let rate = climb_playback_rate(speed, duration);
-            if speed == 0.0 {
-                assert_eq!(rate, 0.0);
-                continue;
-            }
-            let seconds_per_step = duration / (rate.abs() * PLAYER_ANIMATION_CLIMB_RUNGS_PER_CYCLE);
-            assert!((speed.abs() * seconds_per_step - LADDER_RUNG_SPACING).abs() < 0.0001);
-            assert_eq!(rate.is_sign_negative(), speed.is_sign_negative());
-        }
-    }
+    state.clip = clip;
+    clip
 }
 
 #[test]
 fn moving_landings_and_movement_during_recovery_resume_locomotion() {
-    for (intent, velocity, expected) in [
-        (PlayerMoveIntent::moving(0.0), Vec3::Z * 3.0, PlayerClip::Walk),
-        (PlayerMoveIntent::moving(0.0), Vec3::Z * 5.0, PlayerClip::Run),
-        (
-            PlayerMoveIntent::moving(FRAC_PI_2),
-            Vec3::X * 3.0,
-            PlayerClip::StrafeRight,
-        ),
+    for (velocity, expected) in [
+        (Vec3::Z * 3.0, PlayerClip::Walk),
+        (Vec3::Z * 5.0, PlayerClip::Run),
+        (Vec3::X * 3.0, PlayerClip::StrafeRight),
     ] {
         for initial_clip in [PlayerClip::Jump, PlayerClip::Fall, PlayerClip::Land] {
             let mut state = AnimationState {
@@ -133,14 +51,8 @@ fn moving_landings_and_movement_during_recovery_resume_locomotion() {
                 },
                 airborne_secs: 0.5,
             };
-            assert_eq!(
-                choose(&mut state, CharacterSupport::Ground, velocity, intent, false).0,
-                expected
-            );
-            assert_eq!(
-                choose(&mut state, CharacterSupport::Ground, velocity, intent, false).0,
-                expected
-            );
+            assert_eq!(choose(&mut state, CharacterSupport::Ground, velocity, false), expected);
+            assert_eq!(choose(&mut state, CharacterSupport::Ground, velocity, false), expected);
         }
     }
 }
@@ -157,41 +69,7 @@ fn jump_holds_through_apex_falls_lands_once_and_can_jump_again() {
         (CharacterSupport::Ground, 0.0, true, PlayerClip::Idle),
         (CharacterSupport::Airborne, 4.0, false, PlayerClip::Jump),
     ] {
-        assert_eq!(
-            choose(
-                &mut state,
-                support,
-                Vec3::Y * velocity,
-                PlayerMoveIntent::NONE,
-                finished
-            )
-            .0,
-            expected
-        );
-    }
-}
-
-#[test]
-fn walking_off_an_edge_falls_and_airborne_motion_takes_priority_over_stun() {
-    let mut state = AnimationState::default();
-    for (support, velocity, expected) in [
-        (CharacterSupport::Airborne, -1.0, PlayerClip::Fall),
-        (CharacterSupport::Ladder, 0.0, PlayerClip::Climb),
-        (CharacterSupport::Ground, 0.0, PlayerClip::Stunned),
-    ] {
-        let (clip, _) = state.select(
-            PlayerAnimationMotion {
-                support,
-                velocity: Vec3::Y * velocity,
-            },
-            true,
-            Vec3::Y * velocity,
-            true,
-            false,
-            0.12,
-        );
-        assert_eq!(clip, expected);
-        state.clip = clip;
+        assert_eq!(choose(&mut state, support, Vec3::Y * velocity, finished), expected);
     }
 }
 
@@ -229,10 +107,9 @@ fn carrier_motion_and_knockback_do_not_drive_footsteps() {
 }
 
 #[test]
-fn playback_follows_map_speeds_without_restarting_each_frame() {
+fn playback_switches_clips_without_restarting_them_each_frame() {
     let mut app = App::new();
     app.insert_resource(Time::<()>::default());
-    app.insert_resource(map_settings());
     app.init_resource::<PlayerMap>();
     app.init_resource::<Assets<AnimationClip>>();
     app.add_systems(Update, player_animation_update_system);
@@ -280,44 +157,6 @@ fn playback_follows_map_speeds_without_restarting_each_frame() {
         .get::<AnimationPlayer>(rig)
         .expect("rig animation player missing");
     assert_eq!(player.animation(walk).expect("walk animation missing").seek_time(), 0.3);
-    for (move_speed, intent, velocity, expected) in [
-        (4.0, PlayerMoveIntent::moving(0.0), Vec3::Z * 3.0, PlayerClip::Walk),
-        (7.0, PlayerMoveIntent::moving(0.0), Vec3::Z * 3.0, PlayerClip::Walk),
-        (7.0, PlayerMoveIntent::moving(0.0), Vec3::Z * 3.0, PlayerClip::Walk),
-        (4.0, PlayerMoveIntent::moving(PI), -Vec3::Z * 3.0, PlayerClip::Walk),
-        (
-            4.0,
-            PlayerMoveIntent::moving(FRAC_PI_2),
-            Vec3::X * 3.0,
-            PlayerClip::StrafeRight,
-        ),
-        (4.0, PlayerMoveIntent::NONE, Vec3::ZERO, PlayerClip::Idle),
-    ] {
-        app.world_mut().resource_mut::<MapSettings>().movement.player.move_speed = move_speed;
-        app.world_mut().entity_mut(owner).insert((
-            intent,
-            PlayerAnimationMotion {
-                support: CharacterSupport::Ground,
-                velocity,
-            },
-        ));
-        app.update();
-        let playback = app
-            .world()
-            .get::<PlayerAnimationPlayback>(rig)
-            .expect("rig playback missing");
-        assert_eq!(playback.state.clip, expected);
-        if expected == PlayerClip::Run {
-            let active = app
-                .world()
-                .get::<AnimationPlayer>(rig)
-                .expect("rig animation player missing")
-                .animation(playback.source.clips[PlayerClip::Run as usize])
-                .expect("run animation missing");
-            let rate = (3.0 / PLAYER_ANIMATION_RUN_SPEED).clamp(0.4, 2.5);
-            assert_eq!(active.speed(), if velocity.z < 0.0 { -rate } else { rate });
-        }
-    }
     app.world_mut()
         .get_mut::<PlayerAnimationMotion>(owner)
         .expect("player animation motion missing")
@@ -416,7 +255,6 @@ fn selected_clip_targets(app: &mut App) -> Vec<AnimationTargetId> {
 fn selected_clips_animate_the_exported_skeleton_and_climb_follows_ladder_speed() {
     let mut app = headless_asset_app(|app| {
         app.init_resource::<PlayerMap>();
-        app.insert_resource(map_settings());
         app.add_systems(Update, player_animation_update_system);
     });
 

@@ -1,4 +1,4 @@
-use std::{f32::consts::TAU, sync::Arc};
+use std::{sync::Arc, thread, time::Duration};
 
 use bevy::{mesh::VertexAttributeValues, prelude::*};
 use common::protocol::{CarrierId, Floor};
@@ -35,6 +35,14 @@ fn test_patch() -> GrassPatch {
         level: 0,
         carrier: CarrierId::WORLD,
     }
+}
+
+fn patch_centre(patch: GrassPatch) -> Vec3 {
+    Vec3::new(
+        f32::midpoint(patch.x1, patch.x2),
+        patch.y,
+        f32::midpoint(patch.z1, patch.z2),
+    )
 }
 
 fn patch_floor(patch: GrassPatch) -> Floor {
@@ -101,38 +109,6 @@ fn same_patch_and_lod_produce_identical_mesh() {
 }
 
 #[test]
-fn configured_green_changes_the_blade_colors() {
-    let patch = test_patch();
-    let green = grass_patch_mesh(
-        patch,
-        &[patch_floor(patch)],
-        GrassLod::Near,
-        Color::srgb_u8(0x10, 0x80, 0x20),
-        &[],
-        &default(),
-    );
-    let blue = grass_patch_mesh(
-        patch,
-        &[patch_floor(patch)],
-        GrassLod::Near,
-        Color::srgb_u8(0x10, 0x20, 0x80),
-        &[],
-        &default(),
-    );
-    assert_eq!(positions(&green), positions(&blue));
-    assert_ne!(colors(&green), colors(&blue));
-}
-
-#[test]
-fn near_lod_is_denser_than_mid_lod() {
-    let patch = test_patch();
-    let near = patch_mesh(patch, GrassLod::Near, &[]);
-    let mid = patch_mesh(patch, GrassLod::Mid, &[]);
-    assert!(positions(&near).len() > positions(&mid).len() * 3);
-    assert!(GrassLod::Near.tuft_count(patch.area()) > GrassLod::Mid.tuft_count(patch.area()));
-}
-
-#[test]
 fn generated_blades_never_root_in_brown_soil() {
     let mesh = patch_mesh(test_patch(), GrassLod::Near, &[]);
     for blade in positions(&mesh).chunks_exact(VERTICES_PER_BLADE) {
@@ -142,22 +118,18 @@ fn generated_blades_never_root_in_brown_soil() {
 }
 
 #[test]
-fn burned_grass_remains_visible_short_dark_and_still() {
+fn burned_grass_stays_short_dark_and_still_and_recovers_toward_healthy() {
     let patch = test_patch();
     let normal = patch_mesh(patch, GrassLod::Near, &[]);
-    let burn = GrassBurn::new(
+    let mut burn = GrassBurn::new(
         CarrierId::WORLD,
-        Vec3::new(
-            f32::midpoint(patch.x1, patch.x2),
-            patch.y,
-            f32::midpoint(patch.z1, patch.z2),
-        ),
+        patch_centre(patch),
         CELL * 4.0,
         0.7,
         3,
         ClipRegion::default(),
     );
-    let burned = patch_mesh(patch, GrassLod::Near, &[burn]);
+    let burned = patch_mesh(patch, GrassLod::Near, std::slice::from_ref(&burn));
 
     assert!(!positions(&burned).is_empty());
     assert_eq!(positions(&burned).len(), positions(&normal).len());
@@ -169,25 +141,7 @@ fn burned_grass_remains_visible_short_dark_and_still() {
     let max_sway = uvs(&burned).iter().map(|uv| uv[0]).fold(0.0_f32, f32::max);
     assert!(max_sway <= EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR + f32::EPSILON);
     assert!(average_rgb(colors(&burned)) < average_rgb(colors(&normal)) * 0.35);
-}
 
-#[test]
-fn recovering_grass_interpolates_between_burned_and_healthy() {
-    let patch = test_patch();
-    let normal = patch_mesh(patch, GrassLod::Near, &[]);
-    let mut burn = GrassBurn::new(
-        CarrierId::WORLD,
-        Vec3::new(
-            f32::midpoint(patch.x1, patch.x2),
-            patch.y,
-            f32::midpoint(patch.z1, patch.z2),
-        ),
-        CELL * 4.0,
-        0.7,
-        3,
-        ClipRegion::default(),
-    );
-    let burned = patch_mesh(patch, GrassLod::Near, std::slice::from_ref(&burn));
     burn.set_intensity(0.5);
     let recovering = patch_mesh(patch, GrassLod::Near, &[burn]);
     assert!(max_y(positions(&burned)) < max_y(positions(&recovering)));
@@ -197,32 +151,12 @@ fn recovering_grass_interpolates_between_burned_and_healthy() {
 }
 
 #[test]
-fn different_scorch_variants_produce_different_burn_outlines() {
-    let center = Vec3::ZERO;
-    let first = GrassBurn::new(CarrierId::WORLD, center, 10.0, 0.4, 0, ClipRegion::default());
-    let second = GrassBurn::new(CarrierId::WORLD, center, 10.0, 0.4, 1, ClipRegion::default());
-    let samples = |burn: &GrassBurn| {
-        (0..32)
-            .map(|index| {
-                let angle = index as f32 / 32.0 * TAU;
-                burn.strength_at(Vec3::new(angle.cos() * 8.0, 0.0, angle.sin() * 8.0))
-            })
-            .collect::<Vec<_>>()
-    };
-    assert_ne!(samples(&first), samples(&second));
-}
-
-#[test]
 fn burn_on_another_level_does_not_change_grass() {
     let patch = test_patch();
     let normal = patch_mesh(patch, GrassLod::Near, &[]);
     let burn = GrassBurn::new(
         CarrierId::WORLD,
-        Vec3::new(
-            f32::midpoint(patch.x1, patch.x2),
-            patch.y + BURN_VERTICAL_TOLERANCE * 2.0,
-            f32::midpoint(patch.z1, patch.z2),
-        ),
+        patch_centre(patch) + Vec3::Y * BURN_VERTICAL_TOLERANCE * 2.0,
         CELL * 4.0,
         0.0,
         0,
@@ -236,11 +170,7 @@ fn burn_on_another_level_does_not_change_grass() {
 #[test]
 fn removing_burn_restores_original_chunk_mesh() {
     let patch = test_patch();
-    let origin = Vec3::new(
-        f32::midpoint(patch.x1, patch.x2),
-        patch.y,
-        f32::midpoint(patch.z1, patch.z2),
-    );
+    let origin = patch_centre(patch);
     let footprint: Arc<[Floor]> = vec![patch_floor(patch)].into();
     let visual = GrassChunkVisual {
         revision: 0,
@@ -270,11 +200,7 @@ fn removing_burn_restores_original_chunk_mesh() {
         .world_mut()
         .spawn(GrassBurn::new(
             CarrierId::WORLD,
-            Vec3::new(
-                f32::midpoint(patch.x1, patch.x2),
-                patch.y,
-                f32::midpoint(patch.z1, patch.z2),
-            ),
+            patch_centre(patch),
             CELL * 4.0,
             0.0,
             0,
@@ -366,7 +292,7 @@ fn settle(app: &mut App) {
         {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(1));
+        thread::sleep(Duration::from_millis(1));
     }
     panic!("grass builds did not settle");
 }

@@ -2,7 +2,10 @@ mod actors;
 mod characters;
 mod death;
 mod falling;
-pub mod gameplay;
+#[cfg(test)]
+#[path = "tests/fixtures.rs"]
+pub(crate) mod fixtures;
+mod gameplay;
 mod geometry;
 mod missiles;
 mod movement;

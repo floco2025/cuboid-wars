@@ -1,7 +1,5 @@
 use super::*;
-use crate::actors::{
-    ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus, navigation::surface::fixtures,
-};
+use crate::actors::{ActorBody, TraversalExecutor, TraversalStatus, navigation::surface::fixtures};
 use common::{
     map::Carriers,
     physics::CollisionWorld,
@@ -59,16 +57,7 @@ fn authored_shuttle_is_planned_and_ridden_repeatably_between_disconnected_floors
         for tick in 1..1200 {
             carriers.advance(tick, &SwitchState::default());
             world.set_carrier_poses(&carriers);
-            let movement = executor.step(
-                &TraversalEnvironment {
-                    world: &world,
-                    carriers: &carriers,
-                    settings: &config.settings,
-                    open: &[],
-                    delta: 1.0 / 30.0,
-                },
-                &mut body,
-            );
+            let movement = executor.step(&fixtures::env(&world, &carriers, &config), &mut body);
             rode |= !movement.carrier.is_world();
             assert!(!world.character_penetrates_solid(&body.position, physics, &[]));
             if executor.status == TraversalStatus::Reached {

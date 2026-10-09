@@ -2,10 +2,9 @@ use std::fs;
 
 use anyhow::Result;
 use bevy::prelude::App;
-use rand::random;
-use serde_json::{Value, json};
-
 use crossbeam_channel::{Receiver, Sender, unbounded};
+use rand::random;
+use serde_json::json;
 
 use super::{NetworkOverrides, ServerAppOptions, build_server_app_with_loader};
 use crate::{
@@ -23,30 +22,36 @@ pub(crate) fn connect(app: &mut App) -> (Sender<ClientMessage>, Receiver<ServerM
     (to_server, from_server)
 }
 
-pub(crate) fn server_app(overrides: NetworkOverrides) -> Result<App> {
-    server_app_with_listener(overrides, None)
-}
-
-pub(crate) fn server_app_with_listener(overrides: NetworkOverrides, listener: Option<Listener>) -> Result<App> {
-    let options = ServerAppOptions {
+// The options of a plain launch, for tests to override.
+pub(crate) fn options() -> ServerAppOptions {
+    ServerAppOptions {
         map: None,
         god: false,
         peace: false,
         initial_spawn: None,
         checkpoint: None,
-        network: overrides,
+        network: NetworkOverrides::default(),
         logging: false,
-    };
-    server_app_with_options(options, listener)
+    }
 }
 
+pub(crate) fn server_app(overrides: NetworkOverrides) -> Result<App> {
+    server_app_with_listener(overrides, None)
+}
+
+pub(crate) fn server_app_with_listener(overrides: NetworkOverrides, listener: Option<Listener>) -> Result<App> {
+    server_app_with_options(
+        ServerAppOptions {
+            network: overrides,
+            ..options()
+        },
+        listener,
+    )
+}
+
+// A 2×2 floor with the start checkpoint and one more.
 pub(crate) fn server_app_with_options(options: ServerAppOptions, listener: Option<Listener>) -> Result<App> {
-    server_app_with_map(options, listener, floor_map())
-}
-
-// A 2×2 floor with the start checkpoint and one more; tests extend it.
-pub(crate) fn floor_map() -> Value {
-    json!({
+    let map = json!({
         "fireworks": null,
         "grid_cols": 2, "grid_rows": 2,
         "levels": [{"floors": [
@@ -59,10 +64,7 @@ pub(crate) fn floor_map() -> Value {
             {"level": 0, "cols": [0, 1], "rows": [0, 2], "type": "individual", "number": 0},
             {"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual", "number": 1}
         ]
-    })
-}
-
-pub(crate) fn server_app_with_map(options: ServerAppOptions, listener: Option<Listener>, map: Value) -> Result<App> {
+    });
     let mut config = server_config();
     config.random_items = None;
     build_server_app_with_loader(config, options, listener, None, move |name, hz, settings| {

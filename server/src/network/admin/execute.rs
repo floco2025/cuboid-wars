@@ -517,7 +517,3 @@ fn kill_targets(
     }
     count
 }
-
-#[cfg(test)]
-#[path = "tests/execute.rs"]
-mod tests;

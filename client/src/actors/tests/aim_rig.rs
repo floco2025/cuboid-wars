@@ -8,11 +8,9 @@ use common::{
     },
 };
 
-use super::{
-    ActorInfo, ActorMap,
-    aim_rig::{AimJointMarker, AimRig, FixedFacingMarker, aim_rig_setup_system, aim_rotations},
-};
+use super::*;
 use crate::{
+    actors::{ActorInfo, ActorMap},
     characters::{
         AnimationToPlay, character_animation_system, characters_visual_turn_system, load_character_model,
         model_transform,

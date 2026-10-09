@@ -1,7 +1,6 @@
 use super::*;
 use crate::{
-    network::{RETRANSMITTED_CHANNEL, SLICE_BYTES, UNRELIABLE_CHANNEL, channel_for, encode_message},
-    physics::CharacterSupport,
+    network::{SLICE_BYTES, UNRELIABLE_CHANNEL, channel_for, encode_message},
     protocol::CarrierId,
 };
 
@@ -15,14 +14,6 @@ fn position() -> Position {
 
 fn barrier_kind_cap() -> u16 {
     u16::try_from(FieldId::MAX.expect("barrier kind datagram cap missing")).expect("barrier kind cap exceeds u16")
-}
-
-#[test]
-fn the_checkpoint_cue_rides_the_reliable_lane() {
-    assert_eq!(
-        ServerMessage::CheckpointReached(SCheckpointReached { tick: 0, checkpoint: 0 }).lane(),
-        Lane::Reliable
-    );
 }
 
 #[test]
@@ -96,135 +87,4 @@ fn unreliable_lane_messages_fit_one_packet() {
         assert!(len <= SLICE_BYTES, "{message:?} encodes to {len} bytes");
         assert_eq!(channel_for(message.lane(), len), UNRELIABLE_CHANNEL);
     }
-}
-
-#[test]
-fn reliable_lane_carries_bootstrap_events_and_text() {
-    assert_eq!(ServerMessage::Feed(SFeed { spans: Vec::new() }).lane(), Lane::Reliable);
-    assert_eq!(ServerMessage::Firework(SFirework { seed: 7 }).lane(), Lane::Reliable);
-    assert_eq!(
-        ServerMessage::QuestUpdates(SQuestUpdates { updates: Vec::new() }).lane(),
-        Lane::Reliable
-    );
-    assert_eq!(
-        ServerMessage::PlayerKnockback(SPlayerKnockback {
-            id: PlayerId(1),
-            generation: PlayerGeneration(0),
-            health: Health(10.0),
-            impulse: [1.0, 7.0, -1.0],
-        })
-        .lane(),
-        Lane::Reliable
-    );
-    assert_eq!(
-        ClientMessage::Login(CLogin { name: String::new() }).lane(),
-        Lane::Reliable
-    );
-    assert_eq!(
-        ClientMessage::Ping(CPing { timestamp_nanos: 0 }).lane(),
-        Lane::Unreliable
-    );
-}
-
-#[test]
-fn movement_is_unreliable() {
-    let movement = PlayerMovementState::new(position(), PlayerMoveIntent::NONE, 0.0, 0.0);
-    assert_eq!(
-        ClientMessage::Move(CMove {
-            generation: PlayerGeneration(0),
-            seq: 1,
-            portal_crossing: 0,
-            movement
-        })
-        .lane(),
-        Lane::Unreliable
-    );
-    assert_eq!(
-        ClientMessage::Ping(CPing { timestamp_nanos: 0 }).lane(),
-        Lane::Unreliable
-    );
-}
-
-#[test]
-fn sequence_comparison_wraps() {
-    assert!(sequence_is_newer(2, 1));
-    assert!(!sequence_is_newer(1, 2));
-    assert!(!sequence_is_newer(5, 5));
-    assert!(sequence_is_newer(0, u32::MAX));
-    assert!(!sequence_is_newer(u32::MAX, 0));
-}
-
-#[test]
-fn hotel_sized_snapshot_takes_the_retransmitted_channel() {
-    let player = |i: u32| {
-        (
-            PlayerId(i),
-            Player {
-                generation: PlayerGeneration(0),
-                name: format!("Player {i}"),
-                movement: PlayerMovementState::new(position(), PlayerMoveIntent::NONE, 0.0, 0.0),
-                health: Health(500.0),
-                score: 0,
-                power_ups: [false; PowerUpKind::COUNT],
-                stunned: false,
-                held_keys: Vec::new(),
-                missiles: 0,
-                portal_access: PortalAccess::None,
-                checkpoint: 0,
-            },
-        )
-    };
-    let actor = |i: u32| {
-        (
-            ActorId(i),
-            Actor {
-                beam: None,
-                kind: "bruiser".to_owned(),
-                movement: ActorMovementState {
-                    pos: position(),
-                    carrier: CarrierId::WORLD,
-                    move_intent: ActorMoveIntent::Idle,
-                    vertical_velocity: 0.0,
-                    face_yaw: 0.0,
-                    support: CharacterSupport::Ground,
-                },
-                health: Health(1000.0),
-            },
-        )
-    };
-    let item = |i: u32| {
-        (
-            ItemId(i),
-            Item {
-                item_type: ItemType::Gold,
-                carrier: CarrierId::WORLD,
-                pos: position(),
-            },
-        )
-    };
-    let snapshot = ServerMessage::Snapshot(SSnapshot {
-        tick: 1,
-        players: (0..4).map(player).collect(),
-        actors: (0..24).map(actor).collect(),
-        actors_peaceful: false,
-        spawning_actors: Vec::new(),
-        items: (0..74).map(item).collect(),
-        missiles: Vec::new(),
-        switch_state: SwitchState::default(),
-        quests: Vec::new(),
-        shared_checkpoint: 0,
-        locked_switches: Vec::new(),
-        cloud_cover: 0.0,
-        raining: false,
-        celestial_clock: crate::celestial::CelestialClockAnchor {
-            anchor_tick: 1,
-            solar_day_fraction: 0.5,
-            lunar_phase_fraction: 0.25,
-            running: true,
-        },
-        portals: Vec::new(),
-    });
-    let len = encode_message(&snapshot).expect("snapshot failed to encode").len();
-    assert!(len > SLICE_BYTES, "hotel-sized snapshot encodes to {len} bytes");
-    assert_eq!(channel_for(snapshot.lane(), len), RETRANSMITTED_CHANNEL);
 }

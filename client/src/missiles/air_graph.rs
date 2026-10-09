@@ -1,6 +1,3 @@
-#[cfg(test)]
-use std::collections::VecDeque;
-
 use bevy::prelude::*;
 
 use common::{
@@ -8,13 +5,6 @@ use common::{
     map::{Carriers, MapGeometry},
     protocol::{CarrierGrid, CarrierId},
 };
-
-#[cfg(test)]
-use super::search::{AirSearch, SearchBudget, SearchProgress};
-#[cfg(test)]
-use crate::constants::MISSILE_SEARCH_WINDOW_MARGIN_CELLS;
-#[cfg(test)]
-use common::{physics::CollisionWorld, protocol::FieldId};
 
 const ADJACENT: [(i32, i32, i32); 6] = [(0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1), (-1, 0, 0), (1, 0, 0)];
 
@@ -51,38 +41,6 @@ impl AirGraph {
                     layers: i32::from(grid.levels) + 1,
                 })
                 .collect(),
-        }
-    }
-
-    #[cfg(test)]
-    pub fn path(
-        &self,
-        carriers: &Carriers,
-        world: &CollisionWorld,
-        open_fields: &[FieldId],
-        from: Vec3,
-        to: Vec3,
-        radius: f32,
-        fuse_distance: f32,
-    ) -> Option<VecDeque<Vec3>> {
-        let mut search = AirSearch::new(
-            self,
-            carriers,
-            open_fields,
-            from,
-            to,
-            radius,
-            fuse_distance,
-            MISSILE_SEARCH_WINDOW_MARGIN_CELLS,
-        );
-        loop {
-            match search.advance(self, carriers, world, &mut SearchBudget::new(128)) {
-                SearchProgress::Pending => {}
-                SearchProgress::Found(path) => return Some(path),
-                SearchProgress::Unreachable | SearchProgress::WindowLimited | SearchProgress::NodeLimited => {
-                    return None;
-                }
-            }
         }
     }
 

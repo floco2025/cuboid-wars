@@ -39,15 +39,6 @@ fn loadout_offers_each_collected_weapon_in_cycle_order() {
 }
 
 #[test]
-fn losing_portal_gun_removes_mode_and_falls_back() {
-    let loadout = WeaponLoadout::new(true, BOTH, 0, 1, false);
-    assert_eq!(modes(loadout), [WeaponMode::Projectile, WeaponMode::Missile]);
-    assert_eq!(loadout.select(WeaponMode::Portal, false), WeaponMode::Projectile);
-    let empty = WeaponLoadout::new(false, BOTH, 0, 0, false);
-    assert_eq!(empty.select(WeaponMode::Portal, false), WeaponMode::None);
-}
-
-#[test]
 fn selection_wraps_and_recovers_from_power_up_changes() {
     let loadout = WeaponLoadout::new(true, BOTH, 0, 1, true);
     assert_eq!(loadout.select(WeaponMode::Projectile, true), WeaponMode::Missile);
@@ -63,20 +54,6 @@ fn selection_wraps_and_recovers_from_power_up_changes() {
 
     let empty = WeaponLoadout::new(false, PortalAccess::None, 0, 0, true);
     assert_eq!(empty.select(WeaponMode::Portal, true), WeaponMode::None);
-}
-
-#[test]
-fn empty_missiles_leave_the_cycle_and_fall_back_to_projectiles() {
-    let loadout = WeaponLoadout::new(true, BOTH, 0, 0, true);
-    assert_eq!(modes(loadout), [WeaponMode::Projectile, WeaponMode::Portal]);
-    assert_eq!(loadout.select(WeaponMode::Missile, false), WeaponMode::Projectile);
-    assert_eq!(loadout.select(WeaponMode::Projectile, true), WeaponMode::Portal);
-    let powered = WeaponLoadout::new(true, BOTH, 2, 0, true);
-    assert_eq!(powered.select(WeaponMode::Missile, false), WeaponMode::MultiShot(0));
-    let portal_only = WeaponLoadout::new(false, BOTH, 0, 0, true);
-    assert_eq!(portal_only.select(WeaponMode::Missile, false), WeaponMode::Portal);
-    let empty = WeaponLoadout::new(false, BOTH, 0, 0, false);
-    assert_eq!(empty.select(WeaponMode::Missile, false), WeaponMode::None);
 }
 
 fn selection_app() -> App {

@@ -1,11 +1,13 @@
-use crate::config::fixtures;
 use bevy::prelude::*;
 use common::protocol::*;
 use crossbeam_channel::{Receiver, unbounded};
 
 use super::{PendingProjectileHits, handle_projectile_shot_message, hits::projectile_hits_system};
 use crate::{
-    actors::{ActorInfo, ActorMap},
+    actors::{
+        ActorInfo, ActorMap,
+        test_kinds::{self, CONTACT},
+    },
     combat::PendingExplosions,
     config::ServerGameplayConfig,
     players::{Invincibility, PlayerInfo, PlayerMap},
@@ -14,7 +16,7 @@ use crate::{
 
 fn app() -> App {
     let mut app = App::new();
-    let mut config = fixtures::server_config();
+    let mut config = test_kinds::server_config();
     config.combat.damage.projectile = 10.0;
     let catalog = QuestCatalog::from_quests(&[]);
     app.insert_resource(QuestBoard::from_catalog(&catalog, None))
@@ -50,6 +52,19 @@ fn player(app: &mut App, id: PlayerId) -> (Entity, Receiver<ServerMessage>) {
     (entity, receiver)
 }
 
+fn health(app: &App, entity: Entity) -> Health {
+    *app.world().get::<Health>(entity).expect("body missing")
+}
+
+fn relay(app: &App, shot: CProjectileShot) {
+    handle_projectile_shot_message(
+        PlayerId(1),
+        shot,
+        app.world().resource::<PlayerMap>(),
+        &app.world().resource::<ServerGameplayConfig>().weapons.projectiles,
+    );
+}
+
 fn hit(app: &mut App, target: HitTarget) {
     app.world_mut().resource_mut::<PendingProjectileHits>().push(
         PlayerId(1),
@@ -78,19 +93,13 @@ fn lost_volley_and_shooter_death_or_respawn_do_not_cancel_hits() {
         };
         hit(&mut app, target);
         app.update();
-        assert_eq!(
-            *app.world().get::<Health>(victim).expect("victim missing"),
-            Health(15.0)
-        );
+        assert_eq!(health(&app, victim), Health(15.0));
         assert!(
             std::iter::from_fn(|| receiver.try_recv().ok())
                 .any(|message| matches!(message, ServerMessage::PlayerHit(hit) if hit.health == Health(15.0)))
         );
         app.update();
-        assert_eq!(
-            *app.world().get::<Health>(victim).expect("victim missing"),
-            Health(15.0)
-        );
+        assert_eq!(health(&app, victim), Health(15.0));
     }
 }
 
@@ -107,10 +116,7 @@ fn stale_victim_generation_and_disconnected_shooter_cannot_damage_a_body() {
         },
     );
     app.update();
-    assert_eq!(
-        *app.world().get::<Health>(victim).expect("victim missing"),
-        Health(25.0)
-    );
+    assert_eq!(health(&app, victim), Health(25.0));
     hit(
         &mut app,
         HitTarget::Player {
@@ -122,10 +128,7 @@ fn stale_victim_generation_and_disconnected_shooter_cannot_damage_a_body() {
         .resource_mut::<PlayerMap>()
         .disconnect(&PlayerId(1), 5.0);
     app.update();
-    assert_eq!(
-        *app.world().get::<Health>(victim).expect("victim missing"),
-        Health(25.0)
-    );
+    assert_eq!(health(&app, victim), Health(25.0));
 }
 
 #[test]
@@ -136,10 +139,9 @@ fn multishot_pellets_award_actor_damage_and_one_kill_without_server_flight_entit
         .world_mut()
         .spawn((ActorMarker, Position::default(), Health(25.0)))
         .id();
-    app.world_mut().resource_mut::<ActorMap>().insert(
-        ActorId(7),
-        ActorInfo::new(entity, 0, "bruiser".into(), CarrierId::WORLD),
-    );
+    app.world_mut()
+        .resource_mut::<ActorMap>()
+        .insert(ActorId(7), ActorInfo::new(entity, 0, CONTACT.into(), CarrierId::WORLD));
     for _ in 0..4 {
         hit(&mut app, HitTarget::Actor(ActorId(7)));
     }
@@ -152,9 +154,9 @@ fn multishot_pellets_award_actor_damage_and_one_kill_without_server_flight_entit
             .expect("shooter missing")
             .session
             .score,
-        3 * config.scoring.actor_hit["bruiser"] + config.scoring.actor_kill["bruiser"]
+        3 * config.scoring.actor_hit[CONTACT] + config.scoring.actor_kill[CONTACT]
     );
-    assert_eq!(*app.world().get::<Health>(entity).expect("actor missing"), Health(0.0));
+    assert_eq!(health(&app, entity), Health(0.0));
     assert_eq!(
         app.world()
             .resource::<ActorMap>()
@@ -185,20 +187,15 @@ fn cosmetic_volley_relays_its_origin_and_numeric_pattern_while_shooter_is_dead()
         face_pitch: -0.2,
         pattern: 1,
     };
-    handle_projectile_shot_message(
-        PlayerId(1),
-        shot,
-        app.world().resource::<PlayerMap>(),
-        &app.world().resource::<ServerGameplayConfig>().weapons.projectiles,
-    );
-    let ServerMessage::ProjectileShot(relay) = receiver.try_recv().expect("volley relay missing") else {
+    relay(&app, shot);
+    let ServerMessage::ProjectileShot(relayed) = receiver.try_recv().expect("volley relay missing") else {
         panic!("unexpected relay")
     };
-    assert_eq!(relay.id, PlayerId(1));
-    assert_eq!(relay.shot.origin, shot.origin);
-    assert_eq!(relay.shot.pattern, shot.pattern);
+    assert_eq!(relayed.id, PlayerId(1));
+    assert_eq!(relayed.shot.origin, shot.origin);
+    assert_eq!(relayed.shot.pattern, shot.pattern);
     assert!(owner_receiver.try_recv().is_err());
-    assert_eq!(ServerMessage::ProjectileShot(relay).lane(), Lane::Unreliable);
+    assert_eq!(ServerMessage::ProjectileShot(relayed).lane(), Lane::Unreliable);
     assert_eq!(ClientMessage::ProjectileShot(shot).lane(), Lane::Unreliable);
 }
 
@@ -232,19 +229,9 @@ fn malformed_or_unknown_pattern_volleys_are_not_relayed() {
         CProjectileShot { pattern: 255, ..valid },
     ];
     for shot in invalid {
-        handle_projectile_shot_message(
-            PlayerId(1),
-            shot,
-            app.world().resource::<PlayerMap>(),
-            &app.world().resource::<ServerGameplayConfig>().weapons.projectiles,
-        );
+        relay(&app, shot);
         assert!(receiver.try_recv().is_err(), "{shot:?} was relayed");
     }
-    handle_projectile_shot_message(
-        PlayerId(1),
-        valid,
-        app.world().resource::<PlayerMap>(),
-        &app.world().resource::<ServerGameplayConfig>().weapons.projectiles,
-    );
+    relay(&app, valid);
     assert!(matches!(receiver.try_recv(), Ok(ServerMessage::ProjectileShot(_))));
 }

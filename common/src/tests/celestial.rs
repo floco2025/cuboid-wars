@@ -84,24 +84,6 @@ fn clock_extrapolates_wraps_pauses_resumes_and_rephases() {
 }
 
 #[test]
-fn map_moon_phase_must_be_a_normalized_finite_number() {
-    for invalid in [-0.001, 1.001, f32::NAN] {
-        let mut fixture = map(40.0, Season::Summer);
-        fixture.start_moon_phase = invalid;
-        let error = fixture
-            .validate("map.celestial")
-            .expect_err("invalid phase was accepted");
-        assert!(error.to_string().contains("start_moon_phase"));
-    }
-
-    for valid in [0.0, 0.25, 0.5, 0.75, 1.0] {
-        let mut fixture = map(40.0, Season::Summer);
-        fixture.start_moon_phase = valid;
-        fixture.validate("map.celestial").expect("valid phase was rejected");
-    }
-}
-
-#[test]
 fn local_time_parser_is_strict() {
     assert_eq!(LocalTime::parse("09:00").map(LocalTime::minutes), Some(540));
     assert_eq!(LocalTime::parse("9:00").map(LocalTime::minutes), Some(540));

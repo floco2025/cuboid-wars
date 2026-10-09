@@ -1,17 +1,42 @@
 use super::*;
 
+fn player_state(pos: Position) -> PlayerState {
+    PlayerState {
+        stance: Default::default(),
+        id: PlayerId(7),
+        pos,
+        carrier: CarrierId::WORLD,
+        carrier_pos: pos,
+        support: CharacterSupport::Ground,
+    }
+}
+
+// A field's barrier across the line between `from` and `to`, halfway along.
+fn barrier_between(from: Position, to: Position, field: FieldId) -> CollisionWorld {
+    let x = (from.x + to.x) / 2.0;
+    CollisionWorld::from_map_layout(&MapLayout {
+        barriers: vec![Barrier {
+            x1: x,
+            x2: x,
+            z1: from.z - 4.0,
+            z2: from.z + 4.0,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            width: 0.1,
+            level: 0,
+            levels: 1,
+            field,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    })
+}
+
 #[test]
 fn occluded_player_keeps_last_seen_state_without_refresh() {
     let fixture = Fixture::new(CONTACT);
     let actor_pos = fixture.pos(1, 2);
-    let player = PlayerState {
-        stance: Default::default(),
-        id: PlayerId(7),
-        pos: fixture.pos(3, 2),
-        carrier: CarrierId::WORLD,
-        carrier_pos: fixture.pos(3, 2),
-        support: CharacterSupport::Ground,
-    };
+    let player = player_state(fixture.pos(3, 2));
     let mut info = info(CONTACT);
     let actor = fixture.gameplay.expect_actor(CONTACT);
     update_awareness(
@@ -73,24 +98,7 @@ fn beam_actor_sees_a_player_through_a_barrier_but_waits_for_a_clear_attack() {
     let actor_pos = fixture.pos(1, 2);
     let target = fixture.pos(3, 2);
     let kind = FieldId(0);
-    let x = (actor_pos.x + target.x) / 2.0;
-    let layout = MapLayout {
-        barriers: vec![Barrier {
-            x1: x,
-            x2: x,
-            z1: actor_pos.z - 4.0,
-            z2: actor_pos.z + 4.0,
-            y: 0.0,
-            height: WALL_HEIGHT,
-            width: 0.1,
-            level: 0,
-            levels: 1,
-            field: kind,
-            carrier: CarrierId::WORLD,
-        }],
-        ..Default::default()
-    };
-    fixture.collision_world = CollisionWorld::from_map_layout(&layout);
+    fixture.collision_world = barrier_between(actor_pos, target, kind);
     let mut info = info(BEAM);
     update_awareness(
         &mut info,
@@ -99,14 +107,7 @@ fn beam_actor_sees_a_player_through_a_barrier_but_waits_for_a_clear_attack() {
         60.0,
         1.0,
         fixture.gameplay.player.physics(),
-        &[PlayerState {
-            stance: Default::default(),
-            id: PlayerId(7),
-            pos: target,
-            carrier: CarrierId::WORLD,
-            carrier_pos: target,
-            support: CharacterSupport::Ground,
-        }],
+        &[player_state(target)],
         &fixture.collision_world,
     );
     assert!(info.awareness[0].visible);
@@ -160,23 +161,7 @@ fn closing_a_barrier_immediately_stops_an_immovable_actor() {
     let origin = fixture.pos(1, 2);
     let target = fixture.pos(3, 2);
     let kind = FieldId(0);
-    let x = (origin.x + target.x) / 2.0;
-    fixture.collision_world = CollisionWorld::from_map_layout(&MapLayout {
-        barriers: vec![Barrier {
-            x1: x,
-            x2: x,
-            z1: origin.z - 4.0,
-            z2: origin.z + 4.0,
-            y: 0.0,
-            height: WALL_HEIGHT,
-            width: 0.1,
-            level: 0,
-            levels: 1,
-            field: kind,
-            carrier: CarrierId::WORLD,
-        }],
-        ..Default::default()
-    });
+    fixture.collision_world = barrier_between(origin, target, kind);
     let mut state = info(IMMOVABLE);
     state.awareness.push(aware(7, target, CharacterSupport::Ground, true));
     let mut context = fixture.context(IMMOVABLE, origin);

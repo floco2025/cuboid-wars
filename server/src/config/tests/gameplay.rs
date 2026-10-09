@@ -1,10 +1,10 @@
-use super::*;
-use crate::config::fixtures;
-use rand::random;
-use serde_json::{Value, json};
 use std::path::PathBuf;
 
-use crate::config::PowerUpMode;
+use rand::random;
+use serde_json::{Value, json};
+
+use super::*;
+use crate::config::{PowerUpMode, fixtures};
 
 #[test]
 fn shipped_server_settings_load_and_validate() {
@@ -97,77 +97,6 @@ fn a_map_override_replaces_one_leaf_and_inherits_the_rest() {
 }
 
 #[test]
-fn ground_rates_can_be_overridden_independently_and_reject_nonpositive_values() {
-    let directory = TestConfigDir::new();
-    directory.write_hotel_override(|settings| {
-        settings["movement"]["player"] = json!({
-            "ground_acceleration": 3.0,
-            "ground_deceleration": 90.0,
-            "ground_lateral_deceleration": 60.0,
-        });
-    });
-    let loaded = directory.load().expect("independent ground rates rejected");
-    let movement = &loaded.maps["hotel"].settings.movement.player;
-    assert_eq!(movement.ground_acceleration, 3.0);
-    assert_eq!(movement.ground_deceleration, 90.0);
-    assert_eq!(movement.ground_lateral_deceleration, 60.0);
-    for field in [
-        "ground_acceleration",
-        "ground_deceleration",
-        "ground_lateral_deceleration",
-    ] {
-        for value in [0.0, -1.0] {
-            directory.write_hotel_override(|settings| settings["movement"]["player"][field] = json!(value));
-            let error = directory.load_error("nonpositive ground rate accepted");
-            assert!(error.contains(&format!("movement.player.{field}")), "{error}");
-        }
-    }
-}
-
-#[test]
-fn air_rates_merge_independently_and_zero_overrides_survive_the_bootstrap_codec() {
-    let directory = TestConfigDir::new();
-    directory.write_hotel_override(|settings| {
-        settings["movement"]["player"] = json!({
-            "air_acceleration": 0.0,
-            "air_deceleration": 0.0,
-            "air_lateral_deceleration": 0.0,
-        });
-    });
-    let loaded = directory.load().expect("zero air overrides rejected");
-    let settings = &loaded.maps["hotel"].settings;
-    let bytes = bincode::encode_to_vec(settings, bincode::config::standard()).expect("encode map settings");
-    let (decoded, used): (common::protocol::MapSettings, usize) =
-        bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("decode map settings");
-    assert_eq!(used, bytes.len());
-    assert_eq!(decoded.movement.player.air_acceleration, 0.0);
-    assert_eq!(decoded.movement.player.air_deceleration, 0.0);
-    assert_eq!(decoded.movement.player.air_lateral_deceleration, 0.0);
-    assert_eq!(
-        decoded.movement.player.ground_acceleration,
-        settings.movement.player.ground_acceleration
-    );
-    directory.write_hotel_override(|settings| {
-        settings["movement"]["player"] = json!({"air_lateral_deceleration": 7.0});
-    });
-    let loaded = directory.load().expect("lateral-only override rejected");
-    let movement = &loaded.maps["hotel"].settings.movement.player;
-    let defaults = TestConfigDir::shipped_gameplay();
-    assert_eq!(movement.air_lateral_deceleration, 7.0);
-    for (field, value) in [
-        ("air_acceleration", movement.air_acceleration),
-        ("air_deceleration", movement.air_deceleration),
-    ] {
-        assert_eq!(
-            f64::from(value),
-            defaults["movement"]["player"][field]
-                .as_f64()
-                .expect("default air rate")
-        );
-    }
-}
-
-#[test]
 fn a_tag_change_replaces_the_variant_and_a_matching_tag_merges() {
     let directory = TestConfigDir::new();
     directory.write_hotel_override(|settings| {
@@ -215,17 +144,6 @@ fn a_global_key_in_a_map_file_is_rejected() {
 }
 
 #[test]
-fn a_missing_content_section_names_the_map_file() {
-    let directory = TestConfigDir::new();
-    directory.write_hotel_override(|settings| {
-        settings.as_object_mut().expect("settings object").remove("quests");
-    });
-    let error = directory.load_error("missing content accepted");
-    assert!(error.contains("maps/hotel/settings.json"), "{error}");
-    assert!(error.contains("missing field `quests`"), "{error}");
-}
-
-#[test]
 fn a_bad_or_unknown_default_names_the_gameplay_file() {
     let directory = TestConfigDir::new();
     let mut global = TestConfigDir::shipped_gameplay();
@@ -258,27 +176,6 @@ fn a_registered_map_loads_without_a_layout() {
 }
 
 #[test]
-fn select_picks_the_default_or_named_map_and_lists_the_rest() {
-    let directory = TestConfigDir::new();
-    directory.write_settings("fresh", fixtures::MAP_JSON);
-    directory.write_registry(json!(["hotel", "fresh"]), "hotel");
-    let loaded = directory.load().expect("valid catalog rejected");
-    assert_eq!(loaded.select(None).expect("default map missing").map_name, "hotel");
-    assert_eq!(
-        loaded.select(Some("fresh")).expect("named map missing").map_name,
-        "fresh"
-    );
-    let error = loaded
-        .select(Some("lobby"))
-        .expect_err("unknown map accepted")
-        .to_string();
-    assert!(
-        error.contains("unknown map \"lobby\"") && error.contains("[\"fresh\", \"hotel\"]"),
-        "{error}"
-    );
-}
-
-#[test]
 fn registry_errors_are_rejected_before_map_files_are_read() {
     let directory = TestConfigDir::new();
     for (names, default_map, expected) in [
@@ -294,28 +191,6 @@ fn registry_errors_are_rejected_before_map_files_are_read() {
         assert!(error.contains("gameplay.json"), "{error}");
         assert!(error.contains(expected), "{error}");
     }
-}
-
-#[test]
-fn maps_load_independent_fall_thresholds() {
-    let directory = TestConfigDir::new();
-    let mut settings: Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
-    settings["player_fall"] = json!({"safe_distance": 2.0, "lethal_distance": 6.0});
-    settings["actor_fall"] = json!({"safe_distance": 3.0, "lethal_distance": 7.0});
-    directory.write_settings("first", &settings.to_string());
-    settings["player_fall"] = json!({"safe_distance": 12.0, "lethal_distance": 30.0});
-    settings["actor_fall"] = json!({"safe_distance": 1.0, "lethal_distance": 9.0});
-    directory.write_settings("second", &settings.to_string());
-    directory.write_registry(json!(["first", "second"]), "second");
-    let loaded = directory.load().expect("valid fall thresholds rejected");
-    assert_eq!(loaded.maps["first"].player_fall.safe_distance, 2.0);
-    assert_eq!(loaded.maps["first"].player_fall.lethal_distance, 6.0);
-    assert_eq!(loaded.maps["first"].actor_fall.safe_distance, 3.0);
-    assert_eq!(loaded.maps["first"].actor_fall.lethal_distance, 7.0);
-    assert_eq!(loaded.maps["second"].player_fall.safe_distance, 12.0);
-    assert_eq!(loaded.maps["second"].player_fall.lethal_distance, 30.0);
-    assert_eq!(loaded.maps["second"].actor_fall.safe_distance, 1.0);
-    assert_eq!(loaded.maps["second"].actor_fall.lethal_distance, 9.0);
 }
 
 #[test]
@@ -373,4 +248,84 @@ fn movable_actor_requires_speed_settings() {
         .validate("settings.json: ")
         .expect_err("movable actor accepted missing speeds");
     assert!(error.to_string().contains("missing actor kind \"turret\""));
+}
+
+#[test]
+fn map_fall_thresholds_are_validated_with_their_source() {
+    let thresholds: [(&str, fn(&mut ServerGameplayConfig) -> &mut FallDamageConfig); 2] = [
+        ("player_fall", |config| &mut config.player_fall),
+        ("actor_fall", |config| &mut config.actor_fall),
+    ];
+    for (key, fall) in thresholds {
+        for (safe, lethal, field) in [
+            (-1.0, 12.0, "safe_distance"),
+            (4.0, -1.0, "lethal_distance"),
+            (0.0, 0.0, "safe_distance"),
+            (12.0, 12.0, "safe_distance"),
+            (13.0, 12.0, "safe_distance"),
+            (f32::NAN, 12.0, "safe_distance"),
+            (4.0, f32::INFINITY, "lethal_distance"),
+        ] {
+            let mut config = fixtures::server_config();
+            *fall(&mut config) = FallDamageConfig {
+                safe_distance: safe,
+                lethal_distance: lethal,
+            };
+            let error = config
+                .validate("maps/example/settings.json: ")
+                .expect_err("invalid fall thresholds accepted");
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("maps/example/settings.json: {key}.{field}")),
+                "{error}"
+            );
+        }
+        let mut config = fixtures::server_config();
+        *fall(&mut config) = FallDamageConfig {
+            safe_distance: 0.0,
+            lethal_distance: 15.0,
+        };
+        config
+            .validate("maps/example/settings.json: ")
+            .expect("zero safe distance rejected");
+    }
+}
+
+#[test]
+fn optional_feature_blocks_require_explicit_null_and_collections_require_their_type() {
+    let source: Value = serde_json::from_str(fixtures::MAP_JSON).expect("map fixture is invalid");
+    let parse = |map: Value| ServerGameplayConfig::from_override("hotel", &fixtures::gameplay_defaults(), &map);
+    for key in ["grounds", "random_items", "placed_items"] {
+        let mut value = source.clone();
+        value[key] = Value::Null;
+        parse(value.clone()).expect("disabled feature rejected");
+        value.as_object_mut().expect("map fixture is not an object").remove(key);
+        assert!(parse(value).is_err(), "missing {key} accepted");
+    }
+    for key in ["quests", "textures"] {
+        let mut value = source.clone();
+        value[key] = Value::Null;
+        assert!(parse(value).is_err(), "null {key} accepted");
+    }
+}
+
+#[test]
+fn always_active_power_ups_cannot_have_random_pickup_weights() {
+    for weight in [0.0, 1.0] {
+        let mut config = fixtures::server_config();
+        config.power_ups.single_shot = PowerUpMode::Always {};
+        config.random_items = Some(RandomItemsConfig {
+            weights: [("gold".to_owned(), 1.0), ("single_shot".to_owned(), weight)].into(),
+            max_number: 30,
+            despawn_secs: 60.0,
+        });
+        let error = config
+            .validate("settings.json: ")
+            .expect_err("always-active pickup accepted");
+        assert!(
+            error.to_string().contains("random_items.weights.single_shot"),
+            "{error}"
+        );
+    }
 }

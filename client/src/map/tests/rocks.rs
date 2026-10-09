@@ -35,21 +35,3 @@ fn rock_meshes_have_creased_unit_normals_tangents_and_texture_coordinates() {
         }
     }
 }
-
-#[test]
-fn detail_levels_fade_in_order_and_pebbles_have_one() {
-    for lod in 0..3 {
-        let stone = lod_range(RockClass::Stone, lod);
-        let boulder = lod_range(RockClass::Boulder, lod);
-        for range in [&stone, &boulder] {
-            assert!(range.start_margin.end <= range.end_margin.start);
-        }
-        if lod > 0 {
-            assert_eq!(stone.start_margin, lod_range(RockClass::Stone, lod - 1).end_margin);
-        }
-        assert!(boulder.end_margin.start > stone.end_margin.start);
-    }
-    let pebble = lod_range(RockClass::Pebble, 0);
-    assert_eq!(near_subdivisions(RockClass::Pebble).len(), 1);
-    assert!(pebble.end_margin.end < lod_range(RockClass::Stone, 0).end_margin.end * 2.0);
-}

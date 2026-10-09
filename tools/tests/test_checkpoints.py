@@ -5,11 +5,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtTest import QTest
+from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QComboBox, QSpinBox
 
-from editor_fixtures import EditorHost, WindowTestCase, floor, nested, start_checkpoint
+from editor_fixtures import EditorHost, WindowTestCase, actor_zone, floor, nested, saved_map, start_checkpoint
 from map_editor.checkpoint_numbers import (
     checkpoint_entries,
     checkpoint_groups,
@@ -18,7 +17,6 @@ from map_editor.checkpoint_numbers import (
 )
 from map_editor.constants import (
     CHECKPOINT_LIST,
-    CHECKPOINT_TYPE_LABELS,
     HIT_CHECKPOINT,
     HIT_SPAWN_ZONE,
     MODE_CHECKPOINT,
@@ -28,7 +26,6 @@ from map_editor.constants import (
 )
 from map_editor.dialogs import CheckpointsDialog
 from map_editor.erasing import erase_cell_rect, erase_group_rect, erase_hit, hit_at
-from map_editor.hover import element_hover_text
 from map_editor.io import read_map, write_map
 from map_editor.normalization import canonicalize_map, empty_map, normalize_map, zone_key
 from map_editor.regions import TileRegion, copy_region, delete_region, paste_region
@@ -53,15 +50,19 @@ def with_start(data):
     return data
 
 
+# A complete root document; only a root carries fireworks.
+def started_document(number=1):
+    return {**with_start(checkpoint_map(number)), "fireworks": None}
+
+
 def zone(**fields):
-    return {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "zapper", "count": [1], "respawn_secs": None, **fields}
+    return actor_zone(cols=[1, 2], rows=[1, 2], **fields)
 
 
 class CheckpointTests(unittest.TestCase):
     def test_a_checkpoint_under_a_spawn_zone_is_picked_first(self):
         data = checkpoint_map()
-        rect = {"level": 0, "cols": [1, 4], "rows": [1, 4]}
-        data["actor_spawn_zones"] = [{**rect, "kind": "zapper", "count": [1], "respawn_secs": 90}]
+        data["actor_spawn_zones"] = [actor_zone(cols=[1, 4], rows=[1, 4])]
 
         self.assertEqual(hit_at(data, 0, 2.5, 2.5, 0.1), (HIT_CHECKPOINT, (CHECKPOINT_LIST, 0)))
         self.assertEqual(EditorHost(data, []).spawn_zone_at(QPointF(2.5, 2.5)), ZoneRef(CHECKPOINT_LIST, 0))
@@ -87,10 +88,7 @@ class CheckpointTests(unittest.TestCase):
     def test_roundtrip_including_nested_geometry_and_absent_list(self):
         data = {"fireworks": None, **checkpoint_map()}
         data["nested_geometry"] = {"platform": checkpoint_map(2)}
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "layout.json"
-            write_map(path, data)
-            self.assertEqual(read_map(path), normalize_map(data))
+        self.assertEqual(saved_map(data)[1], normalize_map(data))
         del data["checkpoints"]
         self.assertEqual(normalize_map(data)["checkpoints"], [])
 
@@ -122,11 +120,9 @@ class CheckpointTests(unittest.TestCase):
     def test_numbers_are_kept_formatted_validated_and_may_repeat(self):
         data = checkpoint_map(7)
         self.assertEqual(normalize_map(data)["checkpoints"][0]["number"], 7)
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "layout.json"
-            write_map(path, data)
-            self.assertIn('"number": 7', path.read_text())
-            self.assertEqual(read_map(path)["checkpoints"][0]["number"], 7)
+        text, loaded = saved_map(data)
+        self.assertIn('"number": 7', text)
+        self.assertEqual(loaded["checkpoints"][0]["number"], 7)
         self.assertFalse(validate_map(data, []))
         for number in (-1, 1.5, "3", True, None):
             bad = copy.deepcopy(data)
@@ -141,33 +137,20 @@ class CheckpointTests(unittest.TestCase):
         data["checkpoints"].append({"level": 0, "cols": [2, 4], "rows": [1, 4], "type": "individual", "number": 7})
         self.assertFalse(validate_map(data, []), "checkpoints may share a number")
 
-    def test_saved_checkpoints_sort_by_number_with_the_start_first(self):
+    def test_saved_checkpoints_sort_by_number_and_the_start_saves_as_individual(self):
         data = checkpoint_map(5)
         data["checkpoints"][0]["cols"] = [1, 2]
-        data["checkpoints"].append({"level": 0, "cols": [2, 4], "rows": [1, 4], "type": "individual", "number": 2})
-        data["checkpoints"].append(start_checkpoint(6, 6))
-        self.assertEqual([c["number"] for c in canonicalize_map(data)["checkpoints"]], [0, 2, 5])
-
-    def test_the_start_saves_with_the_individual_type(self):
-        data = checkpoint_map(0)
-        data["checkpoints"][0]["type"] = "group_all"
+        data["checkpoints"].append({"level": 0, "cols": [2, 4], "rows": [1, 4], "type": "group_all", "number": 2})
+        data["checkpoints"].append({**start_checkpoint(6, 6), "type": "group_all"})
         canonical = canonicalize_map(data)
-        self.assertEqual(canonical["checkpoints"][0]["type"], "individual")
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "layout.json"
-            write_map(path, canonical)
-            self.assertIn('"type": "individual", "number": 0', path.read_text())
-
-    def test_hover_names_the_start_and_numbers_the_rest(self):
-        data = with_start(checkpoint_map(3))
-        self.assertEqual(element_hover_text(data, 0, (HIT_CHECKPOINT, (CHECKPOINT_LIST, 1))), "Start")
         self.assertEqual(
-            element_hover_text(data, 0, (HIT_CHECKPOINT, (CHECKPOINT_LIST, 0))), "Checkpoint 3: Individual"
+            [(c["number"], c["type"]) for c in canonical["checkpoints"]],
+            [(0, "individual"), (2, "group_all"), (5, "individual")],
         )
+        self.assertIn('"type": "individual", "number": 0', saved_map(canonical)[0])
 
     def test_entries_and_the_next_number_span_the_document(self):
-        root = with_start(checkpoint_map(1))
-        root["fireworks"] = None
+        root = started_document()
         root["checkpoints"].append({"level": 0, "cols": [5, 6], "rows": [5, 6], "type": "individual", "number": 4})
         root["nested_geometry"] = {"room": checkpoint_map(2)}
         self.assertEqual(
@@ -178,8 +161,7 @@ class CheckpointTests(unittest.TestCase):
         self.assertEqual(next_checkpoint_number(empty_map(2, 2)), 1, "one past the start")
 
     def test_groups_list_each_number_once_with_its_instances_maps_and_types(self):
-        root = with_start(checkpoint_map(1))
-        root["fireworks"] = None
+        root = started_document()
         root["checkpoints"].append({"level": 0, "cols": [4, 5], "rows": [4, 5], "type": "group_any", "number": "x"})
         room = checkpoint_map(1)
         room["checkpoints"][0]["type"] = "group_all"
@@ -196,8 +178,7 @@ class CheckpointTests(unittest.TestCase):
         )
 
     def test_renumbering_moves_every_instance_of_a_number_and_the_zones_ending_there(self):
-        root = with_start(checkpoint_map(1))
-        root["fireworks"] = None
+        root = started_document()
         root["checkpoints"].append({"level": 0, "cols": [5, 6], "rows": [5, 6], "type": "individual", "number": 4})
         root["actor_spawn_zones"] = [zone(until_checkpoint=4)]
         room = checkpoint_map(1)
@@ -261,23 +242,7 @@ class CheckpointTests(unittest.TestCase):
         for keep_floors in (False, True):
             self.assertEqual(erase_cell_rect(data, 0, (1, 1), (3, 3), keep_floors)["checkpoints"], [])
 
-    def test_types_survive_nested_roundtrips_and_region_operations(self):
-        for kind in CHECKPOINT_TYPE_LABELS:
-            data = checkpoint_map()
-            data["checkpoints"][0]["type"] = kind
-            data["nested_geometry"] = {"platform": copy.deepcopy(data)}
-            with tempfile.TemporaryDirectory() as directory:
-                path = Path(directory) / "layout.json"
-                write_map(path, data)
-                restored = read_map(path)
-            self.assertEqual(restored["nested_geometry"]["platform"]["checkpoints"][0]["type"], kind)
-            region = TileRegion((1, 1, 4, 4), 0)
-            pasted = paste_region(delete_region(restored, region), copy_region(restored, region), (4, 4), 0)
-            self.assertEqual(pasted["checkpoints"][0]["type"], kind)
-            self.assertEqual(insert_level_data(restored, 0)["checkpoints"][0]["type"], kind)
-            self.assertEqual(resize_map_offset(restored, 4, 4, 0, 0)["checkpoints"][0]["type"], kind)
-
-    def test_unknown_missing_and_overlapping_types_are_rejected(self):
+    def test_unknown_and_missing_types_are_rejected(self):
         for kind in (None, "unknown"):
             data = checkpoint_map()
             if kind is None:
@@ -285,36 +250,37 @@ class CheckpointTests(unittest.TestCase):
             else:
                 data["checkpoints"][0]["type"] = kind
             self.assertTrue(any("checkpoint type" in error for error in validate_map(normalize_map(data), [])))
-        data = checkpoint_map()
-        data["checkpoints"].append({**data["checkpoints"][0], "type": "group_all", "number": 2})
-        self.assertTrue(any("overlaps" in error for error in validate_map(canonicalize_map(data), [])))
 
 
 class CheckpointWindowTests(WindowTestCase):
-    def drag(self, start, end):
-        canvas = self.window.canvas
-        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=canvas.viewport.from_grid(QPointF(*start)).toPoint())
-        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=canvas.viewport.from_grid(QPointF(*end)).toPoint())
-
     def type_box(self):
         return next(box for box in self.window.tool_settings.findChildren(QComboBox) if box.accessibleName() == "Type")
 
-    def test_toolbar_number_is_used_at_placement_advances_and_survives_undo_and_save(self):
-        window = self.window
+    def number_box(self):
+        return self.window.tool_settings.findChild(QSpinBox)
+
+    # The floors of the checkpoint map with no checkpoint yet, the Checkpoint tool in hand.
+    def place_checkpoints(self):
         data = checkpoint_map()
         data["checkpoints"] = []
-        window.doc.replace_with_new(data)
-        window.set_mode(MODE_CHECKPOINT)
-        spin = window.tool_settings.findChild(QSpinBox)
-        self.assertEqual(spin.value(), 1)
-        spin.setValue(3)
+        self.window.doc.replace_with_new(data)
+        self.window.set_mode(MODE_CHECKPOINT)
+
+    def inspect(self, name, index):
+        self.window.inspect_refs([ElementRef(name, index)], show=True)
+
+    def test_toolbar_number_is_used_at_placement_advances_and_survives_undo_and_save(self):
+        window = self.window
+        self.place_checkpoints()
+        self.assertEqual(self.number_box().value(), 1)
+        self.number_box().setValue(3)
         window.set_mode(MODE_SELECT)
         window.set_mode(MODE_CHECKPOINT)
-        self.assertEqual(window.tool_settings.findChild(QSpinBox).value(), 3, "an unused number stands")
+        self.assertEqual(self.number_box().value(), 3, "an unused number stands")
         self.drag((1.5, 1.5), (2.5, 2.5))
         expected = [{"level": 0, "cols": [1, 3], "rows": [1, 3], "type": "individual", "number": 3}]
         self.assertEqual(window.map_data["checkpoints"], expected)
-        self.assertEqual(window.tool_settings.findChild(QSpinBox).value(), 4, "the next free number follows")
+        self.assertEqual(self.number_box().value(), 4, "the next free number follows")
         self.assertEqual(window.undo_stack.count(), 1)
         window.undo_stack.undo()
         self.assertEqual(window.map_data["checkpoints"], [])
@@ -325,12 +291,9 @@ class CheckpointWindowTests(WindowTestCase):
 
     def test_a_used_number_places_another_instance_and_the_toolbar_advances(self):
         window = self.window
-        data = checkpoint_map()
-        data["checkpoints"] = []
-        window.doc.replace_with_new(data)
-        window.set_mode(MODE_CHECKPOINT)
+        self.place_checkpoints()
         self.click(1, 1)
-        spin = window.tool_settings.findChild(QSpinBox)
+        spin = self.number_box()
         self.assertEqual(spin.value(), 2)
         spin.setValue(1)
         with patch.object(window, "notify") as notify:
@@ -344,15 +307,12 @@ class CheckpointWindowTests(WindowTestCase):
         self.assertFalse(window.validate(window.map_data))
         window.set_mode(MODE_SELECT)
         window.set_mode(MODE_CHECKPOINT)
-        self.assertEqual(window.tool_settings.findChild(QSpinBox).value(), 3)
+        self.assertEqual(self.number_box().value(), 3)
 
     def test_placing_a_start_keeps_the_toolbar_at_zero_and_disables_the_type(self):
         window = self.window
-        data = checkpoint_map()
-        data["checkpoints"] = []
-        window.doc.replace_with_new(data)
-        window.set_mode(MODE_CHECKPOINT)
-        spin = window.tool_settings.findChild(QSpinBox)
+        self.place_checkpoints()
+        spin = self.number_box()
         box = self.type_box()
         box.setCurrentIndex(box.findData("group_any"))
         self.assertTrue(box.isEnabled())
@@ -367,7 +327,7 @@ class CheckpointWindowTests(WindowTestCase):
         )
         window.set_mode(MODE_SELECT)
         window.set_mode(MODE_CHECKPOINT)
-        spin = window.tool_settings.findChild(QSpinBox)
+        spin = self.number_box()
         self.assertEqual(spin.value(), 0, "a start stands")
         self.assertFalse(self.type_box().isEnabled())
         spin.setValue(3)
@@ -407,10 +367,7 @@ class CheckpointWindowTests(WindowTestCase):
 
     def test_place_select_resize_undo_and_render(self):
         window = self.window
-        data = checkpoint_map()
-        data["checkpoints"] = []
-        window.apply_change("Set up floors", data)
-        window.set_mode(MODE_CHECKPOINT)
+        self.place_checkpoints()
         self.click(1, 1)
         self.assertEqual(
             window.map_data["checkpoints"],
@@ -435,20 +392,17 @@ class CheckpointWindowTests(WindowTestCase):
         data["checkpoints"].append({"level": 0, "cols": [2, 4], "rows": [1, 4], "type": "group_any", "number": 2})
         window.apply_change("Set up checkpoints", data)
         panel = window.properties_panel
-        window.set_selected_spawn_zone(ZoneRef("checkpoints", 0))
-        window.edit_selected_spawn_zone_fields()
+        self.inspect("checkpoints", 0)
         self.assertTrue(panel.widgets[("type",)].isEnabled())
         self.set_property("number", 2)
         self.assertEqual([c["number"] for c in window.map_data["checkpoints"]], [2, 2])
-        index = next(i for i, c in enumerate(window.map_data["checkpoints"]) if c["cols"] == [2, 4])
-        window.set_selected_spawn_zone(ZoneRef("checkpoints", index))
-        window.edit_selected_spawn_zone_fields()
+        checkpoints = window.map_data["checkpoints"]
+        self.inspect("checkpoints", next(i for i, c in enumerate(checkpoints) if c["cols"] == [2, 4]))
         self.set_property("number", 0)
         self.assertFalse(panel.widgets[("type",)].isEnabled())
         by_cols = {tuple(c["cols"]): (c["number"], c["type"]) for c in window.map_data["checkpoints"]}
         self.assertEqual(by_cols, {(1, 2): (2, "individual"), (2, 4): (0, "individual")})
-        window.set_selected_spawn_zone(ZoneRef("checkpoints", 0))
-        window.edit_selected_spawn_zone_fields()
+        self.inspect("checkpoints", 0)
         self.assertFalse(panel.widgets[("type",)].isEnabled())
         self.set_property("number", -1)
         self.assertIn("outside the allowed range", panel.error.text())
@@ -456,18 +410,13 @@ class CheckpointWindowTests(WindowTestCase):
 
     def test_toolbar_and_context_edit_checkpoint_type_with_undo(self):
         window = self.window
-        data = checkpoint_map()
-        data["checkpoints"] = []
-        window.apply_change("Set up floors", data)
-        window.set_mode(MODE_CHECKPOINT)
+        self.place_checkpoints()
         box = self.type_box()
         self.assertEqual(box.currentData(), "individual")
         box.setCurrentIndex(box.findData("group_any"))
         self.click(1, 1)
         self.assertEqual(window.map_data["checkpoints"][0]["type"], "group_any")
-        window.set_selected_spawn_zone(ZoneRef("checkpoints", 0))
-        self.assertTrue(window.selected_spawn_zone_has_fields())
-        window.edit_selected_spawn_zone_fields()
+        self.inspect("checkpoints", 0)
         self.set_property("type", "group_all")
         self.assertEqual(window.map_data["checkpoints"][0]["type"], "group_all")
         self.assertEqual(window.recent_checkpoint_type, "group_any")
@@ -482,8 +431,7 @@ class CheckpointWindowTests(WindowTestCase):
         data["actor_spawn_zones"] = [zone()]
         window.apply_change("Set up zone", data)
         panel = window.properties_panel
-        window.set_selected_spawn_zone(ZoneRef("actor_spawn_zones", 0))
-        window.edit_selected_spawn_zone_fields()
+        self.inspect("actor_spawn_zones", 0)
         self.assertEqual(panel.widgets[("until_checkpoint",)].text(), "Always")
         self.assertFalse(panel.widgets[("on_checkpoint",)].isEnabled())
         self.set_property("until_checkpoint", 2)
@@ -492,8 +440,7 @@ class CheckpointWindowTests(WindowTestCase):
         edited = window.map_data["actor_spawn_zones"][0]
         self.assertEqual((edited["until_checkpoint"], edited["on_checkpoint"]), (2, "destroy"))
 
-        window.set_selected_spawn_zone(ZoneRef("actor_spawn_zones", 0))
-        window.edit_selected_spawn_zone_fields()
+        self.inspect("actor_spawn_zones", 0)
         self.set_property("until_checkpoint", 9)
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["until_checkpoint"], 9)
         self.assertTrue(any("names no checkpoint" in warning for warning in window.validate(window.map_data).warnings))
@@ -528,9 +475,8 @@ class CheckpointWindowTests(WindowTestCase):
         room = empty_map(2, 2)
         room["levels"][0]["floors"] = [floor(c, r) for c in range(2) for r in range(2)]
         room["checkpoints"] = [{"level": 0, "cols": [0, 2], "rows": [0, 2], "type": "individual", "number": 5}]
-        room["actor_spawn_zones"] = [{**zone(until_checkpoint=5), "cols": [0, 1], "rows": [0, 1]}]
-        root = with_start(checkpoint_map(1))
-        root["fireworks"] = None
+        room["actor_spawn_zones"] = [actor_zone(until_checkpoint=5)]
+        root = started_document()
         root["actor_spawn_zones"] = [zone(until_checkpoint=5)]
         root["nested_geometry"] = {"room": room}
         root["nested_maps"] = [nested("room", 0, [5, 1], [5, 1]), nested("room", 0, [5, 4], [5, 4])]
@@ -554,8 +500,7 @@ class CheckpointWindowTests(WindowTestCase):
 
     def test_edit_checkpoints_dialog_lists_numbers_once_and_renumbers_every_instance(self):
         window = self.window
-        root = with_start(checkpoint_map(1))
-        root["fireworks"] = None
+        root = started_document()
         root["checkpoints"][0]["cols"] = [1, 2]
         root["checkpoints"].append({"level": 0, "cols": [2, 4], "rows": [1, 4], "type": "individual", "number": 2})
         root["actor_spawn_zones"] = [zone(until_checkpoint=3)]

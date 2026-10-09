@@ -48,13 +48,6 @@ impl GameplayConfig {
     }
 }
 
-#[cfg(test)]
-pub(crate) fn load_test_gameplay() -> Result<GameplayConfig> {
-    let config: GameplayConfig = serde_json::from_str(include_str!("tests/fixtures/gameplay.json"))?;
-    config.validate()?;
-    Ok(config)
-}
-
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct GameplayBootstrap {
     pub player: PlayerGameplayBootstrap,

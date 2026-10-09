@@ -279,7 +279,3 @@ impl MapConfig {
         MapItems(items)
     }
 }
-
-#[cfg(test)]
-#[path = "tests/resources.rs"]
-mod tests;

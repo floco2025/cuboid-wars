@@ -48,16 +48,6 @@ impl SurfaceMesh {
         (cell_size, cell_height)
     }
 
-    #[cfg(test)]
-    pub fn bake(
-        geometry: &[CollisionMesh],
-        carrier: CarrierId,
-        physics: CharacterPhysicsConfig,
-        open: &[FieldId],
-    ) -> Result<Self> {
-        Self::bake_in(geometry, carrier, physics, open, None, &[])
-    }
-
     pub fn bake_in(
         geometry: &[CollisionMesh],
         carrier: CarrierId,
@@ -268,11 +258,6 @@ impl SurfaceMesh {
 
     pub(super) fn center(&self, polygon: usize) -> Position {
         self.centers[polygon]
-    }
-
-    #[cfg(test)]
-    pub(crate) fn candidate(&self, index: usize) -> Option<Position> {
-        self.centers.get(index % self.centers.len().max(1)).copied()
     }
 
     pub fn locate(&self, position: Position, max_distance: f32) -> Option<SurfaceLocation> {

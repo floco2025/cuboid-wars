@@ -37,6 +37,31 @@ fn wall(x1: f32, z1: f32, x2: f32, z2: f32) -> Wall {
     }
 }
 
+fn ramp() -> Ramp {
+    Ramp {
+        x1: 0.0,
+        z1: -2.0,
+        x2: 4.0,
+        z2: 2.0,
+        y: 0.0,
+        height: 2.0,
+        direction: RampDirection::East,
+        shape: RampShape::Solid,
+        thickness: 0.4,
+        level: 0,
+        levels: 1,
+        carrier: CarrierId::WORLD,
+    }
+}
+
+fn world_contact(point: Vec3, normal: Vec3) -> SurfaceContact {
+    SurfaceContact {
+        point,
+        normal,
+        carrier: CarrierId::WORLD,
+    }
+}
+
 fn carriers(layout: &MapLayout) -> Carriers {
     let mut carriers = Carriers::from_layout(layout);
     carriers.advance(0, &SwitchState::default());
@@ -75,13 +100,8 @@ fn points(placement: &ScorchPlacement) -> Vec<Vec3> {
 }
 
 fn ground(layout: &MapLayout, point: Vec3, normal: Vec3, diameter: f32) -> ScorchPlacement {
-    let contact = SurfaceContact {
-        point,
-        normal,
-        carrier: CarrierId::WORLD,
-    };
     ground_scorch_placement(
-        contact,
+        world_contact(point, normal),
         &solids(layout),
         &carriers(layout),
         point + Vec3::Y,
@@ -172,11 +192,7 @@ fn a_blast_above_a_low_wall_marks_the_floor_beyond_its_shadow() {
         }],
         ..default()
     };
-    let contact = SurfaceContact {
-        point: Vec3::ZERO,
-        normal: Vec3::Y,
-        carrier: CarrierId::WORLD,
-    };
+    let contact = world_contact(Vec3::ZERO, Vec3::Y);
     let placement = ground_scorch_placement(
         contact,
         &solids(&layout),
@@ -214,11 +230,7 @@ fn a_floor_between_storeys_hides_the_wall_face_below_it() {
         ],
         ..default()
     };
-    let ground = SurfaceContact {
-        point: Vec3::new(0.0, 4.0, 0.0),
-        normal: Vec3::Y,
-        carrier: CarrierId::WORLD,
-    };
+    let ground = world_contact(Vec3::new(0.0, 4.0, 0.0), Vec3::Y);
     // Both sections share the plane and so one mark, which the slab between
     // the storeys cuts off the lower one.
     let marks = face_marks(&layout, Vec3::new(0.0, 5.0, 0.0), 3.0, Some(ground));
@@ -244,11 +256,7 @@ fn a_blast_over_a_hole_marks_the_floor_below_only_through_it() {
         ],
         ..default()
     };
-    let contact = SurfaceContact {
-        point: Vec3::ZERO,
-        normal: Vec3::Y,
-        carrier: CarrierId::WORLD,
-    };
+    let contact = world_contact(Vec3::ZERO, Vec3::Y);
     let placement = ground_scorch_placement(
         contact,
         &solids(&layout),
@@ -267,23 +275,9 @@ fn a_blast_over_a_hole_marks_the_floor_below_only_through_it() {
 
 #[test]
 fn a_ramp_hides_the_wall_beneath_it_and_takes_its_own_mark() {
-    let ramp = Ramp {
-        x1: 0.0,
-        z1: -2.0,
-        x2: 4.0,
-        z2: 2.0,
-        y: 0.0,
-        height: 2.0,
-        direction: RampDirection::East,
-        shape: RampShape::Solid,
-        thickness: 0.4,
-        level: 0,
-        levels: 1,
-        carrier: CarrierId::WORLD,
-    };
     let layout = MapLayout {
         floors: vec![floor(-10.0, -10.0, 10.0, 10.0)],
-        ramps: vec![ramp],
+        ramps: vec![ramp()],
         walls: vec![Wall {
             height: 1.0,
             ..wall(3.0, -2.0, 3.0, 2.0)
@@ -291,11 +285,7 @@ fn a_ramp_hides_the_wall_beneath_it_and_takes_its_own_mark() {
         ..default()
     };
     let center = Vec3::new(2.0, 2.5, 0.0);
-    let contact = SurfaceContact {
-        point: Vec3::new(2.0, 1.0, 0.0),
-        normal: Vec3::new(-0.5, 1.0, 0.0).normalize(),
-        carrier: CarrierId::WORLD,
-    };
+    let contact = world_contact(Vec3::new(2.0, 1.0, 0.0), Vec3::new(-0.5, 1.0, 0.0).normalize());
     // The wall inside the ramp and the floor under it are within reach and out of sight.
     assert!(face_marks(&layout, center, 3.0, Some(contact)).is_empty());
 
@@ -371,34 +361,16 @@ fn the_ground_contact_keeps_its_one_mark() {
         ..default()
     };
     let center = Vec3::new(0.0, 0.5, 0.0);
-    let ground = SurfaceContact {
-        point: Vec3::ZERO,
-        normal: Vec3::Y,
-        carrier: CarrierId::WORLD,
-    };
+    let ground = world_contact(Vec3::ZERO, Vec3::Y);
     assert!(face_marks(&layout, center, 2.0, Some(ground)).is_empty());
     assert_eq!(face_marks(&layout, center, 2.0, None).len(), 1);
 }
 
 #[test]
 fn ground_mark_on_a_ramp_ends_at_its_top() {
-    let ramp = Ramp {
-        x1: 0.0,
-        z1: -2.0,
-        x2: 4.0,
-        z2: 2.0,
-        y: 0.0,
-        height: 2.0,
-        direction: RampDirection::East,
-        shape: RampShape::Solid,
-        thickness: 0.4,
-        level: 0,
-        levels: 1,
-        carrier: CarrierId::WORLD,
-    };
     let layout = MapLayout {
         floors: vec![floor(4.0, -2.0, 8.0, 2.0)],
-        ramps: vec![ramp],
+        ramps: vec![ramp()],
         ..default()
     };
     let normal = Vec3::new(-0.5, 1.0, 0.0).normalize();

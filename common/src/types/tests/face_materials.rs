@@ -1,10 +1,11 @@
 use super::*;
 
 #[test]
-fn all_shorthand_fills_every_face() {
-    let materials: FaceMaterials = serde_json::from_str(r#"{"all": "brick"}"#).expect("all shorthand parses");
+fn per_face_values_override_the_all_shorthand() {
+    let materials: FaceMaterials =
+        serde_json::from_str(r#"{"all": "brick", "top": "grass"}"#).expect("mixed form parses");
+    assert_eq!(materials.top, "grass");
     for face in [
-        &materials.top,
         &materials.bottom,
         &materials.north,
         &materials.south,
@@ -13,14 +14,6 @@ fn all_shorthand_fills_every_face() {
     ] {
         assert_eq!(face, "brick");
     }
-}
-
-#[test]
-fn per_face_value_overrides_the_all_shorthand() {
-    let materials: FaceMaterials =
-        serde_json::from_str(r#"{"all": "brick", "top": "grass"}"#).expect("mixed form parses");
-    assert_eq!(materials.top, "grass");
-    assert_eq!(materials.bottom, "brick");
 }
 
 #[test]

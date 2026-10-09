@@ -41,7 +41,3 @@ impl FallDamageConfig {
         ))
     }
 }
-
-#[cfg(test)]
-#[path = "tests/falling.rs"]
-mod tests;

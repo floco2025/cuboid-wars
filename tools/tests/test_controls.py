@@ -7,12 +7,10 @@ from unittest.mock import patch
 
 from PySide6.QtWidgets import QDialog
 
-from editor_fixtures import WindowTestCase, qt_app
-from map_editor.constants import HIT_BARRIER, HIT_LIGHT_BRIDGE
+from editor_fixtures import WindowTestCase, qt_app, toggle_switch
 from map_editor.control_catalogs import catalog_usage, edit_catalog, validate_catalog
-from map_editor.dialogs.control_catalogs import ControlCatalogDialog, FireworksDialog
+from map_editor.dialogs.control_catalogs import ControlCatalogDialog
 from map_editor.document import MapDocument
-from map_editor.hover import element_hover_text
 from map_editor.io import read_map, write_map
 from map_editor.nesting import NestedMotion
 from map_editor.normalization import empty_map
@@ -91,7 +89,7 @@ class ControlTests(unittest.TestCase):
 
     def test_a_switch_named_only_by_a_field_cannot_be_deleted(self):
         root = empty_map(3, 3)
-        root["switches"] = [{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]
+        root["switches"] = [toggle_switch("door")]
         root["fields"] = [{"id": "green", "color": "#22cc33", "switch": "door"}]
         with self.assertRaisesRegex(ValueError, "'door' is still assigned"):
             edit_catalog(root, "switches", [], {})
@@ -112,7 +110,7 @@ class ControlTests(unittest.TestCase):
 
     def test_deleting_an_entry_another_is_renamed_to_is_refused_while_a_swap_passes(self):
         root = self.root()
-        root["switches"].append({"id": "b", "activation": "toggle", "reset_on_player_death": "never"})
+        root["switches"].append(toggle_switch("b"))
         root["pressure_plates"][1]["switch"] = "b"
         with self.assertRaisesRegex(ValueError, "'b' is still assigned"):
             edit_catalog(
@@ -126,7 +124,7 @@ class ControlTests(unittest.TestCase):
             "switches",
             [
                 {"id": "b", "activation": "auto", "reset_on_player_death": "never"},
-                {"id": "lobby", "activation": "toggle", "reset_on_player_death": "never"},
+                toggle_switch("lobby"),
             ],
             {"lobby": "b", "b": "lobby"},
         )
@@ -134,36 +132,12 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(swapped["fireworks"]["switch"], "b")
         self.assertEqual(swapped["nested_geometry"]["room"]["pressure_plates"][1]["switch"], "b")
 
-    def test_hover_shows_a_pieces_field_with_that_fields_switch_and_initial_state(self):
-        data = empty_map(3, 3)
-        data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "field": "gate"}]
-        data["levels"][0]["light_bridges"] = [{"col": 2, "row": 0, "field": "walk"}]
-        fields = {
-            "gate": {"id": "gate", "color": "#ff0000", "switch": "lobby"},
-            "walk": {"id": "walk", "color": "#00ff00", "initially_on": False},
-        }
-        barrier, bridge = (HIT_BARRIER, (0, 0, 1, 0)), (HIT_LIGHT_BRIDGE, (2, 0))
-        self.assertEqual(
-            element_hover_text(data, 0, barrier, fields), "Barrier: gate\nSwitch: lobby · Initial state: On"
-        )
-        self.assertEqual(element_hover_text(data, 0, bridge, fields), "Light bridge: walk\nInitial state: Off")
-        self.assertEqual(element_hover_text(data, 0, barrier, {"gate": {"id": "gate"}}), "Barrier: gate")
-
-    def test_the_fireworks_dialog_returns_its_switch_and_cooldown(self):
-        fireworks = FireworksDialog(None, ["lobby"], {"switch": "lobby", "cooldown_secs": 3})
-        self.assertEqual(fireworks.value(), {"switch": "lobby", "cooldown_secs": 3.0})
-        fireworks.deleteLater()
-
     def test_the_fields_dialog_round_trips_switch_and_initial_state_and_omits_defaults(self):
         entries = [
             {"id": "red", "color": "#ff0000"},
             {"id": "door", "color": "#00ff00", "switch": "lobby", "initially_on": False},
         ]
         dialog = ControlCatalogDialog(None, "Fields", "fields", entries, switches=["lobby", "gate"])
-        self.assertEqual(
-            [dialog.table.horizontalHeaderItem(column).text() for column in range(dialog.table.columnCount())],
-            ["Name", "Color", "Switch", "Initial state", "Used by"],
-        )
         self.assertEqual(dialog.values(), (entries, {}))
         switch, state = dialog.table.cellWidget(0, 2), dialog.table.cellWidget(0, 3)
         self.assertEqual([switch.itemText(index) for index in range(switch.count())], ["(none)", "lobby", "gate"])
@@ -194,12 +168,7 @@ class ControlTests(unittest.TestCase):
         self.assertNotEqual(entries[1]["color"], entries[0]["color"])
         self.assertEqual(renames, {})
         dialog.deleteLater()
-        switches = ControlCatalogDialog(
-            None,
-            "Switches",
-            "switches",
-            [{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}],
-        )
+        switches = ControlCatalogDialog(None, "Switches", "switches", [toggle_switch("door")])
         override = switches.table.cellWidget(0, 4)
         self.assertEqual((override.color, override.button.text()), (None, "Inherit"))
         override.set_color("#9b5de5")
@@ -211,7 +180,7 @@ class ControlTests(unittest.TestCase):
 
     def test_catalog_dialogs_show_what_uses_each_entry_across_nested_geometry(self):
         root = empty_map(4, 4)
-        root["switches"] = [{"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in "ab"]
+        root["switches"] = [toggle_switch(name) for name in "ab"]
         root["fields"] = [{"id": "green", "color": "#22cc33", "switch": "a"}]
         root["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": "a"}]
         root["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "field": "green"}]
@@ -236,12 +205,7 @@ class ControlTests(unittest.TestCase):
         dialog.deleteLater()
 
     def test_catalog_dialog_accepts_a_name_still_being_edited(self):
-        dialog = ControlCatalogDialog(
-            None,
-            "Switches",
-            "switches",
-            [{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}],
-        )
+        dialog = ControlCatalogDialog(None, "Switches", "switches", [toggle_switch("door")])
         item = dialog.table.item(0, 0)
         dialog.table.setCurrentItem(item)
         dialog.table.editItem(item)
@@ -305,10 +269,7 @@ class ControlTests(unittest.TestCase):
 class ControlWindowTests(WindowTestCase):
     def test_catalog_renames_and_deletions_follow_into_the_toolbar_defaults(self):
         window = self.window
-        window.doc.root_data["switches"] = [
-            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ("lobby", "door")
-        ]
-        window.switch_ids = ["lobby", "door"]
+        self.set_switches("lobby", "door")
         window.recent_actor_spawn_switch = "lobby"
         window.recent_actor_spawn_initially_on = False
         window.recent_pressure_plate_switch = "door"
@@ -316,8 +277,8 @@ class ControlWindowTests(WindowTestCase):
             "tile", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lobby", False, "follow_switch"
         )
         renamed = [
-            {"id": "entrance", "activation": "toggle", "reset_on_player_death": "never"},
-            {"id": "door", "activation": "toggle", "reset_on_player_death": "never"},
+            toggle_switch("entrance"),
+            toggle_switch("door"),
         ]
         with patch(
             "map_editor.control_actions.ControlCatalogDialog.prompt", return_value=(renamed, {"lobby": "entrance"})
@@ -327,7 +288,7 @@ class ControlWindowTests(WindowTestCase):
         self.assertEqual(window.recent_nested_map.switch, "entrance")
         self.assertEqual(window.recent_nested_map.motion, "follow_switch")
         self.assertEqual(window.recent_pressure_plate_switch, "door")
-        deleted = [{"id": "entrance", "activation": "toggle", "reset_on_player_death": "never"}]
+        deleted = [toggle_switch("entrance")]
         with patch("map_editor.control_actions.ControlCatalogDialog.prompt", return_value=(deleted, {})):
             window.edit_control_catalog("switches", "Switches")
         self.assertEqual(window.recent_pressure_plate_switch, "entrance")
@@ -356,7 +317,7 @@ class ControlWindowTests(WindowTestCase):
 
     def test_the_fields_dialog_offers_the_maps_switches(self):
         window = self.window
-        window.doc.root_data["switches"] = [{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]
+        window.doc.root_data["switches"] = [toggle_switch("door")]
         window.refresh_ui()
         with patch("map_editor.control_actions.ControlCatalogDialog.prompt", return_value=None) as prompt:
             window.edit_control_catalog("fields", "Fields")

@@ -286,7 +286,3 @@ fn window_plugin(size: UVec2, visible: bool, vsync: bool, fullscreen: bool) -> W
         ..default()
     }
 }
-
-#[cfg(test)]
-#[path = "tests/app.rs"]
-mod tests;

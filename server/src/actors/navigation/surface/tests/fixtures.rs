@@ -1,11 +1,64 @@
+use super::SurfaceMesh;
 use crate::{
+    actors::TraversalEnvironment,
     config::ServerGameplayConfig,
     map::{GeneratedMap, generation::generate_map_at},
 };
 use anyhow::Result;
-use common::protocol::MapSettings;
+use common::{
+    config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
+    map::Carriers,
+    physics::{CollisionMesh, CollisionWorld},
+    protocol::{CarrierId, FieldId, Floor, MapSettings, Position},
+};
 use serde_json::json;
 use std::fs;
+
+impl SurfaceMesh {
+    pub(crate) fn bake(
+        geometry: &[CollisionMesh],
+        carrier: CarrierId,
+        physics: CharacterPhysicsConfig,
+        open: &[FieldId],
+    ) -> Result<Self> {
+        Self::bake_in(geometry, carrier, physics, open, None, &[])
+    }
+
+    // The centre of polygon `index`, wrapping past the last.
+    pub(crate) fn candidate(&self, index: usize) -> Option<Position> {
+        let count = self.polygon_count();
+        (count > 0).then(|| self.center(index % count))
+    }
+}
+
+// The motor's surroundings at 30 Hz with every field closed.
+pub(crate) fn env<'a>(
+    world: &'a CollisionWorld,
+    carriers: &'a Carriers,
+    config: &'a ServerGameplayConfig,
+) -> TraversalEnvironment<'a> {
+    TraversalEnvironment {
+        world,
+        carriers,
+        settings: &config.settings,
+        open: &[],
+        delta: 1.0 / 30.0,
+    }
+}
+
+// A thin root-grid floor slab over `x` by `z` with its top at `y`.
+pub(crate) fn floor([x1, x2]: [f32; 2], [z1, z2]: [f32; 2], y: f32) -> Floor {
+    Floor {
+        x1,
+        x2,
+        z1,
+        z2,
+        y,
+        thickness: 0.2,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    }
+}
 
 pub(crate) fn config() -> ServerGameplayConfig {
     let mut config = crate::config::fixtures::server_config();
@@ -19,9 +72,9 @@ pub(crate) fn config() -> ServerGameplayConfig {
     config.settings.geometry.wall_thickness = 0.3;
     config.settings.movement.gravity = 25.0;
     for (kind, diameter, height) in [("scuttler", 0.6, 0.9), ("bruiser", 0.8, 1.8)] {
-        let body = common::config::CharacterPhysicsConfig {
-            movement_collider: common::config::MovementColliderConfig { diameter, height },
-            hitbox: common::config::HitboxConfig {
+        let body = CharacterPhysicsConfig {
+            movement_collider: MovementColliderConfig { diameter, height },
+            hitbox: HitboxConfig {
                 width: diameter,
                 height,
                 depth: diameter,

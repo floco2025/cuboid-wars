@@ -66,6 +66,30 @@ fn capture_on(scenario: &ScenarioPreview, level: usize) -> &[PiecePreview] {
         .pieces
 }
 
+fn polygon_on(ranges: &[LevelPolygon], level: usize) -> &[[f64; 2]] {
+    &ranges
+        .iter()
+        .find(|range| range.level == level)
+        .unwrap_or_else(|| panic!("no polygon on level {level}"))
+        .polygon
+}
+
+// Where the flight without portals first comes down on level 0.
+fn free_landing(physics: &PreviewPhysics, request: &JumpRequest) -> [f32; 2] {
+    crossing(&preview(physics, request)[0], 0, Phase::BeforeEntry)
+        .point
+        .map(|value| value as f32)
+}
+
+// Ballistic, as in a map with no air rates: nothing but the portals changes the flight.
+fn ballistic_physics() -> PreviewPhysics {
+    let mut physics = game_physics();
+    physics.player.air_acceleration = 0.0;
+    physics.player.air_deceleration = 0.0;
+    physics.player.air_lateral_deceleration = 0.0;
+    physics
+}
+
 fn bounds(polygon: &[[f64; 2]]) -> ([f64; 2], [f64; 2]) {
     polygon
         .iter()
@@ -347,12 +371,7 @@ fn steering_range_holds_the_released_landing_and_collapses_without_air_rates() {
     steered.air_control = true;
     let scenario = &preview(&game_physics(), &steered)[0];
     let landing = crossing(scenario, 0, Phase::BeforeEntry).point;
-    let range = &scenario
-        .range
-        .iter()
-        .find(|range| range.level == 0)
-        .expect("level 0 is crossed")
-        .polygon;
+    let range = polygon_on(&scenario.range, 0);
     assert!(range.len() >= 6, "{range:?}");
     assert!(depth(range, landing) >= -1e-3, "{landing:?} outside {range:?}");
     // Held forward keeps the takeoff speed released input brakes away.
@@ -370,19 +389,10 @@ fn steering_range_holds_the_released_landing_and_collapses_without_air_rates() {
         .fold(f64::NEG_INFINITY, f64::max);
     assert!(forward > bounds(range).1[1] + 1.0);
 
-    let mut ballistic = game_physics();
-    ballistic.player.air_acceleration = 0.0;
-    ballistic.player.air_deceleration = 0.0;
-    ballistic.player.air_lateral_deceleration = 0.0;
+    let mut ballistic = ballistic_physics();
     let scenario = &preview(&ballistic, &steered)[0];
     let landing = crossing(scenario, 0, Phase::BeforeEntry).point;
-    let range = &scenario
-        .range
-        .iter()
-        .find(|range| range.level == 0)
-        .expect("level 0 is crossed")
-        .polygon;
-    assert_eq!(range, &vec![landing]);
+    assert_eq!(polygon_on(&scenario.range, 0), [landing]);
     for (margin, growth) in [(0.0, 0.0), (0.6, 1.0)] {
         ballistic.funnel.capture_margin = margin;
         ballistic.funnel.capture_growth = growth;
@@ -533,9 +543,7 @@ fn an_entry_is_direct_funnelled_steered_or_missed() {
 fn an_entry_without_an_exit_ends_the_path_inside_the_portal() {
     let physics = game_physics();
     let jump = request([0.0, 8.0, 0.0], true, &[0.0, 8.0]);
-    let landing = crossing(&preview(&physics, &jump)[0], 0, Phase::BeforeEntry)
-        .point
-        .map(|value| value as f32);
+    let landing = free_landing(&physics, &jump);
     let entered = &preview(
         &physics,
         &through(&jump, floor_portal(landing[0], 0.0, landing[1]), None),
@@ -555,9 +563,7 @@ fn an_entry_without_an_exit_ends_the_path_inside_the_portal() {
 fn a_fall_into_a_floor_portal_leaves_a_wall_portal_at_the_fall_speed() {
     let physics = game_physics();
     let step = request([0.0, 10.0, 0.0], false, &[0.0, 10.0]);
-    let landing = crossing(&preview(&physics, &step)[0], 0, Phase::BeforeEntry)
-        .point
-        .map(|value| value as f32);
+    let landing = free_landing(&physics, &step);
     let exit = wall_portal([30.0, 1.3, 30.0], [1.0, 0.0, 0.0]);
     let flown = &preview(
         &physics,
@@ -582,12 +588,7 @@ fn a_fall_into_a_floor_portal_leaves_a_wall_portal_at_the_fall_speed() {
     let mut steered = through(&step, floor_portal(landing[0], 0.0, landing[1]), Some(exit));
     steered.air_control = true;
     let flown = &preview(&physics, &steered)[0];
-    let range = &flown
-        .exit_range
-        .iter()
-        .find(|range| range.level == 0)
-        .expect("level 0")
-        .polygon;
+    let range = polygon_on(&flown.exit_range, 0);
     assert!(depth(range, crossing(flown, 0, Phase::AfterExit).point) >= -1e-3);
 }
 
@@ -619,22 +620,11 @@ fn a_wall_entry_leaves_a_floor_portal_upward() {
     assert!(next[1] > out[1], "{out:?} -> {next:?}");
 }
 
-// Ballistic, as in a map with no air rates: nothing but the portals changes the flight.
-fn ballistic_physics() -> PreviewPhysics {
-    let mut physics = game_physics();
-    physics.player.air_acceleration = 0.0;
-    physics.player.air_deceleration = 0.0;
-    physics.player.air_lateral_deceleration = 0.0;
-    physics
-}
-
 #[test]
 fn a_floor_exit_leaves_at_the_angle_the_flight_went_in_at() {
     let physics = ballistic_physics();
     let jump = request([0.0, 8.0, 0.0], true, &[0.0, 8.0]);
-    let landing = crossing(&preview(&physics, &jump)[0], 0, Phase::BeforeEntry)
-        .point
-        .map(|value| value as f32);
+    let landing = free_landing(&physics, &jump);
     let exit = floor_portal(20.0, 0.0, 20.0);
     // Dead centre, and drawn in from the side: both keep the 9 m/s the flight came in with.
     for (aside, entry) in [(0.0, Entry::Direct), (1.0, Entry::Funnel)] {
@@ -663,9 +653,7 @@ fn a_flight_that_falls_back_into_a_portal_shows_where_steering_lands() {
     let mut physics = game_physics();
     physics.player.air_deceleration = 60.0;
     let jump = request([0.0, 8.0, 0.0], true, &[0.0, 8.0]);
-    let landing = crossing(&preview(&physics, &jump)[0], 0, Phase::BeforeEntry)
-        .point
-        .map(|value| value as f32);
+    let landing = free_landing(&physics, &jump);
     let pair = through(
         &jump,
         floor_portal(landing[0], 0.0, landing[1]),
@@ -687,12 +675,7 @@ fn a_flight_that_falls_back_into_a_portal_shows_where_steering_lands() {
     // Steering is what lands it, so its range comes without being asked for:
     // beside the portal on its own level, and up on the level it rose past.
     for level in [0, 1] {
-        let range = &flown
-            .exit_range
-            .iter()
-            .find(|range| range.level == level)
-            .unwrap_or_else(|| panic!("no steering range on level {level}"))
-            .polygon;
+        let range = polygon_on(&flown.exit_range, level);
         let (low, high) = bounds(range);
         assert!(range.len() >= 6 && high[0] - low[0] > 2.0, "level {level}: {range:?}");
     }
@@ -702,9 +685,7 @@ fn a_flight_that_falls_back_into_a_portal_shows_where_steering_lands() {
 fn meeting_portal_2_first_is_reversed() {
     let physics = game_physics();
     let jump = request([0.0, 8.0, 0.0], true, &[0.0, 8.0]);
-    let landing = crossing(&preview(&physics, &jump)[0], 0, Phase::BeforeEntry)
-        .point
-        .map(|value| value as f32);
+    let landing = free_landing(&physics, &jump);
     let far = floor_portal(40.0, 0.0, 40.0);
     let flown = &preview(
         &physics,

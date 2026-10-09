@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::map::{CellGrid, EdgeGrid, LevelGrid};
 use common::{
     celestial::{CelestialMapSettings, LocalTime, Season},
     config::{KnockbackConfig, MapGeometryConfig, MapMovementConfig, PlayerMovementConfig},
@@ -26,6 +27,17 @@ pub(crate) fn sizes() -> MapGeometryConfig {
 
 pub(crate) fn geometry(grid_cols: i32, grid_rows: i32) -> MapGeometry {
     MapGeometry::new(grid_cols, grid_rows, sizes())
+}
+
+pub(crate) fn floored_level(grid_cols: i32, grid_rows: i32) -> LevelGrid {
+    let mut cells = CellGrid::new(grid_cols, grid_rows);
+    for cell in cells.rows.iter_mut().flatten() {
+        cell.has_floor = true;
+    }
+    LevelGrid {
+        cells,
+        edges: EdgeGrid::new(grid_cols, grid_rows),
+    }
 }
 
 pub(crate) fn map_settings() -> MapSettings {

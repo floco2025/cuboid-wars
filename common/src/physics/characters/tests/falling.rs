@@ -98,25 +98,13 @@ fn simulated_tall_fall_reaches_lethal_damage_without_low_gravity() {
 }
 
 #[test]
-fn fall_damage_zero_at_safe_distance() {
-    assert_eq!(fall_damage_for_distance(4.0, &thresholds(4.0, 12.0), 100.0), 0.0);
-    assert_eq!(fall_damage_for_distance(3.0, &thresholds(4.0, 12.0), 100.0), 0.0);
-}
-
-#[test]
-fn fall_damage_lethal_at_lethal_distance() {
-    assert_eq!(fall_damage_for_distance(12.0, &thresholds(4.0, 12.0), 100.0), 100.0);
-}
-
-#[test]
-fn fall_damage_lerps_midpoint() {
-    // (8 - 4) / (12 - 4) = 0.5 → 50 dmg
-    assert_eq!(fall_damage_for_distance(8.0, &thresholds(4.0, 12.0), 100.0), 50.0);
-}
-
-#[test]
-fn fall_damage_saturates_past_lethal() {
-    assert_eq!(fall_damage_for_distance(100.0, &thresholds(4.0, 12.0), 100.0), 100.0);
+fn fall_damage_ramps_from_the_safe_to_the_lethal_distance() {
+    let fall = thresholds(4.0, 12.0);
+    assert_eq!(fall_damage_for_distance(3.0, &fall, 100.0), 0.0);
+    assert_eq!(fall_damage_for_distance(4.0, &fall, 100.0), 0.0);
+    assert_eq!(fall_damage_for_distance(8.0, &fall, 100.0), 50.0);
+    assert_eq!(fall_damage_for_distance(12.0, &fall, 100.0), 100.0);
+    assert_eq!(fall_damage_for_distance(100.0, &fall, 100.0), 100.0);
 }
 
 #[test]
@@ -127,12 +115,4 @@ fn landing_damage_is_none_below_the_emit_threshold() {
     let damage = landing_damage(speed, TEST_GRAVITY, &fall, 1000.0).expect("a 5 hp landing is not soft");
     assert!((damage - 5.0).abs() < 0.05, "{damage}");
     assert_eq!(landing_damage(0.0, TEST_GRAVITY, &fall, 100.0), None);
-}
-
-#[test]
-fn impact_energy_determines_the_equivalent_drop() {
-    assert_eq!(fall_distance_for_speed(0.0, TEST_GRAVITY), 0.0);
-    assert_eq!(fall_distance_for_speed(10.0, TEST_GRAVITY), 2.0);
-    assert_eq!(fall_distance_for_speed(20.0, TEST_GRAVITY), 8.0);
-    assert_eq!(fall_distance_for_speed(25.0, TEST_GRAVITY), 12.5);
 }

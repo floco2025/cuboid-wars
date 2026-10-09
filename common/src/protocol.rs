@@ -921,7 +921,3 @@ impl ServerMessage {
 #[cfg(test)]
 #[path = "tests/protocol.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "tests/protocol_projectile.rs"]
-mod projectile_tests;

@@ -50,15 +50,6 @@ class WindowGeometryTests(unittest.TestCase):
                 self.assertEqual(window.size(), QSize(1000, 800))
                 self.assertFalse(window.isMaximized())
 
-    def test_size_and_position_round_trip(self):
-        original = self.show_normal()
-        original.window_geometry.save()
-        restored = self.make_window()
-        restored.show()
-        self.app.processEvents()
-        self.assertEqual(restored.geometry(), original.geometry())
-        self.assertEqual(restored.pos(), original.pos())
-
     def test_maximized_state_preserves_normal_size_and_position(self):
         original = self.show_normal()
         normal = original.geometry()

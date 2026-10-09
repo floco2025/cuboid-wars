@@ -1,18 +1,19 @@
-use crate::config::fixtures;
+use bevy::{ecs::system::SystemState, prelude::*};
+use crossbeam_channel::unbounded;
+
 use crate::{
-    actors::{ActorMap, SurfaceActorMoves},
+    actors::{ActorMap, SurfaceActorMoves, navigation::ActorTerritories},
     characters::flying_actors_movement_system,
+    config::fixtures,
     network::collect_player_moves,
     players::{PlayerInfo, PlayerMap, PlayerStateQuery, apply_player_movement_system, queue_player_movement},
 };
-use bevy::{ecs::system::SystemState, prelude::*};
 use common::{
     constants::TICK_DURATION,
     map::Carriers,
     physics::{CharacterSupport, CollisionWorld, PortalSet, knockback_decay_system},
     protocol::*,
 };
-use crossbeam_channel::unbounded;
 
 const ID: PlayerId = PlayerId(1);
 
@@ -30,7 +31,7 @@ fn movement_app(layout: MapLayout) -> (App, Entity) {
         .init_resource::<PlayerMap>()
         .init_resource::<ActorMap>()
         .init_resource::<SurfaceActorMoves>()
-        .init_resource::<crate::actors::navigation::ActorTerritories>()
+        .init_resource::<ActorTerritories>()
         .init_resource::<SwitchState>()
         .init_resource::<ServerTick>()
         .add_systems(
@@ -300,40 +301,32 @@ fn accepts_client_state_through_a_wall() {
 }
 
 #[test]
-fn accepted_reports_remain_stationary_without_fresh_reports() {
+fn a_retained_report_holds_without_fresh_reports_until_the_next_replaces_it_whole() {
     let (mut app, entity) = movement_app(MapLayout::default());
-    deliver(
-        &mut app,
-        report(
-            1,
-            Position {
-                x: 500.0,
-                y: 0.0,
-                z: 0.0,
-            },
-        ),
-    );
-    let mut moving = report(2, Position { x: 500.0, ..default() });
+    let mut moving = report(1, Position { x: 500.0, ..default() });
     moving.movement.vertical_velocity = -8.0;
     moving.movement.knockback = [3.0, 0.0, 2.0];
     moving.movement.move_intent = PlayerMoveIntent::moving(1.0);
-    deliver(&mut app, moving);
-    app.update();
-    let accepted = result(&mut app);
-    assert_eq!(accepted.movement.pos.x, 500.0);
+    moving.movement.support = CharacterSupport::Ground;
+    deliver(&mut app, moving.clone());
     for _ in 0..10 {
         app.update();
     }
-    let repeated = result(&mut app);
-    assert_eq!(accepted.seq, 2);
-    assert_eq!(repeated.seq, 2);
-    assert_eq!(repeated.movement.pos, accepted.movement.pos);
-    assert_eq!(repeated.movement.vertical_velocity, accepted.movement.vertical_velocity);
-    assert_eq!(repeated.movement.knockback, accepted.movement.knockback);
+    let retained = result(&mut app);
+    assert_eq!(retained.seq, 1);
+    assert_eq!(retained.movement.pos, moving.movement.pos);
+    assert_eq!(retained.movement.vertical_velocity, -8.0);
+    assert_eq!(retained.movement.knockback, moving.movement.knockback);
+    assert_eq!(retained.movement.move_intent, moving.movement.move_intent);
+    assert_eq!(retained.movement.support, CharacterSupport::Ground);
+    assert_eq!(player_info(&app).life.movement.support, CharacterSupport::Ground);
     assert_eq!(
         *app.world().get::<Position>(entity).expect("position missing"),
-        repeated.movement.pos
+        moving.movement.pos
     );
+    deliver(&mut app, report(2, Position::default()));
+    app.update();
+    assert_eq!(result(&mut app).movement.vertical_velocity, 0.0);
 }
 
 #[test]
@@ -364,19 +357,6 @@ fn non_finite_reports_do_not_advance_sequence_or_replace_fresh_state() {
     let entry = result(&mut app);
     assert_eq!(entry.seq, 2);
     assert_eq!(entry.movement.pos.x, 1.0);
-}
-
-#[test]
-fn a_report_replaces_the_retained_vertical_velocity_whole() {
-    let (mut app, _) = movement_app(MapLayout::default());
-    let mut falling = report(1, Position { y: 2.0, ..default() });
-    falling.movement.vertical_velocity = -8.0;
-    deliver(&mut app, falling);
-    app.update();
-    assert_eq!(result(&mut app).movement.vertical_velocity, -8.0);
-    deliver(&mut app, report(2, Position::default()));
-    app.update();
-    assert_eq!(result(&mut app).movement.vertical_velocity, 0.0);
 }
 
 #[test]
@@ -423,21 +403,6 @@ fn reports_while_dead_are_dropped_and_keep_the_sequence_cutoff() {
     app.update();
     assert_eq!(player_info(&app).session.last_move_seq, 6);
     assert_eq!(result(&mut app).movement.pos.x, 3.0);
-}
-
-#[test]
-fn reported_support_persists_without_fresh_reports() {
-    let (mut app, _) = movement_app(MapLayout::default());
-    app.world_mut().resource_mut::<MapSettings>().movement.gravity = 0.0;
-    let mut message = report(1, Position::default());
-    message.movement.support = CharacterSupport::Ground;
-    deliver(&mut app, message);
-    app.update();
-    assert_eq!(player_info(&app).life.movement.support, CharacterSupport::Ground);
-    assert_eq!(result(&mut app).movement.support, CharacterSupport::Ground);
-    app.update();
-    assert_eq!(player_info(&app).life.movement.support, CharacterSupport::Ground);
-    assert_eq!(result(&mut app).movement.support, CharacterSupport::Ground);
 }
 
 #[test]

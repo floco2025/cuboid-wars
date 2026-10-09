@@ -113,54 +113,24 @@ fn bridge_power_controls_portal_placement_on_the_floor_and_ceiling_beyond_it() {
 }
 
 #[test]
-fn placement_rejects_overlap_with_another_portal() {
+fn placement_overlaps_another_portal_but_not_clear_space_or_the_end_it_replaces() {
     let placement = PortalPlacement {
         pos: Vec3::new(0.0, 1.6, 0.0),
         normal: Vec3::Z,
         yaw: 0.0,
         carrier: CarrierId::WORLD,
     };
-    let existing = [portal(PortalEnd::A, Vec3::new(0.5, 1.6, 0.0), Vec3::Z, 0.0)];
-    assert!(portal_placement_overlaps(
-        &placement.portal(PortalPairId(2), PortalEnd::B, &Carriers::default()),
-        &existing,
-        &Carriers::default(),
-        crate::config::gameplay::load_test_gameplay()
-            .expect("fixture gameplay")
-            .portals
-            .size
-    ));
-}
-
-#[test]
-fn placement_allows_clear_space_and_replacing_its_own_end() {
-    let placement = PortalPlacement {
-        pos: Vec3::new(0.0, 1.6, 0.0),
-        normal: Vec3::Z,
-        yaw: 0.0,
-        carrier: CarrierId::WORLD,
+    let overlaps = |pair: u32, end: PortalEnd, x: f32| {
+        portal_placement_overlaps(
+            &placement.portal(PortalPairId(pair), PortalEnd::B, &Carriers::default()),
+            &[portal(end, Vec3::new(x, 1.6, 0.0), Vec3::Z, 0.0)],
+            &Carriers::default(),
+            portal_size(),
+        )
     };
-    let clear = [portal(PortalEnd::A, Vec3::new(2.0, 1.6, 0.0), Vec3::Z, 0.0)];
-    assert!(!portal_placement_overlaps(
-        &placement.portal(PortalPairId(2), PortalEnd::B, &Carriers::default()),
-        &clear,
-        &Carriers::default(),
-        crate::config::gameplay::load_test_gameplay()
-            .expect("fixture gameplay")
-            .portals
-            .size
-    ));
-
-    let replaced = [portal(PortalEnd::B, Vec3::new(0.0, 1.6, 0.0), Vec3::Z, 0.0)];
-    assert!(!portal_placement_overlaps(
-        &placement.portal(PortalPairId(1), PortalEnd::B, &Carriers::default()),
-        &replaced,
-        &Carriers::default(),
-        crate::config::gameplay::load_test_gameplay()
-            .expect("fixture gameplay")
-            .portals
-            .size
-    ));
+    assert!(overlaps(2, PortalEnd::A, 0.5));
+    assert!(!overlaps(2, PortalEnd::A, 2.0));
+    assert!(!overlaps(1, PortalEnd::B, 0.0));
 }
 
 #[test]
@@ -181,44 +151,55 @@ fn high_wall_shot_nudges_until_the_visible_rim_has_backing() {
     assert!(placement.pos.y + PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE < WALL_HEIGHT);
 }
 
-#[test]
-fn ramp_side_portal_rim_can_meet_the_slope() {
-    let ramp_length = 6.0;
-    let slope = LEVEL_HEIGHT / ramp_length;
-    let z = 1.5;
-    let surface_y = slope * z;
+const RAMP_LENGTH: f32 = 6.0;
+const RAMP_SIDE_Z: f32 = 1.5;
+
+fn ramp() -> Ramp {
+    Ramp {
+        x1: -2.0,
+        z1: 0.0,
+        x2: 2.0,
+        z2: RAMP_LENGTH,
+        y: 0.0,
+        height: LEVEL_HEIGHT,
+        direction: RampDirection::South,
+        shape: RampShape::Solid,
+        thickness: 0.4,
+        level: 0,
+        levels: 1,
+        carrier: CarrierId::WORLD,
+    }
+}
+
+// A wall along the ramp's side, and the height at which a portal on it,
+// `RAMP_SIDE_Z` along, clears the slope with its rim.
+fn ramp_beside_wall() -> (MapLayout, f32) {
+    let slope = LEVEL_HEIGHT / RAMP_LENGTH;
     let rim_half_height = PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE;
     let rim_half_width = PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE;
     let ellipse_support = (rim_half_height.powi(2) + (slope * rim_half_width).powi(2)).sqrt();
-    let center_y = surface_y + ellipse_support + 0.01;
     let layout = MapLayout {
         walls: vec![Wall {
             x1: -2.0,
             z1: 0.0,
             x2: -2.0,
-            z2: ramp_length,
+            z2: RAMP_LENGTH,
             width: WALL_THICKNESS,
             level: 0,
             y: 0.0,
             height: WALL_HEIGHT,
             carrier: CarrierId::WORLD,
         }],
-        ramps: vec![Ramp {
-            x1: -2.0,
-            z1: 0.0,
-            x2: 2.0,
-            z2: ramp_length,
-            y: 0.0,
-            height: LEVEL_HEIGHT,
-            direction: RampDirection::South,
-            shape: RampShape::Solid,
-            thickness: 0.4,
-            level: 0,
-            levels: 1,
-            carrier: CarrierId::WORLD,
-        }],
+        ramps: vec![ramp()],
         ..Default::default()
     };
+    (layout, slope * RAMP_SIDE_Z + ellipse_support + 0.01)
+}
+
+#[test]
+fn ramp_side_portal_rim_can_meet_the_slope() {
+    let (layout, center_y) = ramp_beside_wall();
+    let z = RAMP_SIDE_Z;
     let placement = place(&layout, Vec3::new(0.0, center_y, z), Vec3::new(-2.0, center_y, z), 0.0)
         .expect("ramp-side portal placement failed");
 
@@ -228,54 +209,16 @@ fn ramp_side_portal_rim_can_meet_the_slope() {
 
 #[test]
 fn wall_portal_near_ramp_excludes_only_wall_backing() {
-    let ramp_length = 6.0;
-    let slope = LEVEL_HEIGHT / ramp_length;
-    let z = 1.5;
-    let rim_half_height = PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE;
-    let rim_half_width = PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE;
-    let ellipse_support = (rim_half_height.powi(2) + (slope * rim_half_width).powi(2)).sqrt();
-    let center_y = slope * z + ellipse_support + 0.01;
-    let layout = MapLayout {
-        walls: vec![Wall {
-            x1: -2.0,
-            z1: 0.0,
-            x2: -2.0,
-            z2: ramp_length,
-            width: WALL_THICKNESS,
-            level: 0,
-            y: 0.0,
-            height: WALL_HEIGHT,
-            carrier: CarrierId::WORLD,
-        }],
-        ramps: vec![Ramp {
-            x1: -2.0,
-            z1: 0.0,
-            x2: 2.0,
-            z2: ramp_length,
-            y: 0.0,
-            height: LEVEL_HEIGHT,
-            direction: RampDirection::South,
-            shape: RampShape::Solid,
-            thickness: 0.4,
-            level: 0,
-            levels: 1,
-            carrier: CarrierId::WORLD,
-        }],
-        ..Default::default()
-    };
+    let (layout, center_y) = ramp_beside_wall();
+    let z = RAMP_SIDE_Z;
     let world = CollisionWorld::from_map_layout(&layout);
-    let set = PortalSet::rebuild(
+    let set = portal_set(
         &[
             portal(PortalEnd::A, Vec3::new(-1.85, center_y, z), Vec3::X, 0.0),
             portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::Z, 0.0),
         ],
         &world,
         &Carriers::default(),
-        crate::config::gameplay::load_test_gameplay()
-            .expect("fixture gameplay")
-            .portals
-            .size,
-        player_physics(),
     );
     let physics = player_physics();
     let origin = Vec3::new(-1.5, center_y - physics.movement_collider.height / 2.0, z);
@@ -311,7 +254,7 @@ fn wall_portal_across_a_stacked_wall_opens_its_trim_strip() {
         ..Default::default()
     };
     let world = CollisionWorld::from_map_layout(&layout);
-    let set = PortalSet::rebuild(
+    let set = portal_set(
         &[
             portal(
                 PortalEnd::A,
@@ -323,11 +266,6 @@ fn wall_portal_across_a_stacked_wall_opens_its_trim_strip() {
         ],
         &world,
         &Carriers::default(),
-        crate::config::gameplay::load_test_gameplay()
-            .expect("fixture gameplay")
-            .portals
-            .size,
-        player_physics(),
     );
     let physics = player_physics();
     let origin = Vec3::new(0.0, LEVEL_HEIGHT - physics.movement_collider.height / 2.0, -0.5);
@@ -362,18 +300,13 @@ fn wall_portal_keeps_the_floor_it_stands_on_solid() {
         ..Default::default()
     };
     let world = CollisionWorld::from_map_layout(&layout);
-    let set = PortalSet::rebuild(
+    let set = portal_set(
         &[
             portal(PortalEnd::A, Vec3::new(0.0, 1.0, -WALL_THICKNESS / 2.0), -Vec3::Z, 0.0),
             portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::Z, 0.0),
         ],
         &world,
         &Carriers::default(),
-        crate::config::gameplay::load_test_gameplay()
-            .expect("fixture gameplay")
-            .portals
-            .size,
-        player_physics(),
     );
     let physics = player_physics();
     let origin = Vec3::new(0.0, 1.0 - physics.movement_collider.height / 2.0, -0.5);
@@ -391,25 +324,11 @@ fn shot_past_the_walls_end_nudges_back_onto_it() {
 
 #[test]
 fn ramp_lip_shot_nudges_the_whole_aperture_onto_the_slope() {
-    let ramp_length = 6.0;
     let layout = MapLayout {
-        ramps: vec![Ramp {
-            x1: -2.0,
-            z1: 0.0,
-            x2: 2.0,
-            z2: ramp_length,
-            y: 0.0,
-            height: LEVEL_HEIGHT,
-            direction: RampDirection::South,
-            shape: RampShape::Solid,
-            thickness: 0.4,
-            level: 0,
-            levels: 1,
-            carrier: CarrierId::WORLD,
-        }],
+        ramps: vec![ramp()],
         floors: vec![Floor {
             x1: -4.0,
-            z1: ramp_length,
+            z1: RAMP_LENGTH,
             x2: 4.0,
             z2: 12.0,
             y: LEVEL_HEIGHT,
@@ -419,21 +338,13 @@ fn ramp_lip_shot_nudges_the_whole_aperture_onto_the_slope() {
         }],
         ..Default::default()
     };
-    let slope = LEVEL_HEIGHT / ramp_length;
+    let slope = LEVEL_HEIGHT / RAMP_LENGTH;
     let target = Vec3::new(0.0, slope * 5.05, 5.05);
     let normal = Vec3::new(0.0, 1.0, -slope).normalize();
     let placement = place(&layout, target + normal * 3.0, target, 0.0).expect("ramp-lip shot did not nudge");
-    let frame = PortalFrame::from_surface(
-        placement.pos,
-        placement.normal,
-        placement.yaw,
-        crate::config::gameplay::load_test_gameplay()
-            .expect("fixture gameplay")
-            .portals
-            .size,
-    );
+    let frame = PortalFrame::from_surface(placement.pos, placement.normal, placement.yaw, portal_size());
 
-    assert!((frame.center + frame.up * PORTAL_HALF_HEIGHT).z <= ramp_length);
+    assert!((frame.center + frame.up * PORTAL_HALF_HEIGHT).z <= RAMP_LENGTH);
 }
 
 #[test]
@@ -596,7 +507,7 @@ fn configured_portal_size_controls_fit_overlap_and_aperture_crossings() {
     let layout = textured_layout(&placement_layout());
     let world = CollisionWorld::from_map_layout(&layout);
     let carriers = Carriers::default();
-    let mut config = crate::config::gameplay::load_test_gameplay().expect("fixture").portals;
+    let mut config = portals_config();
     let shoot = |config: &crate::config::PortalsConfig| {
         compute_portal_placement(
             Vec3::new(0.0, 1.6, 3.0),

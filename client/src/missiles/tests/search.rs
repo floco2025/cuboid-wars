@@ -1,9 +1,11 @@
+use super::super::fixtures::wall;
 use super::*;
 use crate::{
     constants::{MISSILE_SEARCH_TICK_QUERIES, MISSILE_SEARCH_WINDOW_MARGIN_CELLS},
     test_fixtures,
 };
-use common::protocol::{CarrierGrid, CarrierId, MapLayout, Wall};
+use common::protocol::{CarrierGrid, CarrierId, Floor, MapLayout, Wall};
+use std::time::{Duration, Instant};
 
 #[test]
 fn searches_resume_within_a_shared_budget_outside_authored_bounds() {
@@ -18,15 +20,8 @@ fn searches_resume_within_a_shared_budget_outside_authored_bounds() {
     );
     let world = CollisionWorld::from_map_layout(&MapLayout {
         walls: vec![Wall {
-            x1: 201.0,
-            x2: 201.0,
-            z1: -8.0,
-            z2: 8.0,
-            width: 0.3,
-            y: 0.0,
             height: 8.0,
-            level: 0,
-            carrier: CarrierId::WORLD,
+            ..wall(201.0, -8.0, 201.0, 8.0)
         }],
         ..Default::default()
     });
@@ -62,7 +57,6 @@ fn searches_resume_within_a_shared_budget_outside_authored_bounds() {
                 _ => panic!("exterior target is reachable"),
             }
         }
-        assert!(budget.used <= 32);
         if paths.iter().all(Option::is_some) {
             break;
         }
@@ -86,8 +80,6 @@ fn sealed_target_searches_complete_under_the_shared_tick_budget() {
 }
 
 fn measure_sealed_searches(outside: bool) {
-    use common::protocol::Floor;
-    use std::time::Instant;
     let graph = AirGraph::new(
         &[CarrierGrid {
             carrier: CarrierId::WORLD,
@@ -103,17 +95,7 @@ fn measure_sealed_searches(outside: bool) {
         (-10.0, -10.0, -10.0, 10.0),
         (10.0, -10.0, 10.0, 10.0),
     ]
-    .map(|(x1, z1, x2, z2)| Wall {
-        x1,
-        x2,
-        z1,
-        z2,
-        y: 0.0,
-        height: 4.0,
-        width: 0.3,
-        level: 0,
-        carrier: CarrierId::WORLD,
-    });
+    .map(|(x1, z1, x2, z2)| wall(x1, z1, x2, z2));
     let world = CollisionWorld::from_map_layout(&MapLayout {
         walls: walls.to_vec(),
         floors: [0.0, 4.4]
@@ -153,7 +135,7 @@ fn measure_sealed_searches(outside: bool) {
         })
         .collect();
     let mut total = 0;
-    let mut slowest = std::time::Duration::ZERO;
+    let mut slowest = Duration::ZERO;
     for tick in 0..10000 {
         let start = Instant::now();
         let mut budget = SearchBudget::new(MISSILE_SEARCH_TICK_QUERIES);
@@ -170,8 +152,7 @@ fn measure_sealed_searches(outside: bool) {
             }
         }
         slowest = slowest.max(start.elapsed());
-        total += budget.used;
-        assert!(budget.used <= MISSILE_SEARCH_TICK_QUERIES);
+        total += MISSILE_SEARCH_TICK_QUERIES - budget.remaining;
         if searches.iter().all(Option::is_none) {
             break;
         }

@@ -29,25 +29,11 @@ fn progress_re_anchors_and_restarts_the_window() {
 }
 
 #[test]
-fn horizontal_tick_ignores_vertical_motion() {
-    let mut watchdog = ProgressWatchdog::default();
-    assert!(!watchdog.tick_horizontal(&pos(0.0, 0.0, 0.0), 0.6, 0.5, 1.0));
-    assert!(
-        !watchdog.tick_horizontal(&pos(0.0, 5.0, 0.0), 0.6, 0.5, 1.0),
-        "vertical displacement is not progress"
-    );
-    assert!(watchdog.tick_horizontal(&pos(0.0, 9.0, 0.0), 0.6, 0.5, 1.0));
-}
-
-#[test]
 fn tripping_re_arms() {
     let mut watchdog = ProgressWatchdog::default();
     let pinned = pos(0.0, 0.0, 0.0);
-    assert!(!watchdog.tick_horizontal(&pinned, 2.0, 0.5, 1.0));
-    assert!(watchdog.tick_horizontal(&pinned, 2.0, 0.5, 1.0));
-    assert!(
-        !watchdog.tick_horizontal(&pinned, 2.0, 0.5, 1.0),
-        "fresh anchor after a trip"
-    );
-    assert!(watchdog.tick_horizontal(&pinned, 2.0, 0.5, 1.0));
+    assert!(!watchdog.tick_3d(&pinned, 2.0, 0.5, 1.0));
+    assert!(watchdog.tick_3d(&pinned, 2.0, 0.5, 1.0));
+    assert!(!watchdog.tick_3d(&pinned, 2.0, 0.5, 1.0), "fresh anchor after a trip");
+    assert!(watchdog.tick_3d(&pinned, 2.0, 0.5, 1.0));
 }

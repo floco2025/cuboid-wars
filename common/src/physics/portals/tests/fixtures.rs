@@ -1,5 +1,6 @@
 pub(super) use super::super::*;
 pub(super) use crate::{
+    config::fixtures::player_physics,
     constants::{PORTAL_RIM_SCALE, TICK_SECS},
     map::{Carriers, Grounds, GroundsSettings},
     physics::{
@@ -17,18 +18,24 @@ pub(super) use std::f32::consts::PI;
 use std::collections::BTreeMap;
 
 use crate::{
-    config::{CharacterPhysicsConfig, gameplay::load_test_gameplay},
+    config::{PortalSize, PortalsConfig, fixtures::load_test_gameplay},
     protocol::{SwitchState, TextureSettings},
 };
 
 pub(crate) const CAP: f32 = 22.5;
 pub(crate) const TILE: CarrierId = CarrierId(1);
 
-pub(crate) fn player_physics() -> CharacterPhysicsConfig {
-    load_test_gameplay()
-        .expect("test gameplay config rejected")
-        .player
-        .physics()
+pub(crate) fn portals_config() -> PortalsConfig {
+    load_test_gameplay().expect("test gameplay config rejected").portals
+}
+
+pub(crate) fn portal_size() -> PortalSize {
+    portals_config().size
+}
+
+// The pairs `portals` make in `world`, gated for the test player.
+pub(crate) fn portal_set(portals: &[Portal], world: &CollisionWorld, carriers: &Carriers) -> PortalSet {
+    PortalSet::rebuild(portals, world, carriers, portal_size(), player_physics())
 }
 
 pub(crate) fn portal(end: PortalEnd, pos: Vec3, normal: Vec3, yaw: f32) -> Portal {
@@ -49,19 +56,30 @@ pub(crate) fn empty_world() -> CollisionWorld {
 }
 
 pub(crate) fn pair(a_pos: Vec3, a_normal: Vec3, b_pos: Vec3, b_normal: Vec3) -> PortalSet {
-    PortalSet::rebuild(
+    portal_set(
         &[
             portal(PortalEnd::A, a_pos, a_normal, 0.0),
             portal(PortalEnd::B, b_pos, b_normal, 0.0),
         ],
         &empty_world(),
         &Carriers::default(),
-        crate::config::gameplay::load_test_gameplay()
-            .expect("fixture gameplay")
-            .portals
-            .size,
-        player_physics(),
     )
+}
+
+// A body crossing with no knockback and no ride of its own.
+pub(crate) fn hop_body(horizontal_velocity: Vec3, vertical_velocity: f32, yaw: f32) -> CharacterHopBody {
+    CharacterHopBody {
+        knockback: Vec3::ZERO,
+        horizontal_velocity,
+        vertical_velocity,
+        carried: Vec3::ZERO,
+        yaw,
+    }
+}
+
+// The test player's crossing between two positions in one tick, if it makes one.
+pub(crate) fn player_hop(set: &PortalSet, from: Vec3, to: Vec3, body: CharacterHopBody) -> Option<CharacterPortalHop> {
+    set.character_hop(from, to, player_physics(), body, CAP, TICK_SECS)
 }
 
 pub(crate) fn frames(set: &PortalSet) -> (&PortalFrame, &PortalFrame) {
@@ -120,7 +138,7 @@ pub(crate) fn moving_projectile_portals(
         ..Default::default()
     };
     let (world, carriers) = tile_world(&layout, 1);
-    let set = PortalSet::rebuild(
+    let set = portal_set(
         &[
             Portal {
                 carrier: CarrierId(1),
@@ -133,11 +151,6 @@ pub(crate) fn moving_projectile_portals(
         ],
         &world,
         &carriers,
-        crate::config::gameplay::load_test_gameplay()
-            .expect("fixture gameplay")
-            .portals
-            .size,
-        player_physics(),
     );
     (world, set)
 }
@@ -212,9 +225,9 @@ pub(crate) fn place_on_geometry(
         origin,
         direction,
         yaw,
-        &crate::config::PortalsConfig {
+        &PortalsConfig {
             range,
-            ..load_test_gameplay().expect("fixture gameplay").portals
+            ..portals_config()
         },
         world,
         &textured_layout(layout),
@@ -249,9 +262,9 @@ pub(crate) fn material_shot(
         origin,
         direction,
         0.0,
-        &crate::config::PortalsConfig {
+        &PortalsConfig {
             range: 40.0,
-            ..load_test_gameplay().expect("fixture gameplay").portals
+            ..portals_config()
         },
         &world,
         layout,
@@ -369,11 +382,11 @@ pub(crate) fn run_ticks(
     world: &mut CollisionWorld,
     carriers: &mut Carriers,
     set: &mut PortalSet,
-    physics: CharacterPhysicsConfig,
     mut pos: Position,
     first_tick: u32,
     ticks: u32,
 ) -> (Option<(u32, CharacterPortalHop)>, Position, CharacterSupport) {
+    let physics = player_physics();
     let mut vertical_velocity = 0.0;
     let mut support = CharacterSupport::Airborne;
     for tick in first_tick..first_tick + ticks {
@@ -402,20 +415,8 @@ pub(crate) fn run_ticks(
         pos = result.position;
         vertical_velocity = result.vertical_velocity;
         support = result.support;
-        if let Some(hop) = set.character_hop(
-            Vec3::from(from),
-            Vec3::from(pos),
-            physics,
-            CharacterHopBody {
-                knockback: Vec3::ZERO,
-                horizontal_velocity: Vec3::ZERO,
-                vertical_velocity,
-                carried: Vec3::ZERO,
-                yaw: 0.0,
-            },
-            CAP,
-            TICK_SECS,
-        ) {
+        let body = hop_body(Vec3::ZERO, vertical_velocity, 0.0);
+        if let Some(hop) = player_hop(set, Vec3::from(from), Vec3::from(pos), body) {
             return (Some((tick, hop)), pos, support);
         }
     }

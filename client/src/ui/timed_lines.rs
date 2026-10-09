@@ -3,8 +3,6 @@ use std::iter::once;
 use bevy::prelude::*;
 
 use super::fade::fade_out_alpha;
-#[cfg(test)]
-use crate::constants::HUD_LINE_FADE_SECS;
 
 // A column of rows that each live for a while and fade out — the HUD banner
 // and the message feed. Rows are the root's children in arrival order,

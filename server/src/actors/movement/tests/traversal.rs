@@ -1,22 +1,16 @@
 use super::*;
-use crate::actors::navigation::surface::{RouteFailure, SurfaceMesh, fixtures};
+use crate::{
+    actors::navigation::surface::{RouteFailure, SurfaceMesh, fixtures},
+    map::ZoneVolume,
+};
 use common::{
     physics::{CharacterMovePlan, character_move_plans_intersect},
-    protocol::{FieldId, Floor, MapLayout, Wall},
+    protocol::{Carrier, CarrierMotion, FieldId, Floor, MapLayout, SwitchState, Wall},
 };
 
 fn flat_world(walls: Vec<Wall>) -> (CollisionWorld, Carriers) {
     let layout = MapLayout {
-        floors: vec![Floor {
-            x1: -8.0,
-            x2: 8.0,
-            z1: -8.0,
-            z2: 8.0,
-            y: 0.0,
-            thickness: 0.2,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
+        floors: vec![fixtures::floor([-8.0, 8.0], [-8.0, 8.0], 0.0)],
         walls,
         ..Default::default()
     };
@@ -52,6 +46,28 @@ fn walk_against_body(
     closest
 }
 
+// Where the motor alone takes an idle body this tick.
+fn idle_step(
+    env: &TraversalEnvironment,
+    physics: CharacterPhysicsConfig,
+    body: ActorBody,
+    knockback: Vec3,
+) -> CharacterMovementResult {
+    step_actor_movement(ActorMovementStep {
+        start: body.position,
+        vertical_velocity: body.vertical_velocity,
+        intent: ActorMoveIntent::Idle,
+        knockback_displacement: knockback,
+        delta: env.delta,
+        can_use_ladders: false,
+        physics,
+        open_fields: &[],
+        collision_world: env.world,
+        map_settings: env.settings,
+        carriers: env.carriers,
+    })
+}
+
 const WALKER_START: Position = Position {
     x: -3.0,
     y: 0.0,
@@ -77,13 +93,7 @@ fn walker(target: Position) -> TraversalExecutor {
 fn a_walker_whose_target_lies_under_another_body_reports_blocked_instead_of_circling() {
     let config = fixtures::config();
     let (world, carriers) = flat_world(Vec::new());
-    let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
+    let env = fixtures::env(&world, &carriers, &config);
     let mut actor = walker(Position { x: 0.1, y: 0.0, z: 0.1 });
     let mut body = ActorBody::standing(WALKER_START);
     let closest = walk_against_body(&mut actor, &mut body, &env, 300);
@@ -107,13 +117,7 @@ fn a_walker_passes_a_body_on_the_open_side_when_a_wall_closes_its_usual_hand() {
         level: 0,
         carrier: CarrierId::WORLD,
     }]);
-    let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
+    let env = fixtures::env(&world, &carriers, &config);
     let mut actor = walker(Position { x: 4.0, y: 0.0, z: 0.0 });
     let mut body = ActorBody::standing(WALKER_START);
     let closest = walk_against_body(&mut actor, &mut body, &env, 300);
@@ -125,31 +129,12 @@ fn a_walker_passes_a_body_on_the_open_side_when_a_wall_closes_its_usual_hand() {
 fn a_pivot_that_only_its_travel_probe_blocks_keeps_its_knockback() {
     let config = fixtures::config();
     let (world, carriers) = flat_world(Vec::new());
-    let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
+    let env = fixtures::env(&world, &carriers, &config);
     let mut actor = walker(Position { x: 4.0, y: 0.0, z: 0.0 });
     actor.facing = -std::f32::consts::FRAC_PI_2;
     let body = ActorBody::standing(WALKER_START);
-    let start = body.position;
     let impulse = Vec3::new(0.0, 0.0, 0.1);
-    let expected = step_actor_movement(ActorMovementStep {
-        start,
-        vertical_velocity: body.vertical_velocity,
-        intent: ActorMoveIntent::Idle,
-        knockback_displacement: impulse,
-        delta: env.delta,
-        can_use_ladders: false,
-        physics: actor.physics,
-        open_fields: &[],
-        collision_world: &world,
-        map_settings: &config.settings,
-        carriers: &carriers,
-    });
+    let expected = idle_step(&env, actor.physics, body, impulse);
     // Every voluntary move is rejected; the pivot itself travels nowhere.
     let movement = actor.step_with_avoidance(&env, body, impulse, Vec3::ZERO, false, None, |target| {
         (target.x != expected.position.x).then_some(BodyBlocker {
@@ -163,8 +148,6 @@ fn a_pivot_that_only_its_travel_probe_blocks_keeps_its_knockback() {
 
 #[test]
 fn actor_blocking_rejects_a_swept_impulse_and_preserves_the_full_carried_landing() {
-    use common::protocol::{Carrier, CarrierMotion, SwitchState};
-
     let config = fixtures::config();
     let physics = config.expect_actor("scuttler").character.physics();
     let carrier = CarrierId(1);
@@ -187,14 +170,8 @@ fn actor_blocking_rejects_a_swept_impulse_and_preserves_the_full_carried_landing
             switch: None,
         }],
         floors: vec![Floor {
-            x1: -6.0,
-            x2: 6.0,
-            z1: -3.0,
-            z2: 3.0,
-            y: 0.0,
-            thickness: 0.2,
-            level: 0,
             carrier,
+            ..fixtures::floor([-6.0, 6.0], [-3.0, 3.0], 0.0)
         }],
         ..Default::default()
     };
@@ -214,26 +191,8 @@ fn actor_blocking_rejects_a_swept_impulse_and_preserves_the_full_carried_landing
     };
     carriers.advance(1, &SwitchState::default());
     world.set_carrier_poses(&carriers);
-    let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
-    let expected = step_actor_movement(ActorMovementStep {
-        start,
-        vertical_velocity: -3.0,
-        intent: ActorMoveIntent::Idle,
-        knockback_displacement: Vec3::ZERO,
-        delta: env.delta,
-        can_use_ladders: false,
-        physics,
-        open_fields: &[],
-        collision_world: &world,
-        map_settings: &config.settings,
-        carriers: &carriers,
-    });
+    let env = fixtures::env(&world, &carriers, &config);
+    let expected = idle_step(&env, physics, body, Vec3::ZERO);
     let other = CharacterMovePlan::from_target(
         Entity::from_bits(2),
         Position::default(),
@@ -266,9 +225,6 @@ fn actor_blocking_rejects_a_swept_impulse_and_preserves_the_full_carried_landing
 
 #[test]
 fn roaming_rejects_crowd_steering_out_of_a_moving_home_but_keeps_physics() {
-    use crate::map::ZoneVolume;
-    use common::protocol::{Carrier, CarrierMotion, SwitchState};
-
     let config = fixtures::config();
     let physics = config.expect_actor("scuttler").character.physics();
     let carrier = CarrierId(1);
@@ -295,14 +251,8 @@ fn roaming_rejects_crowd_steering_out_of_a_moving_home_but_keeps_physics() {
             switch: None,
         }],
         floors: vec![Floor {
-            x1: -4.0,
-            x2: 4.0,
-            z1: -4.0,
-            z2: 4.0,
-            y: 0.0,
-            thickness: 0.2,
-            level: 0,
             carrier,
+            ..fixtures::floor([-4.0, 4.0], [-4.0, 4.0], 0.0)
         }],
         ..Default::default()
     };
@@ -334,13 +284,7 @@ fn roaming_rejects_crowd_steering_out_of_a_moving_home_but_keeps_physics() {
     });
     carriers.advance(1, &SwitchState::default());
     world.set_carrier_poses(&carriers);
-    let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
+    let env = fixtures::env(&world, &carriers, &config);
     let mut unrestricted = actor.clone();
     let free = unrestricted.step_with_avoidance(&env, body, Vec3::ZERO, Vec3::X, false, None, |_| None);
     assert!(!home.contains_position(carriers.pose(carrier).inverse_transform_point(free.position.into())));
@@ -360,19 +304,7 @@ fn roaming_rejects_crowd_steering_out_of_a_moving_home_but_keeps_physics() {
     assert!(kept.position.x > start.x, "carrier travel is retained");
 
     let impulse = Vec3::X * 0.2;
-    let expected = step_actor_movement(ActorMovementStep {
-        start: body.position,
-        vertical_velocity: body.vertical_velocity,
-        intent: ActorMoveIntent::Idle,
-        knockback_displacement: impulse,
-        delta: env.delta,
-        can_use_ladders: false,
-        physics,
-        open_fields: &[],
-        collision_world: &world,
-        map_settings: &config.settings,
-        carriers: &carriers,
-    });
+    let expected = idle_step(&env, physics, body, impulse);
     let movement = actor.step_with_avoidance(&env, body, impulse, Vec3::ZERO, false, Some(&home), |_| None);
     assert_eq!(
         movement, expected,
@@ -402,13 +334,7 @@ fn removing_a_bridge_stops_an_existing_route_at_the_edge_until_support_returns()
         disconnected.route(start, goal, 0.7).expect_err("disabled bridge"),
         RouteFailure::Disconnected
     );
-    let mut env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
+    let mut env = fixtures::env(&world, &carriers, &config);
     let mut actor = TraversalExecutor::new(physics, 3.0);
     let mut body = ActorBody::standing(start);
     actor.set_route(route);

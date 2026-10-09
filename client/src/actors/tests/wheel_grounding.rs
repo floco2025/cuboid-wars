@@ -5,7 +5,7 @@ use common::{
     protocol::{ActorMarker, CarrierId, Floor, MapLayout, Position, Ramp, RampDirection, RampShape, SwitchState},
 };
 
-use super::wheel_grounding::{WheelGrounding, ground_pose, wheel_grounding_system};
+use super::*;
 use crate::config::WheelModelDef;
 
 fn wheels() -> WheelModelDef {

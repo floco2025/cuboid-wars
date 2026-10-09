@@ -1,14 +1,11 @@
 pub(super) use super::super::*;
+use crate::protocol::{Carrier, CarrierId, SwitchState};
 pub(super) use crate::{
-    config::CharacterPhysicsConfig,
+    config::{CharacterPhysicsConfig, fixtures::player_physics},
     map::Carriers,
     physics::CollisionWorld,
     protocol::{Floor, Ladder, MapLayout, Position, Ramp, RampDirection, RampShape, Wall},
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
-};
-use crate::{
-    config::gameplay::load_test_gameplay,
-    protocol::{Carrier, CarrierId, SwitchState},
 };
 pub(super) use bevy_math::Vec3;
 
@@ -342,13 +339,6 @@ pub(crate) fn carried_momentum(momentum: Vec3, step: &CharacterMovementResult) -
         CharacterSupport::Ladder => Vec3::ZERO,
         CharacterSupport::Ground => momentum,
     }
-}
-
-pub(crate) fn player_physics() -> CharacterPhysicsConfig {
-    load_test_gameplay()
-        .expect("test gameplay config rejected")
-        .player
-        .physics()
 }
 
 // The environment every movement test steps in: no passable barrier kinds

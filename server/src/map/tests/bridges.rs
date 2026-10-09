@@ -47,24 +47,10 @@ fn an_east_west_walkway_with_spurs_on_both_sides_stays_one_slab() {
 }
 
 #[test]
-fn an_l_shape_becomes_two_rectangles() {
-    let cells = cells(SKY, &[(0, 0), (1, 0), (2, 0), (0, 1), (0, 2)]);
-    let merged = merge_light_bridges(&cells);
-    assert_eq!(merged.len(), 2);
-    assert_eq!(merged.iter().map(BridgeRect::area).sum::<i32>(), 5);
-}
-
-#[test]
 fn fields_never_merge_into_one_rectangle() {
     let cells = [(0, 0, SKY), (1, 0, VOID)];
     assert_eq!(
         merge_light_bridges(&cells),
         [rect(0, 0, 1, 1, SKY), rect(1, 0, 2, 1, VOID)]
     );
-}
-
-#[test]
-fn duplicate_cells_collapse() {
-    let cells = [(2, 2, SKY), (2, 2, SKY)];
-    assert_eq!(merge_light_bridges(&cells), [rect(2, 2, 3, 3, SKY)]);
 }

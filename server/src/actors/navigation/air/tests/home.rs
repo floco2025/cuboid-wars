@@ -4,11 +4,13 @@ use crate::{
     map::{CellGrid, EdgeGrid, LevelGrid},
     test_geometry::geometry,
 };
-use common::protocol::{CarrierId, MapLayout};
+use common::{
+    map::Carriers,
+    protocol::{Carrier, CarrierId, MapLayout, SwitchState, Wall},
+};
 
-#[test]
-fn air_home_expands_vertically_and_moves_with_its_spawn_zone() {
-    let physics = test_kinds::physics(CONTACT);
+// The home of a one-cell zone on the root grid, `range` beyond the zone.
+fn air_home(range: f32) -> AirHome {
     let grid = CarrierGrid::new(
         CarrierId::WORLD,
         geometry(1, 1),
@@ -17,24 +19,22 @@ fn air_home_expands_vertically_and_moves_with_its_spawn_zone() {
             edges: EdgeGrid::new(1, 1),
         }],
     );
-    let zone = ActorSpawnZone {
-        carrier: CarrierId::WORLD,
-        level: 0,
-        levels: 1,
-        roam_distance: 0.0,
-        cols: [0, 1],
-        rows: [0, 1],
-        kind: CONTACT.into(),
-        count: vec![1],
-        respawn_secs: None,
-        beam_in_secs: 0.0,
-        switch: None,
-        initially_on: true,
-        until_checkpoint: None,
-        on_checkpoint: Default::default(),
-    };
+    let zone = test_kinds::spawn_zone(CONTACT, [0, 1], [0, 1]);
+    AirHome::new(
+        &zone,
+        &grid,
+        test_kinds::physics(CONTACT),
+        range,
+        CarrierPose::IDENTITY,
+        &[],
+    )
+}
+
+#[test]
+fn air_home_expands_vertically_and_moves_with_its_spawn_zone() {
+    let physics = test_kinds::physics(CONTACT);
     let pose = CarrierPose::IDENTITY;
-    let mut home = AirHome::new(&zone, &grid, physics, 1.5, pose, &[]);
+    let mut home = air_home(1.5);
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
     home.advance(&world, physics, &mut 10000);
     assert!(home.ready());
@@ -48,40 +48,15 @@ fn air_home_expands_vertically_and_moves_with_its_spawn_zone() {
     let moved = CarrierPose::from_translation(Vec3::new(100.0, 20.0, -10.0));
     assert!(home.contains(moved.transform_point(above), moved));
     assert!(!home.contains(above, moved));
-    let mut tight = AirHome::new(&zone, &grid, physics, 0.01, pose, &[]);
+    let mut tight = air_home(0.01);
     tight.advance(&world, physics, &mut 10000);
     assert!(tight.contains(tight.territory.volume.min + Vec3::splat(0.13), pose));
 }
 
 #[test]
 fn walls_do_not_change_the_authored_roaming_boundary() {
-    use common::protocol::Wall;
     let physics = test_kinds::physics(CONTACT);
-    let grid = CarrierGrid::new(
-        CarrierId::WORLD,
-        geometry(1, 1),
-        vec![LevelGrid {
-            cells: CellGrid::new(1, 1),
-            edges: EdgeGrid::new(1, 1),
-        }],
-    );
-    let zone = ActorSpawnZone {
-        carrier: CarrierId::WORLD,
-        level: 0,
-        levels: 1,
-        roam_distance: 0.0,
-        cols: [0, 1],
-        rows: [0, 1],
-        kind: CONTACT.into(),
-        count: vec![1],
-        respawn_secs: None,
-        beam_in_secs: 0.0,
-        switch: None,
-        initially_on: true,
-        until_checkpoint: None,
-        on_checkpoint: Default::default(),
-    };
-    let edge = grid.geometry.cell_to_world_x(1);
+    let edge = geometry(1, 1).cell_to_world_x(1);
     let target = Vec3::new(edge + 0.9, 1.0, 0.0);
     for blocked in [false, true] {
         let layout = MapLayout {
@@ -103,53 +78,18 @@ fn walls_do_not_change_the_authored_roaming_boundary() {
             ..Default::default()
         };
         let world = CollisionWorld::from_map_layout(&layout);
-        let mut home = AirHome::new(&zone, &grid, physics, 2.0, CarrierPose::IDENTITY, &[]);
+        let mut home = air_home(2.0);
         home.advance(&world, physics, &mut 20000);
         assert!(home.ready());
         assert!(home.contains(target, CarrierPose::IDENTITY));
     }
 }
 
-fn sample_home(range: f32) -> AirHome {
-    let grid = CarrierGrid::new(
-        CarrierId::WORLD,
-        geometry(1, 1),
-        vec![LevelGrid {
-            cells: CellGrid::new(1, 1),
-            edges: EdgeGrid::new(1, 1),
-        }],
-    );
-    let zone = ActorSpawnZone {
-        carrier: CarrierId::WORLD,
-        level: 0,
-        levels: 1,
-        roam_distance: range,
-        cols: [0, 1],
-        rows: [0, 1],
-        kind: CONTACT.into(),
-        count: vec![1],
-        respawn_secs: None,
-        beam_in_secs: 0.0,
-        switch: None,
-        initially_on: true,
-        until_checkpoint: None,
-        on_checkpoint: Default::default(),
-    };
-    AirHome::new(
-        &zone,
-        &grid,
-        test_kinds::physics(CONTACT),
-        range,
-        CarrierPose::IDENTITY,
-        &[],
-    )
-}
-
 #[test]
 fn large_roam_volumes_have_bounded_samples_spread_across_all_axes() {
     let physics = test_kinds::physics(CONTACT);
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
-    let mut home = sample_home(1_000_000.0);
+    let mut home = air_home(1_000_000.0);
     home.advance(&world, physics, &mut 32);
     let points: Vec<_> = home.points.iter().flatten().copied().collect();
     assert!(points.iter().any(|p| p.y > 200_000.0));
@@ -162,7 +102,6 @@ fn large_roam_volumes_have_bounded_samples_spread_across_all_axes() {
 
 #[test]
 fn stationary_nested_maps_do_not_restart_completed_home_samples() {
-    use common::{map::Carriers, protocol::Carrier};
     let rest = Vec3::new(100.0, 0.0, 0.0).into();
     let layout = MapLayout {
         carriers: vec![Carrier {
@@ -183,7 +122,7 @@ fn stationary_nested_maps_do_not_restart_completed_home_samples() {
     let carriers = Carriers::from_layout(&layout);
     assert!(!carriers.is_static());
     let mut world = CollisionWorld::from_map_layout(&layout);
-    let mut home = sample_home(2.0);
+    let mut home = air_home(2.0);
     home.refresh(&world, CarrierPose::IDENTITY, &[]);
     home.advance(&world, test_kinds::physics(CONTACT), &mut { HOME_SAMPLE_LIMIT });
     let points = home.points.clone();
@@ -200,7 +139,7 @@ fn stationary_nested_maps_do_not_restart_completed_home_samples() {
 fn home_refresh_preserves_destinations_until_their_replacements_are_checked() {
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
     let physics = test_kinds::physics(CONTACT);
-    let mut home = sample_home(2.0);
+    let mut home = air_home(2.0);
     home.advance(&world, physics, &mut { HOME_SAMPLE_LIMIT });
     let points = home.points.clone();
     home.age = 1.0;
@@ -215,10 +154,6 @@ fn home_refresh_preserves_destinations_until_their_replacements_are_checked() {
 
 #[test]
 fn only_obstacle_motion_near_the_home_restarts_sampling() {
-    use common::{
-        map::Carriers,
-        protocol::{Carrier, SwitchState, Wall},
-    };
     for near in [false, true] {
         let layout = MapLayout {
             carriers: vec![Carrier {
@@ -250,7 +185,7 @@ fn only_obstacle_motion_near_the_home_restarts_sampling() {
         let mut carriers = Carriers::from_layout(&layout);
         let mut world = CollisionWorld::from_map_layout(&layout);
         let physics = test_kinds::physics(CONTACT);
-        let mut home = sample_home(1.0);
+        let mut home = air_home(1.0);
         home.refresh(&world, CarrierPose::IDENTITY, &[]);
         home.advance(&world, physics, &mut { HOME_SAMPLE_LIMIT });
         let points = home.points.clone();

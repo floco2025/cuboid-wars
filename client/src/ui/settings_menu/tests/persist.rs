@@ -1,4 +1,3 @@
-use crate::test_fixtures;
 use bevy::{
     audio::Volume,
     ui_widgets::{SliderRange, SliderValue, ValueChange},
@@ -11,16 +10,34 @@ use super::super::{
     style::settings_menu_slider_sync_system,
 };
 use super::*;
+use crate::test_fixtures;
+
+fn frame(position: Option<IVec2>, size: UVec2) -> WindowedFrame {
+    WindowedFrame {
+        position,
+        size,
+        position_pending: false,
+        focus_pending: false,
+    }
+}
+
+fn local_settings_of(app: &App) -> LocalSettings {
+    local_settings(
+        app.world().resource::<ClientSettings>(),
+        app.world().resource::<GlobalVolume>(),
+        false,
+        frame(None, UVec2::new(1280, 720)),
+    )
+}
 
 fn snapshot(fullscreen: bool) -> LocalSettings {
     let settings = test_fixtures::client_settings();
-    let frame = WindowedFrame {
-        position: Some(IVec2::new(100, 80)),
-        size: UVec2::new(1200, 800),
-        position_pending: false,
-        focus_pending: false,
-    };
-    local_settings(&settings, &GlobalVolume::new(Volume::Linear(0.5)), fullscreen, frame)
+    local_settings(
+        &settings,
+        &GlobalVolume::new(Volume::Linear(0.5)),
+        fullscreen,
+        frame(Some(IVec2::new(100, 80)), UVec2::new(1200, 800)),
+    )
 }
 
 #[test]
@@ -45,23 +62,14 @@ fn gaps_between_drag_events_do_not_write_until_the_drag_settles() {
 }
 
 #[test]
-fn flush_saves_the_latest_change_without_waiting() {
+fn flush_saves_a_change_without_waiting_and_skips_unchanged_settings() {
     let mut state = SaveState {
         saved: Some(snapshot(false)),
         ..Default::default()
     };
+    assert!(state.pending(snapshot(false), Duration::ZERO, true).is_none());
     let current = snapshot(true);
     assert_eq!(state.pending(current.clone(), Duration::ZERO, true), Some(current));
-}
-
-#[test]
-fn unchanged_settings_do_not_write_on_exit() {
-    let current = snapshot(false);
-    let mut state = SaveState {
-        saved: Some(current.clone()),
-        ..Default::default()
-    };
-    assert!(state.pending(current, Duration::ZERO, true).is_none());
 }
 
 #[test]
@@ -85,17 +93,7 @@ fn sensitivity_sliders_save_multipliers_and_restore_their_positions() {
             });
         }
         app.update();
-        let local = local_settings(
-            app.world().resource::<ClientSettings>(),
-            app.world().resource::<GlobalVolume>(),
-            false,
-            WindowedFrame {
-                position: None,
-                size: UVec2::new(1280, 720),
-                position_pending: false,
-                focus_pending: false,
-            },
-        );
+        let local = local_settings_of(&app);
         assert_eq!(local.preferences.mouse_sensitivity, coordinate.exp2());
         assert_eq!(local.preferences.zoom_sensitivity, coordinate.exp2());
         let mut restored = test_fixtures::client_settings();
@@ -171,17 +169,7 @@ fn audio_sliders_apply_db_and_off_independently_and_restore_after_saving() {
             });
         }
         app.update();
-        let local = local_settings(
-            app.world().resource::<ClientSettings>(),
-            app.world().resource::<GlobalVolume>(),
-            false,
-            WindowedFrame {
-                position: None,
-                size: UVec2::new(1280, 720),
-                position_pending: false,
-                focus_pending: false,
-            },
-        );
+        let local = local_settings_of(&app);
         let encoded = serde_json::to_string(&local).expect("audio settings failed to serialize");
         let saved: LocalSettings = serde_json::from_str(&encoded).expect("audio settings failed to deserialize");
         let expected_master = if master_db == -20.0 {

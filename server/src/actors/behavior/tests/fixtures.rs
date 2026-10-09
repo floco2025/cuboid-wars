@@ -8,6 +8,7 @@ pub(super) use crate::{
     actors::{
         ActorCharacter, ActorInfo, ActorMap, ActorMode, BeamState, SurfaceAgent,
         navigation::{ActorTerritories, surface::SurfaceNavigation},
+        resources::AwarePlayer,
         test_kinds::{self, BEAM, CONTACT, CONTACT_BEAM, IMMOVABLE, KINDS},
     },
     combat::{PendingExplosions, actors_beam_damage_system},
@@ -45,20 +46,8 @@ impl Fixture {
         let geometry = geometry(12, 5);
         let map = MapConfig {
             actor_spawn_zones: vec![ActorSpawnZone {
-                initially_on: true,
-                carrier: CarrierId::WORLD,
-                level: 0,
-                levels: 1,
                 roam_distance: CELL * 2.0,
-                cols: [1, 2],
-                rows: [2, 3],
-                kind: kind.into(),
-                count: vec![1],
-                respawn_secs: None,
-                beam_in_secs: 0.0,
-                switch: None,
-                until_checkpoint: None,
-                on_checkpoint: Default::default(),
+                ..test_kinds::spawn_zone(kind, [1, 2], [2, 3])
             }],
             ..MapConfig::for_grid(
                 vec![LevelGrid {
@@ -101,13 +90,8 @@ pub(crate) fn info(kind: &str) -> ActorInfo {
     ActorInfo::new(Entity::from_bits(1), 0, kind.into(), CarrierId::WORLD)
 }
 
-pub(crate) fn aware(
-    id: u32,
-    pos: Position,
-    support: CharacterSupport,
-    visible: bool,
-) -> crate::actors::resources::AwarePlayer {
-    crate::actors::resources::AwarePlayer {
+pub(crate) fn aware(id: u32, pos: Position, support: CharacterSupport, visible: bool) -> AwarePlayer {
+    AwarePlayer {
         stance: Default::default(),
         id: PlayerId(id),
         pos,
@@ -169,6 +153,31 @@ pub(crate) fn actor_app(kind: &str, health: f32) -> (App, Entity, Receiver<Serve
         .resource_mut::<PlayerMap>()
         .insert(PlayerId(7), player_info);
     (app, player, receiver)
+}
+
+// The fixture's one actor, `ActorId(1)`.
+pub(crate) fn actor(app: &App) -> &ActorInfo {
+    app.world()
+        .resource::<ActorMap>()
+        .get(&ActorId(1))
+        .expect("actor missing")
+}
+
+pub(crate) fn health(app: &App, entity: Entity) -> f32 {
+    app.world().get::<Health>(entity).expect("body health missing").0
+}
+
+// Logs in player `id` standing at `pos`.
+pub(crate) fn add_player(app: &mut App, id: u32, pos: Position, health: f32) -> Entity {
+    let entity = app
+        .world_mut()
+        .spawn((PlayerMarker, PlayerId(id), pos, Health(health)))
+        .id();
+    let (sender, _receiver) = unbounded();
+    let mut info = PlayerInfo::new(entity, sender);
+    info.connection.logged_in = true;
+    app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(id), info);
+    entity
 }
 
 pub(crate) fn step_tick(app: &mut App) {

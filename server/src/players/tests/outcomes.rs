@@ -1,59 +1,56 @@
+use bevy::prelude::Entity;
+use crossbeam_channel::unbounded;
+
 use super::*;
 use crate::players::PlayerInfo;
-use bevy::prelude::Entity;
 use common::protocol::PlayerGeneration;
-use crossbeam_channel::unbounded;
+
+const ID: PlayerId = PlayerId(1);
+
+fn players() -> PlayerMap {
+    let (tx, _) = unbounded();
+    let mut players = PlayerMap::default();
+    players.insert(ID, PlayerInfo::new(Entity::PLACEHOLDER, tx));
+    players
+}
+
+fn report(players: &mut PlayerMap, generation: u32, event: MoveOutcome) {
+    handle_move_outcome(
+        ID,
+        CMoveOutcome {
+            generation: PlayerGeneration(generation),
+            event,
+        },
+        players,
+    );
+}
+
+fn outcomes(players: &PlayerMap) -> &PendingOutcomes {
+    &players.get(&ID).expect("player missing").life.outcomes
+}
 
 #[test]
 fn outcomes_survive_later_movement_but_not_body_replacement() {
-    let id = PlayerId(1);
-    let (tx, _) = unbounded();
-    let mut players = PlayerMap::default();
-    let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    info.session.last_move_seq = 1000;
-    players.insert(id, info);
-    let event = CMoveOutcome {
-        generation: PlayerGeneration(0),
-        event: MoveOutcome::Landed {
-            pos: Position::default(),
-            impact_speed: 8.0,
-        },
+    let mut players = players();
+    players.get_mut(&ID).expect("player missing").session.last_move_seq = 1000;
+    let landed = || MoveOutcome::Landed {
+        pos: Position::default(),
+        impact_speed: 8.0,
     };
-    handle_move_outcome(id, event.clone(), &mut players);
-    assert_eq!(
-        players.get(&id).expect("player missing").life.outcomes.landings.len(),
-        1
-    );
-    players.get_mut(&id).expect("player missing").advance_body();
-    handle_move_outcome(id, event, &mut players);
-    let info = players.get(&id).expect("player missing");
-    assert!(info.life.outcomes.landings.is_empty());
-    assert_eq!(info.session.last_move_seq, 1000);
-    players.get_mut(&id).expect("player missing").begin_respawn(1.0);
-    handle_move_outcome(
-        id,
-        CMoveOutcome {
-            generation: PlayerGeneration(1),
-            event: MoveOutcome::FellOutOfWorld,
-        },
-        &mut players,
-    );
-    assert!(
-        !players
-            .get(&id)
-            .expect("player missing")
-            .life
-            .outcomes
-            .fell_out_of_world
-    );
+    report(&mut players, 0, landed());
+    assert_eq!(outcomes(&players).landings.len(), 1);
+    players.get_mut(&ID).expect("player missing").advance_body();
+    report(&mut players, 0, landed());
+    assert!(outcomes(&players).landings.is_empty());
+    assert_eq!(players.get(&ID).expect("player missing").session.last_move_seq, 1000);
+    players.get_mut(&ID).expect("player missing").begin_respawn(1.0);
+    report(&mut players, 1, MoveOutcome::FellOutOfWorld);
+    assert!(!outcomes(&players).fell_out_of_world);
 }
 
 #[test]
 fn a_brief_crush_and_eraser_pass_are_not_lost_between_ticks() {
-    let id = PlayerId(1);
-    let (tx, _) = unbounded();
-    let mut players = PlayerMap::default();
-    players.insert(id, PlayerInfo::new(Entity::PLACEHOLDER, tx));
+    let mut players = players();
     for outcome in [
         MoveOutcome::Crushed {
             pos: Position::default(),
@@ -61,26 +58,15 @@ fn a_brief_crush_and_eraser_pass_are_not_lost_between_ticks() {
         MoveOutcome::EraseEquipment,
         MoveOutcome::EraseEquipment,
     ] {
-        handle_move_outcome(
-            id,
-            CMoveOutcome {
-                generation: PlayerGeneration(0),
-                event: outcome,
-            },
-            &mut players,
-        );
+        report(&mut players, 0, outcome);
     }
-    let outcomes = &players.get(&id).expect("player missing").life.outcomes;
-    assert!(outcomes.crushed.is_some());
-    assert!(outcomes.erase_equipment);
+    assert!(outcomes(&players).crushed.is_some());
+    assert!(outcomes(&players).erase_equipment);
 }
 
 #[test]
 fn malformed_outcomes_do_not_reach_gameplay_rules() {
-    let id = PlayerId(1);
-    let (tx, _) = unbounded();
-    let mut players = PlayerMap::default();
-    players.insert(id, PlayerInfo::new(Entity::PLACEHOLDER, tx));
+    let mut players = players();
     let pos = Position {
         y: f32::INFINITY,
         ..Position::default()
@@ -97,15 +83,8 @@ fn malformed_outcomes_do_not_reach_gameplay_rules() {
             impact_speed: -1.0,
         },
     ] {
-        handle_move_outcome(
-            id,
-            CMoveOutcome {
-                generation: PlayerGeneration(0),
-                event: outcome,
-            },
-            &mut players,
-        );
+        report(&mut players, 0, outcome);
     }
-    let outcomes = &players.get(&id).expect("player missing").life.outcomes;
+    let outcomes = outcomes(&players);
     assert!(outcomes.landings.is_empty() && !outcomes.fell_out_of_world && outcomes.crushed.is_none());
 }

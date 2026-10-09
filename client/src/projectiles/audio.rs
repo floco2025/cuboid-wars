@@ -84,7 +84,3 @@ pub(super) fn play_wall_bounce_sound(
     last_bounce_sound.time = current_time;
     last_bounce_sound.loudness = loudness;
 }
-
-#[cfg(test)]
-#[path = "tests/audio.rs"]
-mod tests;

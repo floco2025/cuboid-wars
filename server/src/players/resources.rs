@@ -562,3 +562,7 @@ impl PlayerMap {
         self.entries.values().any(|info| info.connection.logged_in)
     }
 }
+
+#[cfg(test)]
+#[path = "tests/resources.rs"]
+mod tests;

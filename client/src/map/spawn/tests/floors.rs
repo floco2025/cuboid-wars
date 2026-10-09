@@ -42,16 +42,10 @@ fn cuts_ignore_other_levels_and_carriers() {
 }
 
 #[test]
-fn terrain_material_omits_the_complete_standard_top_including_trim() {
+fn terrain_material_omits_the_whole_standard_top_unless_debug_rendering_drops_the_cells() {
     let mut materials = FaceMaterials::uniform("slab");
     materials.top = TERRAIN_MATERIAL.to_owned();
     assert!(standard_top_rectangles(&floor(), &materials, &[terrain(0.0)], 2.0).is_empty());
-}
-
-#[test]
-fn debug_rendering_keeps_the_terrain_top() {
-    let mut materials = FaceMaterials::uniform("slab");
-    materials.top = TERRAIN_MATERIAL.to_owned();
     assert_eq!(
         standard_top_rectangles(&floor(), &materials, &[], 2.0),
         vec![[-3.0, -1.0, 3.0, 1.0]]

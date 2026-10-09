@@ -155,7 +155,3 @@ impl FromWorld for ExplosionAssets {
         })
     }
 }
-
-#[cfg(test)]
-#[path = "tests/assets.rs"]
-mod tests;

@@ -1,17 +1,22 @@
-use crate::config::fixtures;
 // Actor kinds for tests, one per attack shape, with the health, damage,
 // scoring, feed, and movement entries the config keys by kind, so no test
 // leans on a shipped kind's name or tuning.
 use std::collections::HashMap;
 
-use common::config::{
-    ActorGameplayConfig, ActorLocomotion, ActorMovementConfig, CharacterGameplayConfig, CharacterPhysicsConfig,
-    HitboxConfig, MovementColliderConfig,
+use common::{
+    config::{
+        ActorGameplayConfig, ActorLocomotion, ActorMovementConfig, CharacterGameplayConfig, CharacterPhysicsConfig,
+        HitboxConfig, MovementColliderConfig,
+    },
+    protocol::CarrierId,
 };
 
-use crate::config::{
-    ActorAttackConfig, ActorBeamAttackConfig, ActorDamageConfig, ActorHealthConfig, ActorKindServerConfig, BlastConfig,
-    ContactAttackConfig, ContactBeamAttackConfig, ServerGameplayConfig,
+use crate::{
+    config::{
+        ActorAttackConfig, ActorBeamAttackConfig, ActorDamageConfig, ActorHealthConfig, ActorKindServerConfig,
+        BlastConfig, ContactAttackConfig, ContactBeamAttackConfig, ServerGameplayConfig, fixtures,
+    },
+    map::ActorSpawnZone,
 };
 
 pub(crate) const CONTACT: &str = "contact";
@@ -182,6 +187,26 @@ pub(crate) fn server_config() -> ServerGameplayConfig {
     config.combat.damage.actors = damage;
     config.settings.movement.actors = movement;
     config
+}
+
+// One `kind` actor on the root grid's ground floor that is never refilled.
+pub(crate) fn spawn_zone(kind: &str, cols: [i32; 2], rows: [i32; 2]) -> ActorSpawnZone {
+    ActorSpawnZone {
+        initially_on: true,
+        carrier: CarrierId::WORLD,
+        level: 0,
+        levels: 1,
+        roam_distance: 0.0,
+        cols,
+        rows,
+        kind: kind.to_owned(),
+        count: vec![1],
+        respawn_secs: None,
+        beam_in_secs: 0.0,
+        switch: None,
+        until_checkpoint: None,
+        on_checkpoint: Default::default(),
+    }
 }
 
 fn table<T>(kinds: &[(String, TestKind)], value: impl Fn(&TestKind) -> T) -> HashMap<String, T> {

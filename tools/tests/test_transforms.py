@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from editor_fixtures import DEFAULT_ALIAS, faces, floor, nested
+from editor_fixtures import DEFAULT_ALIAS, actor_zone, blank_map, faces, floor, nested
 from map_editor.editing import paint_floors
 from map_editor.erasing import erase_cell_rect
 from map_editor.normalization import empty_level, empty_map, normalize_map
@@ -20,8 +20,7 @@ BRIDGE_FIELD = "skyway"
 
 class ResizeTests(unittest.TestCase):
     def test_content_bounds_cover_all_levels_and_spanning_objects(self):
-        data = empty_map(20, 20)
-        data["checkpoints"] = []
+        data = blank_map(20, 20)
         data["levels"] = [empty_level(i) for i in range(9)]
         data["levels"][2]["floors"] = [floor(4, 6)]
         data["levels"][2]["walls"] = [{"c0": 3, "r0": 6, "c1": 4, "r1": 6, **faces()}]
@@ -42,8 +41,7 @@ class ResizeTests(unittest.TestCase):
         self.assertEqual(data, before)
 
     def test_content_bounds_include_nested_footprints_nudges_and_both_motion_ends(self):
-        data = empty_map(20, 20)
-        data["checkpoints"] = []
+        data = blank_map(20, 20)
         data["levels"] = [empty_level(i) for i in range(10)]
         child = empty_map(3, 2)
         child["levels"].append(empty_level(1))
@@ -56,8 +54,7 @@ class ResizeTests(unittest.TestCase):
         self.assertEqual((bounds.first_level, bounds.last_level), (1, 7))
 
     def test_empty_and_boundary_only_maps_keep_at_least_one_cell_and_level(self):
-        data = empty_map(9, 8)
-        data["checkpoints"] = []
+        data = blank_map(9, 8)
         data["levels"].append(empty_level(1))
         bounds = map_content_bounds(data)
         self.assertEqual(bounds.rect, (0, 0, 1, 1))
@@ -71,8 +68,7 @@ class ResizeTests(unittest.TestCase):
         self.assertEqual((wall["c0"], wall["r0"], wall["c1"], wall["r1"]), (0, 1, 1, 1))
 
     def test_fitting_does_not_enlarge_for_nested_geometry_already_outside_the_grid(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map(8, 8)
         data["nested_geometry"] = {"cabin": empty_map(6, 7)}
         data["nested_maps"] = [nested("cabin", 0, [5, 5], [5, 5])]
         self.assertEqual(map_content_bounds(data).rect, (5, 5, 8, 8))
@@ -85,9 +81,7 @@ class ResizeTests(unittest.TestCase):
         level["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, **faces()}]
         level["lights"] = [{"col": 1, "row": 1, "side": "N"}]
         level["light_bridges"] = [{"col": 1, "row": 3, "field": BRIDGE_FIELD}]
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "scuttler", "count": [1], "respawn_secs": 90}
-        ]
+        data["actor_spawn_zones"] = [actor_zone(cols=[1, 3], rows=[1, 3])]
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": "treasure"}]
         data["ramps"] = [{"lower_level": 0, "cols": [1, 3], "rows": [1, 2], "direction": "E", **faces()}]

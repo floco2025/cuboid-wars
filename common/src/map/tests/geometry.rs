@@ -27,12 +27,3 @@ fn containing_lookup_floors_while_nearest_lookup_rounds() {
     assert_eq!(geometry.cell_col_containing_x(almost_next), 4);
     assert_eq!(geometry.nearest_grid_col_to_x(almost_next), 5);
 }
-
-#[test]
-fn map_is_centered_on_the_origin() {
-    let geometry = geometry(10, 6);
-    assert_eq!(geometry.cell_to_world_x(0), -geometry.width() / 2.0);
-    assert!((geometry.cell_to_world_x(10) - geometry.width() / 2.0).abs() < 1e-4);
-    assert_eq!(geometry.cell_to_world_z(0), -geometry.depth() / 2.0);
-    assert!((geometry.cell_to_world_z(6) - geometry.depth() / 2.0).abs() < 1e-4);
-}

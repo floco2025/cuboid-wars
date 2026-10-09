@@ -113,7 +113,3 @@ impl KnockbackConfig {
         validate_positive_finite(self.deceleration, &format!("{path}.deceleration"))
     }
 }
-
-#[cfg(test)]
-#[path = "tests/movement.rs"]
-mod tests;

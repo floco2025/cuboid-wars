@@ -1,6 +1,6 @@
 use super::*;
 use crate::actors::navigation::surface::fixtures;
-use common::protocol::{Floor, Wall};
+use common::protocol::Wall;
 
 #[test]
 fn returning_from_exterior_enters_coverage_before_routing_under_a_roof() {
@@ -11,16 +11,7 @@ fn returning_from_exterior_enters_coverage_before_routing_under_a_roof() {
         "checkpoints":[{"level":0,"cols":[1,2],"rows":[1,2],"number":0,"type":"individual"}],
         "actor_spawn_zones":[{"level":0,"cols":[1,2],"rows":[1,2],"kind":"bruiser","count":[1],"respawn_secs":null,"roam_distance":0}]
     }}), 30, &config.settings).expect("covered destination");
-    let floor = |x1, x2, y| Floor {
-        x1,
-        x2,
-        z1: -6.0,
-        z2: 6.0,
-        y,
-        thickness: 0.2,
-        level: 0,
-        carrier: CarrierId::WORLD,
-    };
+    let floor = |x1, x2, y| fixtures::floor([x1, x2], [-6.0, 6.0], y);
     generated.layout.floors = vec![floor(-100.0, 100.0, 0.0), floor(-10.0, 10.0, 10.0)];
     let world = CollisionWorld::from_map_layout(&generated.layout);
     let carriers = Carriers::from_layout(&generated.layout);

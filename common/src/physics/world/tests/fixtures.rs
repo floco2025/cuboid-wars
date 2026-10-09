@@ -105,3 +105,11 @@ pub(crate) fn slider_layout() -> MapLayout {
         ..Default::default()
     }
 }
+
+pub(crate) fn solid_kinds(world: &CollisionWorld) -> Vec<ColliderKind> {
+    world
+        .colliders
+        .iter()
+        .filter_map(|(_, collider)| ColliderKind::from_user_data(collider.user_data))
+        .collect()
+}

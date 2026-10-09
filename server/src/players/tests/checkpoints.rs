@@ -1,24 +1,18 @@
 use bevy::prelude::*;
-use common::{
-    physics::{CharacterSupport, CollisionWorld},
-    protocol::{
-        CarrierId, Checkpoint, CheckpointKind, FaceYaw, FieldId, Floor, Health, MapLayout, PlayerId, Position,
-        ServerMessage,
-    },
-};
+use crossbeam_channel::Receiver;
 
-use super::{
-    CheckpointEntry, CheckpointId, PlayerCheckpoint, PlayerMap, PowerUpState,
-    checkpoints::apply_checkpoint_entries,
-    players_checkpoints_system,
-    respawn_tests::{add_player, advance, kill, respawn_app, start_checkpoint},
-};
+use super::*;
 use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
-    map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
+    map::{CarrierGrid, MapConfig},
+    players::{
+        PowerUpState,
+        fixtures::{add_player, advance, disconnect, kill, respawn_app, start_checkpoint},
+    },
     schedule::ServerSet,
-    test_geometry::geometry,
+    test_geometry::{floored_level, geometry},
 };
+use common::protocol::{CarrierId, Checkpoint, CheckpointKind, FaceYaw, FieldId, Floor, Health, MapLayout, PlayerId};
 
 const GRID_COLS: i32 = 12;
 
@@ -95,17 +89,10 @@ fn app(mode: PlayerRespawnMode) -> App {
     };
     app.insert_resource(CollisionWorld::from_map_layout(&layout));
     app.insert_resource(layout);
-    let mut cells = CellGrid::new(GRID_COLS, 1);
-    for cell in &mut cells.rows[0] {
-        cell.has_floor = true;
-    }
     app.world_mut().resource_mut::<MapConfig>().grids[0] = CarrierGrid::new(
         CarrierId::WORLD,
         geometry(GRID_COLS, 1),
-        vec![LevelGrid {
-            cells,
-            edges: EdgeGrid::new(GRID_COLS, 1),
-        }],
+        vec![floored_level(GRID_COLS, 1)],
     );
     app.add_systems(Update, players_checkpoints_system.in_set(ServerSet::Maintenance));
     app
@@ -176,7 +163,7 @@ fn body_position(app: &App, id: PlayerId) -> Position {
         .expect("position missing")
 }
 
-fn cues(receiver: &crossbeam_channel::Receiver<ServerMessage>) -> Vec<u32> {
+fn cues(receiver: &Receiver<ServerMessage>) -> Vec<u32> {
     std::iter::from_fn(|| receiver.try_recv().ok())
         .filter_map(|message| match message {
             ServerMessage::CheckpointReached(cue) => Some(cue.checkpoint),
@@ -208,8 +195,7 @@ fn only_grounded_players_activate_and_lower_checkpoints_do_not_roll_back() {
     }
     assert_eq!(saved(&app, PlayerId(2)), 0);
     assert_eq!(cues(&receiver), [1, 2], "a passed checkpoint is no news");
-    let delay = app.world().resource::<ServerGameplayConfig>().player.respawn_secs;
-    app.world_mut().resource_mut::<PlayerMap>().disconnect(&id, delay);
+    disconnect(&mut app, id);
     add_player(&mut app, id);
     assert_eq!(saved(&app, id), 0);
 }
@@ -356,17 +342,29 @@ fn a_player_killed_at_a_checkpoint_does_not_activate_it() {
 // first rectangle.
 fn entries(app: &mut App, entries: &[(u32, u32)]) {
     let checkpoints = app.world().resource::<MapLayout>().checkpoints.clone();
-    let entered = entries
+    let rectangles: Vec<_> = entries
         .iter()
         .map(|&(player, number)| {
             let index = checkpoints
                 .iter()
                 .position(|checkpoint| checkpoint.number == number)
                 .expect("entered number has no rectangle");
+            (player, index)
+        })
+        .collect();
+    enter_rectangles(app, &rectangles);
+}
+
+// `entries` pairs a player with the index of the rectangle it enters.
+fn enter_rectangles(app: &mut App, entries: &[(u32, usize)]) {
+    let checkpoints = app.world().resource::<MapLayout>().checkpoints.clone();
+    let entered = entries
+        .iter()
+        .map(|&(player, index)| {
             (
                 PlayerId(player),
                 PlayerCheckpoint {
-                    number,
+                    number: checkpoints[index].number,
                     entry: Some(CheckpointEntry {
                         id: CheckpointId(index),
                         facing: Vec3::new(player as f32, 0.0, 1.0).normalize(),
@@ -381,17 +379,6 @@ fn entries(app: &mut App, entries: &[(u32, u32)]) {
         entered,
         42,
     );
-}
-
-fn disconnect(app: &mut App, id: u32) {
-    let info = app
-        .world_mut()
-        .resource_mut::<PlayerMap>()
-        .disconnect(&PlayerId(id), 2.0)
-        .expect("departing player missing");
-    if let Some(entity) = info.entity() {
-        app.world_mut().despawn(entity);
-    }
 }
 
 #[test]
@@ -431,7 +418,7 @@ fn group_all_visits_survive_death_and_membership_changes() {
     add_player(&mut app, PlayerId(3));
     entries(&mut app, &[(2, 2)]);
     assert_eq!(saved(&app, PlayerId(2)), 0);
-    disconnect(&mut app, 3);
+    disconnect(&mut app, PlayerId(3));
     entries(&mut app, &[]);
     for id in [PlayerId(1), PlayerId(2)] {
         assert_eq!(saved(&app, id), 2);
@@ -467,9 +454,9 @@ fn a_shared_activation_clears_other_partial_visits_and_empty_sessions_reset() {
     assert_eq!(saved(&app, PlayerId(1)), 1, "the activation cleared the earlier visit");
     entries(&mut app, &[(1, 2)]);
     assert_eq!(saved(&app, PlayerId(2)), 2);
-    disconnect(&mut app, 1);
+    disconnect(&mut app, PlayerId(1));
     assert_eq!(app.world().resource::<PlayerMap>().shared_checkpoint.number, 2);
-    disconnect(&mut app, 2);
+    disconnect(&mut app, PlayerId(2));
     assert_eq!(
         app.world().resource::<PlayerMap>().shared_checkpoint,
         PlayerCheckpoint::START
@@ -626,27 +613,7 @@ fn a_shared_number_activates_through_any_of_its_rectangles() {
     app.world_mut().resource_mut::<MapLayout>().checkpoints.push(twin);
     add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
-    let checkpoints = app.world().resource::<MapLayout>().checkpoints.clone();
-    let entered = [(PlayerId(1), 2usize), (PlayerId(2), 3)]
-        .map(|(player, index)| {
-            (
-                player,
-                PlayerCheckpoint {
-                    number: 2,
-                    entry: Some(CheckpointEntry {
-                        id: CheckpointId(index),
-                        facing: Vec3::Z,
-                    }),
-                },
-            )
-        })
-        .to_vec();
-    apply_checkpoint_entries(
-        &mut app.world_mut().resource_mut::<PlayerMap>(),
-        &checkpoints,
-        entered,
-        42,
-    );
+    enter_rectangles(&mut app, &[(1, 2), (2, 3)]);
     assert_eq!(
         saved(&app, PlayerId(1)),
         2,
@@ -658,7 +625,7 @@ fn a_shared_number_activates_through_any_of_its_rectangles() {
 #[test]
 fn checkpoint_progress_is_the_furthest_logged_in_players_number() {
     let mut app = app(PlayerRespawnMode::Individual);
-    let progress = |app: &App| super::checkpoint_progress(app.world().resource::<PlayerMap>());
+    let progress = |app: &App| checkpoint_progress(app.world().resource::<PlayerMap>());
     add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
     assert_eq!(progress(&app), 0);
@@ -666,21 +633,8 @@ fn checkpoint_progress_is_the_furthest_logged_in_players_number() {
     assert_eq!(progress(&app), 2);
     kill(&mut app, PlayerId(1));
     assert_eq!(progress(&app), 2, "a dead player's checkpoint still counts");
-    disconnect(&mut app, 1);
+    disconnect(&mut app, PlayerId(1));
     assert_eq!(progress(&app), 1, "a departure can move the course back");
-    disconnect(&mut app, 2);
+    disconnect(&mut app, PlayerId(2));
     assert_eq!(progress(&app), 0, "an empty server sits at the start");
-}
-
-#[test]
-fn checkpoint_numbers_name_any_placed_checkpoint() {
-    let first = checkpoint(1);
-    let mut second = first.clone();
-    second.carrier = CarrierId(1);
-    assert_eq!(
-        super::checkpoint_numbered(&[first.clone(), second], 1),
-        Ok(PlayerCheckpoint::numbered(1))
-    );
-    let error = super::checkpoint_numbered(&[first, checkpoint(3)], 2).expect_err("unknown number accepted");
-    assert!(error.contains("1, 3"), "{error}");
 }

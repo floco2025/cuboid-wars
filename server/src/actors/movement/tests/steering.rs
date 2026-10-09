@@ -2,31 +2,22 @@ use std::f32::consts::{PI, TAU};
 
 use crate::actors::{
     movement::traversal::{ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus},
-    navigation::surface::{SurfaceMesh, fixtures},
+    navigation::surface::{SurfaceMesh, SurfaceRoute, TraversalAction, fixtures},
 };
+use bevy::math::Vec3;
 use common::{
     map::Carriers,
     math::angle_delta_radians,
     physics::CollisionWorld,
-    protocol::{ActorMoveIntent, CarrierId, Floor, MapLayout, Position},
+    protocol::{ActorMoveIntent, CarrierId, MapLayout, Position},
 };
 
 #[test]
 fn route_replacement_preserves_turn_rate_and_actual_travel_direction() {
-    let layout = MapLayout {
-        floors: vec![Floor {
-            x1: -20.0,
-            x2: 20.0,
-            z1: -20.0,
-            z2: 20.0,
-            y: 0.0,
-            thickness: 0.2,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        floors: vec![fixtures::floor([-20.0, 20.0], [-20.0, 20.0], 0.0)],
         ..Default::default()
-    };
-    let world = CollisionWorld::from_map_layout(&layout);
+    });
     let config = fixtures::config();
     let physics = config.expect_actor("scuttler").character.physics();
     let mesh = SurfaceMesh::bake(
@@ -39,11 +30,8 @@ fn route_replacement_preserves_turn_rate_and_actual_travel_direction() {
     let carriers = Carriers::default();
     for hz in [30, 60, 120] {
         let env = TraversalEnvironment {
-            world: &world,
-            carriers: &carriers,
-            settings: &config.settings,
-            open: &[],
             delta: 1.0 / hz as f32,
+            ..fixtures::env(&world, &carriers, &config)
         };
         let mut actor = TraversalExecutor::new(physics, 8.0);
         let mut body = ActorBody::standing(Position::default());
@@ -69,7 +57,7 @@ fn route_replacement_preserves_turn_rate_and_actual_travel_direction() {
                 actor.step(&env, &mut body);
                 let turned = angle_delta_radians(actor.facing, facing).abs();
                 assert!(turned <= TAU * env.delta + 1e-5, "unbounded turn {turned} at {hz}Hz");
-                let offset = bevy::math::Vec3::from(body.position) - bevy::math::Vec3::from(start);
+                let offset = Vec3::from(body.position) - Vec3::from(start);
                 if offset.x.hypot(offset.z) > 1e-4 {
                     assert!(
                         angle_delta_radians(offset.x.atan2(offset.z), actor.facing).abs() < 0.01,
@@ -96,31 +84,14 @@ fn route_replacement_preserves_turn_rate_and_actual_travel_direction() {
 
 #[test]
 fn actor_facing_off_a_ledge_can_turn_back_onto_safe_ground() {
-    use crate::actors::navigation::surface::{SurfaceRoute, TraversalAction};
-    let layout = MapLayout {
-        floors: vec![Floor {
-            x1: -4.0,
-            x2: 4.0,
-            z1: -1.0,
-            z2: 1.0,
-            y: 0.0,
-            thickness: 0.2,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        floors: vec![fixtures::floor([-4.0, 4.0], [-1.0, 1.0], 0.0)],
         ..Default::default()
-    };
-    let world = CollisionWorld::from_map_layout(&layout);
+    });
     let config = fixtures::config();
     let physics = config.expect_actor("scuttler").character.physics();
     let carriers = Carriers::default();
-    let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
+    let env = fixtures::env(&world, &carriers, &config);
     let start = Position {
         x: 0.0,
         y: 0.0,

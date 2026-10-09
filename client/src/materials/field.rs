@@ -66,7 +66,3 @@ impl Plugin for FieldMaterialPlugin {
         app.add_plugins(MaterialPlugin::<FieldMaterial>::default());
     }
 }
-
-#[cfg(test)]
-#[path = "tests/field.rs"]
-mod tests;

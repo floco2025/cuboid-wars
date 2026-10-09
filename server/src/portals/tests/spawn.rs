@@ -1,4 +1,3 @@
-use crate::config::fixtures;
 use std::time::Duration;
 
 use bevy::{ecs::system::SystemState, prelude::*};
@@ -7,6 +6,7 @@ use crossbeam_channel::{Receiver, unbounded};
 
 use super::{PortalAssignments, PortalMap, handle_portal_shot_message};
 use crate::{
+    config::fixtures,
     map::MapConfig,
     network::SharedWorld,
     players::{PlayerInfo, PlayerMap, PowerUpState},
@@ -134,6 +134,10 @@ impl Fixture {
             assert!(receiver.try_recv().is_err(), "duplicate placement cue");
         }
     }
+
+    fn assert_silent(&self) {
+        assert!(self.receivers.iter().all(|receiver| receiver.try_recv().is_err()));
+    }
 }
 
 #[test]
@@ -159,12 +163,7 @@ fn competing_placements_keep_the_first_portal_and_an_owner_can_replace_its_own_e
     fixture.assert_opened(PlayerId(1), first);
     fixture.shoot(PlayerId(2), PlayerGeneration(3), PortalShotResult::Placed(second));
     assert_eq!(fixture.portals.snapshot_portals(), vec![first]);
-    assert!(
-        fixture
-            .receivers
-            .iter_mut()
-            .all(|receiver| receiver.try_recv().is_err())
-    );
+    fixture.assert_silent();
     fixture.time.advance_by(Duration::from_secs(1));
     let moved = Portal {
         pos: second.pos,
@@ -222,12 +221,7 @@ fn assignments_and_body_lifecycle_guard_placements() {
     player.begin_respawn(1.0);
     fixture.shoot(id, PlayerGeneration(3), PortalShotResult::Placed(portal));
     assert!(fixture.portals.snapshot_portals().is_empty());
-    assert!(
-        fixture
-            .receivers
-            .iter_mut()
-            .all(|receiver| receiver.try_recv().is_err())
-    );
+    fixture.assert_silent();
 }
 
 #[test]
@@ -263,12 +257,7 @@ fn malformed_geometry_is_rejected_before_the_cooldown_or_any_placement() {
         fixture.shoot(id, PlayerGeneration(3), PortalShotResult::Fizzled(invalid));
     }
     assert!(fixture.portals.snapshot_portals().is_empty());
-    assert!(
-        fixture
-            .receivers
-            .iter_mut()
-            .all(|receiver| receiver.try_recv().is_err())
-    );
+    fixture.assert_silent();
     fixture.shoot(id, PlayerGeneration(3), PortalShotResult::Placed(portal));
     assert_eq!(fixture.portals.snapshot_portals(), vec![portal]);
     fixture.assert_opened(id, portal);

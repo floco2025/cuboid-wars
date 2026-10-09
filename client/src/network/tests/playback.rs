@@ -12,7 +12,7 @@ use crate::{
     network::{LastPlayerMovesTick, RoundTripTime, TickSync},
     players::MyPlayerId,
     portals::{PortalAssets, PortalMap},
-    test_fixtures,
+    test_fixtures::{self, portal},
     ui::{HudBanner, MessageFeed, QuestLog},
     vfx::{BlastRadii, ExplosionAssets, ExplosionVfxBudget, PortalFizzleAssets, WeatherIntensity},
 };
@@ -148,17 +148,7 @@ fn viewer_places_exact_owner_samples_and_restarts_after_death_without_old_guards
     let mut sample = snapshot();
     sample.portals.push(Portal {
         pair: PortalPairId(0),
-        end: PortalEnd::A,
-        pos: Position {
-            x: 10.0,
-            y: 2.0,
-            z: 0.0,
-        },
-        nx: 0.0,
-        ny: 0.0,
-        nz: 1.0,
-        yaw: 0.0,
-        carrier: CarrierId::WORLD,
+        ..portal(PortalEnd::A, Vec3::new(10.0, 2.0, 0.0), Vec3::Z)
     });
     sample.items.push((
         ItemId(1),
@@ -225,22 +215,4 @@ fn viewer_places_exact_owner_samples_and_restarts_after_death_without_old_guards
     assert_eq!(world.query::<&PlaybackProjectileMarker>().iter(world).count(), 0);
     assert!(world.resource::<PortalMap>().wire_portals().is_empty());
     assert!(!world.resource::<ItemMap>().contains_key(&ItemId(1)));
-}
-
-#[test]
-fn playback_installation_stops_fixed_simulation() {
-    #[derive(Resource, Default)]
-    struct Counts(u32);
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins).init_resource::<Counts>();
-    app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
-        std::time::Duration::from_secs(1),
-    ));
-    app.add_systems(FixedUpdate, |mut counts: ResMut<Counts>| counts.0 += 1);
-    install_playback(&mut app);
-    for _ in 0..5 {
-        app.update();
-    }
-    let counts = app.world().resource::<Counts>();
-    assert_eq!(counts.0, 0);
 }

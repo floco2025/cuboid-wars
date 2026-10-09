@@ -1,4 +1,3 @@
-use crate::config::fixtures;
 use std::f32::consts::PI;
 
 use bevy::math::Vec3;
@@ -10,6 +9,7 @@ use common::{
 
 use crate::{
     actors::movement::{ActorMovementStep, step_actor_movement},
+    config::fixtures,
     test_geometry::{LEVEL_HEIGHT, map_settings},
 };
 

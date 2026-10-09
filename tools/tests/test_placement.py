@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QPointF
 
-from editor_fixtures import EditorHost, faces, floor, furnished_map, qt_app
+from editor_fixtures import EditorHost, blank_map, faces, floor, furnished_map, qt_app
 from map_editor.document import MapDocument
 from map_editor.editing import place_plate
 from map_editor.normalization import canonicalize_map, empty_level, empty_map
@@ -52,8 +52,7 @@ class PlacementTests(unittest.TestCase):
         self.assertEqual(len(host.map_data["levels"][0]["barriers"]), 2)
 
     def test_an_item_needs_no_floor_but_stays_off_a_ramp(self) -> None:
-        data = empty_map(3, 3)
-        data["checkpoints"] = []
+        data = blank_map(3, 3)
         data["levels"].append(empty_level(1))
         data["ramps"] = [{"lower_level": 0, "cols": [0, 2], "rows": [1, 2], "direction": "E", **faces()}]
         host = EditorHost(data, [])

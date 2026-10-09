@@ -1,13 +1,9 @@
 import copy
-import json
 import io
 import sys
-import tempfile
-import unittest
-from pathlib import Path
 from unittest.mock import patch
 
-from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, qt_app
+from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, blank_map, qt_app, toggle_switch
 from map_editor.catalogs import load_texture_catalog
 from map_editor.app import main
 from config_fixtures import ConfigTestCase
@@ -28,12 +24,9 @@ def parent_map():
     root["levels"][0]["floors"] = [
         {"col": col, "row": row, "all": DEFAULT_ALIAS} for col in range(2) for row in range(2)
     ]
-    room = empty_map(3, 2)
-    room["checkpoints"] = []
+    room = blank_map(3, 2)
     room["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
-    platform = empty_map(1, 1)
-    platform["checkpoints"] = []
-    root["nested_geometry"] = {"room": room, "platform": platform}
+    root["nested_geometry"] = {"room": room, "platform": blank_map(1, 1)}
     root["nested_maps"] = [placement("room"), placement("room", 4)]
     return normalize_map(root)
 
@@ -44,56 +37,52 @@ class NestedDocumentTests(ConfigTestCase):
         qt_app()
 
     def test_edits_across_maps_share_undo_save_and_recovery(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "hotel.json"
-            original = parent_map()
-            write_map(path, original)
-            doc = MapDocument(path)
-            doc.select_map("room")
-            self.assertFalse(doc.dirty)
-            self.assertEqual(doc.undo_stack.count(), 0)
-            doc.apply_change("Paint room", paint_floors(doc.map_data, 0, (0, 0, 1, 1), DEFAULT_ALIAS))
-            doc.select_map(None)
-            doc.apply_change("Paint outer", paint_floors(doc.map_data, 0, (2, 2, 3, 3), DEFAULT_ALIAS))
-            changed = copy.deepcopy(doc.root_data)
-            doc.select_map("platform")
-            doc.write_autosave()
-            self.assertEqual(read_map(doc.autosave_path()), changed)
-            recovered = MapDocument(path)
-            self.assertTrue(recovered.recover_autosave())
-            self.assertEqual(recovered.root_data, changed)
-            self.assertTrue(recovered.dirty)
-            doc.undo_stack.undo()
-            self.assertIsNone(doc.active_map)
-            doc.undo_stack.undo()
-            self.assertEqual(doc.active_map, "room")
-            self.assertEqual(doc.root_data, original)
-            self.assertFalse(doc.dirty)
-            doc.undo_stack.redo()
-            doc.undo_stack.redo()
-            doc.select_map("room")
-            doc.write()
-            self.assertEqual(doc.active_map, "room")
-            self.assertEqual(read_map(path), changed)
-            self.assertFalse(doc.dirty)
-            self.assertFalse(doc.autosave_path().exists())
+        path = self.root / "hotel.json"
+        original = parent_map()
+        write_map(path, original)
+        doc = MapDocument(path)
+        doc.select_map("room")
+        self.assertFalse(doc.dirty)
+        self.assertEqual(doc.undo_stack.count(), 0)
+        doc.apply_change("Paint room", paint_floors(doc.map_data, 0, (0, 0, 1, 1), DEFAULT_ALIAS))
+        doc.select_map(None)
+        doc.apply_change("Paint outer", paint_floors(doc.map_data, 0, (2, 2, 3, 3), DEFAULT_ALIAS))
+        changed = copy.deepcopy(doc.root_data)
+        doc.select_map("platform")
+        doc.write_autosave()
+        self.assertEqual(read_map(doc.autosave_path()), changed)
+        recovered = MapDocument(path)
+        self.assertTrue(recovered.recover_autosave())
+        self.assertEqual(recovered.root_data, changed)
+        self.assertTrue(recovered.dirty)
+        doc.undo_stack.undo()
+        self.assertIsNone(doc.active_map)
+        doc.undo_stack.undo()
+        self.assertEqual(doc.active_map, "room")
+        self.assertEqual(doc.root_data, original)
+        self.assertFalse(doc.dirty)
+        doc.undo_stack.redo()
+        doc.undo_stack.redo()
+        doc.select_map("room")
+        doc.write()
+        self.assertEqual(doc.active_map, "room")
+        self.assertEqual(read_map(path), changed)
+        self.assertFalse(doc.dirty)
+        self.assertFalse(doc.autosave_path().exists())
 
     def test_repairs_cover_every_nested_definition(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "hotel.json"
-            data = parent_map()
-            data["nested_geometry"]["room"]["ladders"] = [
-                {"lower_level": 0, "col": 1, "row": 0, "side": "N", "levels": 3}
-            ]
-            write_map(path, data)
-            doc = MapDocument(path)
-            repaired, summary = doc.proposed_repairs()
-            self.assertEqual(summary, ["Nested room: ladders: remove/change 1, add/change 0"])
-            self.assertTrue(doc.apply_repairs(repaired))
-            self.assertEqual(doc.nested_geometry["room"]["ladders"], [])
-            self.assertEqual(doc.root_data["nested_maps"], data["nested_maps"])
-            doc.undo_stack.undo()
-            self.assertEqual(doc.root_data, data)
+        path = self.root / "hotel.json"
+        data = parent_map()
+        data["nested_geometry"]["room"]["ladders"] = [{"lower_level": 0, "col": 1, "row": 0, "side": "N", "levels": 3}]
+        write_map(path, data)
+        doc = MapDocument(path)
+        repaired, summary = doc.proposed_repairs()
+        self.assertEqual(summary, ["Nested room: ladders: remove/change 1, add/change 0"])
+        self.assertTrue(doc.apply_repairs(repaired))
+        self.assertEqual(doc.nested_geometry["room"]["ladders"], [])
+        self.assertEqual(doc.root_data["nested_maps"], data["nested_maps"])
+        doc.undo_stack.undo()
+        self.assertEqual(doc.root_data, data)
 
     def test_cli_requires_settings_before_opening_a_window(self):
         with (
@@ -207,7 +196,7 @@ class NestedWindowTests(WindowTestCase):
     def test_a_switch_with_no_plate_yet_blocks_no_edit_delete_or_save(self):
         window = self.window
         root = copy.deepcopy(window.doc.root_data)
-        root["switches"] = [{"id": "shuttle bridge", "activation": "toggle", "reset_on_player_death": "never"}]
+        root["switches"] = [toggle_switch("shuttle bridge")]
         window.doc.apply_root_change("Add switch", root, None)
         window.switch_ids = ["shuttle bridge"]
         window.inspect_refs([ElementRef("nested_maps", 0)], show=True)

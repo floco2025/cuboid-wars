@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    fixtures::{connect, options},
+    *,
+};
 use crate::{
     actors::{ActorCharacter, ActorMode, SurfaceAgent, SurfaceGoal, navigation::surface::fixtures},
     config::ServerGameplayConfig,
@@ -36,16 +39,8 @@ impl Scene {
         for actor in config.actors.values_mut() {
             actor.vision_range = 0.0;
         }
-        let options = ServerAppOptions {
-            map: None,
-            god: true,
-            peace: false,
-            initial_spawn: None,
-            checkpoint: None,
-            logging: false,
-            network: NetworkOverrides::default(),
-        };
-        let mut app = build_server_app_with_loader(config, options, None, None, |_, hz, settings| {
+        let launch = ServerAppOptions { god: true, ..options() };
+        let mut app = build_server_app_with_loader(config, launch, None, None, |_, hz, settings| {
             let floors: Vec<_> = (0..8)
                 .flat_map(|row| (0..8).map(move |col| json!({"col": col, "row": row, "all": "basement-floor"})))
                 .collect();
@@ -65,7 +60,7 @@ impl Scene {
             )
         })
         .expect("actor collision scene");
-        let (client, _receiver) = super::fixtures::connect(&mut app);
+        let (client, _receiver) = connect(&mut app);
         client
             .send(ClientMessage::Login(CLogin {
                 name: "Observer".into(),

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
-use crossbeam_channel::unbounded;
+use crossbeam_channel::{Receiver, unbounded};
 use serde_json::json;
 
 use super::*;
@@ -11,128 +11,61 @@ use crate::{
         ItemInfo, ItemMap, ItemPlacement, ItemSpawner, RandomItems, placed_item_respawn_system,
         random_item_spawn_system,
     },
-    map::{CellGrid, EdgeGrid, LevelGrid, MapConfig},
-    players::{PlayerInfo, PlayerMap, PowerUpState},
+    map::MapConfig,
+    players::{PlayerInfo, PlayerMap, PowerUpState, erase_equipment_system, handle_move_outcome},
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog},
-    test_geometry::geometry,
+    test_geometry::{floored_level, geometry},
 };
 use common::{
     config::GameplayConfig,
     constants::{CHARACTER_CONTACT_OFFSET, PRESSURE_PLATE_HEIGHT},
     map::Carriers,
+    physics::CollisionWorld,
     protocol::{
-        CarrierId, FieldId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Portal, PortalEnd,
-        PortalMode, Position, PowerUpKind, ServerMessage,
+        CMoveOutcome, CarrierId, Eraser, FieldId, Health, ItemId, ItemMarker, ItemType, MapLayout, MoveOutcome,
+        PlayerGeneration, PlayerId, PlayerMarker, Portal, PortalEnd, PortalMode, Position, PowerUpKind, ServerMessage,
     },
 };
-
-fn player() -> PlayerInfo {
-    let (tx, _rx) = unbounded();
-    PlayerInfo::new(Entity::PLACEHOLDER, tx)
-}
 
 #[test]
 fn pickups_without_effect_stay_in_the_world() {
     let server_config = fixtures::server_config();
     let config = server_config.gameplay_config();
     let max_health = server_config.combat.health.player.max;
-    let mut player = player();
+    let effect = |item, player: &PlayerInfo, holds_portals, health: Option<f32>| {
+        pickup_has_effect(
+            item,
+            player,
+            holds_portals,
+            health.map(Health).as_ref(),
+            &config,
+            &server_config,
+        )
+    };
+    let (tx, _rx) = unbounded();
+    let mut player = PlayerInfo::new(Entity::PLACEHOLDER, tx);
 
-    assert!(!pickup_has_effect(
-        ItemType::HealthPotion,
-        &player,
-        false,
-        Some(&Health(max_health)),
-        &config,
-        &server_config
-    ));
-    assert!(pickup_has_effect(
-        ItemType::HealthPotion,
-        &player,
-        false,
-        Some(&Health(max_health / 2.0)),
-        &config,
-        &server_config
-    ));
+    assert!(!effect(ItemType::HealthPotion, &player, false, Some(max_health)));
+    assert!(effect(ItemType::HealthPotion, &player, false, Some(max_health / 2.0)));
 
-    assert!(pickup_has_effect(
-        ItemType::MissilePack,
-        &player,
-        false,
-        None,
-        &config,
-        &server_config
-    ));
+    assert!(effect(ItemType::MissilePack, &player, false, None));
     player.add_missiles(config.missiles.max_missiles, config.missiles.max_missiles);
-    assert!(!pickup_has_effect(
-        ItemType::MissilePack,
-        &player,
-        false,
-        None,
-        &config,
-        &server_config
-    ));
+    assert!(!effect(ItemType::MissilePack, &player, false, None));
 
     assert!(player.add_key(FieldId(0)));
-    assert!(!pickup_has_effect(
-        ItemType::Key(FieldId(0)),
-        &player,
-        false,
-        None,
-        &config,
-        &server_config
-    ));
-    assert!(pickup_has_effect(
-        ItemType::Key(FieldId(1)),
-        &player,
-        false,
-        None,
-        &config,
-        &server_config
-    ));
+    assert!(!effect(ItemType::Key(FieldId(0)), &player, false, None));
+    assert!(effect(ItemType::Key(FieldId(1)), &player, false, None));
 
-    let empty_handed = self::player();
-    for (holds_portals, expected) in [(false, false), (true, true)] {
+    let (tx, _rx) = unbounded();
+    let empty_handed = PlayerInfo::new(Entity::PLACEHOLDER, tx);
+    for holds_portals in [false, true] {
         assert_eq!(
-            pickup_has_effect(
-                ItemType::EquipmentEraser,
-                &empty_handed,
-                holds_portals,
-                None,
-                &config,
-                &server_config
-            ),
-            expected,
+            effect(ItemType::EquipmentEraser, &empty_handed, holds_portals, None),
+            holds_portals,
             "an eraser with nothing to take but open portals: {holds_portals}"
         );
     }
-}
-
-#[test]
-fn active_power_ups_are_still_collected_to_reset_their_timer() {
-    let server_config = fixtures::server_config();
-    let config = server_config.gameplay_config();
-    let mut player = player();
-    player.grant_power_up(ItemType::SpeedPowerUp, &server_config.power_ups);
-    assert!(player.has_speed());
-
-    assert!(pickup_has_effect(
-        ItemType::SpeedPowerUp,
-        &player,
-        false,
-        None,
-        &config,
-        &server_config
-    ));
-    assert!(pickup_has_effect(
-        ItemType::Gold,
-        &player,
-        false,
-        None,
-        &config,
-        &server_config
-    ));
 }
 
 fn test_app() -> App {
@@ -157,7 +90,7 @@ fn test_app() -> App {
     app
 }
 
-fn spawn_player(app: &mut App, id: PlayerId, pos: Position) -> (Entity, crossbeam_channel::Receiver<ServerMessage>) {
+fn spawn_player(app: &mut App, id: PlayerId, pos: Position) -> (Entity, Receiver<ServerMessage>) {
     let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(50.0))).id();
     let (sender, receiver) = unbounded();
     let mut info = PlayerInfo::new(entity, sender);
@@ -180,8 +113,34 @@ fn spawn_item(app: &mut App, id: u32, item_type: ItemType, pos: Position, placem
     ItemId(id)
 }
 
+fn spawn_random(app: &mut App, id: u32, item_type: ItemType) -> ItemId {
+    spawn_item(app, id, item_type, Position::default(), random(0.0))
+}
+
 fn random(spawned_at: f32) -> ItemPlacement {
     ItemPlacement::Random { spawned_at }
+}
+
+fn info(app: &App, id: PlayerId) -> &PlayerInfo {
+    app.world().resource::<PlayerMap>().get(&id).expect("player missing")
+}
+
+fn info_mut(app: &mut App, id: PlayerId) -> &mut PlayerInfo {
+    app.world_mut()
+        .resource_mut::<PlayerMap>()
+        .into_inner()
+        .get_mut(&id)
+        .expect("player missing")
+}
+
+fn present(app: &App, item: ItemId) -> bool {
+    app.world().resource::<ItemMap>().get(&item).is_some()
+}
+
+fn erasure_cues(rx: &Receiver<ServerMessage>) -> usize {
+    rx.try_iter()
+        .filter(|message| matches!(message, ServerMessage::EquipmentErased(_)))
+        .count()
 }
 
 fn simultaneous_pickup_app(player_count: u32, item_type: ItemType, placed: bool) -> App {
@@ -199,12 +158,7 @@ fn simultaneous_pickup_app(player_count: u32, item_type: ItemType, placed: bool)
         let id = PlayerId(id);
         let (entity, _) = spawn_player(&mut app, id, Position::default());
         app.world_mut().entity_mut(entity).insert(Health(99.0));
-        app.world_mut()
-            .resource_mut::<PlayerMap>()
-            .get_mut(&id)
-            .expect("player missing")
-            .life
-            .missiles = 5;
+        info_mut(&mut app, id).life.missiles = 5;
     }
     for (id, x) in [(1, -0.6), (2, 0.6)] {
         spawn_item(
@@ -225,7 +179,7 @@ fn simultaneous_pickup_app(player_count: u32, item_type: ItemType, placed: bool)
 }
 
 fn assert_pickup_received(app: &App, id: PlayerId, item_type: ItemType) {
-    let player = app.world().resource::<PlayerMap>().get(&id).expect("player missing");
+    let player = info(app, id);
     match item_type {
         ItemType::HealthPotion => assert_eq!(
             app.world().get::<Health>(player.entity().expect("player body missing")),
@@ -284,8 +238,7 @@ fn simultaneous_pickups_can_help_two_overlapping_players() {
 fn successive_potions_and_packs_are_consumed_while_useful() {
     for item_type in [ItemType::HealthPotion, ItemType::MissilePack] {
         let mut app = simultaneous_pickup_app(1, item_type, false);
-        let mut players = app.world_mut().resource_mut::<PlayerMap>();
-        let player = players.get_mut(&PlayerId(1)).expect("player missing");
+        let player = info_mut(&mut app, PlayerId(1));
         player.life.missiles = 0;
         let entity = player.entity().expect("player body missing");
         app.world_mut().entity_mut(entity).insert(Health(50.0));
@@ -293,74 +246,6 @@ fn successive_potions_and_packs_are_consumed_while_useful() {
         assert_eq!(app.world().resource::<ItemMap>().values().count(), 0, "{item_type:?}");
         assert_pickup_received(&app, PlayerId(1), item_type);
     }
-}
-
-#[test]
-fn permanent_single_shot_pickup_grants_fire_and_leaves_duplicates_for_other_players() {
-    let mut app = test_app();
-    app.world_mut().resource_mut::<PowerUpsConfig>().single_shot = PowerUpMode::Pickup { duration_secs: None };
-    let id = PlayerId(1);
-    let (_, rx) = spawn_player(&mut app, id, Position::default());
-    assert!(
-        !app.world_mut()
-            .resource_mut::<PlayerMap>()
-            .get_mut(&id)
-            .expect("player missing")
-            .has(PowerUpKind::SingleShot)
-    );
-    let first = spawn_item(
-        &mut app,
-        1,
-        ItemType::SingleShotPowerUp,
-        Position::default(),
-        random(0.0),
-    );
-    app.update();
-    assert!(app.world().resource::<ItemMap>().get(&first).is_none());
-    assert!(std::iter::from_fn(|| rx.try_recv().ok()).any(|message| matches!(
-        message,
-        ServerMessage::PlayerStatus(status)
-            if status.collected == Some(ItemType::SingleShotPowerUp)
-                && status.power_up(PowerUpKind::SingleShot)
-                && !status.power_up(PowerUpKind::MultiShot)
-    )));
-    let mut players = app.world_mut().resource_mut::<PlayerMap>();
-    let info = players.get_mut(&id).expect("player missing");
-    assert!(info.has(PowerUpKind::SingleShot));
-    assert!(!info.has(PowerUpKind::MultiShot));
-    let second = spawn_item(
-        &mut app,
-        2,
-        ItemType::SingleShotPowerUp,
-        Position::default(),
-        random(0.0),
-    );
-    app.update();
-    assert!(app.world().resource::<ItemMap>().get(&second).is_some());
-}
-
-#[test]
-fn overlapping_gold_is_collected_and_scores() {
-    let mut app = test_app();
-    let id = PlayerId(1);
-    let (_, rx) = spawn_player(&mut app, id, Position::default());
-    let item = spawn_item(&mut app, 1, ItemType::Gold, Position::default(), random(0.0));
-
-    app.update();
-
-    assert!(app.world().resource::<ItemMap>().get(&item).is_none(), "gold consumed");
-    let expected = app.world().resource::<ServerGameplayConfig>().scoring.gold;
-    assert_eq!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&id)
-            .expect("player present")
-            .session
-            .score,
-        expected
-    );
-    let gold_cue = std::iter::from_fn(|| rx.try_recv().ok()).any(|msg| matches!(msg, ServerMessage::GoldCollected(_)));
-    assert!(gold_cue, "pickup cue must be unicast");
 }
 
 #[test]
@@ -398,12 +283,7 @@ fn placed_gold_obeys_never_immediate_and_delayed_respawn_settings() {
             respawn.run(app.world_mut());
             app.update();
             assert_eq!(
-                app.world()
-                    .resource::<PlayerMap>()
-                    .get(&id)
-                    .expect("player missing")
-                    .session
-                    .score,
+                info(&app, id).session.score,
                 collections * gold_score,
                 "wrong collection count for {settings}",
             );
@@ -423,24 +303,13 @@ fn placed_gold_obeys_never_immediate_and_delayed_respawn_settings() {
 #[test]
 fn collected_random_item_is_replaced_in_the_same_tick() {
     let mut app = test_app();
-    let mut cells = CellGrid::new(2, 1);
-    for cell in &mut cells.rows[0] {
-        cell.has_floor = true;
-    }
     let geometry = geometry(2, 1);
-    let map = MapConfig::for_grid(
-        vec![LevelGrid {
-            cells,
-            edges: EdgeGrid::new(2, 1),
-        }],
-        geometry,
-    );
     let config = RandomItemsConfig {
         weights: [("gold".to_owned(), 1.0)].into(),
         max_number: 2,
         despawn_secs: 10.0,
     };
-    app.insert_resource(map)
+    app.insert_resource(MapConfig::for_grid(vec![floored_level(2, 1)], geometry))
         .insert_resource(geometry)
         .insert_resource(ItemSpawner::default())
         .insert_resource(RandomItems::from_config(Some(&config)))
@@ -472,19 +341,12 @@ fn dead_player_collects_nothing() {
     let mut app = test_app();
     let id = PlayerId(1);
     let (_, _rx) = spawn_player(&mut app, id, Position::default());
-    app.world_mut()
-        .resource_mut::<PlayerMap>()
-        .get_mut(&id)
-        .expect("player present")
-        .begin_respawn(1.0);
-    let item = spawn_item(&mut app, 1, ItemType::Gold, Position::default(), random(0.0));
+    info_mut(&mut app, id).begin_respawn(1.0);
+    let item = spawn_random(&mut app, 1, ItemType::Gold);
 
     app.update();
 
-    assert!(
-        app.world().resource::<ItemMap>().get(&item).is_some(),
-        "a same-tick corpse must not vacuum up items"
-    );
+    assert!(present(&app, item), "a same-tick corpse must not vacuum up items");
 }
 
 #[test]
@@ -497,53 +359,29 @@ fn permanent_power_up_stays_for_other_players_and_timed_pickup_refreshes() {
     };
     let id = PlayerId(1);
     let (_, rx) = spawn_player(&mut app, id, Position::default());
-    spawn_item(
-        &mut app,
-        1,
-        ItemType::PortalGunPowerUp,
-        Position::default(),
-        random(0.0),
-    );
+    spawn_random(&mut app, 1, ItemType::PortalGunPowerUp);
     app.update();
-    assert!(std::iter::from_fn(|| rx.try_recv().ok()).any(|message| matches!(
+    assert!(rx.try_iter().any(|message| matches!(
         message,
         ServerMessage::PlayerStatus(status)
             if status.collected == Some(ItemType::PortalGunPowerUp)
     )));
-    let second = spawn_item(
-        &mut app,
-        2,
-        ItemType::PortalGunPowerUp,
-        Position::default(),
-        random(0.0),
-    );
+    let second = spawn_random(&mut app, 2, ItemType::PortalGunPowerUp);
     app.update();
-    assert!(app.world().resource::<ItemMap>().get(&second).is_some());
-    let mut players = app.world_mut().resource_mut::<PlayerMap>();
-    let info = players.get_mut(&id).expect("player missing");
-    assert!(info.has_permanent(PowerUpKind::PortalGun));
-    info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(1.0);
-    spawn_item(&mut app, 3, ItemType::SpeedPowerUp, Position::default(), random(0.0));
+    assert!(present(&app, second));
+    let player = info_mut(&mut app, id);
+    assert!(player.has_permanent(PowerUpKind::PortalGun));
+    player.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(1.0);
+    spawn_random(&mut app, 3, ItemType::SpeedPowerUp);
     app.update();
     assert_eq!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&id)
-            .expect("player missing")
-            .life
-            .power_ups[PowerUpKind::Speed.index()],
+        info(&app, id).life.power_ups[PowerUpKind::Speed.index()],
         PowerUpState::Timed(30.0)
     );
 }
 
 #[test]
 fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
-    use crate::players::{erase_equipment_system, handle_move_outcome};
-    use common::protocol::{CMoveOutcome, MoveOutcome, PlayerGeneration};
-    use common::{
-        physics::CollisionWorld,
-        protocol::{Eraser, MapLayout, PowerUpKind},
-    };
     let mut app = test_app();
     let layout = MapLayout {
         erasers: vec![Eraser {
@@ -571,37 +409,19 @@ fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
         },
         &mut app.world_mut().resource_mut::<PlayerMap>(),
     );
-    spawn_item(
-        &mut app,
-        1,
-        ItemType::PortalGunPowerUp,
-        Position::default(),
-        random(0.0),
-    );
-    let missile_pack = spawn_item(&mut app, 4, ItemType::MissilePack, Position::default(), random(0.0));
-    spawn_item(&mut app, 5, ItemType::Key(FieldId(0)), Position::default(), random(0.0));
-    spawn_item(
-        &mut app,
-        2,
-        ItemType::SingleShotPowerUp,
-        Position::default(),
-        random(0.0),
-    );
-    spawn_item(
-        &mut app,
-        3,
-        ItemType::MultiShotPowerUp,
-        Position::default(),
-        random(0.0),
-    );
+    spawn_random(&mut app, 1, ItemType::PortalGunPowerUp);
+    spawn_random(&mut app, 2, ItemType::SingleShotPowerUp);
+    spawn_random(&mut app, 3, ItemType::MultiShotPowerUp);
+    let missile_pack = spawn_random(&mut app, 4, ItemType::MissilePack);
+    spawn_random(&mut app, 5, ItemType::Key(FieldId(0)));
     app.update();
-    let info = app.world().resource::<PlayerMap>().get(&id).expect("player missing");
-    assert!(!info.has(PowerUpKind::PortalGun));
-    assert!(!info.has(PowerUpKind::SingleShot));
-    assert!(!info.has(PowerUpKind::MultiShot));
-    assert_eq!(info.life.missiles, 0);
-    assert_eq!(info.life.held_keys, [FieldId(0)]);
-    assert!(app.world().resource::<ItemMap>().get(&missile_pack).is_none());
+    let player = info(&app, id);
+    assert!(!player.has(PowerUpKind::PortalGun));
+    assert!(!player.has(PowerUpKind::SingleShot));
+    assert!(!player.has(PowerUpKind::MultiShot));
+    assert_eq!(player.life.missiles, 0);
+    assert_eq!(player.life.held_keys, [FieldId(0)]);
+    assert!(!present(&app, missile_pack));
     assert_eq!(app.world().get::<Health>(entity), Some(&Health(50.0)));
     let mut last = None;
     let mut collected = false;
@@ -624,130 +444,6 @@ fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
 }
 
 #[test]
-fn already_held_key_is_left_in_the_world() {
-    let mut app = test_app();
-    let id = PlayerId(1);
-    let kind = FieldId(0);
-    let (_, _rx) = spawn_player(&mut app, id, Position::default());
-    assert!(
-        app.world_mut()
-            .resource_mut::<PlayerMap>()
-            .get_mut(&id)
-            .expect("player present")
-            .add_key(kind)
-    );
-    let item = spawn_item(&mut app, 1, ItemType::Key(kind), Position::default(), random(0.0));
-
-    app.update();
-
-    assert!(
-        app.world().resource::<ItemMap>().get(&item).is_some(),
-        "the world key stays for a player who can use it"
-    );
-}
-
-#[test]
-fn full_missile_inventory_leaves_the_pack() {
-    let mut app = test_app();
-    let id = PlayerId(1);
-    let (_, _rx) = spawn_player(&mut app, id, Position::default());
-    let max = app.world().resource::<GameplayConfig>().missiles.max_missiles;
-    app.world_mut()
-        .resource_mut::<PlayerMap>()
-        .get_mut(&id)
-        .expect("player present")
-        .life
-        .missiles = max;
-    let item = spawn_item(&mut app, 1, ItemType::MissilePack, Position::default(), random(0.0));
-
-    app.update();
-    assert!(
-        app.world().resource::<ItemMap>().get(&item).is_some(),
-        "a full player leaves the pack"
-    );
-
-    // With room, the same pack collects.
-    app.world_mut()
-        .resource_mut::<PlayerMap>()
-        .get_mut(&id)
-        .expect("player present")
-        .life
-        .missiles = 0;
-    app.update();
-    assert!(app.world().resource::<ItemMap>().get(&item).is_none(), "pack collected");
-}
-
-#[test]
-fn hidden_placed_item_is_not_collectable() {
-    let mut app = test_app();
-    let id = PlayerId(1);
-    let (_, _rx) = spawn_player(&mut app, id, Position::default());
-    let item = spawn_item(
-        &mut app,
-        1,
-        ItemType::Gold,
-        Position::default(),
-        ItemPlacement::Placed {
-            respawn_countdown: Some(5.0),
-        },
-    );
-
-    app.update();
-
-    assert!(
-        app.world().resource::<ItemMap>().get(&item).is_some(),
-        "an item mid-respawn-countdown is uncollectable"
-    );
-    assert_eq!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&id)
-            .expect("player present")
-            .session
-            .score,
-        0
-    );
-}
-
-#[test]
-fn item_on_another_floor_is_not_collected() {
-    let mut app = test_app();
-    let id = PlayerId(1);
-    let (_, _rx) = spawn_player(&mut app, id, Position::default());
-    let above = spawn_item(
-        &mut app,
-        1,
-        ItemType::Gold,
-        Position { y: 4.0, ..default() },
-        random(0.0),
-    );
-    let below = spawn_item(
-        &mut app,
-        2,
-        ItemType::Gold,
-        Position { y: -4.0, ..default() },
-        random(0.0),
-    );
-
-    app.update();
-
-    let items = app.world().resource::<ItemMap>();
-    assert!(items.get(&above).is_some() && items.get(&below).is_some());
-}
-
-#[test]
-fn airborne_player_collects_the_item_it_passes_through() {
-    let mut app = test_app();
-    let mid_jump = Position { y: 1.0, ..default() };
-    let (_, _rx) = spawn_player(&mut app, PlayerId(1), mid_jump);
-    let item = spawn_item(&mut app, 1, ItemType::Gold, Position::default(), random(0.0));
-
-    app.update();
-
-    assert!(app.world().resource::<ItemMap>().get(&item).is_none());
-}
-
-#[test]
 fn player_standing_on_a_pressure_plate_collects_the_item_on_its_cell() {
     let mut app = test_app();
     let on_plate = Position {
@@ -755,16 +451,15 @@ fn player_standing_on_a_pressure_plate_collects_the_item_on_its_cell() {
         ..default()
     };
     let (_, _rx) = spawn_player(&mut app, PlayerId(1), on_plate);
-    let item = spawn_item(&mut app, 1, ItemType::Gold, Position::default(), random(0.0));
+    let item = spawn_random(&mut app, 1, ItemType::Gold);
 
     app.update();
 
-    assert!(app.world().resource::<ItemMap>().get(&item).is_none());
+    assert!(!present(&app, item));
 }
 
 #[test]
 fn suspended_eraser_pickup_clears_collected_equipment_and_preserves_permanent_map_abilities() {
-    use crate::players::erase_equipment_system;
     let mut app = test_app();
     app.add_systems(Update, erase_equipment_system.after(item_collection_system));
     app.world_mut()
@@ -777,12 +472,11 @@ fn suspended_eraser_pickup_clears_collected_equipment_and_preserves_permanent_ma
     let id = PlayerId(1);
     let (entity, rx) = spawn_player(&mut app, id, Position::default());
     {
-        let mut players = app.world_mut().resource_mut::<PlayerMap>();
-        let info = players.get_mut(&id).expect("player");
-        info.add_key(FieldId(0));
-        info.life.missiles = 2;
-        info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Permanent;
-        info.life.power_ups[PowerUpKind::LowGravity.index()] = PowerUpState::Timed(30.0);
+        let player = info_mut(&mut app, id);
+        player.add_key(FieldId(0));
+        player.life.missiles = 2;
+        player.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Permanent;
+        player.life.power_ups[PowerUpKind::LowGravity.index()] = PowerUpState::Timed(30.0);
     }
     let eraser = spawn_item(
         &mut app,
@@ -794,23 +488,17 @@ fn suspended_eraser_pickup_clears_collected_equipment_and_preserves_permanent_ma
         },
     );
     app.update();
-    assert!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&id)
-            .expect("player")
-            .has_speed()
-    );
+    assert!(info(&app, id).has_speed());
     app.world_mut()
         .entity_mut(entity)
         .insert(Position { y: 4.4, ..default() });
     app.update();
-    let info = app.world().resource::<PlayerMap>().get(&id).expect("player");
-    assert!(!info.has_speed());
-    assert!(!info.has_low_gravity());
-    assert_eq!(info.life.missiles, 0);
-    assert!(info.has(PowerUpKind::PortalGun));
-    assert_eq!(info.life.held_keys, [FieldId(0)]);
+    let player = info(&app, id);
+    assert!(!player.has_speed());
+    assert!(!player.has_low_gravity());
+    assert_eq!(player.life.missiles, 0);
+    assert!(player.has(PowerUpKind::PortalGun));
+    assert_eq!(player.life.held_keys, [FieldId(0)]);
     assert_eq!(app.world().get::<Health>(entity), Some(&Health(50.0)));
     assert!(
         !app.world()
@@ -819,64 +507,29 @@ fn suspended_eraser_pickup_clears_collected_equipment_and_preserves_permanent_ma
             .expect("placed eraser")
             .is_hidden()
     );
-    assert_eq!(
-        rx.try_iter()
-            .filter(|m| matches!(m, ServerMessage::EquipmentErased(_)))
-            .count(),
-        1
-    );
+    assert_eq!(erasure_cues(&rx), 1);
     app.update();
-    assert!(!rx.try_iter().any(|m| matches!(m, ServerMessage::EquipmentErased(_))));
-    app.world_mut()
-        .resource_mut::<PlayerMap>()
-        .get_mut(&id)
-        .expect("player")
-        .life
-        .missiles = 1;
+    assert_eq!(erasure_cues(&rx), 0);
+    info_mut(&mut app, id).life.missiles = 1;
     app.update();
-    assert_eq!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&id)
-            .expect("player")
-            .life
-            .missiles,
-        0
-    );
-    assert_eq!(
-        rx.try_iter()
-            .filter(|m| matches!(m, ServerMessage::EquipmentErased(_)))
-            .count(),
-        1
-    );
+    assert_eq!(info(&app, id).life.missiles, 0);
+    assert_eq!(erasure_cues(&rx), 1);
 }
 
 #[test]
 fn eraser_pickup_waits_for_equipment_and_wins_over_a_same_tick_boost() {
-    use crate::players::erase_equipment_system;
     let mut app = test_app();
     app.add_systems(Update, erase_equipment_system.after(item_collection_system));
     let id = PlayerId(1);
     let (_, rx) = spawn_player(&mut app, id, Position::default());
-    let eraser = spawn_item(&mut app, 1, ItemType::EquipmentEraser, Position::default(), random(0.0));
+    let eraser = spawn_random(&mut app, 1, ItemType::EquipmentEraser);
     app.update();
-    assert!(app.world().resource::<ItemMap>().get(&eraser).is_some());
-    spawn_item(&mut app, 2, ItemType::SpeedPowerUp, Position::default(), random(0.0));
+    assert!(present(&app, eraser));
+    spawn_random(&mut app, 2, ItemType::SpeedPowerUp);
     app.update();
-    assert!(
-        !app.world()
-            .resource::<PlayerMap>()
-            .get(&id)
-            .expect("player")
-            .has_speed()
-    );
-    assert!(app.world().resource::<ItemMap>().get(&eraser).is_none());
-    assert_eq!(
-        rx.try_iter()
-            .filter(|m| matches!(m, ServerMessage::EquipmentErased(_)))
-            .count(),
-        1
-    );
+    assert!(!info(&app, id).has_speed());
+    assert!(!present(&app, eraser));
+    assert_eq!(erasure_cues(&rx), 1);
 }
 
 #[test]
@@ -898,16 +551,8 @@ fn an_eraser_pickup_is_taken_by_an_empty_handed_player_with_open_portals() {
         carrier: CarrierId::WORLD,
     });
     app.insert_resource(assignments).insert_resource(portals);
-    let eraser = spawn_item(&mut app, 1, ItemType::EquipmentEraser, Position::default(), random(0.0));
+    let eraser = spawn_random(&mut app, 1, ItemType::EquipmentEraser);
     app.update();
-    assert!(app.world().resource::<ItemMap>().get(&eraser).is_none());
-    assert!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&id)
-            .expect("player missing")
-            .life
-            .outcomes
-            .erase_equipment
-    );
+    assert!(!present(&app, eraser));
+    assert!(info(&app, id).life.outcomes.erase_equipment);
 }

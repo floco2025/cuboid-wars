@@ -10,50 +10,24 @@ use common::{
 };
 use std::f32::consts::FRAC_PI_2;
 
-fn planned_move(index: u32, start: Position, target: Position) -> CharacterMovePlan {
+// Body `index` moving along +X from `start_x` to `target_x`.
+fn planned_move(index: u32, start_x: f32, target_x: f32) -> CharacterMovePlan {
     let entity = Entity::from_raw_u32(index).expect("test entity index out of range");
     let physics = test_fixtures::gameplay_config().player.physics();
-    CharacterMovePlan::from_target(entity, start, target, 0.0, physics, false)
+    let at = |x| Position { x, y: 0.0, z: 0.0 };
+    CharacterMovePlan::from_target(entity, at(start_x), at(target_x), 0.0, physics, false)
 }
 
 #[test]
-fn overlapping_planned_characters_can_separate() {
-    let first = planned_move(
-        1,
-        Position { x: 0.0, y: 0.0, z: 0.0 },
-        Position {
-            x: -0.2,
-            y: 0.0,
-            z: 0.0,
-        },
-    );
-    let second = planned_move(
-        2,
-        Position { x: 0.8, y: 0.0, z: 0.0 },
-        Position { x: 1.0, y: 0.0, z: 0.0 },
-    );
-    let planned_moves = [first, second];
-
-    assert!(overlapping_character(&first, &planned_moves).is_none());
-    assert!(overlapping_character(&second, &planned_moves).is_none());
-}
-
-#[test]
-fn overlapping_planned_characters_cannot_move_deeper_together() {
-    let first = planned_move(
-        1,
-        Position { x: 0.0, y: 0.0, z: 0.0 },
-        Position { x: 0.2, y: 0.0, z: 0.0 },
-    );
-    let second = planned_move(
-        2,
-        Position { x: 0.8, y: 0.0, z: 0.0 },
-        Position { x: 0.6, y: 0.0, z: 0.0 },
-    );
-    let planned_moves = [first, second];
-
-    assert!(overlapping_character(&first, &planned_moves).is_some());
-    assert!(overlapping_character(&second, &planned_moves).is_some());
+fn overlapping_bodies_can_separate_but_cannot_move_deeper_together() {
+    let separating = [planned_move(1, 0.0, -0.2), planned_move(2, 0.8, 1.0)];
+    let deepening = [planned_move(1, 0.0, 0.2), planned_move(2, 0.8, 0.6)];
+    for plan in &separating {
+        assert!(overlapping_character(plan, &separating).is_none());
+    }
+    for plan in &deepening {
+        assert!(overlapping_character(plan, &deepening).is_some());
+    }
 }
 
 #[test]

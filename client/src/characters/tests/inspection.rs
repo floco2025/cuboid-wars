@@ -1,5 +1,15 @@
+use std::time::Duration;
+
+use common::{
+    config::{HitboxConfig, MovementColliderConfig},
+    protocol::PlayerMarker,
+};
+
 use super::*;
-use crate::input::input_bounds_cycle_system;
+use crate::{
+    characters::PreviousTickPosition,
+    players::{LocalPlayerMarker, players_transform_sync_system},
+};
 
 #[test]
 fn bounds_keep_world_dimensions_and_physics_facing() {
@@ -17,72 +27,7 @@ fn bounds_keep_world_dimensions_and_physics_facing() {
 }
 
 #[test]
-fn keyboard_cycles_all_modes_for_existing_and_later_shapes() {
-    let mut app = App::new();
-    app.init_resource::<BoundsMode>()
-        .init_resource::<ButtonInput<KeyCode>>()
-        .add_systems(
-            Update,
-            (input_bounds_cycle_system, character_bounds_sync_system).chain(),
-        );
-    let root = app.world_mut().spawn_empty().id();
-    let first = app
-        .world_mut()
-        .spawn((
-            ChildOf(root),
-            BoundsShape(BoundsMode::Grounding),
-            Transform::default(),
-            Visibility::Hidden,
-        ))
-        .id();
-    assert_eq!(*app.world().resource::<BoundsMode>(), BoundsMode::Off);
-    for expected in [BoundsMode::Grounding, BoundsMode::Hitbox, BoundsMode::Off] {
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::KeyB);
-        app.update();
-        assert_eq!(*app.world().resource::<BoundsMode>(), expected);
-        assert_eq!(
-            *app.world().get::<Visibility>(first).expect("bounds visibility missing"),
-            if expected == BoundsMode::Grounding {
-                Visibility::Inherited
-            } else {
-                Visibility::Hidden
-            }
-        );
-        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset_all();
-        let later = app
-            .world_mut()
-            .spawn((
-                ChildOf(root),
-                BoundsShape(expected),
-                Transform::default(),
-                Visibility::Hidden,
-            ))
-            .id();
-        app.update();
-        assert_eq!(
-            *app.world().get::<Visibility>(later).expect("bounds visibility missing"),
-            if expected == BoundsMode::Off {
-                Visibility::Hidden
-            } else {
-                Visibility::Inherited
-            }
-        );
-    }
-}
-#[test]
 fn bounds_interpolate_between_ticks_without_animation_or_hit_shake() {
-    use crate::{
-        characters::PreviousTickPosition,
-        players::{LocalPlayerMarker, players_transform_sync_system},
-    };
-    use common::{
-        config::{HitboxConfig, MovementColliderConfig},
-        protocol::PlayerMarker,
-    };
-    use std::time::Duration;
-
     let physics = CharacterPhysicsConfig {
         movement_collider: MovementColliderConfig {
             diameter: 0.6,

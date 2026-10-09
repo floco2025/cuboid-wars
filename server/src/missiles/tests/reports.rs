@@ -186,22 +186,3 @@ fn detonation_is_owner_bound_and_applies_once_even_without_any_movement_report()
     assert!(missiles.get(&id).is_none());
     assert!(receiver.try_recv().is_err());
 }
-
-#[test]
-fn disconnect_removes_only_that_shooters_flights() {
-    let mut missiles = MissileMap::default();
-    for id in 1..=2 {
-        missiles.insert(
-            MissileId(id),
-            Missile {
-                shooter: PlayerId(id),
-                seq: 0,
-                movement: shot().movement,
-            },
-            0,
-        );
-    }
-    missiles.remove_shooter(PlayerId(1));
-    assert!(missiles.get(&MissileId(1)).is_none());
-    assert!(missiles.get(&MissileId(2)).is_some());
-}

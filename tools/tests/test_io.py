@@ -1,10 +1,7 @@
 import json
-import tempfile
 import unittest
-from pathlib import Path
 
-from editor_fixtures import floor, nested
-from map_editor.io import read_map, write_map
+from editor_fixtures import actor_zone, floor, nested, saved_map
 from map_editor.normalization import canonicalize_map, empty_map
 from map_editor.validation import validate_map
 
@@ -24,32 +21,15 @@ class FileIoTests(unittest.TestCase):
         data["levels"][0]["light_bridges"] = [{"col": 1, "row": 0, "field": BRIDGE_FIELD}]
         data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "key", "field": FIELD}]
 
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "map.json"
-            write_map(path, data)
+        text, loaded = saved_map(data)
 
-            wrapper = json.loads(path.read_text(encoding="utf-8"))
-            self.assertNotIn("version", wrapper)
-            self.assertEqual(wrapper["map"]["fields"], data["fields"])
-            self.assertEqual(wrapper["map"]["levels"][0]["barriers"], data["levels"][0]["barriers"])
-            self.assertEqual(wrapper["map"]["levels"][0]["light_bridges"], data["levels"][0]["light_bridges"])
-            self.assertEqual(wrapper["map"]["items"], data["items"])
-            self.assertEqual(read_map(path), canonicalize_map(data))
-
-    def test_plates_round_trip_through_the_file_format(self) -> None:
-        data = {"fireworks": None, **empty_map(2, 2)}
-        data["levels"][0]["floors"] = [floor(0, 0), floor(1, 0)]
-        data["pressure_plates"] = [
-            {"level": 0, "col": 0, "row": 0, "switch": FIELD},
-            {"level": 0, "col": 1, "row": 0, "switch": "fireworks"},
-        ]
-
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "map.json"
-            write_map(path, data)
-            text = path.read_text(encoding="utf-8")
-            self.assertIn('"switch": "fireworks"}', text)
-            self.assertEqual(read_map(path)["pressure_plates"], data["pressure_plates"])
+        wrapper = json.loads(text)
+        self.assertNotIn("version", wrapper)
+        self.assertEqual(wrapper["map"]["fields"], data["fields"])
+        self.assertEqual(wrapper["map"]["levels"][0]["barriers"], data["levels"][0]["barriers"])
+        self.assertEqual(wrapper["map"]["levels"][0]["light_bridges"], data["levels"][0]["light_bridges"])
+        self.assertEqual(wrapper["map"]["items"], data["items"])
+        self.assertEqual(loaded, canonicalize_map(data))
 
     def test_a_light_round_trips_its_height(self) -> None:
         data = {"fireworks": None, **empty_map(2, 2)}
@@ -58,48 +38,35 @@ class FileIoTests(unittest.TestCase):
             {"col": 0, "row": 0, "side": "N", "kind": "utility", "height": 2.5},
             {"col": 1, "row": 0, "side": "N", "kind": "utility", "height": 1.9},
         ]
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "map.json"
-            write_map(path, data)
-            text = path.read_text(encoding="utf-8")
-            self.assertIn('"kind": "utility", "height": 1.9}', text)
-            self.assertEqual(read_map(path)["levels"][0]["lights"], data["levels"][0]["lights"])
+        text, loaded = saved_map(data)
+        self.assertIn('"kind": "utility", "height": 1.9}', text)
+        self.assertEqual(loaded["levels"][0]["lights"], data["levels"][0]["lights"])
 
-    def test_zones_and_nested_maps_round_trip_their_switches_and_initial_states(self) -> None:
+    def test_plates_zones_and_nested_maps_round_trip_their_switches_and_initial_states(self) -> None:
         data = {"fireworks": None, **empty_map(2, 2)}
-        data["levels"][0]["floors"] = [floor(0, 0)]
-        data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": BRIDGE_FIELD}]
+        data["levels"][0]["floors"] = [floor(0, 0), floor(1, 0)]
+        data["pressure_plates"] = [
+            {"level": 0, "col": 0, "row": 0, "switch": BRIDGE_FIELD},
+            {"level": 0, "col": 1, "row": 0, "switch": "fireworks"},
+        ]
         data["checkpoints"] = [{"level": 0, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 1}]
         data["actor_spawn_zones"] = [
-            {
-                "level": 0,
-                "cols": [0, 1],
-                "rows": [0, 1],
-                "kind": "zapper",
-                "count": [1],
-                "respawn_secs": 90,
-                "switch": BRIDGE_FIELD,
-                "until_checkpoint": 1,
-                "on_checkpoint": "destroy",
-            },
-            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [2], "respawn_secs": 90},
+            actor_zone(switch=BRIDGE_FIELD, until_checkpoint=1, on_checkpoint="destroy"),
+            actor_zone(count=[2]),
         ]
         data["nested_maps"] = [
             {**nested("tile", 0, [0, 0], [1, 0]), "switch": BRIDGE_FIELD, "initially_on": False},
             nested("tile", 0, [1, 1], [1, 1]),
         ]
-        self.assertEqual(validate_map(data, [BRIDGE_FIELD], switches=[BRIDGE_FIELD]), [])
+        self.assertEqual(validate_map(data, [BRIDGE_FIELD], switches=[BRIDGE_FIELD, "fireworks"]), [])
 
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "map.json"
-            write_map(path, data)
-            text = path.read_text(encoding="utf-8")
-            self.assertEqual(text.count('"switch": "skyway"'), 3)
-            loaded = read_map(path)
-            self.assertEqual(loaded["pressure_plates"], data["pressure_plates"])
-            self.assertEqual(loaded["actor_spawn_zones"], data["actor_spawn_zones"])
-            self.assertEqual(loaded["checkpoints"], data["checkpoints"])
-            self.assertEqual(loaded["nested_maps"], data["nested_maps"])
+        text, loaded = saved_map(data)
+
+        self.assertEqual(text.count('"switch": "skyway"'), 3)
+        self.assertEqual(loaded["pressure_plates"], data["pressure_plates"])
+        self.assertEqual(loaded["actor_spawn_zones"], data["actor_spawn_zones"])
+        self.assertEqual(loaded["checkpoints"], data["checkpoints"])
+        self.assertEqual(loaded["nested_maps"], data["nested_maps"])
 
     def test_a_ramp_line_omits_its_defaults_and_round_trips_the_rest(self) -> None:
         data = empty_map(6, 6)
@@ -116,25 +83,19 @@ class FileIoTests(unittest.TestCase):
                 "all": "test",
             },
         ]
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "ramps.json"
-            write_map(path, data)
-            plain, tall = (line for line in path.read_text(encoding="utf-8").splitlines() if '"direction"' in line)
-            self.assertNotIn('"levels"', plain)
-            self.assertNotIn('"shape"', plain)
-            self.assertIn('"levels": 2', tall)
-            self.assertIn('"shape": "plank"', tall)
-            loaded = read_map(path)["ramps"]
-            self.assertEqual([(r["levels"], r["shape"]) for r in loaded], [(1, "solid"), (2, "plank")])
+        text, loaded = saved_map(data)
+        plain, tall = (line for line in text.splitlines() if '"direction"' in line)
+        self.assertNotIn('"levels"', plain)
+        self.assertNotIn('"shape"', plain)
+        self.assertIn('"levels": 2', tall)
+        self.assertIn('"shape": "plank"', tall)
+        self.assertEqual([(r["levels"], r["shape"]) for r in loaded["ramps"]], [(1, "solid"), (2, "plank")])
 
     def test_nested_maps_round_trip_and_are_the_last_key(self) -> None:
         data = empty_map(6, 6)
         data["nested_maps"] = [
             {**nested("cabin", 0, [2, 2], [4, 2]), "from_nudge": [0.3, 0.0, 0.0], "to_nudge": [0.0, -1.0, 1.01]}
         ]
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "nested.json"
-            write_map(path, data)
-            text = path.read_text(encoding="utf-8")
-            self.assertGreater(text.index('"nested_maps"'), text.index('"ramps"'))
-            self.assertEqual(read_map(path)["nested_maps"], data["nested_maps"])
+        text, loaded = saved_map(data)
+        self.assertGreater(text.index('"nested_maps"'), text.index('"ramps"'))
+        self.assertEqual(loaded["nested_maps"], data["nested_maps"])

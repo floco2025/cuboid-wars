@@ -1,4 +1,7 @@
+use bevy::{app::SpawnScene, camera::visibility::VisibilitySystems};
+
 use super::*;
+use crate::cameras::camera_plugin;
 
 #[test]
 fn first_person_hides_local_labels_and_excludes_local_mesh_layer() {
@@ -108,11 +111,9 @@ fn newly_added_local_label_uses_current_view_mode() {
         assert_eq!(app.world().entity(label).get::<Visibility>(), Some(&Visibility::Hidden));
     }
 }
+
 #[test]
 fn meshes_spawned_after_update_have_local_layers_before_visibility_checks() {
-    use crate::cameras::camera_plugin;
-    use bevy::{app::SpawnScene, camera::visibility::VisibilitySystems};
-
     let mut app = App::new();
     camera_plugin(&mut app);
     app.world_mut().spawn(LocalPlayerMarker);

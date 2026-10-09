@@ -83,3 +83,7 @@ impl RandomItemsConfig {
         validate_positive_finite(self.despawn_secs, &format!("{path}.despawn_secs"))
     }
 }
+
+#[cfg(test)]
+#[path = "tests/maps.rs"]
+mod tests;

@@ -1,8 +1,21 @@
 use super::*;
-use crate::actors::navigation::surface::fixtures;
+use crate::{actors::navigation::surface::fixtures, config::ServerGameplayConfig};
 
-#[test]
-fn a_search_cut_short_by_the_ticks_leftover_budget_is_deferred_and_keeps_its_route() {
+const START: Position = Position {
+    x: -13.5,
+    y: 0.0,
+    z: -10.0,
+};
+
+struct Scene {
+    config: ServerGameplayConfig,
+    world: CollisionWorld,
+    carriers: Carriers,
+    navigation: SurfaceNavigation,
+    physics: CharacterPhysicsConfig,
+}
+
+fn scene() -> Scene {
     let config = fixtures::config();
     let generated = fixtures::generate("fixture", 30, &config.settings).expect("authored scene");
     let world = CollisionWorld::from_map_layout(&generated.layout);
@@ -10,88 +23,80 @@ fn a_search_cut_short_by_the_ticks_leftover_budget_is_deferred_and_keeps_its_rou
     let navigation =
         SurfaceNavigation::build(&generated.config, &generated.layout, &config, &world, &[], &[]).expect("navigation");
     let physics = config.expect_actor("scuttler").character.physics();
-    let start = Position {
-        x: -13.5,
-        y: 0.0,
-        z: -10.0,
-    };
-    let goal = |x| SurfaceGoal {
+    Scene {
+        config,
+        world,
+        carriers,
+        navigation,
+        physics,
+    }
+}
+
+fn goal(x: f32) -> SurfaceGoal {
+    SurfaceGoal {
         carrier: CarrierId::WORLD,
         position: Position { x, y: 3.0, z: 0.0 },
-    };
+    }
+}
+
+#[test]
+fn a_search_cut_short_by_the_ticks_leftover_budget_is_deferred_and_keeps_its_route() {
+    let scene = scene();
+    let physics = scene.physics;
     let mut executor = TraversalExecutor::new(physics, 3.0);
     let mut agent = SurfaceAgent {
         goal: Some(goal(4.5)),
         ..Default::default()
     };
     let mut planner = RoutePlanner {
-        navigation: &navigation,
-        carriers: &carriers,
+        navigation: &scene.navigation,
+        carriers: &scene.carriers,
         budget: TICK_SEARCH_VISITS,
     };
-    planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false, None);
+    planner.update(&mut agent, &mut executor, CarrierId::WORLD, START, physics, false, None);
     assert!(agent.failure.is_none() && !agent.pending, "{:?}", agent.failure);
     let route = executor.actions.clone();
     assert!(!route.is_empty());
 
     agent.goal = Some(goal(6.0));
     planner.budget = 1;
-    planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false, None);
+    planner.update(&mut agent, &mut executor, CarrierId::WORLD, START, physics, false, None);
     assert!(agent.pending && agent.failure.is_none(), "{:?}", agent.failure);
     assert_eq!(executor.actions, route);
     assert_eq!(planner.budget, 0);
 
     planner.budget = TICK_SEARCH_VISITS;
-    planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false, None);
+    planner.update(&mut agent, &mut executor, CarrierId::WORLD, START, physics, false, None);
     assert!(!agent.pending && agent.failure.is_none(), "{:?}", agent.failure);
     assert_ne!(executor.actions, route);
 }
 
 #[test]
 fn a_deferred_retry_stops_pending_once_its_cause_clears() {
-    let config = fixtures::config();
-    let generated = fixtures::generate("fixture", 30, &config.settings).expect("authored scene");
-    let world = CollisionWorld::from_map_layout(&generated.layout);
-    let carriers = Carriers::from_layout(&generated.layout);
-    let navigation =
-        SurfaceNavigation::build(&generated.config, &generated.layout, &config, &world, &[], &[]).expect("navigation");
-    let physics = config.expect_actor("scuttler").character.physics();
-    let start = Position {
-        x: -13.5,
-        y: 0.0,
-        z: -10.0,
-    };
-    let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
+    let scene = scene();
+    let physics = scene.physics;
+    let env = fixtures::env(&scene.world, &scene.carriers, &scene.config);
     for status in [TraversalStatus::Blocked, TraversalStatus::LostSupport] {
         for budget in [0, 1] {
             let mut executor = TraversalExecutor::new(physics, 3.0);
-            let mut body = ActorBody::standing(start);
+            let mut body = ActorBody::standing(START);
             let mut agent = SurfaceAgent {
-                goal: Some(SurfaceGoal {
-                    carrier: CarrierId::WORLD,
-                    position: Position { x: 4.5, y: 3.0, z: 0.0 },
-                }),
+                goal: Some(goal(4.5)),
                 ..Default::default()
             };
             let mut planner = RoutePlanner {
-                navigation: &navigation,
-                carriers: &carriers,
+                navigation: &scene.navigation,
+                carriers: &scene.carriers,
                 budget: TICK_SEARCH_VISITS,
             };
-            planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false, None);
+            planner.update(&mut agent, &mut executor, CarrierId::WORLD, START, physics, false, None);
             assert!(!agent.pending && !executor.actions.is_empty());
             let route = executor.actions.clone();
 
             executor.status = status;
             agent.retry_secs = 0.0;
             planner.budget = budget;
-            planner.update(&mut agent, &mut executor, CarrierId::WORLD, start, physics, false, None);
+            planner.update(&mut agent, &mut executor, CarrierId::WORLD, START, physics, false, None);
             assert!(agent.pending && agent.failure.is_none(), "a retry waits for its turn");
             assert_eq!(executor.actions, route);
 

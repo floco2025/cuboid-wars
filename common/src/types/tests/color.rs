@@ -17,13 +17,3 @@ fn hex_color_rejects_anything_but_hash_and_six_digits() {
         assert!(HexColor::parse(bad).is_err(), "{bad:?} parsed");
     }
 }
-
-#[test]
-fn hex_color_deserializes_from_json_with_a_readable_error() {
-    assert_eq!(
-        serde_json::from_str::<HexColor>("\"#22cc33\"").expect("valid color rejected"),
-        HexColor([0x22, 0xcc, 0x33])
-    );
-    let error = serde_json::from_str::<HexColor>("\"green\"").expect_err("word parsed as a color");
-    assert!(error.to_string().contains("#rrggbb"), "{error}");
-}

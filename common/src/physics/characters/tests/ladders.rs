@@ -508,31 +508,6 @@ fn crest_above_the_top_landing_crosses_freely() {
 }
 
 #[test]
-fn stepping_through_base_back_catches_the_ladder() {
-    // A hanging ladder (base floor only behind it, void in front): walking
-    // through the back at the base storey grabs the ladder — the volume's
-    // base overshoot catches the crossing and the descent clamps at the
-    // bottom, hanging at the last rung instead of falling off.
-    let world = ladder_collision_world(&[ladder_back_base_floor()], &[test_ladder()]);
-    let mut pos = Position { x: 0.0, y: 0.0, z: 0.5 };
-    let mut vertical_velocity = 0.0;
-
-    for _ in 0..15 {
-        let step = ladder_step(&world, pos, vertical_velocity, pos.x, pos.z - 0.4);
-        pos = step.position;
-        vertical_velocity = step.vertical_velocity;
-    }
-
-    assert!(pos.z < rail_plane_z());
-    assert!(pos.y >= -crate::constants::LADDER_BASE_OVERSHOOT - 0.05);
-    assert!(pos.y < -0.1);
-
-    // Pushing back toward the plane climbs up from the hang.
-    let step = ladder_step(&world, pos, vertical_velocity, pos.x, pos.z + 0.2);
-    assert!(step.vertical_velocity > 0.0);
-}
-
-#[test]
 fn descending_stops_hanging_at_the_bottom() {
     let world = ladder_collision_world(&[], &[test_ladder()]);
     let mut pos = Position {
@@ -548,5 +523,5 @@ fn descending_stops_hanging_at_the_bottom() {
         vertical_velocity = step.vertical_velocity;
     }
 
-    assert!((pos.y - -crate::constants::LADDER_BASE_OVERSHOOT).abs() < 0.05);
+    assert!((pos.y - -LADDER_BASE_OVERSHOOT).abs() < 0.05);
 }

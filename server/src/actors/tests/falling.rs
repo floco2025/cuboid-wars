@@ -16,7 +16,7 @@ use crossbeam_channel::{Receiver, unbounded};
 const TEST_GRAVITY: f32 = 2.0;
 const CONTACT_MAX_HEALTH: f32 = 150.0;
 
-fn fall_app(safe_distance: f32, lethal_distance: f32) -> (App, Receiver<ServerMessage>) {
+fn fall_app() -> (App, Receiver<ServerMessage>) {
     let server = test_kinds::server_config();
     assert_eq!(server.combat.health.expect_actor(CONTACT).max, CONTACT_MAX_HEALTH);
     let mut settings = server.settings.clone();
@@ -30,8 +30,8 @@ fn fall_app(safe_distance: f32, lethal_distance: f32) -> (App, Receiver<ServerMe
                 lethal_distance: 1.0,
             },
             actor: FallDamageConfig {
-                safe_distance,
-                lethal_distance,
+                safe_distance: 4.0,
+                lethal_distance: 12.0,
             },
         })
         .init_resource::<ActorMap>()
@@ -78,7 +78,7 @@ fn health_of(app: &App, entity: Entity) -> f32 {
 #[test]
 fn landing_damage_follows_the_map_thresholds_and_the_kind_max_health() {
     for (drop, expected_health) in [(0.0, 150.0), (4.0, 150.0), (4.04, 150.0), (8.0, 75.0), (10.0, 37.5)] {
-        let (mut app, receiver) = fall_app(4.0, 12.0);
+        let (mut app, receiver) = fall_app();
         let entity = spawn_landed_actor(&mut app, ActorId(1), ActorLocomotion::Ground, CONTACT_MAX_HEALTH, drop);
         app.update();
         assert!(
@@ -93,7 +93,7 @@ fn landing_damage_follows_the_map_thresholds_and_the_kind_max_health() {
 
 #[test]
 fn a_lethal_landing_kills_the_actor_without_credit() {
-    let (mut app, receiver) = fall_app(4.0, 12.0);
+    let (mut app, receiver) = fall_app();
     let entity = spawn_landed_actor(&mut app, ActorId(7), ActorLocomotion::Ground, 40.0, 8.0);
     app.update();
     assert!(app.world().resource::<ActorMap>().get(&ActorId(7)).is_none());
@@ -119,7 +119,7 @@ fn a_lethal_landing_kills_the_actor_without_credit() {
 
 #[test]
 fn flying_and_already_dead_actors_take_no_landing_damage() {
-    let (mut app, receiver) = fall_app(4.0, 12.0);
+    let (mut app, receiver) = fall_app();
     let flier = spawn_landed_actor(&mut app, ActorId(1), ActorLocomotion::Flying, CONTACT_MAX_HEALTH, 20.0);
     let shot_dead = spawn_landed_actor(&mut app, ActorId(2), ActorLocomotion::Ground, 0.0, 20.0);
     app.update();

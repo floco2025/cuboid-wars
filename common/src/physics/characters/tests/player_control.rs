@@ -1,56 +1,23 @@
 use super::*;
-use crate::config::{KnockbackConfig, PlayerMovementConfig};
-use std::collections::HashMap;
 
-fn map_movement() -> MapMovementConfig {
-    MapMovementConfig {
-        player: PlayerMovementConfig {
-            move_speed: 4.0,
-            move_speed_power_up: 1.5,
-            move_speed_ladder: 0.4,
-            jump_speed: 12.0,
-            ground_acceleration: 40.0,
-            ground_deceleration: 16.0,
-            ground_lateral_deceleration: 40.0,
-            air_acceleration: 20.0,
-            air_deceleration: 0.0,
-            air_lateral_deceleration: 0.0,
-        },
-        actors: HashMap::new(),
-        missile_speed: 16.0,
-        projectile_speed: 90.0,
-        gravity: 25.0,
-        low_gravity: 5.0,
-        knockback: KnockbackConfig {
-            max_speed: 15.0,
-            up_speed: 7.0,
-            deceleration: 35.0,
-        },
+fn player_movement() -> PlayerMovementConfig {
+    PlayerMovementConfig {
+        move_speed: 4.0,
+        move_speed_power_up: 1.5,
+        move_speed_ladder: 0.4,
+        jump_speed: 12.0,
+        ground_acceleration: 40.0,
+        ground_deceleration: 16.0,
+        ground_lateral_deceleration: 40.0,
+        air_acceleration: 20.0,
+        air_deceleration: 0.0,
+        air_lateral_deceleration: 0.0,
     }
 }
 
 #[test]
-fn disabled_player_has_no_control_velocity() {
-    let movement = map_movement();
-    let intent = PlayerMoveIntent::moving(0.0);
-
-    assert_eq!(player_control_velocity(intent, &movement, true, true), Vec3::ZERO);
-}
-
-#[test]
-fn enabled_player_uses_configured_speed() {
-    let movement = map_movement();
-    let intent = PlayerMoveIntent::moving(0.0);
-
-    assert_eq!(
-        player_control_velocity(intent, &movement, false, false),
-        Vec3::Z * movement.player.move_speed
-    );
-}
-
-#[test]
 fn slow_ground_acceleration_reaches_full_speed_independently_of_fast_stopping() {
-    let mut cfg = map_movement().player;
+    let mut cfg = player_movement();
     cfg.move_speed = 9.0;
     cfg.ground_acceleration = 9.0;
     for hz in [30, 60, 120] {
@@ -74,7 +41,7 @@ fn slow_ground_acceleration_reaches_full_speed_independently_of_fast_stopping() 
 
 #[test]
 fn turning_grip_removes_sideways_slip_without_changing_forward_acceleration() {
-    let mut cfg = map_movement().player;
+    let mut cfg = player_movement();
     cfg.move_speed = 9.0;
     cfg.ground_acceleration = 9.0;
     cfg.ground_deceleration = 90.0;
@@ -93,7 +60,7 @@ fn turning_grip_removes_sideways_slip_without_changing_forward_acceleration() {
 
 #[test]
 fn reversing_brakes_before_starting_slowly_in_the_new_direction() {
-    let mut cfg = map_movement().player;
+    let mut cfg = player_movement();
     cfg.ground_acceleration = 9.0;
     cfg.ground_deceleration = 90.0;
     let wish = Vec3::Z * 9.0;
@@ -111,7 +78,7 @@ fn reversing_brakes_before_starting_slowly_in_the_new_direction() {
 
 #[test]
 fn grounding_and_lowering_the_speed_target_brake_without_instantly_erasing_momentum() {
-    let mut cfg = map_movement().player;
+    let mut cfg = player_movement();
     cfg.move_speed = 9.0;
     cfg.ground_deceleration = 45.0;
     for (speed, target) in [(20.0, 9.0), (13.5, 9.0), (9.0, 3.0)] {
@@ -128,7 +95,7 @@ fn grounding_and_lowering_the_speed_target_brake_without_instantly_erasing_momen
 
 #[test]
 fn a_fast_forward_fling_is_unchanged_by_forward_input_or_release() {
-    let cfg = map_movement().player;
+    let cfg = player_movement();
     let launch = Vec3::Z * 20.0;
     for wish in [
         Vec3::ZERO,
@@ -144,7 +111,7 @@ fn a_fast_forward_fling_is_unchanged_by_forward_input_or_release() {
 
 #[test]
 fn air_strafing_gains_speed_but_fixed_sideways_input_saturates() {
-    let cfg = map_movement().player;
+    let cfg = player_movement();
     let mut velocity = Vec3::Z * 4.0;
     for _ in 0..120 {
         velocity = accelerate_player(velocity, Vec3::ZERO, Vec3::X * 4.0, -2.0, false, &cfg, 1.0 / 60.0);
@@ -159,7 +126,7 @@ fn air_strafing_gains_speed_but_fixed_sideways_input_saturates() {
 
 #[test]
 fn air_steering_and_braking_work_at_every_heading_above_normal_speed() {
-    let mut cfg = map_movement().player;
+    let mut cfg = player_movement();
     cfg.air_acceleration = 45.0;
     cfg.move_speed = 9.0;
     for heading in 0..8 {
@@ -193,7 +160,7 @@ fn air_steering_and_braking_work_at_every_heading_above_normal_speed() {
 
 #[test]
 fn upward_apex_control_is_weaker_and_input_normalization_has_no_diagonal_bonus() {
-    let cfg = map_movement().player;
+    let cfg = player_movement();
     let rising = accelerate_player(Vec3::ZERO, Vec3::ZERO, Vec3::X * 4.0, 1.0, false, &cfg, 0.01);
     let falling = accelerate_player(Vec3::ZERO, Vec3::ZERO, Vec3::X * 4.0, -1.0, false, &cfg, 0.01);
     assert!((falling.x - rising.x * 4.0).abs() < 1e-6);
@@ -207,7 +174,7 @@ fn upward_apex_control_is_weaker_and_input_normalization_has_no_diagonal_bonus()
 
 #[test]
 fn equal_ground_and_air_rates_have_equal_strength_independent_of_target_speed() {
-    let mut cfg = map_movement().player;
+    let mut cfg = player_movement();
     cfg.ground_acceleration = 20.0;
     cfg.air_acceleration = 20.0;
     cfg.ground_deceleration = 30.0;
@@ -230,7 +197,7 @@ fn equal_ground_and_air_rates_have_equal_strength_independent_of_target_speed() 
 
 #[test]
 fn air_stopping_and_sideways_braking_are_independent_and_do_not_fight_acceleration() {
-    let mut cfg = map_movement().player;
+    let mut cfg = player_movement();
     cfg.move_speed = 9.0;
     cfg.air_acceleration = 20.0;
     for lateral in [0.0, 40.0] {
@@ -248,7 +215,7 @@ fn air_stopping_and_sideways_braking_are_independent_and_do_not_fight_accelerati
 
 #[test]
 fn air_release_stops_exactly_and_reversal_does_not_restore_cancelled_speed() {
-    let mut cfg = map_movement().player;
+    let mut cfg = player_movement();
     cfg.move_speed = 9.0;
     cfg.air_deceleration = 30.0;
     let launch = Vec3::new(5.4, 0.0, 7.2);
@@ -269,7 +236,7 @@ fn air_release_stops_exactly_and_reversal_does_not_restore_cancelled_speed() {
 
 #[test]
 fn zero_air_rates_preserve_launch_velocity_under_every_input() {
-    let mut cfg = map_movement().player;
+    let mut cfg = player_movement();
     cfg.air_acceleration = 0.0;
     cfg.air_deceleration = 0.0;
     cfg.air_lateral_deceleration = 0.0;
@@ -291,7 +258,7 @@ fn zero_air_rates_preserve_launch_velocity_under_every_input() {
 
 #[test]
 fn air_acceleration_respects_blast_speed_without_passive_braking_storing_a_counter_impulse() {
-    let mut cfg = map_movement().player;
+    let mut cfg = player_movement();
     cfg.air_deceleration = 30.0;
     cfg.air_lateral_deceleration = 40.0;
     let blast = Vec3::Z * 20.0;

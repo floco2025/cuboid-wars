@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    fixtures::{connect, options},
+    *,
+};
 use crate::actors::{ActorMode, SurfaceAgent, SurfaceGoal, navigation::surface::fixtures};
 use common::{
     physics::{CharacterSupport, CharacterVerticalVelocity},
@@ -13,24 +16,20 @@ fn peace_returns_a_rooftop_actor_to_its_spawn_zone_before_roaming() {
     let mut app = build_server_app_with_loader(
         config,
         ServerAppOptions {
-            map: None,
             god: true,
-            peace: false,
-            initial_spawn: None,
-            checkpoint: None,
-            logging: false,
             network: NetworkOverrides {
                 server_hz: Some(30),
                 update_hz: Some(30),
                 snapshot_hz: Some(4),
             },
+            ..options()
         },
         None,
         None,
         fixtures::generate,
     )
     .expect("multistorey return scene");
-    let (client, _receiver) = super::fixtures::connect(&mut app);
+    let (client, _receiver) = connect(&mut app);
     client
         .send(ClientMessage::Login(CLogin {
             name: "Observer".into(),
@@ -128,17 +127,13 @@ fn hotel_scuttlers_return_from_the_roof_after_peace() {
         ServerAppOptions {
             map: Some("hotel".into()),
             god: true,
-            peace: false,
-            initial_spawn: None,
-            checkpoint: None,
-            logging: false,
-            network: NetworkOverrides::default(),
+            ..options()
         },
         None,
         None,
     )
     .expect("Hotel compatibility scene");
-    let (client, _receiver) = super::fixtures::connect(&mut app);
+    let (client, _receiver) = connect(&mut app);
     client
         .send(ClientMessage::Login(CLogin {
             name: "Observer".into(),

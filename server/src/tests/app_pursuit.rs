@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    fixtures::{connect, options},
+    *,
+};
 use crate::actors::{ActorMode, SurfaceAgent, navigation::surface::fixtures};
 use common::{
     physics::CharacterSupport,
@@ -30,9 +33,13 @@ impl PursuitScene {
         config.settings.movement.player.jump_speed = 12.0;
         config.settings.movement.low_gravity = 5.0;
         let mut app = build_server_app_with_loader(config, ServerAppOptions {
-            map: None,  god: true, peace: false, initial_spawn: None,
-            checkpoint: None, logging: false,
-            network: NetworkOverrides { server_hz: Some(30), update_hz: Some(30), snapshot_hz: Some(4) },
+            god: true,
+            network: NetworkOverrides {
+                server_hz: Some(30),
+                update_hz: Some(30),
+                snapshot_hz: Some(4),
+            },
+            ..options()
         }, None, None, |_, hz, settings| {
             let floor = |col, row| serde_json::json!({"col":col,"row":row,"all":"basement-floor"});
             fixtures::compile(serde_json::json!({"map": {
@@ -43,7 +50,7 @@ impl PursuitScene {
                 "actor_spawn_zones":[{"level":0,"cols":[16,17],"rows":[2,3],"kind":"scuttler","count":[1],"respawn_secs":null}]
             }}), hz, settings)
         }).expect("pursuit scene");
-        let (client, receiver) = super::fixtures::connect(&mut app);
+        let (client, receiver) = connect(&mut app);
         client
             .send(ClientMessage::Login(CLogin {
                 name: "Observer".into(),

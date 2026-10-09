@@ -1,6 +1,6 @@
 use super::{
     AirGraph, MissileFlight,
-    search::{AirSearch, RouteStatus, SearchBudget, SearchProgress},
+    search::{AirSearch, SearchBudget, SearchProgress},
     steering::{
         closest_point_on_segment, lead_point, pick_clear_direction, steer_clear, sweep_clear, target_velocity_estimate,
         terminal_approach, travel_clear, weave_direction,
@@ -81,7 +81,6 @@ pub fn guide_missile(
         info.target = None;
         info.search = None;
         info.path.clear();
-        info.route_status = RouteStatus::Idle;
         info.search_margin = MISSILE_SEARCH_WINDOW_MARGIN_CELLS;
     }
     if info
@@ -137,7 +136,6 @@ fn guided_velocity(
     {
         info.path.clear();
         info.search = None;
-        info.route_status = RouteStatus::Idle;
         info.search_margin = MISSILE_SEARCH_WINDOW_MARGIN_CELLS;
         info.path_target = None;
         info.path_retry_timer = 0.0;
@@ -245,31 +243,24 @@ fn route_objective(
             info.search_margin,
         ));
         info.path_target = Some(target_center);
-        info.route_status = RouteStatus::Pending;
     }
     if let Some(search) = &mut info.search {
         search.target = target_center;
         match search.advance(air_graph, carriers, collision_world, budget) {
-            SearchProgress::Pending => info.route_status = RouteStatus::Pending,
+            SearchProgress::Pending => {}
             SearchProgress::Found(path) => {
                 info.path = path;
                 info.search = None;
-                info.route_status = RouteStatus::Found;
                 info.path_retry_timer = MISSILE_PATH_RETRY_SECS;
             }
             SearchProgress::WindowLimited if info.search_margin < MISSILE_SEARCH_WINDOW_MARGIN_MAX_CELLS => {
                 // The way round may lie outside the window: look wider at once.
                 info.search = None;
-                info.route_status = RouteStatus::Limited;
                 info.search_margin = (info.search_margin * 2).min(MISSILE_SEARCH_WINDOW_MARGIN_MAX_CELLS);
                 info.path_retry_timer = 0.0;
             }
-            progress => {
+            _ => {
                 info.search = None;
-                info.route_status = match progress {
-                    SearchProgress::Unreachable => RouteStatus::Unreachable,
-                    _ => RouteStatus::Limited,
-                };
                 info.path_retry_timer = MISSILE_PATH_RETRY_SECS;
             }
         }

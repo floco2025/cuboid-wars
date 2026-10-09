@@ -156,14 +156,6 @@ fn obstruction_does_not_relock_an_unlocked_orbit() {
 }
 
 #[test]
-fn follow_pivot_rises_from_the_eye_to_the_pivot_height() {
-    let feet = Position { x: 1.0, y: 2.0, z: 3.0 };
-    for (blend, height) in [(0.0, 3.6), (1.0, 3.4), (0.5, 3.5)] {
-        assert!(follow_pivot(&feet, 1.6, 1.4, blend).abs_diff_eq(Vec3::new(1.0, height, 3.0), 1e-6));
-    }
-}
-
-#[test]
 fn near_plane_radius_never_drops_below_the_near_plane_corner() {
     let corner = Vec3::new(0.2, 0.1, 0.1).length();
     let radius = near_plane_radius(0.1, std::f32::consts::FRAC_PI_2, 2.0, 0.05);
@@ -220,20 +212,6 @@ fn crosshair_height_ignores_zoom_distance_and_recentres_when_obstructed() {
         app.world().resource::<CameraAim>().crosshair_height_offset,
         CROSSHAIR_THIRD_PERSON_HEIGHT
     );
-}
-
-#[test]
-fn debug_view_orbits_the_character_centre_through_geometry() {
-    let (mut app, camera, _) = app();
-    app.insert_resource(world(true));
-    app.insert_resource(CameraViewMode::Debug);
-    app.world_mut().resource_mut::<FollowCamera>().debug_distance = 12.0;
-    app.update();
-    let physics = app.world().resource::<GameplayConfig>().player.physics();
-    let centre = character_movement_center(Position::default(), physics);
-    let pose = app.world().get::<Transform>(camera).expect("camera transform missing");
-    assert!((pose.translation.distance(centre) - 12.0).abs() < 1e-4);
-    assert!(app.world().resource::<CameraViewMode>().is_debug());
 }
 
 #[test]

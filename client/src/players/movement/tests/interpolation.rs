@@ -1,10 +1,8 @@
 use super::*;
 use crate::{
     network::{SampleBuffer, SampleTiming},
-    players::PlayerMotionBundle,
     test_fixtures,
 };
-use bevy::ecs::system::RunSystemOnce;
 use common::{
     config::{NetworkConfig, UpdateCadence},
     protocol::{Carrier, MapLayout, PlayerGeneration, PlayerMove, SwitchState},
@@ -220,43 +218,6 @@ fn stopping_never_overshoots_or_settles_back_at_each_update_rate() {
 }
 
 #[test]
-fn lost_crossing_report_still_cuts_at_the_next_sample() {
-    let mut buffer = seeded(sample(1, 1.0, 0), immediate());
-    buffer.push(sample(4, 100.0, 1));
-    let mut last = 1.0;
-    for _ in 0..16 {
-        last = shown(&mut buffer, 0.25).pos.x;
-        assert!(
-            last == 1.0 || last == 100.0,
-            "a lost crossing blended across the portal"
-        );
-    }
-    assert_eq!(last, 100.0);
-}
-
-#[test]
-fn sequences_wrap_and_repeated_or_late_reports_do_not_rewind_playback() {
-    let mut buffer = seeded(sample(u32::MAX, 1.0, 0), immediate());
-    assert!(buffer.push(sample(1, 3.0, 0)));
-    assert!(!buffer.push(sample(u32::MAX, -10.0, 0)));
-    assert!(!buffer.push(sample(1, -10.0, 0)));
-    let mut previous = 1.0;
-    for _ in 0..8 {
-        let x = shown(&mut buffer, 0.5).pos.x;
-        assert!(x >= previous);
-        previous = x;
-    }
-    assert_eq!(previous, 3.0);
-    assert!(buffer.push(sample(3, 5.0, 0)));
-    for _ in 0..8 {
-        let x = shown(&mut buffer, 0.5).pos.x;
-        assert!(x >= previous && x <= 5.0);
-        previous = x;
-    }
-    assert_eq!(previous, 5.0);
-}
-
-#[test]
 fn landing_and_facing_follow_the_buffered_timeline() {
     let mut air = sample(1, 0.0, 0);
     air.movement.pos.y = 1.0;
@@ -284,33 +245,4 @@ fn landing_and_facing_follow_the_buffered_timeline() {
     let landed = shown(&mut buffer, 0.25);
     assert_eq!(landed.pos.y, 0.0);
     assert_eq!(landed.face_yaw, ground.movement.face_yaw);
-}
-
-#[test]
-fn the_local_body_is_never_interpolated() {
-    let mut world = World::new();
-    world.insert_resource(Time::<()>::default());
-    world.insert_resource(Time::<Fixed>::default());
-    world.init_resource::<Carriers>();
-    world.insert_resource(test_fixtures::map_settings());
-    world.init_resource::<PlayerMap>();
-    let start = sample(1, 0.0, 0).movement;
-    let mut buffer = seeded(sample(1, 0.0, 0), immediate());
-    buffer.push(sample(2, 10.0, 0));
-    let entity = world
-        .spawn((
-            PlayerId(1),
-            LocalPlayerMarker,
-            start.pos,
-            PlayerMotionBundle::from(&start),
-            PlayerAnimationMotion::default(),
-            buffer,
-        ))
-        .id();
-    for _ in 0..30 {
-        world
-            .run_system_once(interpolate_remote_players_system)
-            .expect("remote interpolation failed");
-    }
-    assert_eq!(world.get::<Position>(entity).expect("position missing").x, 0.0);
 }

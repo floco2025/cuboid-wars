@@ -70,26 +70,22 @@ fn stacked_same_kind_barriers_with_no_floor_beside_become_one_record() {
 }
 
 #[test]
-fn a_floor_slab_beside_the_edge_keeps_the_storeys_apart() {
-    let levels = vec![vec![edge(0, 1, 1, 1, RED)], vec![edge(0, 1, 1, 1, RED)]];
-    let masks = vec![empty_mask(), mask_with_floor(0, 1)];
+fn a_floor_slab_on_either_side_of_the_edge_keeps_the_storeys_apart() {
+    for (edge_cells, slab) in [
+        ([0, 1, 1, 1], mask_with_floor(0, 1)),
+        ([1, 0, 1, 1], mask_with_floor(0, 0)),
+    ] {
+        let [c0, r0, c1, r1] = edge_cells;
+        let levels = vec![vec![edge(c0, r0, c1, r1, RED)], vec![edge(c0, r0, c1, r1, RED)]];
+        let masks = vec![empty_mask(), slab];
 
-    let barriers = stack_barriers(&levels, &masks, &geometry(2, 2), CarrierId::WORLD);
+        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2), CarrierId::WORLD);
 
-    assert_eq!(barriers.len(), 2);
-    assert!(barriers.iter().all(|b| b.levels == 1 && b.height == WALL_HEIGHT));
-    assert_eq!(barriers[1].level, 1);
-    assert_eq!(barriers[1].y, LEVEL_HEIGHT);
-}
-
-#[test]
-fn a_floor_on_either_side_of_the_edge_splits_the_stack() {
-    let levels = vec![vec![edge(1, 0, 1, 1, RED)], vec![edge(1, 0, 1, 1, RED)]];
-    let masks = vec![empty_mask(), mask_with_floor(0, 0)];
-
-    let barriers = stack_barriers(&levels, &masks, &geometry(2, 2), CarrierId::WORLD);
-
-    assert_eq!(barriers.len(), 2);
+        assert_eq!(barriers.len(), 2);
+        assert!(barriers.iter().all(|b| b.levels == 1 && b.height == WALL_HEIGHT));
+        assert_eq!(barriers[1].level, 1);
+        assert_eq!(barriers[1].y, LEVEL_HEIGHT);
+    }
 }
 
 #[test]
@@ -132,7 +128,7 @@ fn a_missing_storey_ends_the_run() {
 }
 
 #[test]
-fn merges_adjacent_same_kind_horizontals() {
+fn touching_collinear_barriers_of_one_field_merge_on_either_axis() {
     let merged = merge_barriers(vec![
         h(0.0, 1.0, 0.0, RED),
         h(1.0, 2.0, 0.0, RED),
@@ -141,33 +137,7 @@ fn merges_adjacent_same_kind_horizontals() {
     assert_eq!(merged.len(), 1);
     assert!((merged[0].x1 - 0.0).abs() < MERGE_EPS);
     assert!((merged[0].x2 - 3.0).abs() < MERGE_EPS);
-}
 
-#[test]
-fn does_not_merge_across_a_field_change() {
-    let merged = merge_barriers(vec![
-        h(0.0, 1.0, 0.0, RED),
-        h(1.0, 2.0, 0.0, RED),
-        h(2.0, 3.0, 0.0, BLUE),
-        h(3.0, 4.0, 0.0, RED),
-    ]);
-    assert_eq!(merged.len(), 3);
-}
-
-#[test]
-fn does_not_merge_across_row_change() {
-    let merged = merge_barriers(vec![h(0.0, 1.0, 0.0, RED), h(0.0, 1.0, 1.0, RED)]);
-    assert_eq!(merged.len(), 2);
-}
-
-#[test]
-fn does_not_merge_with_gap() {
-    let merged = merge_barriers(vec![h(0.0, 1.0, 0.0, RED), h(2.0, 3.0, 0.0, RED)]);
-    assert_eq!(merged.len(), 2);
-}
-
-#[test]
-fn merges_verticals() {
     let merged = merge_barriers(vec![v(0.0, 0.0, 1.0, GREEN), v(0.0, 1.0, 2.0, GREEN)]);
     assert_eq!(merged.len(), 1);
     assert!((merged[0].z1 - 0.0).abs() < MERGE_EPS);
@@ -175,26 +145,33 @@ fn merges_verticals() {
 }
 
 #[test]
-fn does_not_merge_across_axis() {
-    let merged = merge_barriers(vec![h(0.0, 1.0, 0.0, RED), v(0.0, 0.0, 1.0, RED)]);
-    assert_eq!(merged.len(), 2);
-}
-
-#[test]
-fn does_not_merge_across_level() {
-    let mut b0 = h(0.0, 1.0, 0.0, RED);
-    let mut b1 = h(1.0, 2.0, 0.0, RED);
-    b0.level = 0;
-    b1.level = 1;
-    let merged = merge_barriers(vec![b0, b1]);
-    assert_eq!(merged.len(), 2);
-}
-
-#[test]
-fn does_not_merge_across_storey_span() {
-    let mut tall = h(0.0, 1.0, 0.0, RED);
-    tall.levels = 2;
-    tall.height = LEVEL_HEIGHT + WALL_HEIGHT;
-    let merged = merge_barriers(vec![tall, h(1.0, 2.0, 0.0, RED)]);
-    assert_eq!(merged.len(), 2);
+fn barriers_stay_apart_across_a_field_line_gap_axis_level_or_storey_span() {
+    let upper = Barrier {
+        level: 1,
+        ..h(1.0, 2.0, 0.0, RED)
+    };
+    let tall = Barrier {
+        levels: 2,
+        height: LEVEL_HEIGHT + WALL_HEIGHT,
+        ..h(1.0, 2.0, 0.0, RED)
+    };
+    for (case, barriers, expected) in [
+        (
+            "field",
+            vec![
+                h(0.0, 1.0, 0.0, RED),
+                h(1.0, 2.0, 0.0, RED),
+                h(2.0, 3.0, 0.0, BLUE),
+                h(3.0, 4.0, 0.0, RED),
+            ],
+            3,
+        ),
+        ("line", vec![h(0.0, 1.0, 0.0, RED), h(0.0, 1.0, 1.0, RED)], 2),
+        ("gap", vec![h(0.0, 1.0, 0.0, RED), h(2.0, 3.0, 0.0, RED)], 2),
+        ("axis", vec![h(0.0, 1.0, 0.0, RED), v(0.0, 0.0, 1.0, RED)], 2),
+        ("level", vec![h(0.0, 1.0, 0.0, RED), upper], 2),
+        ("storey span", vec![h(0.0, 1.0, 0.0, RED), tall], 2),
+    ] {
+        assert_eq!(merge_barriers(barriers).len(), expected, "{case}");
+    }
 }

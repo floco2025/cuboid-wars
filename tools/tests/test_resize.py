@@ -1,15 +1,23 @@
 import copy
 from unittest.mock import patch
 
-from editor_fixtures import WindowTestCase, faces, floor
+from editor_fixtures import WindowTestCase, blank_map, faces, floor
 from map_editor.dialogs.resize import ResizeMapDialog
 from map_editor.normalization import empty_level, empty_map
 
 
 class ResizeWindowTests(WindowTestCase):
+    # Opens Resize Map, where `edit` works the dialog and closes it.
+    def resize(self, edit):
+        def run(dialog):
+            edit(dialog)
+            return dialog.result()
+
+        with patch.object(ResizeMapDialog, "exec", run):
+            self.window.resize_map()
+
     def test_shrink_is_staged_and_undoable_without_changing_level_count(self):
-        data = empty_map(12, 10)
-        data["checkpoints"] = []
+        data = blank_map(12, 10)
         data["levels"] = [empty_level(i) for i in range(3)]
         data["levels"][1]["floors"] = [floor(3, 4)]
         data["levels"][1]["walls"] = [{"c0": 2, "r0": 4, "c1": 3, "r1": 4, **faces()}]
@@ -23,10 +31,8 @@ class ResizeWindowTests(WindowTestCase):
             self.assertEqual(self.window.map_data, before)
             self.assertEqual(self.window.undo_stack.count(), 0)
             dialog.accept()
-            return dialog.result()
 
-        with patch.object(ResizeMapDialog, "exec", edit):
-            self.window.resize_map()
+        self.resize(edit)
         after = copy.deepcopy(self.window.map_data)
         self.assertEqual((after["grid_cols"], after["grid_rows"]), (6, 3))
         self.assertEqual([level["name"] for level in after["levels"]], [level["name"] for level in before["levels"]])
@@ -51,10 +57,8 @@ class ResizeWindowTests(WindowTestCase):
             self.assertEqual(dialog.values(), (11, 10, 3, 2))
             dialog.shrink.setChecked(True)
             dialog.reject()
-            return dialog.result()
 
-        with patch.object(ResizeMapDialog, "exec", edit):
-            self.window.resize_map()
+        self.resize(edit)
         self.assertEqual(self.window.map_data, before)
         self.assertEqual(self.window.undo_stack.count(), 0)
 
@@ -69,17 +73,14 @@ class ResizeWindowTests(WindowTestCase):
                     dialog._rows_spin.setValue(12)
                     dialog._anchor_group.button(anchor).setChecked(True)
                     dialog.accept()
-                    return dialog.result()
 
-                with patch.object(ResizeMapDialog, "exec", edit):
-                    self.window.resize_map()
+                self.resize(edit)
                 tile = self.window.map_data["levels"][0]["floors"][0]
                 self.assertEqual((tile["col"], tile["row"]), expected)
 
     def test_shrink_changes_only_the_active_nested_geometry(self):
         data = copy.deepcopy(self.window.map_data)
-        child = empty_map(8, 8)
-        child["checkpoints"] = []
+        child = blank_map()
         child["levels"][0]["floors"] = [floor(2, 3)]
         data["nested_geometry"] = {"room": child, "other": empty_map(2, 2)}
         self.window.doc.replace_with_new(data)
@@ -89,10 +90,8 @@ class ResizeWindowTests(WindowTestCase):
         def edit(dialog):
             dialog.shrink.setChecked(True)
             dialog.accept()
-            return dialog.result()
 
-        with patch.object(ResizeMapDialog, "exec", edit):
-            self.window.resize_map()
+        self.resize(edit)
         self.assertEqual((self.window.map_data["grid_cols"], self.window.map_data["grid_rows"]), (1, 1))
         self.assertEqual(self.window.map_data["levels"][0]["floors"], [floor(0, 0)])
         self.assertEqual(self.window.doc.root_data["levels"], before["levels"])

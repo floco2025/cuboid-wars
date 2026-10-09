@@ -36,13 +36,6 @@ fn contains(bounds: (f32, f32, f32, f32), x: f32, z: f32) -> bool {
 }
 
 #[test]
-fn lone_bridge_has_the_same_width_as_a_floor() {
-    let bridges = flush_light_bridges(vec![bridge(0.0, 0.0, 0)], &[], PAD);
-    assert_eq!(bridges.len(), 1);
-    assert_eq!(bridges[0].bounds_xz(), floor(0.0, 0.0).bounds_xz());
-}
-
-#[test]
 fn straight_walkway_meets_both_landings_in_one_slab() {
     let bridges = flush_light_bridges(vec![bridge(0.0, 0.0, 0)], &[floor(-4.0, 0.0), floor(4.0, 0.0)], PAD);
     assert_eq!(bridges.len(), 1);

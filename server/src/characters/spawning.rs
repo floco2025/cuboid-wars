@@ -229,10 +229,6 @@ fn character_position_intersects_character(
     character_positions_intersect(pos, character_physics, other, character_physics)
 }
 
-#[cfg(test)]
-#[path = "tests/spawning.rs"]
-mod tests;
-
 pub(crate) fn generate_flying_spawn_position(
     grid: &CarrierGrid,
     carriers: &Carriers,
@@ -274,3 +270,7 @@ pub(crate) fn generate_flying_spawn_position(
         .then_some(pos)
     })
 }
+
+#[cfg(test)]
+#[path = "tests/spawning.rs"]
+mod tests;

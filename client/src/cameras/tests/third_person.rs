@@ -1,6 +1,7 @@
 use super::*;
 use crate::{cameras::CameraViewMode, constants::INPUT_ZOOM_SENSITIVITY_BASE, test_fixtures::follow_camera};
 use common::protocol::{CarrierId, MapLayout, Wall};
+
 fn world(wall: bool) -> CollisionWorld {
     CollisionWorld::from_map_layout(&MapLayout {
         walls: if wall {
@@ -21,6 +22,7 @@ fn world(wall: bool) -> CollisionWorld {
         ..default()
     })
 }
+
 #[test]
 fn arm_retracts_before_wall_and_eases_back_into_clear_space() {
     let mut state = FollowCamera {
@@ -46,6 +48,7 @@ fn arm_retracts_before_wall_and_eases_back_into_clear_space() {
     let released = third_person_transform(&clear, &[], pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
     assert!(released.translation.z > close.translation.z && released.translation.z < far.translation.z);
 }
+
 #[test]
 fn camera_pivot_inside_wall_collapses_arm() {
     assert_eq!(

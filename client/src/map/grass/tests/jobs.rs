@@ -1,6 +1,24 @@
+use std::sync::Arc;
+
+use bevy::mesh::VertexAttributeValues;
+use common::{
+    map::{Grounds, GroundsSettings},
+    protocol::{CarrierId, Floor, MapLayout, Ramp, RampDirection, RampShape},
+};
+
 use super::*;
-use crate::map::grass::{fixtures, mesh::GrassLod, patch::GrassPatch, sources::GrassChunkSource};
-use common::protocol::{CarrierId, Floor};
+use crate::{
+    map::grass::{
+        burn::{GrassBurn, grass_burn_system},
+        clearance::GrassClearance,
+        fixtures,
+        mesh::GrassLod,
+        patch::GrassPatch,
+        sources::GrassChunkSource,
+    },
+    test_fixtures::structural_solids,
+    vfx::ClipRegion,
+};
 
 fn visual() -> GrassChunkVisual {
     GrassChunkVisual {
@@ -131,11 +149,6 @@ fn completion_budget_rejects_stale_results_and_keeps_latest_input_queued() {
 
 #[test]
 fn explosion_burst_coalesces_fades_before_background_dispatch() {
-    use crate::{
-        map::grass::burn::{GrassBurn, grass_burn_system},
-        vfx::ClipRegion,
-    };
-    use std::time::Instant;
     let mut app = fixtures::app();
     app.add_systems(Update, grass_burn_system);
     let chunks: Vec<_> = (0..32).map(|_| app.world_mut().spawn(visual()).id()).collect();
@@ -151,7 +164,6 @@ fn explosion_burst_coalesces_fades_before_background_dispatch() {
         ))
         .id();
     app.update();
-    let start = Instant::now();
     for intensity in [0.99, 0.98, 0.5, 0.49] {
         app.world_mut()
             .get_mut::<GrassBurn>(burn)
@@ -159,16 +171,6 @@ fn explosion_burst_coalesces_fades_before_background_dispatch() {
             .set_intensity(intensity);
         app.update();
     }
-    let queued_time = start.elapsed();
-    let start = Instant::now();
-    for chunk in &chunks {
-        let visual = app.world().get::<GrassChunkVisual>(*chunk).expect("visual");
-        assert!(grass_chunk_mesh(visual, &visual.burns).is_some());
-    }
-    eprintln!(
-        "32 full grass chunks: synchronous mesh work {:?}; four burn updates queued in {queued_time:?}",
-        start.elapsed()
-    );
     for chunk in chunks {
         let visual = app.world().get::<GrassChunkVisual>(chunk).expect("visual");
         assert_eq!(visual.revision, 2);
@@ -180,13 +182,6 @@ fn explosion_burst_coalesces_fades_before_background_dispatch() {
 
 #[test]
 fn terrain_and_exterior_meshes_apply_the_same_physical_clearance() {
-    use crate::map::grass::clearance::GrassClearance;
-    use bevy::mesh::VertexAttributeValues;
-    use common::{
-        map::{Grounds, GroundsSettings},
-        protocol::{MapLayout, Ramp, RampDirection, RampShape},
-    };
-    use std::sync::Arc;
     let ramp = Ramp {
         x1: 0.0,
         x2: 10.0,
@@ -202,7 +197,7 @@ fn terrain_and_exterior_meshes_apply_the_same_physical_clearance() {
         carrier: CarrierId::WORLD,
     };
     let clearance = Arc::new(GrassClearance::new(
-        &crate::test_fixtures::structural_solids(&MapLayout {
+        &structural_solids(&MapLayout {
             ramps: vec![ramp],
             ..default()
         }),

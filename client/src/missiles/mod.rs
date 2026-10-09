@@ -1,6 +1,9 @@
 mod air_graph;
 mod blast;
 mod components;
+#[cfg(test)]
+#[path = "tests/fixtures.rs"]
+mod fixtures;
 mod flight;
 mod guidance;
 mod interpolation;

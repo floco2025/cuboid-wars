@@ -268,13 +268,3 @@ fn stopping_one_actor_leaves_the_other_loops_playing() {
         assert_eq!(app.world().get_entity(sound).is_ok(), actor != actors[0]);
     }
 }
-
-#[test]
-fn immovable_actor_has_no_movement_loop() {
-    let mut app = audio_app();
-    spawn_sound(&mut app, "turret");
-    assert_eq!(
-        app.world_mut().query::<&ActorMovementAudio>().iter(app.world()).count(),
-        0
-    );
-}

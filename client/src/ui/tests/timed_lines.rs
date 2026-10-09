@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use super::*;
+use crate::constants::HUD_LINE_FADE_SECS;
 
 fn app() -> App {
     let mut app = App::new();

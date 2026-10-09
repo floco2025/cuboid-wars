@@ -1,9 +1,9 @@
 """The single Ramp tool: drag direction, storeys, shape, Properties, and the slope note."""
 
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 
-from editor_fixtures import DEFAULT_ALIAS, WindowTestCase
+from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, blank_map
 from map_editor import constants as c
 from map_editor.editing import place_ramp
 from map_editor.elements import ElementRef
@@ -24,20 +24,10 @@ def ramp(lower, levels, cols, rows, direction="S", shape="solid"):
 
 class RampToolTests(WindowTestCase):
     def storeys(self, count):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["levels"] = [empty_level(index) for index in range(count)]
         self.window.doc.replace_with_new(data)
         self.window.set_mode(c.MODE_RAMP)
-
-    def point(self, x, y):
-        return self.window.canvas.viewport.from_grid(QPointF(x, y)).toPoint()
-
-    def drag(self, start, end):
-        canvas = self.window.canvas
-        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=self.point(*start))
-        QTest.mouseMove(canvas, self.point(*end))
-        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=self.point(*end))
 
     def ramps(self):
         return [(r["cols"], r["rows"], r["direction"], r["levels"]) for r in self.window.map_data["ramps"]]
@@ -78,8 +68,7 @@ class RampToolTests(WindowTestCase):
         window = self.window
         for levels in ("2", None, [], {}):
             with self.subTest(levels=levels):
-                data = empty_map(8, 8)
-                data["checkpoints"] = []
+                data = blank_map()
                 data["levels"] = [empty_level(index) for index in range(3)]
                 data["ramps"] = [ramp(0, levels, [1, 2], [1, 5])]
                 window.doc.replace_with_new(data)

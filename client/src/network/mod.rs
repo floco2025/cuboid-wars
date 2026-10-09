@@ -27,10 +27,6 @@ pub use resources::{LastPlayerMovesTick, LastSnapshotTick, RoundTripTime};
 pub(crate) use sample_buffer::{SampleBuffer, SampleTiming};
 pub use tick::TickSync;
 
-#[cfg(test)]
-#[path = "tests/timing.rs"]
-mod timing_tests;
-
 mod playback;
 pub(crate) use playback::live_gameplay;
 pub use playback::{PlaybackFrame, PlaybackMode, apply_playback_frame, install_playback};

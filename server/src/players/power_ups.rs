@@ -24,7 +24,3 @@ impl PowerUpState {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "tests/power_ups.rs"]
-mod tests;

@@ -1,18 +1,11 @@
-use super::*;
-use crate::materials::terrain::TerrainExtension;
 use bevy::{app::TaskPoolPlugin, asset::AssetPlugin, ecs::message::Messages};
 
-#[test]
-fn terrain_images_queue_every_texture_once() {
-    let mut images = Assets::<Image>::default();
-    let grass = images.add(Image::default());
-    let soil = images.add(Image::default());
-    let normal = images.add(Image::default());
-    let material = TerrainMaterial {
-        base: StandardMaterial {
-            normal_map_texture: Some(normal.clone()),
-            ..default()
-        },
+use super::*;
+use crate::materials::terrain::TerrainExtension;
+
+fn terrain_material(grass: &Handle<Image>, soil: &Handle<Image>) -> TerrainMaterial {
+    TerrainMaterial {
+        base: default(),
         extension: TerrainExtension {
             grass: grass.clone(),
             soil: soil.clone(),
@@ -20,7 +13,28 @@ fn terrain_images_queue_every_texture_once() {
             grass_color: Vec4::ONE,
             weather: Vec4::ZERO,
         },
-    };
+    }
+}
+
+fn modified<M: Asset>(app: &App) -> Vec<AssetId<M>> {
+    app.world()
+        .resource::<Messages<AssetEvent<M>>>()
+        .iter_current_update_messages()
+        .filter_map(|event| match event {
+            AssetEvent::Modified { id } => Some(*id),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn terrain_images_queue_every_texture_once() {
+    let mut images = Assets::<Image>::default();
+    let grass = images.add(Image::default());
+    let soil = images.add(Image::default());
+    let normal = images.add(Image::default());
+    let mut material = terrain_material(&grass, &soil);
+    material.base.normal_map_texture = Some(normal.clone());
     let mut state = MaterialMipmapState::default();
     for _ in 0..2 {
         queue_images(&mut state, terrain_material_images(&material), "terrain".into());
@@ -42,26 +56,8 @@ fn terrain_texture_replacement_rebinds_only_dependent_materials() {
     let unrelated_image = images.add(Image::default());
     let (dependent, _unrelated) = {
         let mut materials = app.world_mut().resource_mut::<Assets<TerrainMaterial>>();
-        let dependent = materials.add(TerrainMaterial {
-            base: default(),
-            extension: TerrainExtension {
-                grass: grass.clone(),
-                soil: soil.clone(),
-                surface: Vec4::ZERO,
-                grass_color: Vec4::ONE,
-                weather: Vec4::ZERO,
-            },
-        });
-        let unrelated = materials.add(TerrainMaterial {
-            base: default(),
-            extension: TerrainExtension {
-                grass: unrelated_image.clone(),
-                soil: unrelated_image.clone(),
-                surface: Vec4::ZERO,
-                grass_color: Vec4::ONE,
-                weather: Vec4::ZERO,
-            },
-        });
+        let dependent = materials.add(terrain_material(&grass, &soil));
+        let unrelated = materials.add(terrain_material(&unrelated_image, &unrelated_image));
         (dependent, unrelated)
     };
     app.update();
@@ -73,16 +69,7 @@ fn terrain_texture_replacement_rebinds_only_dependent_materials() {
         &HashSet::from([soil.id()]),
     );
     app.update();
-    let modified: Vec<_> = app
-        .world()
-        .resource::<Messages<AssetEvent<TerrainMaterial>>>()
-        .iter_current_update_messages()
-        .filter_map(|event| match event {
-            AssetEvent::Modified { id } => Some(*id),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(modified, vec![dependent.id()]);
+    assert_eq!(modified::<TerrainMaterial>(&app), vec![dependent.id()]);
 }
 
 #[test]
@@ -104,23 +91,6 @@ fn material_image_match_checks_every_texture_slot() {
     }
     let unrelated = images.add(Image::default());
     assert!(!material_uses_any_image(&material, &HashSet::from([unrelated.id()])));
-}
-
-#[test]
-fn material_images_report_their_texture_slots() {
-    let mut images = Assets::<Image>::default();
-    let handle = images.add(Image::default());
-    let material = StandardMaterial {
-        base_color_texture: Some(handle.clone()),
-        normal_map_texture: Some(handle),
-        ..default()
-    };
-
-    let slots = standard_material_images(&material)
-        .map(|(slot, _)| slot)
-        .collect::<Vec<_>>();
-
-    assert_eq!(slots, ["base color texture", "normal-map texture"]);
 }
 
 // Replacing a texture must re-prepare every material bound to it, which
@@ -151,14 +121,5 @@ fn image_replacement_marks_dependent_materials_modified() {
     );
     app.update();
 
-    let modified: Vec<_> = app
-        .world()
-        .resource::<Messages<AssetEvent<StandardMaterial>>>()
-        .iter_current_update_messages()
-        .filter_map(|event| match event {
-            AssetEvent::Modified { id } => Some(*id),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(modified, vec![dependent.id()]);
+    assert_eq!(modified::<StandardMaterial>(&app), vec![dependent.id()]);
 }

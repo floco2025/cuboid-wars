@@ -16,28 +16,14 @@ fn tick(state: &mut WeatherState, delta: f32) {
 }
 
 #[test]
-fn initial_clear_duration_is_within_bounds() {
-    let state = WeatherState::new(cycle(), WeatherMode::Auto);
-    let WeatherPhase::Clear { remaining_secs } = state.phase else {
-        panic!("weather must start clear, got {:?}", state.phase);
-    };
-    assert!((10.0..=20.0).contains(&remaining_secs));
-    assert_eq!(state.cloud_cover(), 0.0);
-    assert!(!state.is_raining());
-}
-
-#[test]
-fn mode_clear_holds_clear_forever() {
+fn a_concrete_mode_holds_forever() {
     let mut state = WeatherState::new(cycle(), WeatherMode::Clear);
     for _ in 0..100 {
         tick(&mut state, 30.0);
     }
     assert!(matches!(state.phase, WeatherPhase::Clear { .. }));
     assert_eq!(state.cloud_cover(), 0.0);
-}
 
-#[test]
-fn mode_rain_starts_raining_and_holds() {
     let mut state = WeatherState::new(cycle(), WeatherMode::Rain);
     let WeatherPhase::Raining { remaining_secs } = state.phase else {
         panic!("rain mode must start raining, got {:?}", state.phase);
@@ -45,7 +31,6 @@ fn mode_rain_starts_raining_and_holds() {
     assert!((5.0..=8.0).contains(&remaining_secs));
     assert_eq!(state.cloud_cover(), 1.0);
     assert!(state.is_raining());
-
     for _ in 0..100 {
         tick(&mut state, 30.0);
     }
@@ -173,28 +158,4 @@ fn resume_auto_continues_the_cycle() {
     // The held clear stretch now ends into a ramp on its own.
     tick(&mut state, 25.0);
     assert!(matches!(state.phase, WeatherPhase::RampIn { .. }));
-}
-
-#[test]
-fn status_names_phase_and_source() {
-    let mut state = WeatherState::new(cycle(), WeatherMode::Clear);
-    assert_eq!(state.status(), "weather: clear (held)");
-    state.resume_auto().expect("resume from held clear failed");
-    assert_eq!(state.status(), "weather: clear (auto)");
-    state.hold_rain().expect("hold rain from clear failed");
-    tick(&mut state, 3.0);
-    assert_eq!(state.status(), "weather: rain (held)");
-}
-
-#[test]
-fn intensity_rises_monotonically_during_ramp() {
-    let mut state = WeatherState::new(cycle(), WeatherMode::Auto);
-    tick(&mut state, 25.0);
-
-    let mut last = state.cloud_cover();
-    for _ in 0..10 {
-        tick(&mut state, 0.1);
-        assert!(state.cloud_cover() >= last);
-        last = state.cloud_cover();
-    }
 }

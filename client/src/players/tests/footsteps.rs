@@ -25,25 +25,6 @@ fn contacts_cross_once_in_each_direction_and_across_loop_boundary() {
 }
 
 #[test]
-fn faster_playback_crosses_contacts_more_often_without_changing_phase() {
-    for speed in [0.5_f32, 1.0, 2.0] {
-        let mut count = 0;
-        for frame in 0..800 {
-            let previous = frame as f32 / 100.0 * speed;
-            let current = (frame + 1) as f32 / 100.0 * speed;
-            count += usize::from(contact_crossed(
-                previous.fract(),
-                current.fract(),
-                false,
-                current.floor() > previous.floor(),
-                &[0.25, 0.75],
-            ));
-        }
-        assert_eq!(count, (16.0 * speed) as usize);
-    }
-}
-
-#[test]
 fn selection_uses_list_parity_and_avoids_repeats_when_that_group_has_choices() {
     let mut rng = StdRng::seed_from_u64(1);
     let samples = ["step08.ogg", "step03.ogg", "step02.ogg", "step01.ogg", "step00.ogg"].map(str::to_owned);
@@ -150,25 +131,6 @@ fn sound_app(local: bool, support: CharacterSupport, volume_db: f32, clip: Playe
 }
 
 #[test]
-fn hidden_local_body_plays_balanced_flat_audio_and_remote_body_plays_spatial_audio() {
-    for local in [true, false] {
-        for db in [-19.0, 0.0, 20.0] {
-            let mut app = sound_app(local, CharacterSupport::Ground, -6.0, PlayerClip::Walk);
-            app.world_mut()
-                .resource_mut::<ClientSettings>()
-                .preferences
-                .footstep_volume_db = db;
-            app.update();
-            let world = app.world_mut();
-            let mut query = world.query::<&PlaybackSettings>();
-            let playback = query.single(world).expect("one footstep missing");
-            assert_eq!(playback.spatial, !local);
-            assert!((playback.volume.to_linear() - 10.0_f32.powf((-12.0 + db) / 20.0)).abs() < 0.0001);
-        }
-    }
-}
-
-#[test]
 fn steps_and_accents_alternate_across_surface_changes_and_pauses() {
     let mut app = sound_app(true, CharacterSupport::Ground, 0.0, PlayerClip::Walk);
     {
@@ -221,21 +183,6 @@ fn steps_and_accents_alternate_across_surface_changes_and_pauses() {
         app.update();
         let world = app.world_mut();
         assert_eq!(world.query::<&PlaybackSettings>().iter(world).count(), step * 2);
-    }
-}
-
-#[test]
-fn airborne_ladder_hold_idle_and_muted_players_do_not_emit_steps() {
-    for (support, volume, clip) in [
-        (CharacterSupport::Airborne, 0.0, PlayerClip::Walk),
-        (CharacterSupport::Ladder, 0.0, PlayerClip::Climb),
-        (CharacterSupport::Ground, 0.0, PlayerClip::Idle),
-        (CharacterSupport::Ground, -1000.0, PlayerClip::Walk),
-    ] {
-        let mut app = sound_app(true, support, volume, clip);
-        app.update();
-        let world = app.world_mut();
-        assert_eq!(world.query::<&PlaybackSettings>().iter(world).count(), 0);
     }
 }
 

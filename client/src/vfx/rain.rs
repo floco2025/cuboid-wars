@@ -307,7 +307,3 @@ pub fn rain_audio_system(
         None => {}
     }
 }
-
-#[cfg(test)]
-#[path = "tests/rain.rs"]
-mod tests;

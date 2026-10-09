@@ -231,11 +231,6 @@ impl ActorMap {
     pub(crate) fn forget_vacated_spawn_zones(&mut self) {
         self.vacated_spawn_zones.clear();
     }
-
-    #[must_use]
-    pub fn has_vacated_spawn_zones(&self) -> bool {
-        !self.vacated_spawn_zones.is_empty()
-    }
 }
 
 // Per-zone slot accounting, keyed by zone index. A zone's population is its
@@ -286,7 +281,3 @@ impl ActorSpawner {
         id
     }
 }
-
-#[cfg(test)]
-#[path = "tests/resources.rs"]
-mod tests;

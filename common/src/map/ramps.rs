@@ -1,9 +1,6 @@
-use bevy_math::{Vec3, Vec3Swizzles};
+use bevy_math::Vec3;
 
-use crate::{
-    math::PHYSICS_EPSILON,
-    protocol::{Ramp, RampDirection, RampShape},
-};
+use crate::protocol::{Ramp, RampDirection, RampShape};
 
 // The slope's four corners: the low pair at `Ramp::y`, the high pair a rise
 // above it, index `i` of both on the same side of the run.
@@ -40,19 +37,6 @@ impl Ramp {
             low: low.map(|(x, z)| Vec3::new(x, self.y, z)),
             high: high.map(|(x, z)| Vec3::new(x, self.y + self.height, z)),
         }
-    }
-
-    // The surface height over (x, z), clamped to the footprint along the run.
-    #[must_use]
-    pub fn surface_at(&self, x: f32, z: f32) -> f32 {
-        let corners = self.corners();
-        let run = (corners.high[0] - corners.low[0]).xz();
-        let length_squared = run.length_squared();
-        if length_squared < PHYSICS_EPSILON * PHYSICS_EPSILON {
-            return self.y;
-        }
-        let progress = ((Vec3::new(x, 0.0, z) - corners.low[0]).xz().dot(run) / length_squared).clamp(0.0, 1.0);
-        self.y + progress * self.height
     }
 
     // The slope's upward normal; none for a footprint without a run or a width.

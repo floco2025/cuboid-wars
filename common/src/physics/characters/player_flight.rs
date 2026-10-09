@@ -44,7 +44,8 @@ pub struct PlayerFlightTick {
 // without a world, for previews. A zero wish is released input, the only
 // time the funnel acts. A hop that tilts the body crouches it about its
 // centre, which is all this step reads, so the state stays the standing
-// feet. `tests/player_flight.rs` holds it to the full step tick for tick.
+// feet. The client's `players/movement/tests/step.rs` holds it to the full
+// step tick for tick.
 #[must_use]
 pub fn step_player_flight(
     state: PlayerFlightState,

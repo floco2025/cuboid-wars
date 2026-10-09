@@ -111,7 +111,3 @@ pub fn ui_hud_banner_system(
         ));
     }
 }
-
-#[cfg(test)]
-#[path = "tests/hud_banner.rs"]
-mod tests;

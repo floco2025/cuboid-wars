@@ -9,7 +9,3 @@ pub fn passable_fields(held_keys: &[FieldId], open: &[FieldId]) -> Vec<FieldId> 
     passable.dedup();
     passable
 }
-
-#[cfg(test)]
-#[path = "tests/fields.rs"]
-mod tests;

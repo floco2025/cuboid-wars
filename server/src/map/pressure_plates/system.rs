@@ -303,3 +303,7 @@ pub(super) fn presser_of_switch(
     }
     standing
 }
+
+#[cfg(test)]
+#[path = "tests/system.rs"]
+mod tests;

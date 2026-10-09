@@ -1,4 +1,3 @@
-use crate::config::fixtures;
 use bevy::prelude::*;
 use common::{
     config::{GameplayConfig, NetworkConfig},
@@ -8,6 +7,7 @@ use crossbeam_channel::{Receiver, unbounded};
 
 use super::{MissileMap, expiry::missiles_expiry_system, handle_missile_moves};
 use crate::{
+    config::fixtures,
     players::{PlayerInfo, PlayerMap},
     schedule::ticks_from_secs,
 };

@@ -28,8 +28,10 @@ fn sample() -> LocalSettings {
 }
 
 #[test]
-fn local_settings_round_trip() {
-    let path = std::env::temp_dir().join(format!("cuboid_local_round_trip_{}.json", std::process::id()));
+fn saving_over_an_existing_file_round_trips_the_preferences() {
+    let directory = tempfile::tempdir().expect("settings directory unavailable");
+    let path = directory.path().join("client_local.json");
+    fs::write(&path, "incomplete").expect("existing settings fixture failed to write");
     let saved = sample();
     saved.save_to_path(&path).expect("local settings failed to save");
     let loaded = LocalSettings::load_from_path(&path).expect("saved local settings failed to load");
@@ -37,31 +39,14 @@ fn local_settings_round_trip() {
     let mut settings = test_fixtures::client_settings();
     loaded.apply_to(&mut settings);
     assert_eq!(settings.preferences, saved.preferences);
-    std::fs::remove_file(&path).ok();
-}
-
-#[test]
-fn local_settings_save_replaces_existing_file() {
-    let path = std::env::temp_dir().join(format!("cuboid_local_replace_{}.json", std::process::id()));
-    std::fs::write(&path, "incomplete").expect("existing settings fixture failed to write");
-    let saved = sample();
-
-    saved.save_to_path(&path).expect("local settings failed to replace");
-
-    let loaded = LocalSettings::load_from_path(&path).expect("replaced local settings failed to load");
-    assert_eq!(saved, loaded);
-    let mut settings = test_fixtures::client_settings();
-    loaded.apply_to(&mut settings);
-    assert_eq!(settings.preferences, saved.preferences);
-    std::fs::remove_file(&path).ok();
 }
 
 #[test]
 fn stale_version_is_ignored() {
-    let path = std::env::temp_dir().join(format!("cuboid_local_stale_{}.json", std::process::id()));
+    let directory = tempfile::tempdir().expect("settings directory unavailable");
+    let path = directory.path().join("client_local.json");
     let mut stale = sample();
     stale.version = LOCAL_SETTINGS_VERSION + 1;
     stale.save_to_path(&path).expect("stale local settings failed to save");
     assert!(LocalSettings::load_from_path(&path).is_none());
-    std::fs::remove_file(&path).ok();
 }

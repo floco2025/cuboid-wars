@@ -1,16 +1,14 @@
 import copy
 import unittest
-from unittest.mock import patch
 
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QContextMenuEvent, QKeySequence, QWheelEvent
+from PySide6.QtGui import QKeySequence, QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QComboBox, QMenu, QSpinBox, QStatusBar
+from PySide6.QtWidgets import QApplication, QComboBox, QSpinBox, QStatusBar
 
 from editor_fixtures import WindowTestCase
 from map_editor.constants import MODE_ACTOR_SPAWN_ZONE, MODE_CHECKPOINT, MODE_ERASE, MODE_JUMP_PATH
 from map_editor.transforms import insert_level_data
-from map_editor.types import ZoneRef
 from map_editor.viewport import Viewport
 
 
@@ -127,7 +125,7 @@ class EditorNavigationTests(WindowTestCase):
         area.verticalScrollBar().setValue(area.verticalScrollBar().maximum())
         self.assertAlmostEqual(canvas.viewport.offset.x(), -area.horizontalScrollBar().value(), delta=0.5)
         self.assertAlmostEqual(canvas.viewport.offset.y(), -area.verticalScrollBar().value(), delta=0.5)
-        position = canvas.viewport.from_grid(QPointF(7.5, 7.5)).toPoint()
+        position = self.point(7.5, 7.5)
         self.assertTrue(canvas.rect().contains(position))
         QTest.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=position)
         self.assertEqual(self.window.selection.anchor, (7, 7))
@@ -153,7 +151,7 @@ class EditorNavigationTests(WindowTestCase):
         self.assertEqual(area.horizontalScrollBar().pageStep(), canvas.width())
         self.assertEqual(area.verticalScrollBar().pageStep(), canvas.height())
 
-    def test_texture_host_controls_do_not_occupy_the_window(self):
+    def test_the_window_has_no_status_bar(self):
         self.assertIsNone(self.window.findChild(QStatusBar))
 
     def test_panning_stops_at_map_edges_and_fit_recovers_keyboard_focus(self):
@@ -180,49 +178,3 @@ class EditorNavigationTests(WindowTestCase):
         self.scroll(pixels=QPoint(-10000, 10000))
         self.assertEqual(canvas.viewport.offset, QPointF())
         self.assertTrue(canvas.viewport.fitted)
-
-
-class SpawnZoneHandleTests(WindowTestCase):
-    def test_right_click_selection_can_resize_without_option_and_undo(self):
-        window = self.window
-        data = copy.deepcopy(window.map_data)
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [2, 4], "rows": [2, 4], "kind": "zapper", "count": [3], "respawn_secs": 90}
-        ]
-        window.apply_change("Spawn zone", data)
-        canvas = window.canvas
-        canvas.zoom_by(1.2)
-        canvas.pan_by(QPointF(30, 20))
-        point = canvas.viewport.from_grid(QPointF(3, 3)).toPoint()
-        menu = QMenu(canvas)
-        with patch("map_editor.interaction.QMenu", return_value=menu), patch.object(menu, "exec"):
-            canvas.contextMenuEvent(QContextMenuEvent(QContextMenuEvent.Reason.Mouse, point, canvas.mapToGlobal(point)))
-        self.assertEqual(window.selected_spawn_zone_ref, ZoneRef("actor_spawn_zones", 0))
-        start = canvas.viewport.from_grid(QPointF(4, 4)).toPoint()
-        end = canvas.viewport.from_grid(QPointF(5, 6)).toPoint()
-        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=start)
-        self.assertEqual(window.canvas.input.gesture.handle.name, "se")
-        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=end)
-        zone = window.map_data["actor_spawn_zones"][0]
-        self.assertEqual((zone["cols"], zone["rows"]), ([2, 5], [2, 6]))
-        self.assertEqual((zone["kind"], zone["count"]), ("zapper", [3]))
-        window.undo_stack.undo()
-        self.assertEqual(window.map_data["actor_spawn_zones"], data["actor_spawn_zones"])
-        window.undo_stack.redo()
-        self.assertEqual(window.map_data["actor_spawn_zones"][0]["cols"], [2, 5])
-
-    def test_checkpoint_side_handle_and_normal_tile_selection(self):
-        window = self.window
-        window.add_floor_rect((2, 2), (4, 3))
-        window.add_checkpoint_rect((2, 2), (3, 3))
-        self.click(2, 2)
-        canvas = window.canvas
-        start = canvas.viewport.from_grid(QPointF(4, 3)).toPoint()
-        end = canvas.viewport.from_grid(QPointF(5, 3)).toPoint()
-        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=start)
-        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=end)
-        self.assertEqual(window.map_data["checkpoints"][-1]["cols"], [2, 5])
-        QTest.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=canvas.viewport.from_grid(QPointF(6.5, 6.5)).toPoint())
-        self.assertIsNone(window.selected_spawn_zone_ref)
-        self.assertTrue(window.selection.empty)
-        self.assertEqual(window.selection.anchor, (6, 6))

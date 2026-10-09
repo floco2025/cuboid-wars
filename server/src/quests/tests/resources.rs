@@ -2,31 +2,29 @@ use super::*;
 use crate::{
     config::QuestKind,
     players::PlayerQuestState,
-    quests::test_support::{catalog, join, quest},
+    quests::test_support::{Quests, catalog, quest},
 };
 use common::protocol::{PlayerId, SwitchId};
 
 #[test]
 fn group_statuses_list_only_unlocked_group_quests() {
-    let config = catalog(vec![
+    let mut quests = Quests::new(vec![
         quest("solo", QuestKind::Gold, QuestScope::Individual, 3, None),
         quest("pool", QuestKind::ActorKills, QuestScope::Shared, 4, None),
         quest("gold", QuestKind::Gold, QuestScope::Everyone, 2, None),
         quest("later", QuestKind::Gold, QuestScope::Shared, 1, Some("gold")),
     ]);
-    let quest_catalog = QuestCatalog::from_config(&config);
-    let board = QuestBoard::from_catalog(&quest_catalog, None);
-    let mut players = PlayerMap::default();
-    let _alice = join(&mut players, 1, &quest_catalog, &board);
-    let _bob = join(&mut players, 2, &quest_catalog, &board);
-    players
+    let _alice = quests.join(1);
+    let _bob = quests.join(2);
+    quests
+        .players
         .get_mut(&PlayerId(1))
         .expect("alice")
         .session
         .quest_states
         .insert(QuestId("gold".to_owned()), PlayerQuestState::Everyone { progress: 2 });
 
-    let statuses = board.group_statuses(&quest_catalog, &players);
+    let statuses = quests.board.group_statuses(&quests.catalog, &quests.players);
 
     let ids: Vec<&str> = statuses.iter().map(|status| status.id.0.as_str()).collect();
     assert_eq!(ids, ["pool", "gold"]);

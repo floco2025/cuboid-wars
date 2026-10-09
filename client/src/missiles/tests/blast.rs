@@ -1,21 +1,12 @@
+use super::super::fixtures::{wall, world};
 use super::*;
-use crate::test_fixtures::{WALL_HEIGHT, WALL_THICKNESS, gameplay_config};
-use common::protocol::{ActorId, CarrierId, MapLayout, PlayerGeneration, PlayerId, Wall};
+use crate::test_fixtures::gameplay_config;
+use common::protocol::{ActorId, MapLayout, PlayerGeneration, PlayerId};
 
 #[test]
 fn blast_hits_fall_off_with_distance_shove_outward_and_stop_at_cover() {
-    let world = CollisionWorld::from_map_layout(&MapLayout {
-        walls: vec![Wall {
-            x1: -3.0,
-            z1: 2.0,
-            x2: 3.0,
-            z2: 2.0,
-            width: WALL_THICKNESS,
-            y: 0.0,
-            height: WALL_HEIGHT,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
+    let world = world(&MapLayout {
+        walls: vec![wall(-3.0, 2.0, 3.0, 2.0)],
         ..Default::default()
     });
     let physics = gameplay_config().player.physics();

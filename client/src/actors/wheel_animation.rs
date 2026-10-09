@@ -87,7 +87,7 @@ pub(crate) fn wheel_animation_setup_system(
     }
 }
 
-pub(super) fn drive_speed(intent: ActorMoveIntent, velocity: Vec3, support: Option<CharacterSupport>) -> f32 {
+fn drive_speed(intent: ActorMoveIntent, velocity: Vec3, support: Option<CharacterSupport>) -> f32 {
     if matches!(support, Some(CharacterSupport::Airborne | CharacterSupport::Ladder)) {
         return 0.0;
     }
@@ -113,3 +113,7 @@ pub(crate) fn wheel_animation_update_system(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "tests/wheel_animation.rs"]
+mod tests;

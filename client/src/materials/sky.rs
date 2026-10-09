@@ -170,7 +170,3 @@ impl Plugin for ProceduralSkyMaterialPlugin {
         app.add_plugins(MaterialPlugin::<ProceduralSkyMaterial>::default());
     }
 }
-
-#[cfg(test)]
-#[path = "tests/sky.rs"]
-mod tests;

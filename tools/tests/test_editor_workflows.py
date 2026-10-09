@@ -7,10 +7,15 @@ from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QComboBox, QPushButton, QSpinBox
 
-from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, floor, furnished_map, nested
+from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, actor_zone, blank_map, floor, furnished_map, nested
 from map_editor import constants as c
 from map_editor.elements import ElementRef, refs_for_hit
 from map_editor.normalization import empty_level, empty_map
+
+
+# The zone the Properties tests edit, by its counts and kind.
+def zone(**fields):
+    return actor_zone(**{"cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": [2, 4], **fields})
 
 
 class EditorWorkflowTests(WindowTestCase):
@@ -19,14 +24,8 @@ class EditorWorkflowTests(WindowTestCase):
         self.window.undo_stack.clear()
         self.app.processEvents()
 
-    def drag(self, start, end):
-        canvas = self.window.canvas
-        a = canvas.viewport.from_grid(QPointF(*start)).toPoint()
-        b = canvas.viewport.from_grid(QPointF(*end)).toPoint()
-        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=a)
-        QTest.mouseMove(canvas, b)
-        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=b)
-        self.app.processEvents()
+    def inspect_zone(self, index=0):
+        self.window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", index)))
 
     def edit_text(self, widget, text, *, finish=False):
         widget.setFocus()
@@ -36,8 +35,7 @@ class EditorWorkflowTests(WindowTestCase):
             QTest.keyClick(widget, Qt.Key.Key_Return)
 
     def test_sampling_preserves_each_material_face_and_a_new_material_clears_the_sample(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         source = floor(1, 1)
         source["north"], source["top"] = "wall", "floor-a"
         data["levels"][0]["floors"] = [source]
@@ -57,19 +55,17 @@ class EditorWorkflowTests(WindowTestCase):
     def test_sampling_actor_zone_reuses_count_list_respawn_roam_and_controls(self):
         data = furnished_map()
         data["actor_spawn_zones"] = [
-            {
-                "level": 0,
-                "levels": 1,
-                "cols": [2, 3],
-                "rows": [2, 3],
-                "kind": "scuttler",
-                "count": [2, 4, 6],
-                "respawn_secs": None,
-                "beam_in_secs": 2.0,
-                "roam_distance": 7.5,
-                "switch": "barrier_1",
-                "initially_on": False,
-            }
+            actor_zone(
+                cols=[2, 3],
+                rows=[2, 3],
+                kind="scuttler",
+                count=[2, 4, 6],
+                respawn_secs=None,
+                beam_in_secs=2.0,
+                roam_distance=7.5,
+                switch="barrier_1",
+                initially_on=False,
+            )
         ]
         self.set_data(data)
         self.window.sample_at(QPointF(2.5, 2.5))
@@ -86,8 +82,7 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual((placed["switch"], placed["initially_on"]), ("barrier_1", False))
 
     def test_selection_scope_controls_copy_and_delete_without_prompts_and_clamps_after_level_removal(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["levels"].append(empty_level(1))
         data["levels"][1]["floors"] = [floor(1, 1)]
@@ -95,9 +90,8 @@ class EditorWorkflowTests(WindowTestCase):
         self.window.set_tile_selection((1, 1, 2, 2))
         scope = self.window.tool_settings.findChild(QSpinBox)
         scope.setValue(2)
-        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected dialog")):
-            self.window.copy_selection()
-            self.window.delete_selection()
+        self.window.copy_selection()
+        self.window.delete_selection()
         self.assertEqual(len(self.window.tile_clipboard["levels"]), 2)
         self.assertTrue(all(not level["floors"] for level in self.window.map_data["levels"]))
         self.window.undo_stack.undo()
@@ -132,8 +126,7 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual(window.map_data, before)
 
     def test_rotation_is_previewed_before_placement_and_undo_restores_the_source(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["levels"][0]["floors"] = [floor(1, 1), floor(2, 1)]
         self.set_data(data)
         window = self.window
@@ -160,8 +153,7 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertIsNone(window.pending_block)
 
     def test_inspector_edits_mixed_materials_as_one_undo_without_changing_other_faces(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         a, b = floor(1, 1), floor(2, 1)
         a["top"] = "floor-a"
         b["top"] = "floor-b"
@@ -170,27 +162,24 @@ class EditorWorkflowTests(WindowTestCase):
         window = self.window
         before = copy.deepcopy(window.map_data)
         window.set_tile_selection((1, 1, 3, 2))
-        inspector = window.properties_panel
-        top = inspector.widgets[("top",)]
-        self.assertEqual(top.currentText(), "Mixed / unchanged")
-        top.setCurrentIndex(top.findData("slab"))
-        self.assertTrue(
-            all(e["top"] == "slab" and e["bottom"] == DEFAULT_ALIAS for e in window.map_data["levels"][0]["floors"])
-        )
+        self.assertEqual(window.properties_panel.widgets[("top",)].currentText(), "Mixed / unchanged")
+        self.set_property("north", "slab")
+        floors = window.map_data["levels"][0]["floors"]
+        self.assertEqual([e["top"] for e in floors], ["floor-a", "floor-b"])
+        self.assertTrue(all(e["north"] == "slab" and e["bottom"] == DEFAULT_ALIAS for e in floors))
+        self.set_property("top", "slab")
+        self.assertTrue(all(e["top"] == "slab" for e in window.map_data["levels"][0]["floors"]))
         self.assertEqual(window.undo_stack.count(), 1)
         window.undo_stack.undo()
         self.assertEqual(window.map_data, before)
 
     def test_invalid_property_input_does_not_mutate_and_can_be_corrected(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": [2, 4], "respawn_secs": None}
-        ]
+        data = blank_map()
+        data["actor_spawn_zones"] = [zone()]
         self.set_data(data)
         window = self.window
         before = copy.deepcopy(window.map_data)
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone()
         field = window.properties_panel.widgets[("count",)]
         self.edit_text(field, "4, 2", finish=True)
         self.assertEqual(window.map_data, before)
@@ -200,19 +189,15 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertTrue(window.properties_panel.error.isHidden())
 
     def two_actor_zones(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": [2, 4], "respawn_secs": None},
-            {"level": 0, "cols": [4, 5], "rows": [4, 5], "kind": "scuttler", "count": [1], "respawn_secs": None},
-        ]
+        data = blank_map()
+        data["actor_spawn_zones"] = [zone(), zone(cols=[4, 5], rows=[4, 5], count=[1])]
         self.set_data(data)
 
     def test_leaving_a_field_commits_it_and_keeps_the_form(self):
         self.two_actor_zones()
         window = self.window
         panel = window.properties_panel
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone()
         field = panel.widgets[("count",)]
         self.edit_text(field, "4,6")
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [2, 4])
@@ -226,9 +211,9 @@ class EditorWorkflowTests(WindowTestCase):
         self.two_actor_zones()
         window = self.window
         panel = window.properties_panel
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone()
         self.edit_text(panel.widgets[("count",)], "4, 6")
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 1)))
+        self.inspect_zone(1)
         self.assertEqual([zone["count"] for zone in window.map_data["actor_spawn_zones"]], [[4, 6], [1]])
         self.assertEqual(panel.widgets[("count",)].text(), "1")
         self.edit_text(panel.widgets[("count",)], "3, ")
@@ -242,12 +227,12 @@ class EditorWorkflowTests(WindowTestCase):
         window = self.window
         panel = window.properties_panel
         before = copy.deepcopy(window.map_data)
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone()
         self.edit_text(panel.widgets[("count",)], "4, 6", finish=True)
         self.edit_text(panel.widgets[("roam_distance",)], "3", finish=True)
         self.assertEqual(window.undo_stack.count(), 1)
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 1)))
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone(1)
+        self.inspect_zone()
         self.edit_text(panel.widgets[("roam_distance",)], "5", finish=True)
         self.assertEqual(window.undo_stack.count(), 2)
         # Edits that cancel out within a visit leave no step behind.
@@ -259,7 +244,7 @@ class EditorWorkflowTests(WindowTestCase):
     def test_the_wheel_over_a_property_dropdown_leaves_its_value(self):
         self.two_actor_zones()
         window = self.window
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone()
         box = window.properties_panel.widgets[("kind",)]
         self.assertGreater(box.count(), 1)
         box.setCurrentIndex(0)
@@ -282,11 +267,9 @@ class EditorWorkflowTests(WindowTestCase):
     def test_autosave_save_and_ui_refresh_preserve_a_property_draft(self):
         window = self.window
         data = copy.deepcopy(window.map_data)
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": [2, 4], "respawn_secs": None}
-        ]
+        data["actor_spawn_zones"] = [zone()]
         window.apply_change("Add actor zone", data)
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone()
         panel = window.properties_panel
         field = panel.widgets[("count",)]
         self.edit_text(field, "4, ")
@@ -304,20 +287,18 @@ class EditorWorkflowTests(WindowTestCase):
         self.edit_text(field, "4, 6", finish=True)
         self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], [4, 6])
         window.undo_stack.undo()
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone()
         self.assertEqual(panel.widgets[("count",)].text(), "2, 4")
         window.undo_stack.redo()
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone()
         self.assertEqual(panel.widgets[("count",)].text(), "4, 6")
 
     def test_catalog_reload_preserves_invalid_drafts_until_escape_discards_them(self):
         window = self.window
         data = copy.deepcopy(window.map_data)
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": [2, 4], "respawn_secs": None}
-        ]
+        data["actor_spawn_zones"] = [zone()]
         window.apply_change("Add actor zone", data)
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone()
         panel = window.properties_panel
         count = panel.widgets[("count",)]
         self.edit_text(count, "4, ")
@@ -342,8 +323,7 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertFalse(panel.changed_keys)
 
     def test_plate_links_include_other_levels_and_nested_geometry(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["levels"].append(empty_level(1))
         data["switches"] = [{"id": "door", "activation": "momentary", "reset": "never", "hold": "any"}]
         data["levels"][0]["floors"] = [floor(1, 1)]
@@ -353,20 +333,9 @@ class EditorWorkflowTests(WindowTestCase):
             {"c0": 2, "r0": 2, "c1": 3, "r1": 2, "field": "treasure"},
             {"c0": 4, "r0": 2, "c1": 5, "r1": 2, "field": "vault"},
         ]
-        child = empty_map(2, 2)
-        child["checkpoints"] = []
+        child = blank_map(2, 2)
         child["levels"][0]["light_bridges"] = [{"col": 1, "row": 1, "field": "treasure"}]
-        child["actor_spawn_zones"] = [
-            {
-                "level": 0,
-                "cols": [0, 1],
-                "rows": [0, 1],
-                "kind": "scuttler",
-                "count": [2],
-                "respawn_secs": None,
-                "switch": "door",
-            }
-        ]
+        child["actor_spawn_zones"] = [actor_zone(switch="door")]
         data["nested_geometry"] = {"room": child}
         data["nested_maps"] = [nested("room", 0, [5, 5], [5, 5])]
         self.set_data(data)
@@ -385,10 +354,8 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual(links.connections, [])
 
     def test_rotating_nested_geometry_creates_a_copy_and_undo_restores_the_whole_document(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
-        child = empty_map(2, 1)
-        child["checkpoints"] = []
+        data = blank_map()
+        child = blank_map(2, 1)
         child["levels"][0]["floors"] = [floor(0, 0)]
         data["nested_geometry"] = {"room": child}
         data["nested_maps"] = [nested("room", 0, [1, 1], [1, 1])]
@@ -415,13 +382,10 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual(window.map_data["nested_maps"][0], entry)
 
     def test_malformed_authored_count_can_be_selected_and_corrected_in_the_inspector(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": "invalid", "respawn_secs": None}
-        ]
+        data = blank_map()
+        data["actor_spawn_zones"] = [zone(count="invalid")]
         self.set_data(data)
-        self.window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone()
         inspector = self.window.properties_panel
         field = inspector.widgets[("count",)]
         self.assertEqual(field.text(), "invalid")
@@ -429,8 +393,7 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual(self.window.map_data["actor_spawn_zones"][0]["count"], [2, 3])
 
     def test_reversed_wall_endpoints_are_picked_like_any_wall(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["levels"][0]["walls"] = [{"c0": 2, "r0": 1, "c1": 1, "r1": 1, "all": DEFAULT_ALIAS}]
         self.set_data(data)
@@ -444,8 +407,7 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual(window.map_data["levels"][0]["walls"], [])
 
     def test_a_barrier_or_bridge_edits_and_samples_only_its_field(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["switches"] = [{"id": "door", "activation": "toggle", "reset_on_player_death": "never"}]
         data["fields"] = [{"id": "gate", "color": "#ff0000", "switch": "door"}, {"id": "walk", "color": "#00ff00"}]
         data["levels"][0]["barriers"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, "field": "gate"}]
@@ -478,23 +440,12 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual(window.recent_pressure_plate_switch, "barrier_1")
 
     def test_inspector_keeps_the_selection_through_normalization_and_no_op_edits(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["levels"].append(empty_level(1))
-        data["actor_spawn_zones"] = [
-            {
-                "level": 0,
-                "levels": 2,
-                "cols": [1, 2],
-                "rows": [1, 2],
-                "kind": "scuttler",
-                "count": [2],
-                "respawn_secs": None,
-            }
-        ]
+        data["actor_spawn_zones"] = [zone(levels=2)]
         self.set_data(data)
         window = self.window
-        window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.inspect_zone()
         inspector = window.properties_panel
         self.edit_text(inspector.widgets[("levels",)], "1", finish=True)
         self.assertNotIn("levels", window.map_data["actor_spawn_zones"][0])
@@ -504,12 +455,9 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual(window.undo_stack.count(), 1)
 
     def test_a_click_inside_the_selection_inspects_and_only_a_drag_lifts_the_block(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["levels"][0]["floors"] = [floor(1, 1)]
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [2, 6], "rows": [2, 6], "kind": "scuttler", "count": [1], "respawn_secs": None}
-        ]
+        data["actor_spawn_zones"] = [actor_zone(cols=[2, 6], rows=[2, 6])]
         self.set_data(data)
         window = self.window
         before = copy.deepcopy(window.map_data)
@@ -528,8 +476,7 @@ class EditorWorkflowTests(WindowTestCase):
         self.assertEqual(window.map_data, before)
 
     def test_duplicate_keeps_a_pending_transform_and_cancelling_it_notifies(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["levels"][0]["floors"] = [floor(1, 1), floor(2, 1)]
         self.set_data(data)
         window = self.window
@@ -545,22 +492,26 @@ class EditorWorkflowTests(WindowTestCase):
         notify.assert_called_once_with("Pending selection cancelled")
         self.assertIsNone(window.pending_block)
 
-    def test_multilevel_paste_onto_the_top_storey_appends_levels(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+    def test_multilevel_paste_onto_the_top_storey_appends_levels_and_undo_removes_them(self):
+        data = blank_map()
         data["levels"].append(empty_level(1))
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["levels"][1]["floors"] = [floor(1, 1)]
         self.set_data(data)
         window = self.window
+        before = copy.deepcopy(window.map_data)
         window.set_tile_selection((1, 1, 2, 2))
         window.tool_settings.findChild(QSpinBox).setValue(2)
         window.copy_selection()
         window.set_level_index(1)
         window.set_tile_selection((4, 4, 5, 5))
         window.paste_selection()
-        self.assertEqual(len(window.map_data["levels"]), 3)
-        self.assertEqual([(e["col"], e["row"]) for e in window.map_data["levels"][2]["floors"]], [(4, 4)])
+        levels = window.map_data["levels"]
+        self.assertEqual(len(levels), 3)
+        self.assertEqual([(e["col"], e["row"]) for e in levels[1]["floors"]], [(1, 1), (4, 4)])
+        self.assertEqual([(e["col"], e["row"]) for e in levels[2]["floors"]], [(4, 4)])
+        window.undo_stack.undo()
+        self.assertEqual(window.map_data, before)
 
     def test_the_fireworks_target_is_listed_with_its_plates(self):
         data = furnished_map()

@@ -114,34 +114,16 @@ fn portal_fit_detects_a_narrow_forbidden_patch_between_backing_probes() {
     layout.walls.push(patch);
     layout.wall_materials.push(FaceMaterials::uniform("blocked"));
     let world = CollisionWorld::from_map_layout(&layout);
-    let frame = PortalFrame::from_surface(
-        Vec3::new(0.0, 1.6, WALL_THICKNESS / 2.0),
-        Vec3::Z,
-        0.0,
-        crate::config::gameplay::load_test_gameplay()
-            .expect("fixture gameplay")
-            .portals
-            .size,
-    );
+    let frame = PortalFrame::from_surface(Vec3::new(0.0, 1.6, WALL_THICKNESS / 2.0), Vec3::Z, 0.0, portal_size());
     assert!(!world.portal_materials_allow(&frame, &layout, &test_textures()));
     let placement = material_shot(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::NEG_Z)
         .expect("shot did not nudge clear of the forbidden patch");
     assert!(placement.pos.distance(frame.center) > 0.1);
-    assert!(
-        world.portal_materials_allow(
-            &PortalFrame::from_surface(
-                placement.pos,
-                placement.normal,
-                placement.yaw,
-                crate::config::gameplay::load_test_gameplay()
-                    .expect("fixture gameplay")
-                    .portals
-                    .size
-            ),
-            &layout,
-            &test_textures()
-        )
-    );
+    assert!(world.portal_materials_allow(
+        &PortalFrame::from_surface(placement.pos, placement.normal, placement.yaw, portal_size()),
+        &layout,
+        &test_textures()
+    ));
 }
 
 #[test]

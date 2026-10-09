@@ -2,6 +2,11 @@ use super::{SampleBuffer, SampleTiming};
 
 const DELAY: f64 = 2.0;
 
+// Sender time of the newest sample minus playback time.
+fn lead_ticks<T>(buffer: &SampleBuffer<T>) -> f64 {
+    buffer.newest_at() - buffer.cursor
+}
+
 fn timing(interval_ticks: f64) -> SampleTiming {
     SampleTiming {
         delay_ticks: DELAY,
@@ -44,7 +49,7 @@ fn steady_stream_plays_the_configured_lead_behind_the_newest_sample() {
         previous = value;
         if step > 80 {
             assert!(
-                (buffer.lead_ticks() - DELAY).abs() < 0.01,
+                (lead_ticks(&buffer) - DELAY).abs() < 0.01,
                 "lead drifted at step {step}"
             );
             assert!((value - (f64::from(step) - DELAY)).abs() < 0.01);
@@ -95,7 +100,7 @@ fn playback_never_passes_the_newest_sample() {
     }
     assert_eq!(shown(&mut buffer, 1.0), 1.0);
     assert!(buffer.at_end());
-    assert!(buffer.lead_ticks() >= 0.0);
+    assert!(lead_ticks(&buffer) >= 0.0);
 }
 
 // The lead seen over one sample interval; samples land in steps of an interval, so a single frame is off by up to that.
@@ -108,7 +113,7 @@ fn mean_lead(
     let mut total = 0.0;
     for tick in ticks.clone() {
         stream(buffer, tick..tick + 1, latency, &send);
-        total += buffer.lead_ticks();
+        total += lead_ticks(buffer);
     }
     total / f64::from(ticks.len() as u32)
 }
@@ -142,12 +147,12 @@ fn the_lead_returns_to_its_target_after_a_latency_shift() {
     for (before, after) in [(2, 6), (6, 2)] {
         let mut buffer = SampleBuffer::new(Some(0), 0.0, timing(1.0));
         stream(&mut buffer, 1..200, before, |_| true);
-        assert!((buffer.lead_ticks() - DELAY).abs() < 0.25);
+        assert!((lead_ticks(&buffer) - DELAY).abs() < 0.25);
         stream(&mut buffer, 200..320, after, |_| true);
         assert!(
-            (buffer.lead_ticks() - DELAY).abs() < 0.25,
+            (lead_ticks(&buffer) - DELAY).abs() < 0.25,
             "lead {} after shifting latency from {before} to {after}",
-            buffer.lead_ticks()
+            lead_ticks(&buffer)
         );
     }
 }
@@ -158,7 +163,7 @@ fn a_sequence_jump_lands_one_lead_ahead_and_blends_there() {
     stream(&mut buffer, 1..50, 2, |_| true);
     let before = shown(&mut buffer, 0.0);
     buffer.push(1_000_000, 100.0);
-    let lead = buffer.lead_ticks();
+    let lead = lead_ticks(&buffer);
     assert!(
         (DELAY - 1e-6..=DELAY + 1.0 + 1e-6).contains(&lead),
         "lead {lead} after the jump"
@@ -182,7 +187,7 @@ fn a_lead_far_past_the_target_is_recentred_at_once() {
         buffer.push(step, f64::from(step));
     }
     let value = shown(&mut buffer, 1.0);
-    assert!((buffer.lead_ticks() - DELAY).abs() < 1e-6);
+    assert!((lead_ticks(&buffer) - DELAY).abs() < 1e-6);
     assert!((value - (8.0 - DELAY)).abs() < 1e-6);
 }
 

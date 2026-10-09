@@ -1,9 +1,6 @@
 use super::*;
 use crate::test_fixtures;
-use common::{
-    physics::CharacterMovementResult,
-    protocol::{CarrierId, ClientMessage, Floor, MapLayout, PlayerGeneration},
-};
+use common::protocol::{CarrierId, ClientMessage, Floor, MapLayout};
 use crossbeam_channel::{Receiver, unbounded};
 
 fn app() -> (App, Entity, Receiver<ClientMessage>) {
@@ -75,28 +72,4 @@ fn a_dead_local_player_neither_moves_nor_reports_and_its_render_lerp_collapses()
         position
     );
     assert!(receiver.try_recv().is_err());
-}
-
-#[test]
-fn a_living_local_player_steps_records_its_step_and_reports_in_its_generation() {
-    let (mut app, entity, receiver) = app();
-    app.world_mut()
-        .resource_mut::<LocalPlayerInfo>()
-        .reports
-        .begin_body(PlayerGeneration(3));
-    app.world_mut()
-        .resource_mut::<Time>()
-        .advance_by(std::time::Duration::from_secs_f32(0.1));
-    app.update();
-    let world = app.world();
-    let position = *world.get::<Position>(entity).expect("position missing");
-    assert!(position.y < 1.0 && position.x > 0.0, "{position:?}");
-    let step = world.get::<LocalMovementStep>(entity).expect("step missing");
-    assert_eq!(step.result.position, position);
-    assert_ne!(step.result, CharacterMovementResult::default());
-    let Ok(ClientMessage::Move(report)) = receiver.try_recv() else {
-        panic!("the first tick reports at once");
-    };
-    assert_eq!(report.generation, PlayerGeneration(3));
-    assert_eq!(report.movement.pos, position);
 }

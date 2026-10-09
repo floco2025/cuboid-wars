@@ -8,9 +8,6 @@ mod login;
 mod plugin;
 mod routing;
 mod snapshot;
-#[cfg(test)]
-#[path = "tests/snapshot.rs"]
-mod snapshot_tests;
 
 #[cfg(test)]
 pub(crate) use broadcast::collect_player_moves;

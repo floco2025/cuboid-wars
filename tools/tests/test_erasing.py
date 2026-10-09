@@ -1,10 +1,9 @@
-from map_editor.elements import ElementRef
 import json
 import unittest
 
 from PySide6.QtCore import QPointF
 
-from editor_fixtures import EditorHost, faces, floor, furnished_map, nested, start_checkpoint
+from editor_fixtures import EditorHost, actor_zone, faces, floor, furnished_map, nested, start_checkpoint
 from map_editor.constants import (
     HIT_FLOOR,
     HIT_ITEM,
@@ -19,6 +18,7 @@ from map_editor.constants import (
     MODE_ERASE_SPAWN_ZONES,
     MODE_ERASE_WALLS,
 )
+from map_editor.elements import ElementRef
 from map_editor.erasing import erase_hit
 from map_editor.normalization import empty_level, empty_map
 
@@ -28,10 +28,6 @@ BRIDGE_FIELD = "skyway"
 
 def wall(c0: int, r0: int, c1: int, r1: int) -> dict:
     return {"c0": c0, "r0": r0, "c1": c1, "r1": r1, **faces()}
-
-
-def actor_zone(level: int, c0: int, r0: int, c1: int, r1: int) -> dict:
-    return {"level": level, "cols": [c0, c1], "rows": [r0, r1], "kind": "bruiser", "count": [1], "respawn_secs": 90}
 
 
 class LayerEraserTests(unittest.TestCase):
@@ -49,7 +45,7 @@ class LayerEraserTests(unittest.TestCase):
             {"cols": [0, 1], "rows": [2, 4], "direction": "S", "lower_level": 0, **faces()},
             {"cols": [2, 3], "rows": [0, 1], "direction": "S", "lower_level": 1, **faces()},
         ]
-        data["actor_spawn_zones"] = [actor_zone(0, 0, 0, 2, 2), actor_zone(1, 0, 0, 2, 2)]
+        data["actor_spawn_zones"] = [actor_zone(level=level, cols=[0, 2], rows=[0, 2]) for level in (0, 1)]
         data["checkpoints"] = [start_checkpoint(3, 3)]
         data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "gold"}]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 0, "type": "firework"}]
@@ -96,7 +92,7 @@ class LayerEraserTests(unittest.TestCase):
         host = self.host()
         host.inspect_refs([ElementRef("actor_spawn_zones", 0)])
         host.erase_group_rect(MODE_ERASE_SPAWN_ZONES, (1, 1), (3, 3))
-        self.assertEqual(host.map_data["actor_spawn_zones"], [actor_zone(1, 0, 0, 2, 2)])
+        self.assertEqual(host.map_data["actor_spawn_zones"], [actor_zone(level=1, cols=[0, 2], rows=[0, 2])])
         self.assertEqual(host.map_data["checkpoints"], [start_checkpoint(3, 3)])
         self.assertIsNone(host.selected_spawn_zone_ref)
 

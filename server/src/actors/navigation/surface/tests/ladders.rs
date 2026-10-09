@@ -5,9 +5,29 @@ use crate::actors::{
 };
 use common::{
     map::Carriers,
-    physics::CollisionWorld,
-    protocol::{Barrier, CarrierId, Floor, MapLayout},
+    physics::{CharacterSupport, CollisionWorld},
+    protocol::{Barrier, CarrierId, Floor, MapLayout, Wall},
 };
+
+fn ladder() -> Ladder {
+    Ladder {
+        x1: 0.0,
+        x2: 0.0,
+        z1: -0.6,
+        z2: 0.6,
+        nx: 1.0,
+        nz: 0.0,
+        y: 0.0,
+        height: 3.0,
+        level: 0,
+        levels: 2,
+        carrier: CarrierId::WORLD,
+    }
+}
+
+fn floor(x1: f32, x2: f32, y: f32) -> Floor {
+    fixtures::floor([x1, x2], [-3.0, 3.0], y)
+}
 
 #[test]
 fn surface_routes_climb_and_descend_a_ladder_with_the_real_motor() {
@@ -27,16 +47,6 @@ fn a_rear_ladder_mount_opens_when_its_barrier_is_disabled() {
 fn assert_ladder_traversal(lower_behind: bool, barrier: Option<FieldId>) {
     let config = fixtures::config();
     let physics = config.expect_actor("scuttler").character.physics();
-    let floor = |x1, x2, y| Floor {
-        x1,
-        x2,
-        z1: -3.0,
-        z2: 3.0,
-        y,
-        thickness: 0.2,
-        level: 0,
-        carrier: CarrierId::WORLD,
-    };
     let layout = MapLayout {
         floors: vec![
             if lower_behind {
@@ -62,19 +72,7 @@ fn assert_ladder_traversal(lower_behind: bool, barrier: Option<FieldId>) {
                 carrier: CarrierId::WORLD,
             })
             .collect(),
-        ladders: vec![Ladder {
-            x1: 0.0,
-            x2: 0.0,
-            z1: -0.6,
-            z2: 0.6,
-            nx: 1.0,
-            nz: 0.0,
-            y: 0.0,
-            height: 3.0,
-            level: 0,
-            levels: 2,
-            carrier: CarrierId::WORLD,
-        }],
+        ladders: vec![ladder()],
         ..Default::default()
     };
     let world = CollisionWorld::from_map_layout(&layout);
@@ -108,11 +106,8 @@ fn assert_ladder_traversal(lower_behind: bool, barrier: Option<FieldId>) {
     }
     let carriers = Carriers::default();
     let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
         open: &open,
-        delta: 1.0 / 30.0,
+        ..fixtures::env(&world, &carriers, &config)
     };
     for (start, goal) in [(lower, upper), (upper, lower)] {
         let route = mesh.route_for(start, goal, 0.7, 4096, true).expect("ladder route");
@@ -128,7 +123,7 @@ fn assert_ladder_traversal(lower_behind: bool, barrier: Option<FieldId>) {
         let mut climbed = false;
         for _ in 0..600 {
             executor.step(&env, &mut body);
-            climbed |= matches!(body.support, common::physics::CharacterSupport::Ladder);
+            climbed |= matches!(body.support, CharacterSupport::Ladder);
             assert!(!world.character_penetrates_solid(&body.position, physics, &open));
             if executor.status == TraversalStatus::Reached {
                 break;
@@ -145,19 +140,9 @@ fn assert_ladder_traversal(lower_behind: bool, barrier: Option<FieldId>) {
 fn a_wall_in_the_rail_plane_keeps_the_room_behind_it_off_the_ladder() {
     let config = fixtures::config();
     let physics = config.expect_actor("scuttler").character.physics();
-    let floor = |x1, x2, y| Floor {
-        x1,
-        x2,
-        z1: -3.0,
-        z2: 3.0,
-        y,
-        thickness: 0.2,
-        level: 0,
-        carrier: CarrierId::WORLD,
-    };
     let layout = MapLayout {
         floors: vec![floor(-5.0, 5.0, 0.0), floor(-5.0, 0.0, 3.0)],
-        walls: vec![common::protocol::Wall {
+        walls: vec![Wall {
             x1: -0.15,
             z1: -3.0,
             x2: -0.15,
@@ -168,19 +153,7 @@ fn a_wall_in_the_rail_plane_keeps_the_room_behind_it_off_the_ladder() {
             level: 0,
             carrier: CarrierId::WORLD,
         }],
-        ladders: vec![Ladder {
-            x1: 0.0,
-            x2: 0.0,
-            z1: -0.6,
-            z2: 0.6,
-            nx: 1.0,
-            nz: 0.0,
-            y: 0.0,
-            height: 3.0,
-            level: 0,
-            levels: 2,
-            carrier: CarrierId::WORLD,
-        }],
+        ladders: vec![ladder()],
         ..Default::default()
     };
     let world = CollisionWorld::from_map_layout(&layout);

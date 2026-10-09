@@ -250,7 +250,3 @@ pub(crate) fn ui_crosshair_visibility_system(
         };
     }
 }
-
-#[cfg(test)]
-#[path = "tests/crosshair.rs"]
-mod tests;

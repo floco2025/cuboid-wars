@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    config::gameplay::load_test_gameplay,
+    config::fixtures::player_physics,
     map::Carriers,
     physics::{
         CharacterEnvironment, CharacterStep, CharacterSupport, CollisionWorld, LadderMode, step_character_movement,
@@ -10,6 +10,18 @@ use crate::{
 
 fn grounds() -> Grounds {
     Grounds::new([(-20.0, 20.0, -30.0, 30.0)], 4.4, GroundsSettings { level: 1 })
+}
+
+fn walking_environment<'a>(world: &'a CollisionWorld, carriers: &'a Carriers) -> CharacterEnvironment<'a> {
+    CharacterEnvironment {
+        collision_world: world,
+        carriers,
+        physics: player_physics(),
+        gravity: 25.0,
+        passable_fields: &[],
+        ladder_mode: LadderMode::Automatic,
+        portals: None,
+    }
 }
 
 #[test]
@@ -133,23 +145,6 @@ fn terrain_stays_flat_through_the_map_join() {
 }
 
 #[test]
-fn exterior_has_visible_rolling_height_variation() {
-    let grounds = grounds();
-    let mut min = f32::INFINITY;
-    let mut max = f32::NEG_INFINITY;
-    for z in -6..=6 {
-        for x in -6..=6 {
-            let x = x as f32 * 18.0;
-            let z = z as f32 * 18.0;
-            let height = grounds.height(x, z);
-            min = min.min(height);
-            max = max.max(height);
-        }
-    }
-    assert!(max - min > 10.0, "terrain height range was only {} metres", max - min);
-}
-
-#[test]
 fn terrain_reaches_past_the_decorations_and_is_closed_around_the_map() {
     let grounds = grounds();
     let mesh = grounds.mesh();
@@ -181,15 +176,7 @@ fn a_player_lands_on_the_terrain_and_walks_across_its_triangles() {
         ..Default::default()
     });
     let carriers = Carriers::default();
-    let environment = CharacterEnvironment {
-        collision_world: &world,
-        carriers: &carriers,
-        physics: load_test_gameplay().expect("test gameplay rejected").player.physics(),
-        gravity: 25.0,
-        passable_fields: &[],
-        ladder_mode: LadderMode::Automatic,
-        portals: None,
-    };
+    let environment = walking_environment(&world, &carriers);
     let mut pos = Position {
         x: 24.0,
         y: 9.0,
@@ -317,16 +304,7 @@ fn a_step_on_the_grounds_touches_only_the_terrain_under_the_body() {
         ..Default::default()
     });
     let carriers = Carriers::default();
-    let physics = load_test_gameplay().expect("test gameplay rejected").player.physics();
-    let environment = CharacterEnvironment {
-        collision_world: &world,
-        carriers: &carriers,
-        physics,
-        gravity: 25.0,
-        passable_fields: &[],
-        ladder_mode: LadderMode::Automatic,
-        portals: None,
-    };
+    let environment = walking_environment(&world, &carriers);
     let (x, z) = (120.0, 40.0);
     let mut pos = Position {
         x,

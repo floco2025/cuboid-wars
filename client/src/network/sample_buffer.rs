@@ -67,12 +67,6 @@ impl<T> SampleBuffer<T> {
         }
     }
 
-    // Sender time of the newest sample minus playback time.
-    #[cfg(test)]
-    pub fn lead_ticks(&self) -> f64 {
-        self.newest_at() - self.cursor
-    }
-
     #[must_use]
     pub fn at_end(&self) -> bool {
         self.cursor >= self.newest_at()

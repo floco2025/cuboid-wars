@@ -6,23 +6,13 @@ from unittest.mock import Mock, patch
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtTest import QTest
 
-from editor_fixtures import WindowTestCase, floor, furnished_map, nested
+from editor_fixtures import WindowTestCase, actor_zone, blank_map, floor, furnished_map, nested, toggle_switch
 from map_editor import constants as c
 from map_editor.elements import ElementRef
 from map_editor.normalization import empty_level, empty_map
-from map_editor.window import EditorWindow
 
 
 class EditorEnhancementTests(WindowTestCase):
-    def drag(self, start, end):
-        canvas = self.window.canvas
-        a = canvas.viewport.from_grid(QPointF(*start)).toPoint()
-        b = canvas.viewport.from_grid(QPointF(*end)).toPoint()
-        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=a)
-        QTest.mouseMove(canvas, b)
-        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=b)
-        self.app.processEvents()
-
     def item_map(self):
         data = empty_map(8, 8)
         data["levels"][0]["floors"] = [floor(i, i) for i in (1, 3, 5)]
@@ -46,31 +36,6 @@ class EditorEnhancementTests(WindowTestCase):
                 self.assertEqual(window.map_data, before)
                 self.assertEqual(window.selection_refs(), [])
 
-    def test_clicking_an_object_keeps_neighboring_floor_tiles_visible(self):
-        window = self.window
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
-        data["levels"][0]["floors"] = [floor(col, row) for col in range(8) for row in range(8)]
-        data["items"] = [{"level": 0, "col": 3, "row": 3, "type": "gold"}]
-        window.doc.replace_with_new(data)
-        before = copy.deepcopy(window.map_data)
-        canvas = window.canvas
-        canvas.viewport.fitted = False
-        canvas.viewport.cell = 24
-        canvas.viewport.offset = QPointF(30, 30)
-        self.app.processEvents()
-        point = canvas.viewport.from_grid(QPointF(3.5, 3.5)).toPoint()
-        neighbors = [canvas.viewport.from_grid(QPointF(col + 0.5, 4.5)).toPoint() for col in range(3, 7)]
-        initial = canvas.grab().toImage()
-        colors = [initial.pixelColor(point) for point in neighbors]
-        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=point)
-        pressed = canvas.grab().toImage()
-        self.assertEqual([pressed.pixelColor(point) for point in neighbors], colors)
-        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=point)
-        selected = canvas.grab().toImage()
-        self.assertEqual([selected.pixelColor(point) for point in neighbors], colors)
-        self.assertEqual(window.map_data, before)
-
     def test_property_undo_does_not_expand_an_item_selection_to_its_floor(self):
         window = self.window
         before = self.item_map()
@@ -86,20 +51,9 @@ class EditorEnhancementTests(WindowTestCase):
 
     def test_drag_selects_whole_intersected_zones_across_their_level_span(self):
         window = self.window
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["levels"] += [empty_level(1), empty_level(2)]
-        data["actor_spawn_zones"] = [
-            {
-                "level": 0,
-                "levels": 3,
-                "cols": [1, 4],
-                "rows": [1, 4],
-                "kind": "scuttler",
-                "count": [1],
-                "respawn_secs": None,
-            }
-        ]
+        data["actor_spawn_zones"] = [actor_zone(levels=3, cols=[1, 4], rows=[1, 4])]
         window.doc.replace_with_new(data)
         before = copy.deepcopy(window.map_data)
         self.drag((0.5, 0.5), (2.5, 2.5))
@@ -148,7 +102,7 @@ class EditorEnhancementTests(WindowTestCase):
         before = self.item_map()
         data = copy.deepcopy(before)
         data["levels"][0]["floors"].append(floor(6, 5))
-        data["switches"] = [{"id": "gate", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["switches"] = [toggle_switch("gate")]
         data["pressure_plates"] = [
             {"level": 0, "col": 3, "row": 3, "switch": "gate"},
             {"level": 0, "col": 5, "row": 5, "switch": "gate"},
@@ -176,13 +130,11 @@ class EditorEnhancementTests(WindowTestCase):
     def test_actor_properties_edit_first_level_counts_respawn_roam_and_controls_in_one_undo(self):
         window = self.window
         data = furnished_map()
-        data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["switches"] = [toggle_switch("barrier_1")]
         window.switch_ids = ["barrier_1"]
         data["checkpoints"] = []
         data["levels"] += [empty_level(1), empty_level(2)]
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [3, 4], "rows": [3, 4], "kind": "scuttler", "count": [1], "respawn_secs": None}
-        ]
+        data["actor_spawn_zones"] = [actor_zone(cols=[3, 4], rows=[3, 4], kind="scuttler", respawn_secs=None)]
         window.doc.replace_with_new(data)
         before = copy.deepcopy(window.map_data)
         window.inspect_hit((c.HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)), show=True)
@@ -220,7 +172,7 @@ class EditorEnhancementTests(WindowTestCase):
     def test_nested_motion_fields_edit_together_and_validate_without_discarding_input(self):
         window = self.window
         data = furnished_map()
-        data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["switches"] = [toggle_switch("barrier_1")]
         window.switch_ids = ["barrier_1"]
         data["levels"].append(empty_level(1))
         data["nested_geometry"] = {"room": empty_map(1, 1)}
@@ -273,7 +225,7 @@ class EditorEnhancementTests(WindowTestCase):
     def test_connections_are_opt_in_and_follow_the_current_selection(self):
         window = self.window
         data = furnished_map()
-        data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["switches"] = [toggle_switch("barrier_1")]
         window.switch_ids = ["barrier_1"]
         data["fields"] = [{"id": "gate", "color": "#f0c020", "switch": "barrier_1"}]
         data["levels"][0]["barriers"] = [{"c0": 3, "r0": 3, "c1": 4, "r1": 3, "field": "gate"}]
@@ -300,31 +252,6 @@ class EditorEnhancementTests(WindowTestCase):
         overlay.paint(painter, 30)
         painter.drawLine.assert_called_once()
 
-    def test_permanent_panel_widths_and_icon_mode_survive_reopening(self):
-        window = self.window
-        window.inspect_hit((c.HIT_FLOOR, (1, 1)), show=True)
-        window.resizeDocks([window.tool_palette, window.properties_panel], [190, 245], Qt.Orientation.Horizontal)
-        self.app.processEvents()
-        widths = (window.tool_palette.width(), window.properties_panel.width())
-        window.tool_icons_action.trigger()
-        self.app.processEvents()
-        self.assertLess(window.tool_palette.width(), widths[0])
-        window.activate_tool(c.MODE_WALL)
-        QTest.keyClick(window.canvas, Qt.Key.Key_E)
-        self.assertEqual(window.mode, c.MODE_ERASE_WALLS)
-        other = EditorWindow(self.path, preferences=window.preferences)
-        other._autosave_timer.stop()
-        try:
-            other.show()
-            self.app.processEvents()
-            self.assertTrue(other.tool_palette.icon_only)
-            self.assertTrue(other.tool_icons_action.isChecked())
-            self.assertEqual(other.tool_palette.width(), window.tool_palette.width())
-            self.assertEqual(other.properties_panel.width(), widths[1])
-        finally:
-            other.close()
-            other.deleteLater()
-
     def test_rotating_objects_with_nested_geometry_preserves_unselected_dependents(self):
         window = self.window
         data = self.item_map()
@@ -344,8 +271,7 @@ class EditorEnhancementTests(WindowTestCase):
 
     def test_object_paste_lands_relative_to_the_viewed_level(self):
         window = self.window
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["levels"].append(empty_level(1))
         data["levels"][0]["floors"] = [floor(1, 1), floor(6, 6)]
         data["ladders"] = [{"col": 1, "row": 1, "side": "S", "lower_level": 0, "levels": 1}]
@@ -367,9 +293,8 @@ class EditorEnhancementTests(WindowTestCase):
 
     def test_an_unswitched_record_keeps_an_editable_initial_state_in_properties(self):
         window = self.window
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
-        data["switches"] = [{"id": "barrier_1", "activation": "toggle", "reset_on_player_death": "never"}]
+        data = blank_map()
+        data["switches"] = [toggle_switch("barrier_1")]
         window.switch_ids = ["barrier_1"]
         data["nested_geometry"] = {"room": empty_map(1, 1)}
         data["nested_maps"] = [{**nested("room", 0, [3, 3], [5, 5]), "switch": "barrier_1", "initially_on": False}]

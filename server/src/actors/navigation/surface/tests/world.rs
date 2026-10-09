@@ -113,16 +113,10 @@ fn navigation_regions_follow_collision_geometry_and_reload_evicted_areas() {
     }}), 30, &config.settings).expect("small authored region");
     // A normal collision floor extends beyond the authoring grid. Region
     // loading must work without a procedural Grounds object or terrain mode.
-    generated.layout.floors.push(common::protocol::Floor {
-        x1: -3000.0,
-        x2: 3000.0,
-        z1: -4.0,
-        z2: 4.0,
-        y: 0.0,
-        thickness: 0.2,
-        level: 0,
-        carrier: CarrierId::WORLD,
-    });
+    generated
+        .layout
+        .floors
+        .push(fixtures::floor([-3000.0, 3000.0], [-4.0, 4.0], 0.0));
     let world = CollisionWorld::from_map_layout(&generated.layout);
     let mut navigation =
         SurfaceNavigation::build(&generated.config, &generated.layout, &config, &world, &[], &[]).expect("navigation");

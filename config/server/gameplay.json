@@ -1,13 +1,6 @@
 {
   "default_map": "hotel",
-  "maps": [
-    "hotel",
-    "obby",
-    "portal_primer",
-    "gatehouse",
-    "foundry",
-    "switchyard"
-  ],
+  "maps": ["hotel", "obby"],
   "geometry": {
     "grid_cell_size": 1.0,
     "level_height": 1.6,

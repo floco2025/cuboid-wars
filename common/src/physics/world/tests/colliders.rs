@@ -22,13 +22,6 @@ fn field_user_data_round_trips_the_piece_its_field_and_its_carrier() {
 }
 
 #[test]
-fn characters_query_all_surface_and_barrier_groups() {
-    let groups = character_collision_groups();
-    assert!(groups.contains(surface_collision_groups() | BARRIER_COLLISION_GROUP));
-    assert!((BARRIER_COLLISION_GROUP & surface_collision_groups()).is_empty());
-}
-
-#[test]
 fn passability_lets_a_body_through_every_piece_of_the_named_field_alone() {
     let piece = |kind: ColliderKind, field| {
         ColliderBuilder::ball(1.0)

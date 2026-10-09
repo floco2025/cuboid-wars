@@ -32,7 +32,7 @@ cargo run --release -- --experiment <map> | python3 tools/mapauthor.py proof <ma
 3. `describe` for the plan of each level; `surface`, `jump`, `fling`, and `ranges` for the physics of each gap and portal pair. Place landings where a flight comes down, not where it looks right.
 4. `shots` from each point a portal is shot from, `sweep` with the moves of each puzzle step, and `sweep --walk-in` for each goal (Asking the game): the intended pair reaches the goal, and walking into a pair never does.
 5. Write `experiment.json` beside the layout (format under Proving a route), run it, read `proof`. Every `aim`, `check`, and `spawn` is in world metres; `describe` and `where` give them.
-6. Iterate until the route passes, then pin it in `src/experiment/tests/` like `foundry.rs`, on `scenario`, which pins the shared movement numbers the course was proved against: the completion run and the failures the course is built on (a missing portal, a skipped pickup, a plate not pressed). A route the runner cannot finish because the player died ends the run at the next `aim`; truncate the script to see the report up to there.
+6. Iterate until the route passes. A route the runner cannot finish because the player died ends the run at the next `aim`; truncate the script to see the report up to there.
 7. `python3 tools/editor.py <map>` opens the result; Check Map must be clean.
 
 ## Coordinates
@@ -49,7 +49,7 @@ Do not trust these for a gap: run `ranges` once per map and `jump` at the actual
 
 ## Portal backing
 
-A portal is 1.4 × 2.6 m and its rim, 6% larger, needs backing: 1.5 × 2.8 m of portalable surface. How many cells and wall sections that is follows from the map's geometry, and the summary's first lines and `BuildError`s say it. At the Primer's 2 m cells and 2.2 m levels a wall portal is one cell wide and two stacked sections tall, and a floor portal two cells long; at 1 m cells a wall portal is two cells wide and a floor portal three by two; at Hotel's 4.4 m levels one wall section is enough. `portal_wall` and `portal_floor` write what fits by default. A wall portal also needs nothing standing in front of its upper sections, so the room it is in is as tall as the portal; a floor portal needs no wall inside its block and no pressure plate within 1.2 m; a wall light keeps a portal 0.4 m away. A surface's normal fixes the exit direction; where the portal is shot from only turns a floor portal by quarter turns. Materials come from the map's `settings.json::textures` aliases and their `portalable` flag. `surface` and the summary's "portal-ready" list judge all of this by grid rules; the runner's `portal` action is the final word.
+A portal is 1.4 × 2.6 m and its rim, 6% larger, needs backing: 1.5 × 2.8 m of portalable surface. How many cells and wall sections that is follows from the map's geometry, and the summary's first lines and `BuildError`s say it. At 2 m cells and 2.2 m levels a wall portal is one cell wide and two stacked sections tall, and a floor portal two cells long; at 1 m cells a wall portal is two cells wide and a floor portal three by two; at Hotel's 4.4 m levels one wall section is enough. `portal_wall` and `portal_floor` write what fits by default. A wall portal also needs nothing standing in front of its upper sections, so the room it is in is as tall as the portal; a floor portal needs no wall inside its block and no pressure plate within 1.2 m; a wall light keeps a portal 0.4 m away. A surface's normal fixes the exit direction; where the portal is shot from only turns a floor portal by quarter turns. Materials come from the map's `settings.json::textures` aliases and their `portalable` flag. `surface` and the summary's "portal-ready" list judge all of this by grid rules; the runner's `portal` action is the final word.
 
 ## The builder
 
@@ -152,7 +152,7 @@ The summary's portal-ready list and `surface` are grid rules, and `jump` and `fl
 cargo run --release -- --map <map>                  # play it
 cargo run --release -- --experiment <map>           # headless, report on stdout
 cargo run --release -- --play-experiment <map>      # step through it
-cargo test --release -p cuboid-wars                 # route and runner tests
+cargo test --release -p cuboid-wars                 # runner tests
 ```
 
 A map's `experiment.json` sits beside its `layout.json` and `settings.json`, and the map's name finds it; a path ending in `.json` runs any other script. The map's README holds the walkthrough. Headless mode needs no window, listener, or registry entry; invalid scripts are process errors, failed checks are report entries.

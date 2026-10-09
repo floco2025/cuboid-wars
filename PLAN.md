@@ -129,25 +129,6 @@ the right point.
 
 - **Hotel** is hand-built: the model for exploration, keys, quests, and looks.
 - **Obby** is hand-edited: its portal rooms are the model for portal puzzles.
-- **Portal Primer** is the one AI-authored map: one line of chambers, open-air
-  except its finale, on a 2 m grid. It shows the tools work more than it is
-  fun.
-- **Gatehouse** is the first building: a hub, an exit behind four gates,
-  and the four rooms that lower them, the Drop, the Cistern, the Firing Line,
-  and the Vat, each proved by a scripted route. Its playtests gave the principles
-  above on portals, walking in, looks, and puzzle depth.
-- **Foundry** is the second building, whose courses chain two or three
-  decisions each, all three proved by a route and by sweeps of other entries:
-  the Gallery, a fling across a chasm that only a fall from the high gallery
-  carries far enough; the Slopes, where the ramp a portal stands on sets the
-  angle of the throw; and the Float, where a fall builds speed heavy and the
-  rise spends it light, by catching low gravity on the way up.
-- **Switchyard** explores changing routes rather than flings: a dispatched
-  freight car carries a prepared portal, an archive key takes away the floor
-  used to survey its vault, and a sliding ceiling becomes the route to a
-  signal balcony. Its independent wings, early-key recovery, and wrong moves
-  are covered by scripted tests. Whether those decisions read well and feel
-  fun has not yet been established by a playtest.
 - **The tools** build a map from a script, draw it as text, measure jumps and
   flings, and run a scripted route through the real game, headless or in a
   window. The builder writes buildings: rooms with ceilings and doorways,
@@ -158,10 +139,10 @@ the right point.
   the game at a chosen spot and capturing the window, by hand so far. It
   can now run moving maps, including carried portals and rides. It cannot
   yet search for a route or for a shortcut by other moves.
-- **Tried in earlier courses, absent from the Primer:** shooting an enemy
-  through a portal pair, a floor-to-floor launch upward with an air-steered
-  catch, three ramp exits around one landing, erasure in mid-flight, a running
-  jump onto a plate, and tests over ranges of timing and aim.
+- **Tried in earlier courses:** shooting an enemy through a portal pair, a
+  floor-to-floor launch upward with an air-steered catch, three ramp exits
+  around one landing, erasure in mid-flight, a running jump onto a plate, and
+  tests over ranges of timing and aim.
 
 ## Roadmap
 

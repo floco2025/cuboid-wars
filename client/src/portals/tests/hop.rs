@@ -1,23 +1,13 @@
 use super::*;
-use crate::test_fixtures::gameplay_config;
+use crate::test_fixtures::{gameplay_config, map_settings, portal};
 use common::{
     constants::TICK_SECS,
     map::Carriers,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
-    protocol::{CarrierId, MapLayout, Portal, PortalEnd, PortalPairId},
+    protocol::{MapLayout, PortalEnd},
 };
 
 fn pair(a_pos: Vec3, a_normal: Vec3, b_pos: Vec3, b_normal: Vec3) -> PortalSet {
-    let portal = |end, pos: Vec3, normal: Vec3| Portal {
-        pair: PortalPairId(1),
-        end,
-        pos: pos.into(),
-        nx: normal.x,
-        ny: normal.y,
-        nz: normal.z,
-        yaw: 0.0,
-        carrier: CarrierId::WORLD,
-    };
     let gameplay = gameplay_config();
     PortalSet::rebuild(
         &[
@@ -41,7 +31,7 @@ fn falling_into_floor_portal_exits_ramp_at_its_normal_angle_in_the_shorter_hull(
         ramp_normal,
     );
     let gameplay = gameplay_config();
-    let movement = crate::test_fixtures::map_settings().movement;
+    let movement = map_settings().movement;
     let hop = player_hop(
         &set,
         Vec3::new(0.0, -0.85, 0.0),
@@ -91,7 +81,7 @@ fn falling_into_floor_portal_exits_ramp_at_its_normal_angle_in_the_shorter_hull(
             Vec3::new(0.0, -0.85, 0.0),
             Vec3::new(0.0, -0.95, 0.0),
             gameplay.player.physics(),
-            common::physics::CharacterHopBody {
+            CharacterHopBody {
                 knockback: Vec3::ZERO,
                 horizontal_velocity: Vec3::ZERO,
                 vertical_velocity: -10.0,

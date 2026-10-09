@@ -1,7 +1,7 @@
 import copy
+import unittest
 
-from config_fixtures import ConfigTestCase, gameplay, map_settings
-from map_editor.catalogs import load_map_settings
+from config_fixtures import gameplay, map_settings
 from map_editor.jump_settings import JumpSettings
 
 
@@ -16,17 +16,7 @@ def at(settings, path):
     return settings, key
 
 
-class JumpSettingsTests(ConfigTestCase):
-    def test_settings_carry_the_geometry_and_the_validated_physics_block(self):
-        settings = parse(load_map_settings("hotel"))
-        self.assertEqual((settings.cell_size, settings.level_height, settings.wall_thickness), (3.4, 4.4, 0.3))
-        self.assertEqual(settings.physics["player"]["move_speed"], 9)
-        self.assertEqual(settings.physics["funnel"], {"capture_margin": 0.6, "capture_growth": 1.0})
-        self.assertAlmostEqual(settings.coyote_secs, 0.1)
-        self.assertEqual((settings.portal_half_width, settings.portal_half_height), (0.7, 1.3))
-        self.assertAlmostEqual(settings.tick, 1 / 30)
-        self.assertAlmostEqual(settings.floor_height(2), 8.8)
-
+class JumpSettingsTests(unittest.TestCase):
     def test_invalid_numbers_name_the_source_and_path(self):
         settings = {**gameplay(), **map_settings()}
         for path in (

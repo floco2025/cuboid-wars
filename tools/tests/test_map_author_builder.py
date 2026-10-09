@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from author_fixtures import FINE_GRID, LOW_STOREYS, pin_geometry
 from config_fixtures import ConfigTestCase
 from map_author.builder import BuildError, MapBuilder
@@ -375,7 +373,7 @@ class MapBuilderTests(ConfigTestCase):
         b.barrier(level=0, start=(4, 2), end=(4, 4), field="door")
         b.item("speed", level=0, at=(2, 3))
         b.fireworks("gate")
-        path = Path(self.temp.name) / "obby" / "layout.json"
+        path = self.root / "obby" / "layout.json"
         warnings = b.save(path, quiet=True)
         self.assertEqual(warnings, [])
         root, _ = b.document()
@@ -387,7 +385,7 @@ class MapBuilderTests(ConfigTestCase):
         b = builder()
         b.checkpoint(0, level=0, at=(2, 2), size=(2, 2))
         with self.assertRaisesRegex(BuildError, "requires flat accessible floor"):
-            b.save(Path(self.temp.name) / "obby" / "layout.json", quiet=True)
+            b.save(self.root / "obby" / "layout.json", quiet=True)
 
     def test_a_steep_ramp_is_refused_unless_allowed(self):
         b = builder()
@@ -420,6 +418,6 @@ class MapBuilderTests(ConfigTestCase):
         b.checkpoint(0, level=0, at=(2, 2), size=(2, 2))
         b.switch("lonely")
         b.field("door", switch="lonely")
-        warnings = b.save(Path(self.temp.name) / "obby" / "layout.json", quiet=True)
+        warnings = b.save(self.root / "obby" / "layout.json", quiet=True)
         self.assertEqual(len(warnings), 1)
         self.assertIn("lonely", warnings[0])

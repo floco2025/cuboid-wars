@@ -1,15 +1,12 @@
-use crate::test_fixtures;
-use bevy::{animation::AnimationTargetId, prelude::*};
-use common::{physics::CharacterSupport, protocol::ActorMoveIntent};
+use bevy::animation::AnimationTargetId;
 
-use super::ActorAnimationVelocity;
-use super::wheel_animation::{
-    WheelAnimationPlayback, WheelModel, drive_speed, wheel_animation_setup_system, wheel_animation_update_system,
-};
+use super::*;
 use crate::{
+    actors::ActorAnimationVelocity,
     characters::load_character_model,
     config::{ModelDef, WheelModelDef},
     test_assets::{headless_asset_app, settle},
+    test_fixtures,
 };
 
 #[test]

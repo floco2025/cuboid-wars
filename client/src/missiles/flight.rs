@@ -5,7 +5,7 @@ use common::{
 };
 use std::collections::VecDeque;
 
-use super::search::{AirSearch, RouteStatus};
+use super::search::AirSearch;
 use crate::constants::MISSILE_SEARCH_WINDOW_MARGIN_CELLS;
 
 pub struct MissileFlight {
@@ -18,7 +18,6 @@ pub struct MissileFlight {
     pub path_target: Option<Vec3>,
     pub path_retry_timer: f32,
     pub(crate) search: Option<AirSearch>,
-    pub(crate) route_status: RouteStatus,
     // Cells of search window around the missile and its target; grows while
     // the window's edge stops searches, until sight of the target returns.
     pub(crate) search_margin: i32,
@@ -50,7 +49,6 @@ impl MissileFlight {
             path_target: None,
             path_retry_timer: 0.0,
             search: None,
-            route_status: RouteStatus::Idle,
             search_margin: MISSILE_SEARCH_WINDOW_MARGIN_CELLS,
             avoid_dir: None,
             avoid_timer: 0.0,

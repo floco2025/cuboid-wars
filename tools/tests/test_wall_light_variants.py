@@ -1,42 +1,37 @@
 import copy
-import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QMessageBox
 
-from editor_fixtures import DEFAULT_ALIAS, WindowTestCase
+from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, saved_map
 from map_editor.constants import HIT_LIGHT, MODE_LIGHT
 from map_editor.elements import element_refs
 from map_editor.hover import element_hover_text
-from map_editor.io import read_map, write_map
 from map_editor.normalization import empty_map, normalize_map
 from map_editor.validation import validate_map
 
 
+# A floor at (1, 1) whose north wall holds `light`.
+def lit_wall(light: dict) -> dict:
+    data = empty_map(8, 8)
+    data["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
+    data["levels"][0]["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": DEFAULT_ALIAS}]
+    data["levels"][0]["lights"] = [light]
+    return data
+
+
 class WallLightValidationTests(unittest.TestCase):
     def test_unknown_style_is_reported_and_preserved_for_repair(self):
-        data = empty_map(8, 8)
-        data["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
-        data["levels"][0]["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": DEFAULT_ALIAS}]
-        data["levels"][0]["lights"] = [{"col": 1, "row": 1, "side": "N", "kind": "unknown"}]
+        data = lit_wall({"col": 1, "row": 1, "side": "N", "kind": "unknown"})
         errors = validate_map(data, [], wall_light_kinds=["decorative", "utility"])
         self.assertTrue(any("unknown kind 'unknown'" in error for error in errors))
-        with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "layout.json"
-            write_map(path, data)
-            self.assertEqual(read_map(path)["levels"][0]["lights"][0]["kind"], "unknown")
+        self.assertEqual(saved_map(data)[1]["levels"][0]["lights"][0]["kind"], "unknown")
 
-
-class WallLightHeightTests(unittest.TestCase):
     def test_a_light_needs_a_positive_height(self):
-        data = empty_map(8, 8)
-        data["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
-        data["levels"][0]["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": DEFAULT_ALIAS}]
         light = {"col": 1, "row": 1, "side": "N", "kind": "utility", "height": 0.3}
-        data["levels"][0]["lights"] = [light]
+        data = lit_wall(light)
         self.assertEqual([e for e in validate_map(data, [], wall_light_kinds=["utility"]) if "light" in e], [])
         self.assertEqual(normalize_map(data)["levels"][0]["lights"][0]["height"], 0.3)
         for height in (-1, None):
@@ -60,11 +55,8 @@ class WallLightVariantTests(WindowTestCase):
         self.assertEqual(window.map_data["levels"][0]["lights"][0]["height"], window.recent_light_height)
         self.assertAlmostEqual(window.recent_light_height, 0.625 * (window.level_height - window.floor_thickness))
         self.assertIn("utility", element_hover_text(window.map_data, 0, (HIT_LIGHT, (1, 1, "N"))))
-        with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "layout.json"
-            write_map(path, window.map_data)
-            restored = read_map(path)
-            self.assertEqual(restored["levels"][0]["lights"], window.map_data["levels"][0]["lights"])
+        restored = saved_map(window.map_data)[1]
+        self.assertEqual(restored["levels"][0]["lights"], window.map_data["levels"][0]["lights"])
         window.undo_stack.undo()
         self.assertEqual(window.map_data["levels"][0]["lights"], [])
         window.undo_stack.redo()

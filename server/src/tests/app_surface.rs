@@ -1,5 +1,7 @@
-use super::fixtures::connect;
-use super::*;
+use super::{
+    fixtures::{connect, options},
+    *,
+};
 use crate::actors::{SurfaceAgent, navigation::surface::fixtures};
 use common::{
     physics::CharacterSupport,
@@ -10,21 +12,17 @@ use common::{
 fn ordinary_surface_actor_pursues_under_an_authored_plank_and_respawns() {
     let config = fixtures::config();
     let physics = config.expect_actor("scuttler").character.physics();
-    let options = ServerAppOptions {
-        map: None,
+    let launch = ServerAppOptions {
         god: true,
-        peace: false,
-        initial_spawn: None,
-        checkpoint: None,
-        logging: false,
         network: NetworkOverrides {
             server_hz: Some(30),
             update_hz: Some(30),
             snapshot_hz: Some(4),
         },
+        ..options()
     };
     let mut app =
-        build_server_app_with_loader(config, options, None, None, fixtures::generate).expect("ordinary authored app");
+        build_server_app_with_loader(config, launch, None, None, fixtures::generate).expect("ordinary authored app");
     let (client, receiver) = connect(&mut app);
     client
         .send(ClientMessage::Login(CLogin {
@@ -139,10 +137,7 @@ fn hotel_and_obby_run_surface_actors_through_normal_switches_and_replication() {
                 map: Some(name.into()),
                 god: true,
                 peace: true,
-                initial_spawn: None,
-                checkpoint: None,
-                logging: false,
-                network: NetworkOverrides::default(),
+                ..options()
             },
             None,
             None,
@@ -269,15 +264,7 @@ fn ordinary_surface_actor_pursues_a_player_using_an_authored_shuttle() {
     let config = fixtures::config();
     let mut app = build_server_app_with_loader(
         config,
-        ServerAppOptions {
-            map: None,
-            god: true,
-            peace: false,
-            initial_spawn: None,
-            checkpoint: None,
-            logging: false,
-            network: NetworkOverrides::default(),
-        },
+        ServerAppOptions { god: true, ..options() },
         None,
         None,
         |_, hz, settings| fixtures::compile(fixtures::shuttle(), hz, settings),
@@ -352,8 +339,9 @@ fn ordinary_surface_actors_take_turns_on_a_ladder_in_opposite_directions() {
         .character
         .can_use_ladders = true;
     let mut app = build_server_app_with_loader(config, ServerAppOptions {
-        map: None,  god: true, peace: true, initial_spawn: None,
-        checkpoint: None, logging: false, network: NetworkOverrides::default(),
+        god: true,
+        peace: true,
+        ..options()
     }, None, None, |_,hz,settings| {
         let floor = |col,row| serde_json::json!({"col":col,"row":row,"all":"basement-floor"});
         fixtures::compile(serde_json::json!({"map": {
@@ -435,8 +423,9 @@ fn ordinary_surface_actors_take_turns_on_a_ladder_in_opposite_directions() {
 fn surface_actor_roams_inside_a_small_home_on_a_large_surface() {
     let config = fixtures::config();
     let mut app = build_server_app_with_loader(config, ServerAppOptions {
-        map: None,  god: true, peace: true, initial_spawn: None,
-        checkpoint: None, logging: false, network: NetworkOverrides::default(),
+        god: true,
+        peace: true,
+        ..options()
     }, None, None, |_,hz,settings| fixtures::compile(serde_json::json!({"map": {
         "grid_cols":4,"grid_rows":4,"fireworks":null,
         "levels":[{"floors":(0..4).flat_map(|row| (0..4).map(move |col| serde_json::json!({"col":col,"row":row,"all":"basement-floor"}))).collect::<Vec<_>>()}],
@@ -496,8 +485,10 @@ fn wide_ground_actor_flees_over_hills_and_resumes_pursuit_on_the_physical_terrai
         .active_speed = 8.0;
     let mut app = build_server_app_with_loader(
         config,
-        ServerAppOptions { map: None,  god: true, peace: false,
-            initial_spawn: None, checkpoint: None, logging: false, network: NetworkOverrides::default() },
+        ServerAppOptions {
+            god: true,
+            ..options()
+        },
         None, None,
         // Leave vertical bake room for the surrounding rolling grounds.
         |_, hz, settings| fixtures::compile(json!({"map": {
@@ -643,9 +634,9 @@ fn surface_actor_pursues_across_navigation_regions_then_returns_home() {
             .roam_speed = 8.0;
         let physics = config.expect_actor("bruiser").character.physics();
         let mut app = build_server_app_with_loader(config, ServerAppOptions {
-        map: None,  god: true, peace: false, initial_spawn: None,
-        checkpoint: None, logging: false, network: NetworkOverrides::default(),
-    }, None, None, |_, hz, settings| fixtures::compile(serde_json::json!({"map": {
+            god: true,
+            ..options()
+        }, None, None, |_, hz, settings| fixtures::compile(serde_json::json!({"map": {
         "grid_cols":4,"grid_rows":4,"fireworks":null,
         "levels":[{"terrain":(1..3).flat_map(|row| (1..3).map(move |col| serde_json::json!({"col":col,"row":row,"all":"basement-floor"}))).collect::<Vec<_>>()}],
         "checkpoints":[{"level":0,"cols":[1,2],"rows":[1,2],"number":0,"type":"individual"}],
@@ -773,9 +764,13 @@ fn moving_player_pursuit_stays_direct_past_an_off_path_obstacle() {
     let config = fixtures::config();
     let physics = config.expect_actor("scuttler").character.physics();
     let mut app = build_server_app_with_loader(config, ServerAppOptions {
-        map: None,  god: true, peace: false, initial_spawn: None,
-        checkpoint: None, logging: false,
-        network: NetworkOverrides { server_hz: Some(30), update_hz: Some(30), snapshot_hz: Some(4) },
+        god: true,
+        network: NetworkOverrides {
+            server_hz: Some(30),
+            update_hz: Some(30),
+            snapshot_hz: Some(4),
+        },
+        ..options()
     }, None, None, |_, hz, settings| {
         let mut generated = fixtures::compile(serde_json::json!({"map": {
             "grid_cols":20,"grid_rows":6,"fireworks":null,

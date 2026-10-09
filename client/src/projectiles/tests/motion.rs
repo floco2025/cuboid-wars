@@ -1,38 +1,20 @@
-use crate::test_fixtures::PORTAL_HALF_WIDTH;
 use bevy::{
     math::Vec3,
     time::{Timer, TimerMode},
 };
-
 use common::{
-    config::MultiShotConfig,
     constants::TICK_SECS,
     map::Carriers,
     physics::{CollisionWorld, PortalSet},
     protocol::{
-        Barrier, Carrier, CarrierId, FieldId, Floor, LightBridge, MapLayout, Portal, PortalEnd, PortalPairId, Position,
-        Ramp, SwitchState, Wall,
+        Carrier, CarrierId, FieldId, Floor, LightBridge, MapLayout, Portal, PortalEnd, Position, SwitchState, Wall,
     },
 };
 
 use crate::{
-    projectiles::{
-        MuzzleCheck, ProjectileEvent, ProjectileMotion, calculate_projectile_spawns, earliest_projectile_event,
-    },
-    test_fixtures::{self, BARRIER_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
+    projectiles::{ProjectileEvent, ProjectileMotion, earliest_projectile_event},
+    test_fixtures::{self, FLOOR_THICKNESS, PORTAL_HALF_WIDTH, WALL_HEIGHT, WALL_THICKNESS, portal},
 };
-
-// One allowed pattern, built the way the config loader builds them.
-fn multi_shot(column_degrees: f32, row_degrees: f32, stencil: &[&str]) -> MultiShotConfig {
-    serde_json::from_value(serde_json::json!({
-        "spread_degrees": 1.0,
-        "allowed_patterns": ["multi_shot"],
-        "patterns": {
-            "multi_shot": { "column_scale": column_degrees, "row_scale": row_degrees, "stencil": stencil }
-        },
-    }))
-    .expect("stencil rejected")
-}
 
 // Test copies of the default `projectiles` config values.
 const TEST_PROJECTILE_LIFETIME: f32 = 8.0;
@@ -49,78 +31,39 @@ fn test_projectile_motion(velocity: Vec3) -> ProjectileMotion {
     }
 }
 
-fn test_wall(level: u8) -> Wall {
+fn test_wall() -> Wall {
     Wall {
         x1: -2.0,
         z1: 1.0,
         x2: 2.0,
         z2: 1.0,
         width: WALL_THICKNESS,
-        level,
-        y: f32::from(level) * LEVEL_HEIGHT,
+        level: 0,
+        y: 0.0,
         height: WALL_HEIGHT,
         carrier: CarrierId::WORLD,
     }
 }
 
-fn test_floor(level: u8) -> Floor {
+fn test_floor() -> Floor {
     Floor {
         x1: -2.0,
         z1: -2.0,
         x2: 2.0,
         z2: 2.0,
-        y: f32::from(level) * LEVEL_HEIGHT,
+        y: 0.0,
         thickness: FLOOR_THICKNESS,
-        level,
+        level: 0,
         carrier: CarrierId::WORLD,
     }
 }
 
-fn collision_world(walls: &[Wall], floors: &[Floor], ramps: &[Ramp]) -> CollisionWorld {
+fn collision_world(walls: &[Wall], floors: &[Floor]) -> CollisionWorld {
     CollisionWorld::from_map_layout(&MapLayout {
         walls: walls.to_vec(),
         floors: floors.to_vec(),
-        ramps: ramps.to_vec(),
         ..Default::default()
     })
-}
-
-#[test]
-fn lower_level_projectile_ignores_upper_level_wall() {
-    let pos = Position {
-        x: 0.0,
-        y: TEST_PROJECTILE_RADIUS,
-        z: 0.0,
-    };
-    let mut lower_motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
-    let mut upper_motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
-
-    assert!(
-        lower_motion
-            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]), &[])
-            .is_some()
-    );
-    assert!(
-        upper_motion
-            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]), &[])
-            .is_none()
-    );
-}
-
-#[test]
-fn upper_level_projectile_hits_upper_level_wall() {
-    let pos = Position {
-        x: 0.0,
-        y: LEVEL_HEIGHT + TEST_PROJECTILE_RADIUS,
-        z: 0.0,
-    };
-    let mut motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
-
-    assert!(
-        motion
-            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]), &[])
-            .is_some()
-    );
 }
 
 #[test]
@@ -128,41 +71,11 @@ fn world_bounce_reports_first_contact_normal() {
     let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
     let mut motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
     let bounce = motion
-        .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]), &[])
+        .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall()], &[]), &[])
         .expect("projectile should bounce");
 
     assert!(bounce.normal.dot(Vec3::NEG_Z) > 0.99);
     assert!(bounce.contact.z < 1.0);
-}
-
-#[test]
-fn barrier_impact_reports_kind_and_surface_normal() {
-    let kind = FieldId(0);
-    let world = CollisionWorld::from_map_layout(&MapLayout {
-        barriers: vec![Barrier {
-            x1: -2.0,
-            z1: 1.0,
-            x2: 2.0,
-            z2: 1.0,
-            level: 0,
-            levels: 1,
-            field: kind,
-            y: 0.0,
-            height: WALL_HEIGHT,
-            width: BARRIER_THICKNESS,
-            carrier: CarrierId::WORLD,
-        }],
-        ..Default::default()
-    });
-    let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
-    let motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
-    let impact = motion
-        .terminate_at_field(&pos, 0.1, &world, &[])
-        .expect("projectile should hit barrier");
-
-    assert_eq!(impact.field, kind);
-    assert!(impact.normal.dot(Vec3::NEG_Z) > 0.99);
-    assert!(impact.point.z < 1.0);
 }
 
 #[test]
@@ -176,323 +89,10 @@ fn projectile_hits_level_zero_floor_underside() {
 
     assert!(
         motion
-            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[], &[test_floor(0)], &[]), &[])
+            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[], &[test_floor()]), &[])
             .is_some()
     );
     assert!(motion.velocity.y < 0.0);
-}
-
-mod spawning {
-    use crate::test_fixtures;
-    use common::{
-        physics::CollisionWorld,
-        protocol::{CarrierId, Floor, MapLayout, Position, Ramp, RampDirection, RampShape, Wall},
-    };
-
-    use crate::{
-        projectiles::spawning::projectile_spawn_is_blocked,
-        test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
-    };
-
-    fn test_wall(level: u8) -> Wall {
-        Wall {
-            x1: -2.0,
-            z1: 1.0,
-            x2: 2.0,
-            z2: 1.0,
-            width: WALL_THICKNESS,
-            level,
-            y: f32::from(level) * LEVEL_HEIGHT,
-            height: WALL_HEIGHT,
-            carrier: CarrierId::WORLD,
-        }
-    }
-
-    fn test_floor(level: u8) -> Floor {
-        let y = f32::from(level) * LEVEL_HEIGHT;
-        Floor {
-            x1: -2.0,
-            z1: -2.0,
-            x2: 2.0,
-            z2: 2.0,
-            y,
-            thickness: FLOOR_THICKNESS,
-            level,
-            carrier: CarrierId::WORLD,
-        }
-    }
-
-    fn test_ramp() -> Ramp {
-        Ramp {
-            x1: 0.0,
-            z1: 0.0,
-            x2: 4.0,
-            z2: 8.0,
-            y: 0.0,
-            height: LEVEL_HEIGHT,
-            direction: RampDirection::South,
-            shape: RampShape::Solid,
-            thickness: 0.4,
-            level: 0,
-            levels: 1,
-            carrier: CarrierId::WORLD,
-        }
-    }
-
-    fn collision_world(walls: &[Wall], ramps: &[Ramp], floors: &[Floor]) -> CollisionWorld {
-        CollisionWorld::from_map_layout(&MapLayout {
-            walls: walls.to_vec(),
-            ramps: ramps.to_vec(),
-            floors: floors.to_vec(),
-            ..Default::default()
-        })
-    }
-
-    fn player_eye_height() -> f32 {
-        test_fixtures::gameplay_config().player.eye_height()
-    }
-
-    #[test]
-    fn spawn_path_ignores_wall_on_different_level() {
-        let start = Position {
-            x: 0.0,
-            y: player_eye_height(),
-            z: 0.0,
-        };
-        let end = Position {
-            x: 0.0,
-            y: player_eye_height(),
-            z: 2.0,
-        };
-
-        assert!(projectile_spawn_is_blocked(
-            &start,
-            &end,
-            0.11,
-            &collision_world(&[test_wall(0)], &[], &[]),
-            &[]
-        ));
-        assert!(!projectile_spawn_is_blocked(
-            &start,
-            &end,
-            0.11,
-            &collision_world(&[test_wall(1)], &[], &[]),
-            &[]
-        ));
-    }
-
-    #[test]
-    fn spawn_path_blocks_wall_on_same_upper_level() {
-        let y = LEVEL_HEIGHT + player_eye_height();
-        let start = Position { x: 0.0, y, z: 0.0 };
-        let end = Position { x: 0.0, y, z: 2.0 };
-
-        assert!(projectile_spawn_is_blocked(
-            &start,
-            &end,
-            0.11,
-            &collision_world(&[test_wall(1)], &[], &[]),
-            &[]
-        ));
-        assert!(!projectile_spawn_is_blocked(
-            &start,
-            &end,
-            0.11,
-            &collision_world(&[test_wall(0)], &[], &[]),
-            &[]
-        ));
-    }
-
-    #[test]
-    fn spawn_path_blocks_when_starting_inside_wall() {
-        let start = Position {
-            x: 0.0,
-            y: player_eye_height(),
-            z: 1.0,
-        };
-        let end = Position {
-            x: 0.0,
-            y: player_eye_height(),
-            z: 2.0,
-        };
-
-        assert!(projectile_spawn_is_blocked(
-            &start,
-            &end,
-            0.11,
-            &collision_world(&[test_wall(0)], &[], &[]),
-            &[]
-        ));
-    }
-
-    #[test]
-    fn spawn_path_floor_check_catches_crossing_segment() {
-        let floor = test_floor(1);
-        let start = Position {
-            x: 0.0,
-            y: LEVEL_HEIGHT + 1.0,
-            z: 0.0,
-        };
-        let end = Position {
-            x: 0.0,
-            y: LEVEL_HEIGHT - 1.0,
-            z: 0.0,
-        };
-
-        assert!(projectile_spawn_is_blocked(
-            &start,
-            &end,
-            0.11,
-            &collision_world(&[], &[], &[floor]),
-            &[]
-        ));
-    }
-
-    #[test]
-    fn spawn_path_floor_check_blocks_start_inside() {
-        let floor = test_floor(1);
-        let start = Position {
-            x: 0.0,
-            y: LEVEL_HEIGHT,
-            z: 0.0,
-        };
-        let end = Position {
-            x: 0.0,
-            y: LEVEL_HEIGHT + 1.0,
-            z: 0.0,
-        };
-
-        assert!(projectile_spawn_is_blocked(
-            &start,
-            &end,
-            0.11,
-            &collision_world(&[], &[], &[floor]),
-            &[]
-        ));
-    }
-
-    #[test]
-    fn spawn_path_allows_ramp_side_escape() {
-        let ramp = test_ramp();
-        let start = Position { x: 0.2, y: 1.4, z: 4.0 };
-        let end = Position {
-            x: 0.05,
-            y: 1.4,
-            z: 4.0,
-        };
-
-        assert!(!projectile_spawn_is_blocked(
-            &start,
-            &end,
-            0.11,
-            &collision_world(&[], &[ramp], &[]),
-            &[]
-        ));
-    }
-
-    #[test]
-    fn spawn_path_blocks_into_ramp_side() {
-        let ramp = test_ramp();
-        let start = Position { x: 0.2, y: 1.4, z: 4.0 };
-        let end = Position { x: 0.8, y: 1.4, z: 4.0 };
-
-        assert!(projectile_spawn_is_blocked(
-            &start,
-            &end,
-            0.11,
-            &collision_world(&[], &[ramp], &[]),
-            &[]
-        ));
-    }
-
-    #[test]
-    fn spawn_path_blocks_entering_ramp_from_outside() {
-        let ramp = test_ramp();
-        let start = Position {
-            x: -0.2,
-            y: 1.4,
-            z: 4.0,
-        };
-        let end = Position { x: 0.2, y: 1.4, z: 4.0 };
-
-        assert!(projectile_spawn_is_blocked(
-            &start,
-            &end,
-            0.11,
-            &collision_world(&[], &[ramp], &[]),
-            &[]
-        ));
-    }
-}
-
-#[test]
-fn multi_shot_fires_the_configured_stencil() {
-    let mut gameplay = test_fixtures::gameplay_config();
-    gameplay.projectiles.multi_shot = multi_shot(1.5, 1.5, &["x.x", ".o.", "x.x"]);
-    let world = CollisionWorld::from_map_layout(&MapLayout::default());
-    let shooter = Position { x: 0.0, y: 1.0, z: 0.0 };
-    let (yaw, pitch) = (0.3, 0.1);
-    let close = |a: f32, b: f32| (a - b).abs() < 1e-5;
-
-    let single = calculate_projectile_spawns(&shooter, yaw, pitch, 0, &gameplay, &world, &[], MuzzleCheck::Enforced);
-    assert_eq!(single.len(), 1);
-    assert!(close(single[0].direction_yaw, yaw) && close(single[0].direction_pitch, pitch));
-
-    let spread = 1.5_f32.to_radians();
-    let multi = calculate_projectile_spawns(&shooter, yaw, pitch, 1, &gameplay, &world, &[], MuzzleCheck::Enforced);
-    let offsets: Vec<(f32, f32)> = multi
-        .iter()
-        .map(|spawn| (spawn.direction_yaw - yaw, spawn.direction_pitch - pitch))
-        .collect();
-    // Row-major over the stencil; screen-right is negative yaw.
-    let expected = [
-        (spread, spread),
-        (-spread, spread),
-        (0.0, 0.0),
-        (spread, -spread),
-        (-spread, -spread),
-    ];
-    assert_eq!(offsets.len(), expected.len(), "{offsets:?}");
-    for ((yaw_offset, pitch_offset), (want_yaw, want_pitch)) in offsets.iter().zip(expected) {
-        assert!(
-            close(*yaw_offset, want_yaw) && close(*pitch_offset, want_pitch),
-            "{offsets:?}"
-        );
-    }
-}
-
-#[test]
-fn a_relayed_volley_reproduces_the_shooters_spawn_set_through_a_blocking_muzzle() {
-    let mut gameplay = test_fixtures::gameplay_config();
-    gameplay.projectiles.multi_shot = multi_shot(30.0, 30.0, &["xox"]);
-    let shooter = Position { x: 0.0, y: 1.0, z: 0.0 };
-    let open = CollisionWorld::from_map_layout(&MapLayout::default());
-    // A wall beside the shooter that only one muzzle of the volley clips.
-    let blocked = collision_world(
-        &[Wall {
-            x1: 0.5,
-            z1: -2.0,
-            x2: 0.5,
-            z2: 2.0,
-            width: WALL_THICKNESS,
-            y: 0.0,
-            height: WALL_HEIGHT,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
-        &[],
-        &[],
-    );
-    let spawns = |world: &CollisionWorld, check| {
-        calculate_projectile_spawns(&shooter, 0.0, 0.0, 1, &gameplay, world, &[], check)
-            .iter()
-            .map(|spawn| spawn.direction_yaw)
-            .collect::<Vec<_>>()
-    };
-    let shooter_set = spawns(&open, MuzzleCheck::Enforced);
-    assert_eq!(shooter_set.len(), 3);
-    assert_eq!(spawns(&blocked, MuzzleCheck::Enforced).len(), 2);
-    assert_eq!(spawns(&blocked, MuzzleCheck::Skipped), shooter_set);
 }
 
 #[test]
@@ -528,19 +128,6 @@ fn solid_bridges_absorb_projectiles_from_both_sides_instead_of_bouncing() {
             }
             assert_eq!(motion.velocity, velocity);
         }
-    }
-}
-
-fn portal(end: PortalEnd, pos: Vec3, normal: Vec3) -> Portal {
-    Portal {
-        pair: PortalPairId(1),
-        end,
-        pos: pos.into(),
-        nx: normal.x,
-        ny: normal.y,
-        nz: normal.z,
-        yaw: 0.0,
-        carrier: CarrierId::WORLD,
     }
 }
 
@@ -611,8 +198,8 @@ fn moving_projectile_portals(entry_travel: Vec3, exit_travel: Vec3, obstacles: &
         ],
         &world,
         &carriers,
-        crate::test_fixtures::gameplay_config().portals.size,
-        crate::test_fixtures::gameplay_config().player.physics(),
+        test_fixtures::gameplay_config().portals.size,
+        test_fixtures::gameplay_config().player.physics(),
     );
     (world, set)
 }

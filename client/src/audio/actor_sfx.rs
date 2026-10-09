@@ -37,7 +37,3 @@ pub(crate) fn play_actor_spatial_sound(
         Transform::from_translation(pos),
     ));
 }
-
-#[cfg(test)]
-#[path = "tests/actor_sfx.rs"]
-mod tests;

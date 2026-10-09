@@ -1,23 +1,19 @@
 use super::*;
-use crate::actors::navigation::surface::fixtures;
+use crate::actors::{
+    ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus, navigation::surface::fixtures,
+};
 use bevy::math::Vec3;
 use common::{
+    config::CharacterPhysicsConfig,
+    map::Carriers,
+    math::angle_delta_radians,
     physics::CollisionWorld,
-    protocol::{CarrierId, Floor, MapLayout, Wall},
+    protocol::{CarrierId, MapLayout, Wall},
 };
 
 fn obstacle_scene() -> (SurfaceMesh, CollisionWorld) {
     let layout = MapLayout {
-        floors: vec![Floor {
-            x1: -12.0,
-            x2: 12.0,
-            z1: -8.0,
-            z2: 8.0,
-            y: 0.0,
-            thickness: 0.2,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
+        floors: vec![fixtures::floor([-12.0, 12.0], [-8.0, 8.0], 0.0)],
         walls: vec![Wall {
             x1: 0.0,
             x2: 0.0,
@@ -32,15 +28,44 @@ fn obstacle_scene() -> (SurfaceMesh, CollisionWorld) {
         ..Default::default()
     };
     let world = CollisionWorld::from_map_layout(&layout);
-    let physics = fixtures::config().expect_actor("scuttler").character.physics();
     let mesh = SurfaceMesh::bake(
         &world.collision_meshes().expect("collision mesh"),
         CarrierId::WORLD,
-        physics,
+        scuttler(),
         &[],
     )
     .expect("walkable surface");
     (mesh, world)
+}
+
+fn scuttler() -> CharacterPhysicsConfig {
+    fixtures::config().expect_actor("scuttler").character.physics()
+}
+
+// Walks `route` from `start` with the real motor, never into a solid, and
+// asserts it arrives at `goal`.
+fn assert_walks(
+    env: &TraversalEnvironment,
+    physics: CharacterPhysicsConfig,
+    route: SurfaceRoute,
+    start: Position,
+    goal: Position,
+) {
+    let mut actor = TraversalExecutor::new(physics, 3.0);
+    let mut body = ActorBody::standing(start);
+    actor.set_route(route);
+    for _ in 0..1200 {
+        actor.step(env, &mut body);
+        assert!(
+            !env.world.character_penetrates_solid(&body.position, physics, &[]),
+            "{actor:?}"
+        );
+        if actor.status == TraversalStatus::Reached {
+            break;
+        }
+    }
+    assert_eq!(actor.status, TraversalStatus::Reached, "{actor:?}");
+    assert!(body.position.distance_sq(&goal) < 0.1, "{actor:?}");
 }
 
 #[test]
@@ -68,7 +93,7 @@ fn open_pursuit_paths_stay_straight_across_polygon_boundaries() {
 #[test]
 fn smoothed_routes_go_around_obstacles_without_cutting_clearance() {
     let (mesh, world) = obstacle_scene();
-    let physics = fixtures::config().expect_actor("scuttler").character.physics();
+    let physics = scuttler();
     for direction in [-1.0, 1.0] {
         let start = Position {
             x: -8.0 * direction,
@@ -107,8 +132,6 @@ fn smoothed_routes_go_around_obstacles_without_cutting_clearance() {
 
 #[test]
 fn smoothing_preserves_the_ramp_route_between_stacked_surfaces() {
-    use crate::actors::movement::traversal::{ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus};
-    use common::map::Carriers;
     let config = fixtures::config();
     let generated = fixtures::generate("fixture", 30, &config.settings).expect("ramp scene");
     let world = CollisionWorld::from_map_layout(&generated.layout);
@@ -132,45 +155,16 @@ fn smoothing_preserves_the_ramp_route_between_stacked_surfaces() {
         "shortcut between stacked floors: {:?}",
         route.actions
     );
-    let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
-    let mut actor = TraversalExecutor::new(physics, 3.0);
-    let mut body = ActorBody::standing(start);
-    actor.set_route(route);
-    for _ in 0..1200 {
-        actor.step(&env, &mut body);
-        assert!(
-            !world.character_penetrates_solid(&body.position, physics, &[]),
-            "{actor:?}"
-        );
-        if actor.status == TraversalStatus::Reached {
-            break;
-        }
-    }
-    assert_eq!(actor.status, TraversalStatus::Reached, "{actor:?}");
-    assert!(body.position.distance_sq(&goal) < 0.1, "{actor:?}");
+    assert_walks(&fixtures::env(&world, &carriers, &config), physics, route, start, goal);
 }
 
 #[test]
 fn smoothed_obstacle_routes_remain_executable_with_bounded_turning() {
-    use crate::actors::movement::traversal::{ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus};
-    use common::{map::Carriers, math::angle_delta_radians};
     let (mesh, world) = obstacle_scene();
     let config = fixtures::config();
     let physics = config.expect_actor("scuttler").character.physics();
     let carriers = Carriers::default();
-    let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
+    let env = fixtures::env(&world, &carriers, &config);
     for direction in [-1.0, 1.0] {
         let start = Position {
             x: -8.0 * direction,
@@ -204,8 +198,6 @@ fn smoothed_obstacle_routes_remain_executable_with_bounded_turning() {
 
 #[test]
 fn exhausting_the_smoothing_budget_keeps_the_found_route_executable() {
-    use crate::actors::movement::traversal::{ActorBody, TraversalEnvironment, TraversalExecutor, TraversalStatus};
-    use common::map::Carriers;
     let (mesh, world) = obstacle_scene();
     let start = Position {
         x: -8.0,
@@ -220,28 +212,12 @@ fn exhausting_the_smoothing_budget_keeps_the_found_route_executable() {
         .expect("existing route survives incomplete smoothing");
     assert_eq!(route.expanded, limit);
     let config = fixtures::config();
-    let physics = config.expect_actor("scuttler").character.physics();
     let carriers = Carriers::default();
-    let env = TraversalEnvironment {
-        world: &world,
-        carriers: &carriers,
-        settings: &config.settings,
-        open: &[],
-        delta: 1.0 / 30.0,
-    };
-    let mut actor = TraversalExecutor::new(physics, 3.0);
-    let mut body = ActorBody::standing(start);
-    actor.set_route(route);
-    for _ in 0..600 {
-        actor.step(&env, &mut body);
-        assert!(
-            !world.character_penetrates_solid(&body.position, physics, &[]),
-            "{actor:?}"
-        );
-        if actor.status == TraversalStatus::Reached {
-            break;
-        }
-    }
-    assert_eq!(actor.status, TraversalStatus::Reached, "{actor:?}");
-    assert!(body.position.distance_sq(&goal) < 0.1, "{actor:?}");
+    assert_walks(
+        &fixtures::env(&world, &carriers, &config),
+        scuttler(),
+        route,
+        start,
+        goal,
+    );
 }

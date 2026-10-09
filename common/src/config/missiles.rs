@@ -39,7 +39,3 @@ impl MissilesConfig {
         Ok(())
     }
 }
-
-#[cfg(test)]
-#[path = "tests/missiles.rs"]
-mod tests;

@@ -6,14 +6,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PySide6.QtCore import QEvent, QPoint, QSettings, Qt
+from PySide6.QtCore import QEvent, QPointF, QSettings, Qt
+from PySide6.QtGui import QContextMenuEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QComboBox, QMenu, QMessageBox
 
 from config_fixtures import install_catalogs, map_fields
 from map_editor.constants import FACES, ITEM_TYPES, MODE_SELECT
 from map_editor.erase_tools import EraseMixin
-from map_editor.io import write_map
+from map_editor.io import read_map, write_map
 from map_editor.items import ItemsMixin
 from map_editor.lights import LightsMixin
 from map_editor.nested_maps import NestedMapsMixin
@@ -42,8 +43,35 @@ def floor(col: int, row: int) -> dict:
     return {"col": col, "row": row, **faces()}
 
 
+def floor_grid(cols: int = 8, rows: int = 8) -> list[dict]:
+    return [floor(col, row) for row in range(rows) for col in range(cols)]
+
+
+# A map with nothing on it, not even the start.
+def blank_map(cols: int = 8, rows: int = 8) -> dict:
+    data = empty_map(cols, rows)
+    data["checkpoints"] = []
+    return data
+
+
+def toggle_switch(name: str) -> dict:
+    return {"id": name, "activation": "toggle", "reset_on_player_death": "never"}
+
+
 def start_checkpoint(col: int, row: int, level: int = 0) -> dict:
     return {"level": level, "cols": [col, col + 1], "rows": [row, row + 1], "type": "individual", "number": 0}
+
+
+def actor_zone(**fields) -> dict:
+    return {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "respawn_secs": 90, **fields}
+
+
+# The text a layout file holds for `data`, and what reads back from it.
+def saved_map(data: dict) -> tuple[str, dict]:
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "layout.json"
+        write_map(path, data)
+        return path.read_text(encoding="utf-8"), read_map(path)
 
 
 def nested(map_name: str, level: int, start: list[int], end: list[int], to_level: int | None = None) -> dict:
@@ -217,8 +245,6 @@ class WindowTestCase(unittest.TestCase):
 
     # `finish=False` leaves typed text as a draft, like a field still focused.
     def set_property(self, key, value, *, finish=True):
-        from PySide6.QtWidgets import QComboBox
-
         panel = self.window.properties_panel
         widget = panel.widgets[(key,) if isinstance(key, str) else key]
         if isinstance(widget, QComboBox):
@@ -233,10 +259,45 @@ class WindowTestCase(unittest.TestCase):
             if finish:
                 widget.editingFinished.emit()
 
+    def set_switches(self, *names):
+        self.window.doc.root_data["switches"] = [toggle_switch(name) for name in names]
+        self.window.switch_ids = list(names)
+
+    # The canvas pixel over a point in grid units.
+    def point(self, x, z):
+        return self.window.canvas.viewport.from_grid(QPointF(x, z)).toPoint()
+
     def click(self, col, row):
         self.click_at(col + 0.5, row + 0.5)
 
-    # A click at a point in grid units.
-    def click_at(self, x, z):
-        size = self.window.canvas.cell_size()
-        QTest.mouseClick(self.window.canvas, Qt.MouseButton.LeftButton, pos=QPoint(round(x * size), round(z * size)))
+    def click_at(self, x, z, modifiers=Qt.KeyboardModifier.NoModifier):
+        QTest.mouseClick(self.window.canvas, Qt.MouseButton.LeftButton, modifiers, pos=self.point(x, z))
+
+    def drag(self, start, end, modifiers=Qt.KeyboardModifier.NoModifier):
+        canvas = self.window.canvas
+        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, modifiers, pos=self.point(*start))
+        QTest.mouseMove(canvas, self.point(*end))
+        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, modifiers, pos=self.point(*end))
+        self.app.processEvents()
+
+    # Opens the canvas menu at a grid point, triggers the action titled
+    # `title` if one is given, and returns the menu's action titles.
+    def context(self, x, z, title=None):
+        canvas = self.window.canvas
+        position = self.point(x, z)
+        menu = QMenu(canvas)
+
+        def choose(*_):
+            if title is not None:
+                action = next((a for a in menu.actions() if a.text().replace("&", "") == title), None)
+                self.assertIsNotNone(action, [a.text() for a in menu.actions()])
+                action.trigger()
+
+        menu.exec = choose
+        with patch("map_editor.interaction.QMenu", return_value=menu):
+            canvas.contextMenuEvent(
+                QContextMenuEvent(QContextMenuEvent.Reason.Mouse, position, canvas.mapToGlobal(position))
+            )
+        actions = [a.text().replace("&", "") for a in menu.actions()]
+        menu.deleteLater()
+        return actions

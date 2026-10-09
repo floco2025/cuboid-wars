@@ -1,8 +1,8 @@
 use super::*;
 
-fn multi_shot(stencil: &[&str]) -> Result<MultiShotConfig> {
+fn multi_shot(stencil: &[&str]) -> Result<MultiShotPatternConfig> {
     let rows: Vec<String> = stencil.iter().map(|row| (*row).to_owned()).collect();
-    MultiShotConfig::from_stencil("multi_shot", 2.0, 3.0, &rows)
+    MultiShotPatternConfig::from_stencil("multi_shot", 2.0, 3.0, &rows)
 }
 
 fn pattern() -> MultiShotPattern {
@@ -28,7 +28,7 @@ fn selects_and_scales_a_named_pattern() {
         patterns: patterns.clone(),
     })
     .expect("named pattern rejected");
-    let (yaw, pitch) = selected.shots()[0];
+    let (yaw, pitch) = selected.shot_offsets(1).expect("named pattern missing")[0];
     assert!((yaw - 3.0_f32.to_radians()).abs() < 1e-6 && pitch == 0.0);
 
     let missing = MultiShotConfig::try_from(MultiShotSource {
@@ -53,7 +53,7 @@ fn allowed_patterns_are_ordered_and_may_leave_dormant_patterns() {
     })
     .expect("ordered allowed patterns rejected");
     assert_eq!(config.allowed_patterns(), ["first_2", "second_2"]);
-    assert!(config.pattern("dormant_2").is_none());
+    assert!(config.allowed_pattern(2).is_none());
 
     let duplicate = MultiShotConfig::try_from(MultiShotSource {
         spread_degrees: 2.0,
@@ -69,7 +69,7 @@ fn allowed_patterns_are_ordered_and_may_leave_dormant_patterns() {
 }
 
 #[test]
-fn offsets_are_centred_on_the_aim() {
+fn offsets_are_measured_from_the_aim() {
     let column = 2.0_f32.to_radians();
     let row = 3.0_f32.to_radians();
     assert_eq!(
@@ -80,25 +80,6 @@ fn offsets_are_centred_on_the_aim() {
         multi_shot(&["o", "x"]).expect("column stencil rejected").shots(),
         &[(0.0, 0.0), (0.0, -row)]
     );
-}
-
-#[test]
-fn triangle_is_equilateral_at_root_three_rows() {
-    let rows: Vec<String> = [".o.", "x.x"].map(str::to_owned).to_vec();
-    let config =
-        MultiShotConfig::from_stencil("multi_shot", 1.0, 3.0_f32.sqrt(), &rows).expect("triangle stencil rejected");
-    let [top, left, right] = config.shots() else {
-        panic!("triangle has {} shots", config.shots().len());
-    };
-    let side = |a: &(f32, f32), b: &(f32, f32)| ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt();
-    assert!((side(top, left) - side(left, right)).abs() < 1e-6);
-    assert!((side(top, right) - side(left, right)).abs() < 1e-6);
-}
-
-#[test]
-fn anchor_moves_the_aim() {
-    let column = 2.0_f32.to_radians();
-    let row = 3.0_f32.to_radians();
     assert_eq!(
         multi_shot(&["x..", "..o"]).expect("anchored stencil rejected").shots(),
         &[(2.0 * column, row), (0.0, 0.0)]

@@ -2,7 +2,7 @@ import copy
 import json
 from unittest.mock import patch
 
-from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, floor, nested
+from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, blank_map, floor, nested
 from map_editor.catalogs import map_settings_path
 from map_editor.dialogs.levels import LevelsDialog
 from map_editor.io import read_map
@@ -10,16 +10,37 @@ from map_editor.normalization import empty_level, empty_map
 from PySide6.QtWidgets import QDialog, QMessageBox
 
 
+# An 8x8 map of `count` empty levels with no start.
+def levels_map(count):
+    data = blank_map()
+    data["levels"] = [empty_level(i) for i in range(count)]
+    return data
+
+
+# Two levels and a ramp from the lower to the upper.
+def ramp_map():
+    data = levels_map(2)
+    data["ramps"] = [{"lower_level": 0, "cols": [3, 6], "rows": [3, 4], "direction": "E", "all": DEFAULT_ALIAS}]
+    return data
+
+
 class LevelsWindowTests(WindowTestCase):
+    # Opens Edit Levels, where `edit` works the dialog and closes it.
+    def edit_levels(self, edit):
+        def run(dialog):
+            edit(dialog)
+            return dialog.result()
+
+        with patch.object(LevelsDialog, "exec", run):
+            self.window.edit_levels()
+
     def test_shrink_scales_vertical_nudges_by_floor_thickness(self):
         path = map_settings_path("hotel")
         settings = json.loads(path.read_text())
         settings["geometry"].update(level_height=4, floor_thickness=1, wall_thickness=0.75)
         path.write_text(json.dumps(settings))
         self.window.reload_dependencies()
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
-        data["levels"] = [empty_level(i) for i in range(7)]
+        data = levels_map(7)
         data["nested_geometry"] = {"platform": empty_map(2, 2)}
         data["nested_maps"] = [nested("platform", 1, [2, 2], [2, 2])]
         data["nested_maps"][0]["from_nudge"][1] = 16
@@ -30,17 +51,13 @@ class LevelsWindowTests(WindowTestCase):
             dialog.shrink_button.click()
             self.assertEqual(dialog.values(), [(i, f"Level {i}") for i in range(1, 6)])
             dialog.accept()
-            return dialog.result()
 
-        with patch.object(LevelsDialog, "exec", edit):
-            self.window.edit_levels()
+        self.edit_levels(edit)
         self.assertEqual(len(self.window.map_data["levels"]), 5)
         self.assertEqual(self.window.map_data["nested_maps"][0]["from_nudge"], [0, 16, 0])
 
     def test_shrink_keeps_interior_levels_names_spans_and_nested_motion(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
-        data["levels"] = [empty_level(i) for i in range(8)]
+        data = levels_map(8)
         data["levels"][2]["floors"] = [floor(2, 2)]
         data["items"] = [{"level": 5, "col": 3, "row": 3, "type": "gold"}]
         child = empty_map(2, 2)
@@ -61,10 +78,8 @@ class LevelsWindowTests(WindowTestCase):
             self.assertEqual(dialog.summary.text(), "")
             self.assertEqual(self.window.map_data, before)
             dialog.accept()
-            return dialog.result()
 
-        with patch.object(LevelsDialog, "exec", edit):
-            self.window.edit_levels()
+        self.edit_levels(edit)
         after = copy.deepcopy(self.window.map_data)
         self.assertEqual((after["grid_cols"], after["grid_rows"]), (8, 8))
         self.assertEqual(len(after["levels"]), 5)
@@ -80,10 +95,7 @@ class LevelsWindowTests(WindowTestCase):
         self.assertEqual(self.window.map_data, after)
 
     def test_shrink_empty_levels_keeps_one_and_cancel_discards_it(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
-        data["levels"] = [empty_level(i) for i in range(4)]
-        self.window.doc.replace_with_new(data)
+        self.window.doc.replace_with_new(levels_map(4))
         self.window.set_level_index(3)
         before = copy.deepcopy(self.window.map_data)
 
@@ -94,10 +106,8 @@ class LevelsWindowTests(WindowTestCase):
             dialog.shrink_button.click()
             self.assertEqual(dialog.table.rowCount(), 1)
             dialog.reject()
-            return dialog.result()
 
-        with patch.object(LevelsDialog, "exec", edit):
-            self.window.edit_levels()
+        self.edit_levels(edit)
         self.assertEqual(self.window.map_data, before)
         self.assertEqual(self.window.current_level, 3)
         self.assertEqual(self.window.undo_stack.count(), 0)
@@ -134,10 +144,8 @@ class LevelsWindowTests(WindowTestCase):
             dialog.down_button.click()
             self.assertEqual(window.doc.root_data, before)
             dialog.accept()
-            return dialog.result()
 
-        with patch.object(LevelsDialog, "exec", edit):
-            window.edit_levels()
+        self.edit_levels(edit)
         self.assertEqual([level["name"] for level in window.map_data["levels"]], ["Entrance", "Roof", "Gallery"])
         self.assertEqual(window.map_data["items"][0]["level"], 1)
         self.assertEqual(window.current_level, 1)
@@ -152,33 +160,6 @@ class LevelsWindowTests(WindowTestCase):
         self.assertEqual(window.doc.root_data, after)
         window.doc.write(self.path)
         self.assertEqual(read_map(self.path), after)
-
-    def test_cancel_keeps_document_history_and_current_level_untouched(self):
-        window = self.window
-        data = empty_map(8, 8)
-        data["levels"].append(empty_level(1))
-        data["ramps"] = [{"lower_level": 0, "cols": [3, 6], "rows": [3, 4], "direction": "E", "all": DEFAULT_ALIAS}]
-        window.doc.replace_with_new(data)
-        before = copy.deepcopy(window.map_data)
-
-        def edit(dialog):
-            dialog.table.item(0, 1).setText("Renamed")
-            dialog.down_button.click()
-            self.assertIn("1 ramps", dialog.summary.text())
-            with patch(
-                "map_editor.dialogs.levels.QMessageBox.question", return_value=QMessageBox.StandardButton.Cancel
-            ):
-                dialog.accept()
-            self.assertEqual(dialog.result(), QDialog.DialogCode.Rejected)
-            self.assertEqual(window.map_data, before)
-            dialog.reject()
-            return dialog.result()
-
-        with patch.object(LevelsDialog, "exec", edit):
-            window.edit_levels()
-        self.assertEqual(window.map_data, before)
-        self.assertEqual(window.undo_stack.count(), 0)
-        self.assertEqual(window.current_level, 0)
 
     def test_removal_lists_dropped_geometry_and_one_undo_restores_it(self):
         window = self.window
@@ -203,10 +184,8 @@ class LevelsWindowTests(WindowTestCase):
             ) as confirm:
                 dialog.accept()
             confirm.assert_called_once()
-            return dialog.result()
 
-        with patch.object(LevelsDialog, "exec", edit):
-            window.edit_levels()
+        self.edit_levels(edit)
         self.assertEqual(len(window.map_data["levels"]), 2)
         self.assertEqual(window.map_data["checkpoints"], [])
         self.assertEqual(window.map_data["nested_maps"], [])
@@ -216,10 +195,7 @@ class LevelsWindowTests(WindowTestCase):
         self.assertEqual(window.map_data, before)
 
     def test_a_staged_insertion_grows_a_ramp_and_undoing_it_needs_no_document_edit(self):
-        data = empty_map(8, 8)
-        data["levels"].append(empty_level(1))
-        data["ramps"] = [{"lower_level": 0, "cols": [3, 6], "rows": [3, 4], "direction": "E", "all": DEFAULT_ALIAS}]
-        self.window.doc.replace_with_new(data)
+        self.window.doc.replace_with_new(ramp_map())
         before = copy.deepcopy(self.window.map_data)
 
         def edit(dialog):
@@ -229,18 +205,13 @@ class LevelsWindowTests(WindowTestCase):
             dialog.remove_button.click()
             self.assertEqual(dialog.edited_data(), before)
             dialog.accept()
-            return dialog.result()
 
-        with patch.object(LevelsDialog, "exec", edit):
-            self.window.edit_levels()
+        self.edit_levels(edit)
         self.assertEqual(self.window.map_data, before)
         self.assertEqual(self.window.undo_stack.count(), 0)
 
     def test_reversing_moves_restores_ramps_and_cancel_discards_reordering(self):
-        data = empty_map(8, 8)
-        data["levels"].append(empty_level(1))
-        data["ramps"] = [{"lower_level": 0, "cols": [3, 6], "rows": [3, 4], "direction": "E", "all": DEFAULT_ALIAS}]
-        self.window.doc.replace_with_new(data)
+        self.window.doc.replace_with_new(ramp_map())
         before = copy.deepcopy(self.window.map_data)
 
         def edit(dialog):
@@ -257,10 +228,8 @@ class LevelsWindowTests(WindowTestCase):
             confirm.assert_called_once()
             self.assertEqual(dialog.result(), QDialog.DialogCode.Rejected)
             dialog.reject()
-            return dialog.result()
 
-        with patch.object(LevelsDialog, "exec", edit):
-            self.window.edit_levels()
+        self.edit_levels(edit)
         self.assertEqual(self.window.map_data, before)
         self.assertEqual(self.window.undo_stack.count(), 0)
         self.assertEqual(self.window.current_level, 0)

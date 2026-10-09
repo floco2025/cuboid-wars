@@ -2,7 +2,7 @@ use rapier3d::{control::KinematicCharacterController, prelude::Vector};
 
 use super::*;
 use crate::{
-    config::gameplay::load_test_gameplay, constants::TICK_SECS, map::Carriers,
+    config::fixtures::player_physics, constants::TICK_SECS, map::Carriers,
     physics::characters::character_movement_pose, protocol::SwitchState,
 };
 
@@ -10,7 +10,7 @@ use crate::{
 fn carrier_colliders_follow_the_carrier_pose() {
     let layout = slider_layout();
     let mut world = CollisionWorld::from_map_layout(&layout);
-    assert_eq!(world.solid_kinds(), vec![ColliderKind::Floor]);
+    assert_eq!(solid_kinds(&world), vec![ColliderKind::Floor]);
     let shape = character_movement_shape(wide_body());
     let probe = |world: &CollisionWorld, x: f32| {
         let pose = Pose::translation(x, LEVEL_HEIGHT + 0.0 + 0.05, 0.0);
@@ -119,10 +119,7 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         field: FieldId(1),
         carrier,
     };
-    let physics = load_test_gameplay()
-        .expect("test gameplay config invalid")
-        .player
-        .physics();
+    let physics = player_physics();
     let shape = character_movement_shape(physics);
     let pose = character_movement_pose(
         &Position {

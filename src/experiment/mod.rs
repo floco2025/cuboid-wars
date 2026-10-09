@@ -23,24 +23,5 @@ mod encounter_tests;
 mod fixtures;
 
 #[cfg(test)]
-#[path = "tests/foundry.rs"]
-mod foundry_tests;
-
-#[cfg(test)]
-#[path = "tests/switchyard.rs"]
-mod switchyard_tests;
-
-#[cfg(test)]
-#[path = "tests/gatehouse.rs"]
-mod gatehouse_tests;
-#[cfg(test)]
 #[path = "tests/movement.rs"]
 mod movement_tests;
-
-#[cfg(test)]
-#[path = "tests/playback.rs"]
-mod playback_tests;
-
-#[cfg(test)]
-#[path = "tests/primer.rs"]
-mod primer_tests;

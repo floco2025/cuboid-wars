@@ -126,6 +126,23 @@ class MapSettingsTests(ConfigTestCase):
 
 
 class MapSettingsWindowTests(WindowTestCase):
+    def register(self, name, settings: bytes):
+        config = json.loads(self.global_path.read_text())
+        config["maps"].append(name)
+        self.global_path.write_text(json.dumps(config))
+        path = map_settings_path(name)
+        path.parent.mkdir()
+        path.write_bytes(settings)
+        return path
+
+    # File > New for an 8x8 layout of the map `name`.
+    def new_file(self, name):
+        with (
+            patch("map_editor.file_actions.ResizeMapDialog.prompt", return_value=(8, 8, 0, 0)),
+            patch("map_editor.file_actions.QInputDialog.getItem", return_value=(name, True)),
+        ):
+            self.window.new_file()
+
     def test_invalid_geometry_reload_retains_last_valid_dimensions_for_level_editing(self):
         window = self.window
         path = map_settings_path("hotel")
@@ -175,17 +192,8 @@ class MapSettingsWindowTests(WindowTestCase):
 
     def test_new_registered_map_can_create_a_layout_without_overwriting_settings(self):
         source = map_settings_path("hotel").read_bytes()
-        global_config = json.loads(self.global_path.read_text())
-        global_config["maps"].append("fresh")
-        self.global_path.write_text(json.dumps(global_config))
-        settings = map_settings_path("fresh")
-        settings.parent.mkdir()
-        settings.write_bytes(source)
-        with (
-            patch("map_editor.file_actions.ResizeMapDialog.prompt", return_value=(8, 8, 0, 0)),
-            patch("map_editor.file_actions.QInputDialog.getItem", return_value=("fresh", True)),
-        ):
-            self.window.new_file()
+        settings = self.register("fresh", source)
+        self.new_file("fresh")
         self.assertEqual(self.window.path, map_layout_path("fresh"))
         self.assertFalse(self.window.path.exists())
         self.assertTrue(self.window.save())
@@ -193,19 +201,10 @@ class MapSettingsWindowTests(WindowTestCase):
         self.assertEqual(json.loads(settings.read_text()), json.loads(source))
 
     def test_new_with_a_malformed_settings_file_reports_and_keeps_the_document(self):
-        global_config = json.loads(self.global_path.read_text())
-        global_config["maps"].append("fresh")
-        self.global_path.write_text(json.dumps(global_config))
-        settings = map_settings_path("fresh")
-        settings.parent.mkdir()
-        settings.write_text('{"portals": "both",}')
+        self.register("fresh", b'{"portals": "both",}')
         original = self.window.doc.root_data.copy()
-        with (
-            patch("map_editor.file_actions.ResizeMapDialog.prompt", return_value=(8, 8, 0, 0)),
-            patch("map_editor.file_actions.QInputDialog.getItem", return_value=("fresh", True)),
-            patch("map_editor.file_actions.QMessageBox.critical") as critical,
-        ):
-            self.window.new_file()
+        with patch("map_editor.file_actions.QMessageBox.critical") as critical:
+            self.new_file("fresh")
         critical.assert_called_once()
         self.assertIn("fresh/settings.json", critical.call_args.args[2])
         self.assertEqual(self.window.path, self.path)
@@ -235,12 +234,8 @@ class MapSettingsWindowTests(WindowTestCase):
         autosave.write_text("{}")
         original = self.window.doc.root_data.copy()
         for answer in [QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Yes]:
-            with (
-                patch("map_editor.file_actions.ResizeMapDialog.prompt", return_value=(8, 8, 0, 0)),
-                patch("map_editor.file_actions.QInputDialog.getItem", return_value=("obby", True)),
-                patch("map_editor.file_actions.QMessageBox.question", return_value=answer) as question,
-            ):
-                self.window.new_file()
+            with patch("map_editor.file_actions.QMessageBox.question", return_value=answer) as question:
+                self.new_file("obby")
             question.assert_called_once()
             self.assertEqual(read_map(obby), existing)
             self.assertTrue(autosave.exists())
@@ -257,12 +252,8 @@ class MapSettingsWindowTests(WindowTestCase):
     def test_new_warns_before_overwriting_later_external_edits(self):
         path = map_layout_path("obby")
         write_map(path, empty_map(5, 5))
-        with (
-            patch("map_editor.file_actions.ResizeMapDialog.prompt", return_value=(8, 8, 0, 0)),
-            patch("map_editor.file_actions.QInputDialog.getItem", return_value=("obby", True)),
-            patch("map_editor.file_actions.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes),
-        ):
-            self.window.new_file()
+        with patch("map_editor.file_actions.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes):
+            self.new_file("obby")
 
         mtime = path.stat().st_mtime
         external = {"fireworks": None, **empty_map(12, 12)}

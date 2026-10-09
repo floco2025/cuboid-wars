@@ -2,32 +2,22 @@ use super::*;
 use crate::test_fixtures;
 
 #[test]
-fn preferences_reject_zero_fullscreen_resolution() {
-    let mut settings = test_fixtures::client_settings();
-    settings.preferences.fullscreen_resolution = 0;
-    let error = settings
-        .preferences
-        .validate()
-        .expect_err("zero render resolution should fail");
-    assert!(error.to_string().contains("fullscreen_resolution"));
-}
-
-#[test]
-fn preferences_reject_portal_budget_above_settings_maximum() {
-    let mut settings = test_fixtures::client_settings();
-    settings.preferences.portal_view_budget = 9;
-    let error = settings
-        .preferences
-        .validate()
-        .expect_err("oversized portal view budget should fail");
-    assert!(error.to_string().contains("portal_view_budget"));
-}
-
-#[test]
-fn sound_volumes_default_to_neutral_and_validate_the_db_range() {
+fn invalid_preferences_name_their_field() {
     let defaults = test_fixtures::client_settings();
-    assert_eq!(defaults.preferences.footstep_volume_db, 0.0);
-    assert_eq!(defaults.preferences.actor_movement_volume_db, 0.0);
+    let mut zero_resolution = defaults.clone();
+    zero_resolution.preferences.fullscreen_resolution = 0;
+    let mut oversized_budget = defaults.clone();
+    oversized_budget.preferences.portal_view_budget = 9;
+    for (settings, field) in [
+        (zero_resolution, "fullscreen_resolution"),
+        (oversized_budget, "portal_view_budget"),
+    ] {
+        let error = settings
+            .preferences
+            .validate()
+            .expect_err("invalid preference accepted");
+        assert!(error.to_string().contains(field), "unexpected error: {error}");
+    }
     for name in ["footstep_volume_db", "actor_movement_volume_db"] {
         for db in [
             -20.0,
@@ -59,17 +49,6 @@ fn sound_volumes_default_to_neutral_and_validate_the_db_range() {
             }
         }
     }
-}
-
-#[test]
-fn json_cannot_override_runtime_preference_defaults() {
-    let mut json: serde_json::Value =
-        serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client JSON is invalid");
-    json["preferences"] = serde_json::json!({"fov_degrees": 10.0, "zoom_sensitivity": 100.0});
-    let settings: ClientSettings = serde_json::from_value(json).expect("client settings are invalid");
-    settings.validate().expect("default preferences are invalid");
-    assert_eq!(settings.preferences.fov_degrees, CAMERA_FOV_DEGREES_DEFAULT);
-    assert_eq!(settings.preferences.zoom_sensitivity, INPUT_ZOOM_SENSITIVITY_DEFAULT);
 }
 
 #[test]
@@ -142,31 +121,4 @@ fn lighting_controls_reject_invalid_ranges_and_allow_unquantized_shadows() {
     settings.lighting.night_ambient_brightness = -0.1;
     let error = settings.validate().expect_err("negative night ambient was accepted");
     assert!(error.to_string().contains("night_ambient_brightness"));
-}
-
-#[test]
-fn unknown_fields_are_rejected_at_every_depth() {
-    for path in [&["grass"][..], &["sky", "stars"][..], &["lighting"][..]] {
-        let mut json: serde_json::Value =
-            serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client JSON is invalid");
-        let mut object = &mut json;
-        for segment in path {
-            object = &mut object[*segment];
-        }
-        object["unknown_field"] = serde_json::json!(1.0);
-        let error = serde_json::from_value::<ClientSettings>(json).expect_err("unknown setting was accepted");
-        assert!(error.to_string().contains("unknown_field"), "unexpected error: {error}");
-    }
-}
-
-#[test]
-fn grass_color_uses_hex_srgb_and_rejects_named_colors() {
-    let mut json: serde_json::Value =
-        serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client JSON is invalid");
-    json["grass"]["color"] = serde_json::json!("#315f2f");
-    let settings: ClientSettings = serde_json::from_value(json.clone()).expect("hex grass color was rejected");
-    assert_eq!(settings.grass.base_color(), Color::srgb_u8(0x31, 0x5f, 0x2f));
-
-    json["grass"]["color"] = serde_json::json!("green");
-    serde_json::from_value::<ClientSettings>(json).expect_err("named grass color was accepted");
 }

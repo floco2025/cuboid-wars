@@ -69,20 +69,9 @@ fn set_checkpoint(info: &mut PlayerInfo, checkpoint: u32) {
 
 fn zone_until_two(on_checkpoint: CheckpointResponse) -> ActorSpawnZone {
     ActorSpawnZone {
-        initially_on: true,
-        carrier: CarrierId::WORLD,
-        level: 0,
-        levels: 1,
-        roam_distance: 0.0,
-        cols: [0, 1],
-        rows: [0, 1],
-        kind: test_kinds::CONTACT.into(),
-        count: vec![1],
-        respawn_secs: None,
-        beam_in_secs: 0.0,
-        switch: None,
         until_checkpoint: Some(2),
         on_checkpoint,
+        ..test_kinds::spawn_zone(test_kinds::CONTACT, [0, 1], [0, 1])
     }
 }
 

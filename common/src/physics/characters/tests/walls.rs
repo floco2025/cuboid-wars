@@ -99,28 +99,6 @@ fn falling_against_stacked_wall_seams_preserves_speed_until_the_floor() {
 }
 
 #[test]
-fn player_hits_wall_collider_from_collision_world() {
-    let wall = test_wall();
-    let floor = lower_floor();
-    let collision_world = collision_world_with(&[wall], &[floor], &[]);
-    let pos = Position {
-        x: -1.0,
-        y: 0.0,
-        z: 0.0,
-    };
-    let motion = 0.0;
-
-    let step = step_in(
-        &collision_world,
-        character_step_toward(pos, motion, 1.0, pos.z, 0.1),
-        LadderMode::Automatic,
-    );
-
-    assert!(step.blocked, "{step:?}");
-    assert!(step.position.x < 0.0);
-}
-
-#[test]
 fn repeated_wall_pressure_does_not_leak_through_wall() {
     let wall = test_wall();
     let floor = lower_floor();
@@ -144,6 +122,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
     );
 
     assert!(first.blocked, "{first:?}");
+    assert!(first.position.x < 0.0);
     assert!(second.blocked);
     assert!(second.position.x < 0.0);
 }

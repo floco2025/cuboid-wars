@@ -14,33 +14,19 @@ use crate::constants::{MISSILE_SEARCH_MISSILE_QUERIES, MISSILE_SEARCH_NODE_LIMIT
 
 pub(crate) struct SearchBudget {
     pub remaining: usize,
-    pub used: usize,
 }
 impl SearchBudget {
     pub fn new(queries: usize) -> Self {
-        Self {
-            remaining: queries,
-            used: 0,
-        }
+        Self { remaining: queries }
     }
     fn spend(&mut self, amount: usize, slice: &mut usize) -> bool {
         if amount > self.remaining.min(*slice) {
             return false;
         }
         self.remaining -= amount;
-        self.used += amount;
         *slice -= amount;
         true
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RouteStatus {
-    Idle,
-    Pending,
-    Found,
-    Unreachable,
-    Limited,
 }
 
 pub(crate) enum SearchProgress {

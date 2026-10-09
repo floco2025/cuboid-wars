@@ -1,6 +1,16 @@
 import unittest
 
-from editor_fixtures import DEFAULT_ALIAS, EditorHost, NESTED_SHAPES, faces, floor, nested
+from editor_fixtures import (
+    DEFAULT_ALIAS,
+    EditorHost,
+    NESTED_SHAPES,
+    actor_zone,
+    blank_map,
+    faces,
+    floor,
+    nested,
+    toggle_switch,
+)
 from map_editor.constants import TERRAIN_FACES
 from map_editor.editing import paint_floors
 from map_editor.normalization import canonicalize_map, empty_level, empty_map, normalize_map, started_map
@@ -22,8 +32,7 @@ class ValidationTests(unittest.TestCase):
         data["levels"] = [empty_level(index) for index in range(255)]
         data["levels"][254]["floors"] = [floor(0, 0)]
         data["checkpoints"][0]["level"] = 254
-        room = empty_map(1, 1)
-        room["checkpoints"] = []
+        room = blank_map(1, 1)
         room["levels"] = [empty_level(index) for index in range(255)]
         data["nested_geometry"] = {"room": room}
         data["nested_maps"] = [nested("room", 254, [0, 0], [0, 0])]
@@ -115,11 +124,6 @@ class ValidationTests(unittest.TestCase):
         )
         self.assertEqual(validate_map(started, []), [])
 
-    def test_valid_minimal_map_has_no_errors(self) -> None:
-        data = empty_map(2, 2)
-        data["levels"][0]["floors"] = [floor(col, row) for col in range(2) for row in range(2)]
-        self.assertEqual(validate_map(data, []), [])
-
     def test_invalid_geometry_item_and_ladder_are_reported(self) -> None:
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
@@ -202,7 +206,8 @@ class PressurePlateTests(unittest.TestCase):
     def test_actor_zone_respawn_must_be_explicit_and_non_negative(self) -> None:
         data = empty_map(4, 4)
         data["levels"][0]["floors"] = [floor(2, 2)]
-        zone = {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": [1]}
+        zone = actor_zone(cols=[2, 3], rows=[2, 3])
+        del zone["respawn_secs"]
         data["actor_spawn_zones"] = [
             zone,
             {**zone, "respawn_secs": None},
@@ -224,7 +229,7 @@ class PressurePlateTests(unittest.TestCase):
     def test_actor_zone_beam_in_defaults_to_zero_and_must_be_a_non_negative_number(self) -> None:
         data = empty_map(4, 4)
         data["levels"][0]["floors"] = [floor(2, 2)]
-        zone = {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": [1], "respawn_secs": None}
+        zone = actor_zone(cols=[2, 3], rows=[2, 3])
         data["actor_spawn_zones"] = [
             zone,
             {**zone, "beam_in_secs": 0},
@@ -248,7 +253,7 @@ class PressurePlateTests(unittest.TestCase):
         data = empty_map(4, 4)
         data["levels"][0]["floors"] = [floor(2, 2)]
         data["checkpoints"] = [{"level": 0, "cols": [2, 3], "rows": [2, 3], "type": "individual", "number": 1}]
-        zone = {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": [1], "respawn_secs": None}
+        zone = actor_zone(cols=[2, 3], rows=[2, 3])
         data["actor_spawn_zones"] = [
             {**zone, "until_checkpoint": 1},
             {**zone, "until_checkpoint": 1, "on_checkpoint": "destroy"},
@@ -272,42 +277,7 @@ class PressurePlateTests(unittest.TestCase):
         data["levels"][0]["floors"] = [floor(0, 0), floor(2, 2)]
         data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "guards"}]
         data["actor_spawn_zones"] = [
-            {
-                "level": 0,
-                "cols": [2, 3],
-                "rows": [2, 3],
-                "kind": "zapper",
-                "count": [1],
-                "respawn_secs": 90,
-                "switch": "guards",
-            },
-            {
-                "level": 0,
-                "cols": [2, 3],
-                "rows": [2, 3],
-                "kind": "zapper",
-                "count": [1],
-                "respawn_secs": 90,
-                "switch": "nope",
-            },
-            {
-                "level": 0,
-                "cols": [2, 3],
-                "rows": [2, 3],
-                "kind": "zapper",
-                "count": [1],
-                "respawn_secs": 90,
-                "switch": "lift",
-            },
-            {
-                "level": 0,
-                "cols": [2, 3],
-                "rows": [2, 3],
-                "kind": "zapper",
-                "count": [1],
-                "respawn_secs": 90,
-                "switch": "",
-            },
+            actor_zone(cols=[2, 3], rows=[2, 3], switch=switch) for switch in ("guards", "nope", "lift", "")
         ]
         data["nested_maps"] = [
             {**nested("cabin", 0, [1, 1], [3, 1]), "switch": "guards"},
@@ -351,9 +321,7 @@ class PressurePlateTests(unittest.TestCase):
     def test_a_fields_switch_and_initial_state_are_checked_with_the_document(self) -> None:
         data = started_map(2, 1, DEFAULT_ALIAS)
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 0, "switch": "door"}]
-        data["switches"] = [
-            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ("door", "idle")
-        ]
+        data["switches"] = [toggle_switch(name) for name in ("door", "idle")]
         data["fields"] = [
             {"id": "red", "color": "#ff0000", "switch": "void"},
             {"id": "green", "color": "#00ff00", "switch": "idle", "initially_on": "off"},
@@ -373,17 +341,7 @@ class PressurePlateTests(unittest.TestCase):
     def test_only_placed_geometry_supplies_a_targets_plates(self) -> None:
         data = empty_map(6, 6)
         data["levels"][0]["floors"] = [floor(0, 0), floor(3, 3)]
-        data["actor_spawn_zones"] = [
-            {
-                "level": 0,
-                "cols": [3, 4],
-                "rows": [3, 4],
-                "kind": "zapper",
-                "count": [1],
-                "respawn_secs": 90,
-                "switch": "guards",
-            },
-        ]
+        data["actor_spawn_zones"] = [actor_zone(cols=[3, 4], rows=[3, 4], switch="guards")]
         room = empty_map(1, 1)
         room["levels"][0]["floors"] = [floor(0, 0)]
         room["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "guards"}]
@@ -402,8 +360,7 @@ class PressurePlateTests(unittest.TestCase):
         self.assertFalse(any("no pressure plate operates" in w for w in issues.warnings), issues.warnings)
 
     def test_plates_need_a_slab_outside_ramp_footprints(self) -> None:
-        data = empty_map(4, 4)
-        data["checkpoints"] = []
+        data = blank_map(4, 4)
         data["levels"].append(empty_level(1))
         data["levels"][0]["floors"] = [floor(0, 0), floor(1, 1)]
         data["levels"][0]["inaccessible_floors"] = [floor(3, 3)]

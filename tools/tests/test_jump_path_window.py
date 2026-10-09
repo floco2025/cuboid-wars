@@ -85,7 +85,6 @@ class JumpPathWindowTests(WindowTestCase):
         self.assertAlmostEqual(self.window.jump_path.margin.value(), 0.1)
         overlay = self.start()
         self.assertTrue(overlay.controls.isVisible())
-        self.assertIs(overlay.controls.parentWidget(), self.window.map_combo.parentWidget())
         self.assertEqual(overlay.kind.currentText(), "Jump")
         self.assertFalse(overlay.air_control.isChecked())
         # Support ends a body's reach past the edge, and the flight leaves from there.

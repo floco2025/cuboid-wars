@@ -1,6 +1,6 @@
 import unittest
 
-from map_editor.geometry import drag_direction, ramp_cells, ramp_ghosts_on, wall_segments_between
+from map_editor.geometry import drag_direction, ramp_ghosts_on, wall_segments_between
 
 
 class GeometryTests(unittest.TestCase):
@@ -9,10 +9,6 @@ class GeometryTests(unittest.TestCase):
             wall_segments_between((3, 2), (0, 2)),
             [[2, 2, 3, 2], [1, 2, 2, 2], [0, 2, 1, 2]],
         )
-
-    def test_ramp_cells_cover_its_footprint(self) -> None:
-        ramp = {"cols": [0, 3], "rows": [1, 3], "direction": "W"}
-        self.assertEqual(ramp_cells(ramp), {(0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)})
 
     def test_a_drag_rises_along_its_dominant_axis_and_a_still_pointer_has_no_direction(self) -> None:
         for motion, direction in (

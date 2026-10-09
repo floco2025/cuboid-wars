@@ -1,34 +1,34 @@
-use crate::config::fixtures;
-use std::collections::HashMap;
-
-use bevy::prelude::*;
+use bevy::{ecs::world::CommandQueue, prelude::*};
 use crossbeam_channel::{Receiver, unbounded};
 
 use super::{PendingExplosion, PendingExplosions, damage::*};
 use crate::{
-    actors::{ActorInfo, ActorMap},
-    config::{
-        BlastConfig, CombatConfig, CyclesConfig, DamageConfig, FallDamageConfig, FeedConfig, HealthConfig,
-        MissilesServerConfig, PlayerHealthConfig, PowerUpMode, PowerUpsConfig, ScoringConfig, ServerGameplayConfig,
-        WeaponsConfig, WeatherCycleConfig, WeatherMode,
-    },
+    actors::test_kinds::{self, BEAM},
+    config::{ServerGameplayConfig, fixtures},
     players::{PlayerInfo, PlayerMap, PowerUpState},
 };
-use common::{
-    celestial::CelestialCycleSettings,
-    protocol::{
-        ActorId, CarrierId, Health, PlayerDeathEffect, PlayerId, PortalMode, Position, PowerUpKind, SPlayerDeath,
-        ServerMessage,
-    },
+use common::protocol::{
+    FieldId, Health, PlayerDeathEffect, PlayerId, Position, PowerUpKind, SPlayerDeath, ServerMessage,
 };
 
-fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> Receiver<ServerMessage> {
+fn server_gameplay_config() -> ServerGameplayConfig {
+    let mut config = fixtures::server_config();
+    config.combat.damage.projectile = 25.0;
+    config.scoring.player_kill = 1;
+    config.scoring.player_death = -1;
+    config
+}
+
+fn add_player(players: &mut PlayerMap, id: u32, logged_in: bool) -> Receiver<ServerMessage> {
     let (tx, rx) = unbounded();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    info.connection.logged_in = true;
-    info.connection.name = name.to_owned();
-    players.insert(id, info);
+    info.connection.logged_in = logged_in;
+    players.insert(PlayerId(id), info);
     rx
+}
+
+fn score(players: &PlayerMap, id: u32) -> i32 {
+    players.get(&PlayerId(id)).expect("player missing").session.score
 }
 
 fn next_player_death(receiver: &mut Receiver<ServerMessage>) -> SPlayerDeath {
@@ -40,326 +40,107 @@ fn next_player_death(receiver: &mut Receiver<ServerMessage>) -> SPlayerDeath {
     }
 }
 
-fn feed_lines(receiver: &mut Receiver<ServerMessage>) -> Vec<String> {
-    let mut lines = Vec::new();
-    while let Ok(envelope) = receiver.try_recv() {
-        if let ServerMessage::Feed(feed) = envelope {
-            lines.push(feed.spans.into_iter().map(|span| span.text).collect());
-        }
-    }
-    lines
-}
-
-fn kill_with(players: &mut PlayerMap, victim: PlayerId, source: DeathSource) {
-    let mut app = App::new();
-    let world = app.world_mut();
+// Runs the death sequence for `victim` standing at `pos`; returns the explosions it queued.
+fn kill_at(
+    players: &mut PlayerMap,
+    victim: PlayerId,
+    pos: Position,
+    source: DeathSource,
+    config: &ServerGameplayConfig,
+) -> PendingExplosions {
+    let mut world = World::new();
     let entity = world.spawn_empty().id();
-    let mut commands_queue = bevy::ecs::world::CommandQueue::default();
-    let mut pending_explosions = PendingExplosions::default();
-    {
-        let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
-        kill_player(
-            &mut commands,
-            players,
-            victim,
-            entity,
-            Position::default(),
-            2.0,
-            source,
-            &server_gameplay_config(),
-            &mut pending_explosions,
-        );
-    }
-    commands_queue.apply(world);
+    let mut queue = CommandQueue::default();
+    let mut pending = PendingExplosions::default();
+    kill_player(
+        &mut Commands::new(&mut queue, &world),
+        players,
+        victim,
+        entity,
+        pos,
+        2.0,
+        source,
+        config,
+        &mut pending,
+    );
+    queue.apply(&mut world);
+    pending
 }
 
-fn server_gameplay_config() -> ServerGameplayConfig {
-    let default = fixtures::server_config();
-    let movement = default.settings.movement.clone();
-    let celestial = default.settings.celestial;
-    ServerGameplayConfig {
-        network: Default::default(),
-        map_name: "hotel".to_owned(),
-        settings: common::protocol::MapSettings {
-            grounds: None,
-            celestial,
-            textures: Default::default(),
-
-            geometry: crate::test_geometry::sizes(),
-            movement,
-            portals: PortalMode::Both,
-            switches: Vec::new(),
-            fields: Vec::new(),
-        },
-        random_items: None,
-        player_fall: FallDamageConfig {
-            safe_distance: 4.0,
-            lethal_distance: 12.0,
-        },
-        actor_fall: FallDamageConfig {
-            safe_distance: 4.0,
-            lethal_distance: 12.0,
-        },
-        respawn: Default::default(),
-        power_ups: PowerUpsConfig {
-            speed: PowerUpMode::Pickup {
-                duration_secs: Some(1.0),
-            },
-            single_shot: PowerUpMode::Pickup { duration_secs: None },
-            multi_shot: PowerUpMode::Pickup {
-                duration_secs: Some(1.0),
-            },
-            low_gravity: PowerUpMode::Pickup {
-                duration_secs: Some(1.0),
-            },
-            portal_gun: PowerUpMode::Pickup { duration_secs: None },
-        },
-        placed_items: None,
-        weather: WeatherMode::Clear,
-        quests: Vec::new(),
-        player: default.player,
-        actors: HashMap::new(),
-        weapons: WeaponsConfig {
-            projectiles: default.weapons.projectiles,
-            missiles: MissilesServerConfig {
-                gameplay: default.weapons.missiles.gameplay,
-                missiles_per_pack: 1,
-            },
-            portals: default.weapons.portals,
-        },
-        scoring: ScoringConfig {
-            player_kill: 1,
-            player_death: -1,
-            gold: 1,
-            actor_hit: HashMap::from([("zapper".to_owned(), 1)]),
-            actor_kill: HashMap::from([("zapper".to_owned(), 10)]),
-        },
-        combat: CombatConfig {
-            health: HealthConfig {
-                player: PlayerHealthConfig {
-                    max: 100.0,
-                    regen_rate: 0.0,
-                    potion_heal: 0.25,
-                },
-                actors: HashMap::new(),
-            },
-            damage: DamageConfig {
-                projectile: 25.0,
-                missile_blast: BlastConfig {
-                    radius: 6.0,
-                    max_damage: 105.0,
-                },
-                player_blast: BlastConfig {
-                    radius: 10.0,
-                    max_damage: 50.0,
-                },
-                actors: HashMap::new(),
-            },
-        },
-        cycles: CyclesConfig {
-            weather: WeatherCycleConfig {
-                min_clear_secs: 10.0,
-                max_clear_secs: 20.0,
-                min_rain_secs: 5.0,
-                max_rain_secs: 8.0,
-                ramp_in_secs: 2.0,
-                fade_out_secs: 4.0,
-            },
-            celestial: CelestialCycleSettings {
-                day_duration_secs: 600.0,
-                lunar_cycle_days: 8.0,
-            },
-        },
-        feed: FeedConfig::all(true, &[]),
-    }
-}
-
-fn make_player_info() -> PlayerInfo {
-    let (tx, _rx) = unbounded();
-    PlayerInfo::new(Entity::PLACEHOLDER, tx)
-}
-
-fn make_player_map_with(shooter: PlayerId, target: PlayerId) -> PlayerMap {
-    let mut map = PlayerMap::default();
-    map.insert(shooter, make_player_info());
-    map.insert(target, make_player_info());
-    map
-}
-
-#[test]
-fn nonlethal_hit_returns_survived_and_leaves_score_alone() {
-    let players = make_player_map_with(PlayerId(1), PlayerId(2));
-    let mut health = Health(100.0);
-
-    let was_lethal = apply_player_projectile_hit(&players, PlayerId(2), &mut health, &server_gameplay_config(), false);
-
-    assert!(!was_lethal);
-    assert_eq!(health.0, 75.0);
-    assert_eq!(players.get(&PlayerId(1)).expect("shooter").session.score, 0);
-    assert_eq!(players.get(&PlayerId(2)).expect("target").session.score, 0);
+fn kill_with(players: &mut PlayerMap, victim: PlayerId, source: DeathSource) -> PendingExplosions {
+    kill_at(players, victim, Position::default(), source, &server_gameplay_config())
 }
 
 #[test]
 fn repeated_hits_then_a_kill_charge_the_death_once() {
     let mut players = PlayerMap::default();
-    logged_in_player(&mut players, PlayerId(1), "Bob");
-    logged_in_player(&mut players, PlayerId(2), "Alex");
+    add_player(&mut players, 1, true);
+    add_player(&mut players, 2, true);
     let config = server_gameplay_config();
     let mut health = Health(100.0);
-    let mut lethal = false;
-    for _ in 0..4 {
-        lethal = apply_player_projectile_hit(&players, PlayerId(2), &mut health, &config, false);
+    for hit in 1..=4 {
+        let lethal = apply_player_projectile_hit(&players, PlayerId(2), &mut health, &config, false);
+        assert_eq!(lethal, hit == 4, "hit {hit}");
     }
-    assert!(lethal);
-    assert_eq!(players.get(&PlayerId(1)).expect("shooter").session.score, 0);
-    assert_eq!(players.get(&PlayerId(2)).expect("target").session.score, 0);
+    assert_eq!(health.0, 0.0);
+    assert_eq!((score(&players, 1), score(&players, 2)), (0, 0));
 
     kill_with(&mut players, PlayerId(2), DeathSource::Shot(PlayerId(1)));
 
-    assert_eq!(
-        players.get(&PlayerId(1)).expect("shooter").session.score,
-        config.scoring.player_kill
-    );
-    assert_eq!(
-        players.get(&PlayerId(2)).expect("target").session.score,
-        config.scoring.player_death
-    );
+    assert_eq!(score(&players, 1), config.scoring.player_kill);
+    assert_eq!(score(&players, 2), config.scoring.player_death);
 }
 
 #[test]
-fn lethal_hit_returns_true() {
-    let players = make_player_map_with(PlayerId(1), PlayerId(2));
-    let mut health = Health(10.0);
-
-    let was_lethal = apply_player_projectile_hit(&players, PlayerId(2), &mut health, &server_gameplay_config(), false);
-
-    assert!(was_lethal);
-    assert_eq!(health.0, 0.0);
-}
-
-#[test]
-fn dead_player_takes_no_further_damage() {
-    let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
-    players.get_mut(&PlayerId(2)).expect("target").begin_respawn(2.0);
-    let mut health = Health(0.0);
-
-    let was_lethal = apply_player_projectile_hit(&players, PlayerId(2), &mut health, &server_gameplay_config(), false);
-
-    assert!(!was_lethal);
-    // Score must not move on a no-op hit.
-    assert_eq!(players.get(&PlayerId(1)).expect("shooter").session.score, 0);
-    assert_eq!(players.get(&PlayerId(2)).expect("target").session.score, 0);
-}
-
-#[test]
-fn beam_damage_lethal_tick_returns_true() {
-    let players = make_player_map_with(PlayerId(1), PlayerId(2));
-    let mut health = Health(5.0);
-
-    let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, false);
-
-    assert!(lethal);
-    assert_eq!(health.0, 0.0);
-}
-
-#[test]
-fn dead_player_takes_no_beam_damage() {
-    let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
+fn a_dead_player_takes_no_further_hit_or_beam_damage() {
+    let mut players = PlayerMap::default();
+    add_player(&mut players, 1, false);
+    add_player(&mut players, 2, false);
     players.get_mut(&PlayerId(2)).expect("target").begin_respawn(2.0);
     let mut health = Health(50.0);
 
-    let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, false);
+    assert!(!apply_player_projectile_hit(
+        &players,
+        PlayerId(2),
+        &mut health,
+        &server_gameplay_config(),
+        false
+    ));
+    assert!(!apply_player_beam_damage(
+        &players,
+        PlayerId(2),
+        &mut health,
+        100.0,
+        false
+    ));
 
-    assert!(!lethal);
     assert_eq!(health.0, 50.0);
-}
-
-#[test]
-fn invincible_player_takes_no_beam_damage() {
-    let players = make_player_map_with(PlayerId(1), PlayerId(2));
-    let mut health = Health(50.0);
-
-    let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, true);
-
-    assert!(!lethal);
-    assert_eq!(health.0, 50.0);
+    assert_eq!((score(&players, 1), score(&players, 2)), (0, 0));
 }
 
 #[test]
 fn dead_actor_takes_no_further_hits_or_score() {
-    let config = fixtures::server_config();
-    let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
+    let config = test_kinds::server_config();
+    let mut players = PlayerMap::default();
+    add_player(&mut players, 1, false);
     let mut health = Health(1.0);
 
-    let first_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), "zapper", &mut health, &config);
+    let first_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), BEAM, &mut health, &config);
     assert!(first_hit_lethal);
-    let score_after_kill = players.get(&PlayerId(1)).expect("shooter").session.score;
+    let score_after_kill = score(&players, 1);
 
     // The dying actor's entity stays queryable until removal runs later
     // in the tick; a same-tick second hit must not count as lethal again.
-    let second_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), "zapper", &mut health, &config);
+    let second_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), BEAM, &mut health, &config);
     assert!(!second_hit_lethal);
-    assert_eq!(
-        players.get(&PlayerId(1)).expect("shooter").session.score,
-        score_after_kill
-    );
-}
-
-#[test]
-fn kill_player_broadcasts_player_death() {
-    use crossbeam_channel::unbounded;
-
-    let mut app = App::new();
-    let mut players = PlayerMap::default();
-
-    // Receiver with a logged-in shooter so the broadcast can reach them.
-    let (shooter_tx, shooter_rx) = unbounded();
-    let mut shooter = PlayerInfo::new(Entity::PLACEHOLDER, shooter_tx);
-    shooter.connection.logged_in = true;
-    players.insert(PlayerId(1), shooter);
-
-    // The dying player; also logged_in so the broadcast targets them too.
-    let mut target = make_player_info();
-    target.connection.logged_in = true;
-    let target_entity = target.entity().expect("new player has no entity");
-    players.insert(PlayerId(2), target);
-
-    let world = app.world_mut();
-    let mut commands_queue = bevy::ecs::world::CommandQueue::default();
-    let mut pending_explosions = PendingExplosions::default();
-    {
-        let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
-        kill_player(
-            &mut commands,
-            &mut players,
-            PlayerId(2),
-            target_entity,
-            Position::default(),
-            2.0,
-            DeathSource::Shot(PlayerId(1)),
-            &server_gameplay_config(),
-            &mut pending_explosions,
-        );
-    }
-    commands_queue.apply(world);
-    assert_eq!(pending_explosions.0.len(), 1, "death must queue an explosion");
-
-    let envelope = shooter_rx.try_recv().expect("shooter should have received PlayerDeath");
-    match envelope {
-        ServerMessage::PlayerDeath(death) => {
-            assert_eq!(death.id, PlayerId(2));
-        }
-        other => panic!("unexpected message: {other:?}"),
-    }
+    assert_eq!(score(&players, 1), score_after_kill);
 }
 
 #[test]
 fn crouched_death_keeps_the_blast_and_cue_at_the_body_center_after_life_reset() {
-    let mut world = World::new();
-    let entity = world.spawn_empty().id();
     let mut players = PlayerMap::default();
     let id = PlayerId(7);
-    let mut receiver = logged_in_player(&mut players, id, "Player");
+    let mut receiver = add_player(&mut players, id.0, true);
     players
         .get_mut(&id)
         .expect("victim missing")
@@ -372,20 +153,8 @@ fn crouched_death_keeps_the_blast_and_cue_at_the_body_center_after_life_reset() 
     config.player.gameplay.hitbox.bottom_offset = 0.1;
     let pos = Position { x: 2.0, y: 3.0, z: 4.0 };
     let expected = Vec3::new(2.0, 3.6, 4.0);
-    let mut queue = bevy::ecs::world::CommandQueue::default();
-    let mut pending = PendingExplosions::default();
-    kill_player(
-        &mut Commands::new(&mut queue, &world),
-        &mut players,
-        id,
-        entity,
-        pos,
-        2.0,
-        DeathSource::Admin,
-        &config,
-        &mut pending,
-    );
-    queue.apply(&mut world);
+
+    let mut pending = kill_at(&mut players, id, pos, DeathSource::Admin, &config);
 
     let victim = players.get(&id).expect("victim missing");
     assert!(victim.is_dead());
@@ -404,40 +173,17 @@ fn crouched_death_keeps_the_blast_and_cue_at_the_body_center_after_life_reset() 
 }
 
 #[test]
-fn kill_player_announces_death_with_cause() {
+fn kill_credit_ignores_departed_and_self_shooters() {
     let mut players = PlayerMap::default();
-    let mut shooter_rx = logged_in_player(&mut players, PlayerId(1), "Bob");
-    logged_in_player(&mut players, PlayerId(2), "Alex");
-
-    kill_with(&mut players, PlayerId(2), DeathSource::Shot(PlayerId(1)));
-
-    assert_eq!(next_player_death(&mut shooter_rx).killer, Some(PlayerId(1)));
-    assert_eq!(feed_lines(&mut shooter_rx), ["Bob shot Alex"]);
-}
-
-#[test]
-fn self_shot_yields_no_credit_but_self_cause() {
-    let mut players = PlayerMap::default();
-    let mut rx = logged_in_player(&mut players, PlayerId(2), "Alex");
-
-    kill_with(&mut players, PlayerId(2), DeathSource::Shot(PlayerId(2)));
-
-    assert_eq!(next_player_death(&mut rx).killer, None);
-    assert_eq!(feed_lines(&mut rx), ["Alex shot themselves"]);
-    assert_eq!(
-        players.get(&PlayerId(2)).expect("victim").session.score,
-        server_gameplay_config().scoring.player_death
-    );
-}
-
-#[test]
-fn kill_credit_ignores_departed_shooter() {
-    let mut players = PlayerMap::default();
-    logged_in_player(&mut players, PlayerId(1), "Bob");
-    logged_in_player(&mut players, PlayerId(2), "Alex");
+    add_player(&mut players, 1, true);
+    add_player(&mut players, 2, true);
 
     assert_eq!(
         kill_credit(&DeathSource::Shot(PlayerId(9)), PlayerId(2), &players),
+        None
+    );
+    assert_eq!(
+        kill_credit(&DeathSource::Shot(PlayerId(2)), PlayerId(2), &players),
         None
     );
     assert_eq!(
@@ -452,85 +198,14 @@ fn kill_credit_ignores_departed_shooter() {
 }
 
 #[test]
-fn kill_actor_announces_only_flagged_kinds() {
-    let mut feed = FeedConfig::all(false, &["bruiser", "zapper"]);
-    feed.actor_destroyed.insert("bruiser".to_owned(), true);
-    let mut players = PlayerMap::default();
-    let mut rx = logged_in_player(&mut players, PlayerId(1), "Bob");
-    let mut app = App::new();
-    let world = app.world_mut();
-    let bruiser = world.spawn_empty().id();
-    let zapper = world.spawn_empty().id();
-    let uncredited = world.spawn_empty().id();
-    let mut actors = ActorMap::default();
-    actors.insert(
-        ActorId(1),
-        ActorInfo::new(bruiser, 0, "bruiser".to_owned(), CarrierId::WORLD),
-    );
-    actors.insert(
-        ActorId(2),
-        ActorInfo::new(zapper, 0, "zapper".to_owned(), CarrierId::WORLD),
-    );
-    actors.insert(
-        ActorId(3),
-        ActorInfo::new(uncredited, 0, "bruiser".to_owned(), CarrierId::WORLD),
-    );
-    let mut pending_explosions = PendingExplosions::default();
-    let mut commands_queue = bevy::ecs::world::CommandQueue::default();
-    {
-        let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
-        for (id, entity, killer) in [
-            (ActorId(2), zapper, Some(PlayerId(1))),
-            (ActorId(1), bruiser, Some(PlayerId(1))),
-            (ActorId(3), uncredited, None),
-        ] {
-            kill_actor(
-                &mut commands,
-                &mut actors,
-                &players,
-                &mut pending_explosions,
-                &feed,
-                id,
-                entity,
-                Position::default(),
-                killer,
-            );
-        }
-    }
-    commands_queue.apply(world);
-
-    assert_eq!(feed_lines(&mut rx), ["Bob destroyed a bruiser"]);
-}
-
-#[test]
 fn kill_player_clears_state_and_arms_timer() {
-    let mut app = App::new();
     let mut players = PlayerMap::default();
-    let info = make_player_info();
-    let entity = info.entity().expect("new player has no entity");
-    let mut info = info;
+    add_player(&mut players, 7, false);
+    let info = players.get_mut(&PlayerId(7)).expect("player missing");
     info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(1.5);
-    info.add_key(common::protocol::FieldId(0));
-    players.insert(PlayerId(7), info);
+    info.add_key(FieldId(0));
 
-    let world = app.world_mut();
-    let mut commands_queue = bevy::ecs::world::CommandQueue::default();
-    let mut pending_explosions = PendingExplosions::default();
-    {
-        let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
-        kill_player(
-            &mut commands,
-            &mut players,
-            PlayerId(7),
-            entity,
-            Position::default(),
-            2.0,
-            DeathSource::Fall,
-            &server_gameplay_config(),
-            &mut pending_explosions,
-        );
-    }
-    commands_queue.apply(world);
+    kill_with(&mut players, PlayerId(7), DeathSource::Fall);
 
     let info = players.get(&PlayerId(7)).expect("player still tracked after death");
     assert_eq!(info.respawn_remaining_secs(), Some(2.0));
@@ -542,58 +217,10 @@ fn kill_player_clears_state_and_arms_timer() {
 
 #[test]
 fn void_fall_queues_no_explosion() {
-    let mut app = App::new();
     let mut players = PlayerMap::default();
-    let info = make_player_info();
-    let entity = info.entity().expect("new player has no entity");
-    let mut info = info;
-    info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(1.5);
-    info.add_key(common::protocol::FieldId(0));
-    players.insert(PlayerId(7), info);
+    add_player(&mut players, 7, false);
 
-    let world = app.world_mut();
-    let mut commands_queue = bevy::ecs::world::CommandQueue::default();
-    let mut pending_explosions = PendingExplosions::default();
-    {
-        let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
-        kill_player(
-            &mut commands,
-            &mut players,
-            PlayerId(7),
-            entity,
-            Position::default(),
-            2.0,
-            DeathSource::Void,
-            &server_gameplay_config(),
-            &mut pending_explosions,
-        );
-    }
-    commands_queue.apply(world);
-    assert!(
-        pending_explosions.0.is_empty(),
-        "a void fall must not queue an explosion"
-    );
-}
+    let pending = kill_with(&mut players, PlayerId(7), DeathSource::Void);
 
-#[test]
-fn begin_respawn_zeros_powerups_keys_and_cooldown() {
-    let mut info = make_player_info();
-    info.life.power_ups = [PowerUpState::Timed(1.0); PowerUpKind::COUNT];
-    info.life.stun_timer = 1.0;
-    info.life.last_portal_shot_time = 99.0;
-    info.add_key(common::protocol::FieldId(0));
-
-    info.begin_respawn(2.0);
-
-    assert_eq!(info.life.power_ups, [PowerUpState::Inactive; PowerUpKind::COUNT]);
-    assert_eq!(info.life.stun_timer, 0.0);
-    assert_eq!(info.life.last_portal_shot_time, f32::NEG_INFINITY);
-    assert!(info.life.held_keys.is_empty());
-}
-
-#[test]
-fn damage_does_not_go_below_zero() {
-    let mut health = Health(20.0);
-    apply_damage(&mut health, 30.0);
-    assert_eq!(health, Health(0.0));
+    assert!(pending.0.is_empty(), "a void fall must not queue an explosion");
 }

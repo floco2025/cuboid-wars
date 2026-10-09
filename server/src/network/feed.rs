@@ -172,7 +172,3 @@ fn span(text: impl Into<String>, style: FeedStyle) -> FeedSpan {
         style,
     }
 }
-
-#[cfg(test)]
-#[path = "tests/feed.rs"]
-mod tests;

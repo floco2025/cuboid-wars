@@ -1,60 +1,82 @@
+use crossbeam_channel::{Receiver, unbounded};
+
 use super::*;
-use crate::config::{FallDamageConfig, fixtures};
 use crate::{
-    map::{CellGrid, EdgeGrid, LevelGrid},
+    config::{FallDamageConfig, fixtures},
     players::{CheckpointId, PlayerCheckpoint, PlayerInfo, PowerUpState, outcomes::Landing},
-    test_geometry::geometry,
+    test_geometry::{floored_level, geometry},
 };
 use common::protocol::{
-    CarrierId, Checkpoint, CheckpointKind, FieldId, Floor, Lane, MapLayout, PlayerGeneration, PortalMode, PowerUpKind,
+    CarrierId, Checkpoint, CheckpointKind, FieldId, Floor, Lane, PlayerGeneration, PortalMode, PowerUpKind,
 };
-use crossbeam_channel::unbounded;
 
-#[test]
-fn a_crushed_player_dies_at_the_reported_contact() {
+fn fatal_outcomes_app(map_config: MapConfig, layout: MapLayout, invincible: bool) -> App {
     let server = fixtures::server_config();
-    let gameplay = server.gameplay_config();
     let mut app = App::new();
     app.add_plugins(MinimalPlugins)
-        .insert_resource(gameplay)
+        .insert_resource(server.gameplay_config())
         .insert_resource(server)
-        .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
-        .insert_resource(Carriers::default())
-        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
-        .init_resource::<MapLayout>()
-        .insert_resource(PlayerMap::default())
-        .insert_resource(Invincibility(false))
+        .insert_resource(map_config)
+        .init_resource::<Carriers>()
+        .insert_resource(CollisionWorld::from_map_layout(&layout))
+        .insert_resource(layout)
+        .init_resource::<PlayerMap>()
+        .insert_resource(Invincibility(invincible))
         .init_resource::<ServerTick>()
         .insert_resource(PortalAssignments::new(PortalMode::Both))
-        .insert_resource(PendingExplosions::default())
+        .init_resource::<PendingExplosions>()
         .add_systems(Update, players_fatal_outcomes_system);
-    let id = PlayerId(1);
-    let entity = app
-        .world_mut()
-        .spawn((PlayerMarker, id, Position::default(), Health(100.0)))
-        .id();
+    app
+}
+
+fn add_player(app: &mut App, id: PlayerId, pos: Position, health: f32) -> (Entity, Receiver<ServerMessage>) {
+    let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(health))).id();
     let (sender, receiver) = unbounded();
     let mut info = PlayerInfo::new(entity, sender);
     info.connection.logged_in = true;
-    let contact = Position { x: 20.0, ..default() };
-    info.life.outcomes.crushed = Some(contact);
     app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
+    (entity, receiver)
+}
+
+fn player(app: &mut App, id: PlayerId) -> &mut PlayerInfo {
+    app.world_mut()
+        .resource_mut::<PlayerMap>()
+        .into_inner()
+        .get_mut(&id)
+        .expect("player missing")
+}
+
+fn in_the_void(x: f32) -> Position {
+    Position {
+        x,
+        y: CHARACTER_FALL_DEATH_Y - 1.0,
+        z: 0.0,
+    }
+}
+
+#[test]
+fn a_crushed_player_dies_at_the_reported_contact() {
+    let mut app = fatal_outcomes_app(
+        MapConfig::for_grid(Vec::new(), geometry(1, 1)),
+        MapLayout::default(),
+        false,
+    );
+    let id = PlayerId(1);
+    let (entity, receiver) = add_player(&mut app, id, Position::default(), 100.0);
+    let contact = Position { x: 20.0, ..default() };
+    player(&mut app, id).life.outcomes.crushed = Some(contact);
 
     app.update();
 
-    assert!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&id)
-            .is_some_and(PlayerInfo::is_dead)
-    );
+    assert!(player(&mut app, id).is_dead());
     assert!(app.world().get_entity(entity).is_err());
-    let death = loop {
-        match receiver.try_recv().expect("no death message reached the player") {
-            ServerMessage::PlayerDeath(death) => break death,
-            _ => continue,
-        }
-    };
+    let death = receiver
+        .try_iter()
+        .find_map(|message| match message {
+            ServerMessage::PlayerDeath(death) => Some(death),
+            _ => None,
+        })
+        .expect("no death message reached the player");
     assert_eq!(death.id, id);
     assert_eq!(death.killer, None);
     assert_eq!(death.pos, contact);
@@ -62,44 +84,26 @@ fn a_crushed_player_dies_at_the_reported_contact() {
 
 #[test]
 fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
-    let server = fixtures::server_config();
-    let mut app = App::new();
-    app.insert_resource(server.gameplay_config())
-        .insert_resource(server)
-        .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
-        .init_resource::<Carriers>()
-        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
-        .init_resource::<MapLayout>()
-        .init_resource::<PlayerMap>()
-        .insert_resource(Invincibility(true))
-        .insert_resource(ServerTick(42))
-        .insert_resource(PortalAssignments::new(PortalMode::Both))
-        .init_resource::<PendingExplosions>()
-        .add_systems(Update, players_fatal_outcomes_system);
+    let mut app = fatal_outcomes_app(
+        MapConfig::for_grid(Vec::new(), geometry(1, 1)),
+        MapLayout::default(),
+        true,
+    );
+    app.insert_resource(ServerTick(42));
     let id = PlayerId(1);
-    let pos = Position {
-        y: CHARACTER_FALL_DEATH_Y - 1.0,
-        ..default()
-    };
-    let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(37.0))).id();
-    let (sender, receiver) = unbounded();
-    let mut info = PlayerInfo::new(entity, sender);
-    info.connection.logged_in = true;
-    info.session.score = 5;
-    info.life.missiles = 3;
-    info.life.held_keys.push(FieldId(1));
-    info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Permanent;
-    app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
+    let pos = in_the_void(0.0);
+    let (entity, receiver) = add_player(&mut app, id, pos, 37.0);
+    {
+        let info = player(&mut app, id);
+        info.session.score = 5;
+        info.life.missiles = 3;
+        info.life.held_keys.push(FieldId(1));
+        info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Permanent;
+    }
     app.update();
     assert!(receiver.try_recv().is_err());
     assert_eq!(*app.world().get::<Position>(entity).expect("position missing"), pos);
-    app.world_mut()
-        .resource_mut::<PlayerMap>()
-        .get_mut(&id)
-        .expect("player missing")
-        .life
-        .outcomes
-        .fell_out_of_world = true;
+    player(&mut app, id).life.outcomes.fell_out_of_world = true;
     app.update();
     let message @ ServerMessage::PlayerRelocated(_) = receiver.try_recv().expect("relocation missing") else {
         panic!("void rescue did not send a relocation")
@@ -124,12 +128,8 @@ fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
 }
 
 // One checkpoint over four floored cells, with the grid its spawns sample.
-fn checkpoint_fixture() -> (Checkpoint, Floor, MapConfig) {
+fn checkpoint_app() -> (App, Checkpoint) {
     let geometry = geometry(2, 2);
-    let mut cells = CellGrid::new(2, 2);
-    for cell in cells.rows.iter_mut().flatten() {
-        cell.has_floor = true;
-    }
     let checkpoint = Checkpoint {
         kind: CheckpointKind::Individual,
         number: 1,
@@ -153,14 +153,21 @@ fn checkpoint_fixture() -> (Checkpoint, Floor, MapConfig) {
         level: 0,
         carrier: CarrierId::WORLD,
     };
-    let map_config = MapConfig::for_grid(
-        vec![LevelGrid {
-            cells,
-            edges: EdgeGrid::new(2, 2),
-        }],
-        geometry,
-    );
-    (checkpoint, floor, map_config)
+    let layout = MapLayout {
+        floors: vec![floor],
+        checkpoints: vec![checkpoint.clone()],
+        ..default()
+    };
+    let app = fatal_outcomes_app(MapConfig::for_grid(vec![floored_level(2, 2)], geometry), layout, true);
+    (app, checkpoint)
+}
+
+fn add_falling_player(app: &mut App, id: PlayerId) -> Entity {
+    let (entity, _) = add_player(app, id, in_the_void(id.0 as f32), 37.0);
+    let info = player(app, id);
+    info.session.checkpoint = PlayerCheckpoint::numbered(1);
+    info.life.outcomes.fell_out_of_world = true;
+    entity
 }
 
 fn in_checkpoint(checkpoint: &Checkpoint, pos: &Position) -> bool {
@@ -169,38 +176,9 @@ fn in_checkpoint(checkpoint: &Checkpoint, pos: &Position) -> bool {
 
 #[test]
 fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
-    let server = fixtures::server_config();
-    let (checkpoint, floor, map_config) = checkpoint_fixture();
-    let layout = MapLayout {
-        floors: vec![floor],
-        checkpoints: vec![checkpoint.clone()],
-        ..default()
-    };
-    let mut app = App::new();
-    app.insert_resource(server.gameplay_config())
-        .insert_resource(server)
-        .insert_resource(map_config)
-        .init_resource::<Carriers>()
-        .insert_resource(CollisionWorld::from_map_layout(&layout))
-        .insert_resource(layout)
-        .init_resource::<PlayerMap>()
-        .insert_resource(Invincibility(true))
-        .init_resource::<ServerTick>()
-        .insert_resource(PortalAssignments::new(PortalMode::Both))
-        .init_resource::<PendingExplosions>()
-        .add_systems(Update, players_fatal_outcomes_system);
+    let (mut app, checkpoint) = checkpoint_app();
     let id = PlayerId(1);
-    let pos = Position {
-        y: CHARACTER_FALL_DEATH_Y - 1.0,
-        ..default()
-    };
-    let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(37.0))).id();
-    let (sender, _receiver) = unbounded();
-    let mut info = PlayerInfo::new(entity, sender);
-    info.connection.logged_in = true;
-    info.session.checkpoint = PlayerCheckpoint::numbered(1);
-    info.life.outcomes.fell_out_of_world = true;
-    app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
+    let entity = add_falling_player(&mut app, id);
 
     app.update();
 
@@ -209,8 +187,7 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
         in_checkpoint(&checkpoint, &landed),
         "rescued to {landed:?}, not the checkpoint"
     );
-    let player = app.world().resource::<PlayerMap>();
-    let info = player.get(&id).expect("player missing");
+    let info = player(&mut app, id);
     assert_eq!(
         info.life.checkpoint_contact,
         Some(CheckpointId(0)),
@@ -221,49 +198,12 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
 
 #[test]
 fn simultaneous_invincible_rescues_take_distinct_spots() {
-    let server = fixtures::server_config();
-    let (checkpoint, floor, map_config) = checkpoint_fixture();
-    let layout = MapLayout {
-        floors: vec![floor],
-        checkpoints: vec![checkpoint.clone()],
-        ..default()
-    };
-    let mut app = App::new();
-    app.insert_resource(server.gameplay_config())
-        .insert_resource(server)
-        .insert_resource(map_config)
-        .init_resource::<Carriers>()
-        .insert_resource(CollisionWorld::from_map_layout(&layout))
-        .insert_resource(layout)
-        .init_resource::<PlayerMap>()
-        .insert_resource(Invincibility(true))
-        .init_resource::<ServerTick>()
-        .insert_resource(PortalAssignments::new(PortalMode::Both))
-        .init_resource::<PendingExplosions>()
-        .add_systems(Update, players_fatal_outcomes_system);
-    let mut entities = Vec::new();
-    for id in [PlayerId(1), PlayerId(2)] {
-        let pos = Position {
-            x: id.0 as f32,
-            y: CHARACTER_FALL_DEATH_Y - 1.0,
-            z: 0.0,
-        };
-        let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(37.0))).id();
-        let (sender, _receiver) = unbounded();
-        let mut info = PlayerInfo::new(entity, sender);
-        info.connection.logged_in = true;
-        info.session.checkpoint = PlayerCheckpoint::numbered(1);
-        info.life.outcomes.fell_out_of_world = true;
-        app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
-        entities.push(entity);
-    }
+    let (mut app, checkpoint) = checkpoint_app();
+    let entities = [PlayerId(1), PlayerId(2)].map(|id| add_falling_player(&mut app, id));
 
     app.update();
 
-    let landed: Vec<Position> = entities
-        .iter()
-        .map(|entity| *app.world().get::<Position>(*entity).expect("position missing"))
-        .collect();
+    let landed = entities.map(|entity| *app.world().get::<Position>(entity).expect("position missing"));
     for pos in &landed {
         assert!(
             in_checkpoint(&checkpoint, pos),
@@ -321,27 +261,15 @@ fn landing_damage_uses_impact_speed_and_map_thresholds() {
             .insert_resource(PendingExplosions::default())
             .add_systems(Update, players_fall_damage_system);
         let id = PlayerId(1);
-        let entity = app
-            .world_mut()
-            .spawn((PlayerMarker, id, Position::default(), Health(initial_health)))
-            .id();
-        let (sender, receiver) = unbounded();
-        let mut info = PlayerInfo::new(entity, sender);
-        info.connection.logged_in = true;
-        info.life.outcomes.landings.push(Landing {
+        let (entity, receiver) = add_player(&mut app, id, Position::default(), initial_health);
+        player(&mut app, id).life.outcomes.landings.push(Landing {
             pos: Position::default(),
             impact_speed: (2.0_f32 * if low_gravity { 1.0 } else { 2.0 } * drop).sqrt(),
         });
-        app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
 
         app.update();
 
-        let dead = app
-            .world()
-            .resource::<PlayerMap>()
-            .get(&id)
-            .expect("player missing")
-            .is_dead();
+        let dead = player(&mut app, id).is_dead();
         assert_eq!(dead, expected_health == 0.0);
         if !dead {
             assert!(

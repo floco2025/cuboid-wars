@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_geometry::ramp_surface_at;
 
 #[test]
 fn player_walking_off_ramp_side_is_not_blocked_by_ramp_side() {
@@ -6,7 +7,7 @@ fn player_walking_off_ramp_side_is_not_blocked_by_ramp_side() {
     let collision_world = collision_world(&[], &[ramp]);
     let pos = Position {
         x: 2.0,
-        y: ramp.surface_at(2.0, 4.0),
+        y: ramp_surface_at(&ramp, 2.0, 4.0),
         z: 4.0,
     };
     let motion = 0.0;
@@ -90,7 +91,7 @@ fn capsule_cannot_step_sideways_onto_a_floor_above_step_height() {
     let ramp = test_ramp();
     let floor = upper_floor_west_of_ramp();
     let collision_world = collision_world(&[floor], &[ramp]);
-    let y = ramp.surface_at(2.0, 7.0);
+    let y = ramp_surface_at(&ramp, 2.0, 7.0);
     let pos = Position { x: 2.0, y, z: 7.0 };
     let motion = 0.0;
 

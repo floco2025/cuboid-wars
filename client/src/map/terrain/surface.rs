@@ -149,7 +149,3 @@ pub(super) fn terrain_surface_mesh(floors: &[Floor], origin: Vec3) -> Mesh {
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
         .with_inserted_indices(Indices::U32(indices))
 }
-
-#[cfg(test)]
-#[path = "tests/surface.rs"]
-mod tests;

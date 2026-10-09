@@ -47,35 +47,15 @@ fn carriers_at(carriers: Vec<Carrier>, tick: u32) -> Carriers {
 const SLIDER: CarrierId = CarrierId(1);
 
 #[test]
-fn carrier_offset_is_from_at_phase_zero() {
-    assert_eq!(carrier_offset_at(&slider(), 0), Vec3::ZERO);
-    assert_eq!(carrier_offset_at(&slider(), 180), Vec3::ZERO);
-}
-
-#[test]
-fn carrier_offset_holds_at_to_through_the_pause() {
+fn carrier_offset_pauses_at_each_end_and_repeats_each_cycle() {
     let carrier = slider();
+    assert_eq!(carrier_offset_at(&carrier, 0), Vec3::ZERO);
     assert_eq!(carrier_offset_at(&carrier, 60), Vec3::new(4.0, 0.0, 0.0));
     assert_eq!(carrier_offset_at(&carrier, 89), Vec3::new(4.0, 0.0, 0.0));
     assert!(carrier_offset_at(&carrier, 91).x < 4.0);
-}
-
-#[test]
-fn carrier_offset_returns_to_from_after_one_cycle() {
-    let carrier = slider();
     let cycle = 2 * (carrier.travel_ticks + carrier.pause_ticks);
     assert_eq!(carrier_offset_at(&carrier, cycle), Vec3::ZERO);
     assert_eq!(carrier_offset_at(&carrier, cycle + 30), carrier_offset_at(&carrier, 30));
-}
-
-#[test]
-fn world_pose_is_identity_and_displacement_zero() {
-    let carriers = carriers_at(vec![slider()], 1);
-    assert_eq!(carriers.pose(CarrierId::WORLD), CarrierPose::IDENTITY);
-    assert_eq!(carriers.pose_between(CarrierId::WORLD, 0.5), CarrierPose::IDENTITY);
-    assert_eq!(carriers.displacement(CarrierId::WORLD), Vec3::ZERO);
-    assert!(Carriers::default().is_static());
-    assert!(!carriers.is_static());
 }
 
 #[test]

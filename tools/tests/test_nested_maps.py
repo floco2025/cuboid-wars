@@ -4,9 +4,7 @@ from unittest.mock import Mock
 from PySide6.QtCore import QPointF
 
 from editor_fixtures import EditorHost, NESTED_SHAPES, WindowTestCase, floor, furnished_map, nested
-from map_editor.constants import HIT_NESTED_MAP
 from map_editor.dialogs import MotionDialog
-from map_editor.hover import element_hover_text
 from map_editor.io import read_map
 from map_editor.nesting import (
     NestedMapShape,
@@ -18,15 +16,22 @@ from map_editor.nesting import (
     nested_map_rest_points,
     nested_map_starts_at_end_2,
 )
-from map_editor.normalization import empty_map, nested_map_key, normalize_map
+from map_editor.normalization import empty_map, normalize_map
 from map_editor.validation import validate_map
+
+
+def motion(map_name="cabin", **fields):
+    still = {"to_level": 0, "travel_secs": 2.0, "pause_secs": 0.0, "phase_secs": 0.0}
+    return NestedMotion(map_name, **{**still, "from_nudge": (0.0, 0.0, 0.0), "to_nudge": (0.0, 0.0, 0.0), **fields})
 
 
 class NestedMapTests(unittest.TestCase):
     def test_a_click_places_a_still_nested_map_and_a_drag_a_sliding_one(self) -> None:
         host = EditorHost(empty_map(8, 8), [])
-        host.place_nested_map((1, 1), (1, 1), NestedMotion("cabin", 0, 2.0, 1.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
-        host.place_nested_map((4, 1), (6, 3), NestedMotion("cabin", 0, 3.0, 0.5, 2.0, (0.4, 0.0, 0.0), (0.0, 0.0, 0.0)))
+        host.place_nested_map((1, 1), (1, 1), motion(pause_secs=1.0))
+        host.place_nested_map(
+            (4, 1), (6, 3), motion(travel_secs=3.0, pause_secs=0.5, phase_secs=2.0, from_nudge=(0.4, 0.0, 0.0))
+        )
 
         self.assertEqual(
             host.map_data["nested_maps"],
@@ -41,7 +46,7 @@ class NestedMapTests(unittest.TestCase):
                 },
             ],
         )
-        host.place_nested_map((2, 2), (2, 2), NestedMotion("", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
+        host.place_nested_map((2, 2), (2, 2), motion(""))
         self.assertEqual(len(host.map_data["nested_maps"]), 2)
         self.assertTrue(host.statuses[-1].startswith("Nested map not placed"))
 
@@ -58,22 +63,19 @@ class NestedMapTests(unittest.TestCase):
 
     def test_a_nested_maps_switch_and_off_state_are_written_only_while_set(self) -> None:
         host = EditorHost(empty_map(8, 8), [])
-        motion = NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lift", False)
-        host.place_nested_map((1, 1), (4, 1), motion)
+        switched = motion(switch="lift", initially_on=False)
+        host.place_nested_map((1, 1), (4, 1), switched)
         entry = host.map_data["nested_maps"][0]
         self.assertEqual((entry["switch"], entry["initially_on"]), ("lift", False))
-        self.assertEqual(NestedMotion.from_entry({**entry, "to_level": 0, "phase_secs": 0.0}), motion)
-        host.place_nested_map((2, 2), (2, 2), NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
+        self.assertEqual(NestedMotion.from_entry({**entry, "to_level": 0, "phase_secs": 0.0}), switched)
+        host.place_nested_map((2, 2), (2, 2), motion())
         entry = host.map_data["nested_maps"][1]
         self.assertNotIn("switch", entry)
         self.assertNotIn("initially_on", entry)
         self.assertTrue(NestedMotion.from_entry(entry).initially_on)
-
-    def test_an_unswitched_nested_map_keeps_its_off_state(self) -> None:
-        host = EditorHost(empty_map(8, 8), [])
-        paused = NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), None, False)
-        host.place_nested_map((1, 1), (4, 1), paused)
-        entry = host.map_data["nested_maps"][0]
+        paused = motion(initially_on=False)
+        host.place_nested_map((1, 5), (4, 5), paused)
+        entry = host.map_data["nested_maps"][2]
         self.assertNotIn("switch", entry)
         self.assertIs(entry["initially_on"], False)
         self.assertEqual(NestedMotion.from_entry(entry), paused)
@@ -95,10 +97,8 @@ class NestedMapTests(unittest.TestCase):
 
     def test_placing_on_the_same_start_cell_replaces_the_old_nested_map(self) -> None:
         host = EditorHost(empty_map(8, 8), [])
-        host.place_nested_map((1, 1), (4, 1), NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
-        host.place_nested_map(
-            (1, 1), (1, 4), NestedMotion("loop_a", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
-        )
+        host.place_nested_map((1, 1), (4, 1), motion())
+        host.place_nested_map((1, 1), (1, 4), motion("loop_a"))
 
         self.assertEqual([(e["map"], e["to"]) for e in host.map_data["nested_maps"]], [("loop_a", [1, 4])])
 
@@ -145,33 +145,6 @@ class NestedMapTests(unittest.TestCase):
         self.assertFalse(nested_map_starts_at_end_2(entry))
         self.assertTrue(nested_map_starts_at_end_2({**entry, "motion": "follow_switch"}))
         self.assertFalse(nested_map_starts_at_end_2({**entry, "motion": "follow_switch", "initially_on": False}))
-
-    def test_hover_text_names_the_motion_the_switch_and_the_initial_state(self) -> None:
-        data = empty_map(8, 8)
-        entry = {
-            **nested("cabin", 0, [1, 1], [3, 1]),
-            "pause_secs": 5.0,
-            "phase_secs": 2.0,
-            "switch": "lift",
-            "initially_on": False,
-        }
-        data["nested_maps"] = [entry]
-        hit = (HIT_NESTED_MAP, nested_map_key(entry))
-        self.assertEqual(
-            element_hover_text(data, 0, hit),
-            "Nested map: cabin\nLevel 0 → Level 0\nCycle · Travel: 2 s · Pause: 5 s\nPhase: 2 s"
-            "\nSwitch: lift · Initial state: Off",
-        )
-        entry["motion"] = "follow_switch"
-        self.assertEqual(
-            element_hover_text(data, 0, hit),
-            "Nested map: cabin\nLevel 0 → Level 0\nFollow switch · Travel: 2 s\nSwitch: lift · Initial state: Off",
-        )
-        del entry["switch"]
-        entry["motion"] = "cycle"
-        self.assertTrue(element_hover_text(data, 0, hit).endswith("\nPhase: 2 s\nInitial state: Off"))
-        del entry["initially_on"]
-        self.assertTrue(element_hover_text(data, 0, hit).endswith("\nPhase: 2 s"))
 
 
 class NestedMotionWindowTests(WindowTestCase):

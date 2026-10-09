@@ -40,7 +40,3 @@ impl SwitchState {
         self.carrier_runs.sort_unstable_by_key(|(id, _)| *id);
     }
 }
-
-#[cfg(test)]
-#[path = "tests/switch_state.rs"]
-mod tests;

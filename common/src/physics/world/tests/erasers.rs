@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    config::gameplay::load_test_gameplay,
+    config::fixtures::player_physics,
     protocol::{Carrier, MapLayout, SwitchState, Wall},
 };
 
@@ -53,10 +53,7 @@ fn fast_passes_and_body_overlaps_touch_without_a_solid_collision() {
         ..Default::default()
     };
     let world = world(&layout);
-    let physics = load_test_gameplay()
-        .expect("test gameplay config rejected")
-        .player
-        .physics();
+    let physics = player_physics();
     let front = Position::from(Vec3::Z * 10.0);
     let back = Position::from(Vec3::NEG_Z * 10.0);
     let contact = |start: &Position, end: &Position| {
@@ -105,10 +102,7 @@ fn moving_field_sweeps_stationary_player_without_solid_carrier_geometry() {
     };
     let mut world = world(&layout);
     let mut carriers = Carriers::from_layout(&layout);
-    let physics = load_test_gameplay()
-        .expect("test gameplay config rejected")
-        .player
-        .physics();
+    let physics = player_physics();
     let pos = Position::default();
     let touches = |world: &CollisionWorld, carriers: Option<&Carriers>| {
         world

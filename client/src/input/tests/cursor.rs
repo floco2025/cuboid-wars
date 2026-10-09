@@ -30,6 +30,13 @@ fn cursor_changed_tick(app: &mut App) -> Tick {
         .expect("cursor options missing from test window")
         .last_changed()
 }
+fn grab_mode(app: &mut App) -> CursorGrabMode {
+    app.world_mut()
+        .query::<&CursorOptions>()
+        .single(app.world())
+        .expect("cursor options missing from test window")
+        .grab_mode
+}
 fn send_focus(app: &mut App, window: Entity, focused: bool) {
     app.world_mut()
         .get_mut::<Window>(window)
@@ -42,28 +49,13 @@ fn unlocked_orbit_keeps_mouse_captured_and_menu_restores_it() {
     let mut app = app(CameraViewMode::ThirdPerson);
     app.world_mut().resource_mut::<FollowCamera>().locked = false;
     app.update();
-    let cursor = app
-        .world_mut()
-        .query::<&CursorOptions>()
-        .single(app.world())
-        .expect("cursor options missing from test window");
-    assert_eq!(cursor.grab_mode, CursorGrabMode::Locked);
+    assert_eq!(grab_mode(&mut app), CursorGrabMode::Locked);
     app.world_mut().resource_mut::<SettingsMenuState>().open = true;
     app.update();
-    let cursor = app
-        .world_mut()
-        .query::<&CursorOptions>()
-        .single(app.world())
-        .expect("cursor options missing from test window");
-    assert_eq!(cursor.grab_mode, CursorGrabMode::None);
+    assert_eq!(grab_mode(&mut app), CursorGrabMode::None);
     app.world_mut().resource_mut::<SettingsMenuState>().open = false;
     app.update();
-    let cursor = app
-        .world_mut()
-        .query::<&CursorOptions>()
-        .single(app.world())
-        .expect("cursor options missing from test window");
-    assert_eq!(cursor.grab_mode, CursorGrabMode::Locked);
+    assert_eq!(grab_mode(&mut app), CursorGrabMode::Locked);
 }
 #[test]
 fn recapture_click_does_not_fire() {

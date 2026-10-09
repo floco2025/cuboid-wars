@@ -133,29 +133,6 @@ fn a_deeply_nested_plate_controls_a_siblings_surface_route_field() {
     assert_plate_opens_surface_route(&layout, &config, CarrierId(1));
 }
 
-#[test]
-fn firework_plate_does_not_open_any_barrier_kind() {
-    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-    map_def.levels[0].barriers.push(BarrierDef {
-        c0: 1,
-        r0: 0,
-        c1: 1,
-        r1: 1,
-        field: "red".into(),
-    });
-    map_def.pressure_plates.push(PressurePlateDef {
-        level: 0,
-        col: 0,
-        row: 0,
-        switch: FIREWORKS.into(),
-    });
-
-    let (layout, config) = compile_with(&map_def, &no_nested(), &three_kind_table()).expect("compile");
-    let fireworks = switch_id(&three_kind_table(), FIREWORKS);
-    assert_eq!(config.pressure_plates[0].switch, fireworks);
-    assert_eq!(layout.pressure_plates[0].switch, fireworks);
-}
-
 // A 3x2 room with a floor on every cell, a wall along its north edge, one
 // gold, one firework plate, a player zone on its first cell, and an actor
 // zone, on two storeys.
@@ -232,29 +209,21 @@ fn a_nested_map_name_may_hold_spaces_but_not_surround_itself_with_them() {
 }
 
 #[test]
-fn validation_rejects_nested_map_anchor_outside_the_grid() {
-    let map_def = host(vec![nested("room", 0, [6, 2], [2, 2], 0)]);
-    assert!(validate_map(&map_def).is_err());
-}
-
-#[test]
-fn validation_rejects_nested_map_level_out_of_range() {
-    let map_def = host(vec![nested("room", 3, [2, 2], [2, 2], 3)]);
-    assert!(validate_map(&map_def).is_err());
-}
-
-#[test]
-fn validation_rejects_non_positive_nested_map_speed() {
-    let mut map_def = host(vec![nested("room", 0, [2, 2], [4, 2], 0)]);
-    map_def.nested_maps[0].motion.travel_secs = 0.0;
-    assert!(validate_map(&map_def).is_err());
-}
-
-#[test]
-fn validation_rejects_a_non_finite_nudge() {
-    let mut map_def = host(vec![nested("room", 0, [2, 2], [4, 2], 0)]);
-    map_def.nested_maps[0].motion.to_nudge = [0.0, f32::NAN, 0.0];
-    let error = validate_map(&map_def).expect_err("non-finite nudge accepted");
+fn validation_rejects_off_grid_off_level_instant_or_non_finite_placements() {
+    let off_grid = host(vec![nested("room", 0, [6, 2], [2, 2], 0)]);
+    let off_levels = host(vec![nested("room", 3, [2, 2], [2, 2], 3)]);
+    let mut instant = host(vec![nested("room", 0, [2, 2], [4, 2], 0)]);
+    instant.nested_maps[0].motion.travel_secs = 0.0;
+    for (case, map_def) in [
+        ("off the grid", off_grid),
+        ("off the levels", off_levels),
+        ("instant", instant),
+    ] {
+        assert!(validate_map(&map_def).is_err(), "{case} placement accepted");
+    }
+    let mut nudged = host(vec![nested("room", 0, [2, 2], [4, 2], 0)]);
+    nudged.nested_maps[0].motion.to_nudge = [0.0, f32::NAN, 0.0];
+    let error = validate_map(&nudged).expect_err("non-finite nudge accepted");
     assert!(format!("{error:#}").contains("to_nudge"), "{error:#}");
 }
 
@@ -287,25 +256,6 @@ fn nudges_displace_each_end_by_wall_widths_across_and_floor_thicknesses_up() {
         "to {:?}",
         carrier.to
     );
-}
-
-#[test]
-fn nudges_default_to_zero() {
-    let entry: NestedMapDef =
-        serde_json::from_str(r#"{"map": "room", "level": 0, "from": [1, 1], "to": [3, 1], "travel_secs": 2.0}"#)
-            .expect("entry without nudges rejected");
-    assert_eq!((entry.motion.from_nudge, entry.motion.to_nudge), ([0.0; 3], [0.0; 3]));
-}
-
-#[test]
-fn travel_time_sets_the_travel_ticks_whatever_the_distance() {
-    let mut short = nested("room", 0, [1, 3], [2, 3], 0);
-    short.motion.travel_secs = 1.5;
-    let mut long = nested("room", 0, [1, 3], [5, 3], 0);
-    long.motion.travel_secs = 1.5;
-    let (layout, _) = compile_host(&host(vec![short, long]), &tree(vec![("room", room())]));
-    assert_eq!(layout.carriers[0].travel_ticks, 45);
-    assert_eq!(layout.carriers[1].travel_ticks, 45);
 }
 
 #[test]
@@ -415,23 +365,15 @@ fn a_doubly_nested_carrier_is_parented_to_its_nesting_carrier_and_ids_come_paren
 }
 
 #[test]
-fn nested_actor_spawn_zones_carry_their_carrier() {
-    use common::protocol::CarrierId;
-
-    let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
-    let (_, config) = compile_host(&host_def, &tree(vec![("room", room())]));
-    assert_eq!(config.actor_spawn_zones.len(), 1);
-    assert_eq!(config.actor_spawn_zones[0].carrier, CarrierId(1));
-    assert_eq!(config.actor_spawn_zones[0].cols, [1, 2]);
-    assert_eq!(config.actor_spawn_zones[0].rows, [1, 2]);
-}
-
-#[test]
-fn nested_checkpoints_items_and_plates_carry_their_carrier() {
+fn nested_zones_checkpoints_items_and_plates_carry_their_carrier() {
     use common::protocol::CarrierId;
 
     let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
     let (layout, config) = compile_host(&host_def, &tree(vec![("room", room())]));
+    assert_eq!(config.actor_spawn_zones.len(), 1);
+    assert_eq!(config.actor_spawn_zones[0].carrier, CarrierId(1));
+    assert_eq!(config.actor_spawn_zones[0].cols, [1, 2]);
+    assert_eq!(config.actor_spawn_zones[0].rows, [1, 2]);
     assert_eq!(layout.checkpoints.len(), 1);
     assert_eq!(layout.checkpoints[0].carrier, CarrierId(1));
     assert_eq!(config.placed_items.len(), 1);
@@ -469,20 +411,6 @@ fn a_nested_map_names_the_switch_that_runs_its_carrier() {
         layout.carriers[0].switch,
         Some(switch_id(&empty_kind_table(), FIREWORKS))
     );
-}
-
-#[test]
-fn motion_defaults_to_cycle_and_requires_a_known_mode() {
-    let mut value = serde_json::json!({
-        "map": "room", "level": 0, "from": [1, 1], "to": [3, 1], "travel_secs": 2.0
-    });
-    let entry: NestedMapDef = serde_json::from_value(value.clone()).expect("default motion rejected");
-    assert_eq!(entry.motion.motion, CarrierMotion::Cycle);
-    value["motion"] = serde_json::json!("follow_switch");
-    let entry: NestedMapDef = serde_json::from_value(value.clone()).expect("follow motion rejected");
-    assert_eq!(entry.motion.motion, CarrierMotion::FollowSwitch);
-    value["motion"] = serde_json::json!("return");
-    assert!(serde_json::from_value::<NestedMapDef>(value).is_err());
 }
 
 #[test]

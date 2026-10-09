@@ -1,3 +1,4 @@
+use super::super::tests::{aware, info};
 use super::*;
 use crate::{
     actors::{
@@ -5,7 +6,7 @@ use crate::{
         test_kinds::{self, BEAM, CONTACT},
     },
     config::ActorKindServerConfig,
-    map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid},
+    map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid},
     test_geometry::geometry,
 };
 use common::{
@@ -31,39 +32,26 @@ fn home(physics: CharacterPhysicsConfig, world: &CollisionWorld) -> AirHome {
             edges: EdgeGrid::new(2, 2),
         }],
     );
-    let zone = ActorSpawnZone {
-        carrier: CarrierId::WORLD,
-        level: 0,
-        levels: 1,
-        roam_distance: 0.0,
-        cols: [0, 2],
-        rows: [0, 2],
-        kind: CONTACT.into(),
-        count: vec![1],
-        respawn_secs: None,
-        beam_in_secs: 0.0,
-        switch: None,
-        initially_on: true,
-        until_checkpoint: None,
-        on_checkpoint: Default::default(),
-    };
+    let zone = test_kinds::spawn_zone(CONTACT, [0, 2], [0, 2]);
     let mut home = AirHome::new(&zone, &grid, physics, 2.0, CarrierPose::IDENTITY, &[]);
     home.advance(world, physics, &mut 20000);
     assert!(home.ready());
     home
 }
 
-fn aware(pos: Position) -> AwarePlayer {
-    AwarePlayer {
-        stance: Default::default(),
-        id: PlayerId(1),
-        pos,
-        carrier: CarrierId::WORLD,
-        carrier_pos: pos,
-        visible: true,
-        support: CharacterSupport::Airborne,
-        forget_remaining_secs: 1.0,
+fn context<'a>(kind: &'a ActorKindServerConfig, world: &'a CollisionWorld, world_pos: Position) -> BeamContext<'a> {
+    BeamContext {
+        tick: 0,
+        world_pos,
+        kind_config: kind,
+        player_physics: test_kinds::physics(CONTACT),
+        collision_world: world,
+        open_fields: &[],
     }
+}
+
+fn airborne(pos: Position) -> AwarePlayer {
+    aware(1, pos, CharacterSupport::Airborne, true)
 }
 
 #[test]
@@ -71,18 +59,11 @@ fn flyers_pursue_airborne_targets_outside_home_then_return_when_forgotten() {
     let kind = flying_kind(CONTACT);
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
     let home = home(kind.character.physics(), &world);
-    let mut info = ActorInfo::new(Entity::from_bits(1), 0, CONTACT.into(), CarrierId::WORLD);
+    let mut info = info(CONTACT);
     let mut flight = FlightState::default();
     let mut rng = StdRng::seed_from_u64(3);
-    let mut context = BeamContext {
-        tick: 0,
-        world_pos: Position::default(),
-        kind_config: &kind,
-        player_physics: test_kinds::physics(CONTACT),
-        collision_world: &world,
-        open_fields: &[],
-    };
-    info.awareness.push(aware(Vec3::new(100.0, 25.0, -40.0).into()));
+    let mut context = context(&kind, &world, Position::default());
+    info.awareness.push(airborne(Vec3::new(100.0, 25.0, -40.0).into()));
     decide_flight(
         &mut info,
         &mut flight,
@@ -132,18 +113,14 @@ fn flying_beam_actor_holds_position_during_burst_and_evades_in_three_dimensions(
     let kind = flying_kind(BEAM);
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
     let home = home(kind.character.physics(), &world);
-    let mut info = ActorInfo::new(Entity::from_bits(1), 0, BEAM.into(), CarrierId::WORLD);
+    let mut info = info(BEAM);
     let mut flight = FlightState::default();
     let mut rng = StdRng::seed_from_u64(8);
     let context = BeamContext {
         tick: 10,
-        world_pos: Position::default(),
-        kind_config: &kind,
-        player_physics: test_kinds::physics(CONTACT),
-        collision_world: &world,
-        open_fields: &[],
+        ..context(&kind, &world, Position::default())
     };
-    info.awareness.push(aware(Vec3::new(8.0, 4.0, 0.0).into()));
+    info.awareness.push(airborne(Vec3::new(8.0, 4.0, 0.0).into()));
     flight.route.push_back(Vec3::Y.into());
     decide_flight(
         &mut info,
@@ -191,20 +168,13 @@ fn fleeing_flyer_retreats_when_selected_cover_is_below_a_solid_floor() {
     let start = Position::from(Vec3::Y);
     let target = Position::from(Vec3::new(-2.0, -3.0, 0.0));
     let threat = Position::from(Vec3::new(4.0, 1.0, 0.0));
-    let mut info = ActorInfo::new(Entity::from_bits(1), 0, BEAM.into(), CarrierId::WORLD);
+    let mut info = info(BEAM);
     info.beam = BeamState::Cooldown { remaining_secs: 5.0 };
     info.mode = ActorMode::Evade { fleeing: false };
-    info.awareness.push(aware(threat));
+    info.awareness.push(airborne(threat));
     let mut flight = FlightState::default();
     request_route(&mut flight, FlightTask::Evade, start, target, home.spacing);
-    let context = BeamContext {
-        tick: 0,
-        world_pos: start,
-        kind_config: &kind,
-        player_physics: test_kinds::physics(CONTACT),
-        collision_world: &world,
-        open_fields: &[],
-    };
+    let context = context(&kind, &world, start);
     assert!(covered(Vec3::from(target), &[threat], &context));
     assert!(!world.character_overlaps_solid(&target, physics, &[]));
     let mut rng = StdRng::seed_from_u64(8);
@@ -272,7 +242,7 @@ fn forgotten_pursuit_is_canceled_before_spending_search_work() {
     let kind = flying_kind(CONTACT);
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
     let home = home(kind.character.physics(), &world);
-    let mut info = ActorInfo::new(Entity::from_bits(1), 0, CONTACT.into(), CarrierId::WORLD);
+    let mut info = info(CONTACT);
     let mut flight = FlightState::default();
     request_route(
         &mut flight,
@@ -281,14 +251,7 @@ fn forgotten_pursuit_is_canceled_before_spending_search_work() {
         Vec3::X.into(),
         home.spacing,
     );
-    let context = BeamContext {
-        tick: 0,
-        world_pos: Position::default(),
-        kind_config: &kind,
-        player_physics: test_kinds::physics(CONTACT),
-        collision_world: &world,
-        open_fields: &[],
-    };
+    let context = context(&kind, &world, Position::default());
     let mut budget = 7;
     advance_search(
         &mut info,

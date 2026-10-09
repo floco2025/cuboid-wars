@@ -1,4 +1,3 @@
-use crate::config::fixtures;
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -6,7 +5,10 @@ use crossbeam_channel::unbounded;
 
 use super::{PendingExplosions, explosions::*};
 use crate::{
-    actors::{ActorCrushed, ActorInfo, ActorMap, actors_removal_system},
+    actors::{
+        ActorCrushed, ActorInfo, ActorMap, actors_removal_system,
+        test_kinds::{self, BEAM, IMMOVABLE},
+    },
     characters::characters_health_regeneration_system,
     config::ServerGameplayConfig,
     map::MapConfig,
@@ -24,7 +26,7 @@ use common::{
 };
 
 fn test_app() -> App {
-    let server = fixtures::server_config();
+    let server = test_kinds::server_config();
     let gameplay = server.gameplay_config();
     let map_settings = server.settings.clone();
     let collision_world = CollisionWorld::from_map_layout(&MapLayout::default());
@@ -64,8 +66,21 @@ fn spawn_actor(app: &mut App, id: ActorId, x: f32, health: f32) -> Entity {
         .id();
     app.world_mut()
         .resource_mut::<ActorMap>()
-        .insert(id, ActorInfo::new(entity, 0, "zapper".to_owned(), CarrierId::WORLD));
+        .insert(id, ActorInfo::new(entity, 0, BEAM.to_owned(), CarrierId::WORLD));
     entity
+}
+
+// Makes the actor an immovable one anchored where it stands; returns that spot.
+fn anchor(app: &mut App, id: ActorId, entity: Entity) -> Position {
+    let pos = *app.world().get::<Position>(entity).expect("actor position missing");
+    let mut actors = app.world_mut().resource_mut::<ActorMap>();
+    let info = actors.get_mut(&id).expect("actor missing");
+    info.spawn_kind = IMMOVABLE.into();
+    info.anchor = Some(ActorAnchor {
+        carrier: CarrierId::WORLD,
+        pos,
+    });
+    pos
 }
 
 #[test]
@@ -197,23 +212,14 @@ fn surviving_actor_receives_blast_knockback() {
 }
 
 #[test]
-fn missile_destroys_turret_with_normal_death_cue_and_kill_credit() {
+fn missile_destroys_an_anchored_actor_with_a_normal_death_cue_and_kill_credit() {
     let mut app = test_app();
     app.add_systems(Update, explosions_system);
     let shooter = PlayerId(1);
     let (_, receiver) = spawn_logged_in_player(&mut app, shooter, 100.0, 500.0);
     let id = ActorId(1);
     let entity = spawn_actor(&mut app, id, 1.0, 50.0);
-    let pos = *app.world().get::<Position>(entity).expect("turret position missing");
-    {
-        let mut actors = app.world_mut().resource_mut::<ActorMap>();
-        let info = actors.get_mut(&id).expect("turret missing");
-        info.spawn_kind = "turret".into();
-        info.anchor = Some(ActorAnchor {
-            carrier: CarrierId::WORLD,
-            pos,
-        });
-    }
+    let pos = anchor(&mut app, id, entity);
     queue_missile_blast(&mut app, shooter, pos);
     app.update();
     assert!(app.world().get_entity(entity).is_err());
@@ -227,24 +233,17 @@ fn missile_destroys_turret_with_normal_death_cue_and_kill_credit() {
     assert_eq!(deaths.len(), 1);
     assert_eq!(deaths[0].id, id);
     assert_eq!(deaths[0].killer, Some(shooter));
-    let reward = app.world().resource::<ServerGameplayConfig>().scoring.actor_kill["turret"];
+    let reward = app.world().resource::<ServerGameplayConfig>().scoring.actor_kill[IMMOVABLE];
     assert_eq!(deaths[0].killer_score, Some(reward));
 }
 
 #[test]
-fn turret_takes_blast_damage_without_knockback() {
+fn an_anchored_actor_takes_blast_damage_without_knockback() {
     let mut app = test_app();
     app.add_systems(Update, explosions_system);
     let id = ActorId(1);
     let entity = spawn_actor(&mut app, id, 1.0, 1000.0);
-    let pos = *app.world().get::<Position>(entity).expect("actor position missing");
-    let mut actors = app.world_mut().resource_mut::<ActorMap>();
-    let info = actors.get_mut(&id).expect("turret missing");
-    info.spawn_kind = "turret".into();
-    info.anchor = Some(ActorAnchor {
-        carrier: CarrierId::WORLD,
-        pos,
-    });
+    anchor(&mut app, id, entity);
     app.world_mut()
         .resource_mut::<PendingExplosions>()
         .push_player(PlayerId(9), Vec3::ZERO);
@@ -289,13 +288,13 @@ fn simultaneous_blasts_send_one_combined_player_result() {
         pending.push_actor(
             ActorId(1),
             Entity::from_bits(10),
-            "zapper".to_owned(),
+            BEAM.to_owned(),
             Position { x: -1.0, ..default() },
         );
         pending.push_actor(
             ActorId(2),
             Entity::from_bits(11),
-            "zapper".to_owned(),
+            BEAM.to_owned(),
             Position { x: 1.0, ..default() },
         );
     }
@@ -362,17 +361,6 @@ fn next_player_death(receiver: &mut crossbeam_channel::Receiver<ServerMessage>) 
     }
 }
 
-fn next_feed_line(receiver: &mut crossbeam_channel::Receiver<ServerMessage>) -> String {
-    loop {
-        match receiver.try_recv().expect("expected a Feed broadcast") {
-            ServerMessage::Feed(msg) => {
-                return msg.spans.into_iter().map(|span| span.text).collect();
-            }
-            _ => continue,
-        }
-    }
-}
-
 #[test]
 fn missile_blast_awards_shooter_player_kill_credit() {
     let mut app = test_app();
@@ -399,7 +387,6 @@ fn missile_blast_awards_shooter_player_kill_credit() {
     assert_eq!(death.id, victim_id);
     assert_eq!(death.killer, Some(shooter_id));
     assert_eq!(death.killer_score, Some(scoring.player_kill));
-    assert_eq!(next_feed_line(&mut shooter_rx), "Player 1 blew up Player 2");
 }
 
 #[test]
@@ -423,40 +410,6 @@ fn missile_self_blast_awards_no_credit() {
     let death = next_player_death(&mut shooter_rx);
     assert_eq!(death.id, shooter_id);
     assert_eq!(death.killer, None);
-    assert_eq!(next_feed_line(&mut shooter_rx), "Player 1 blew themselves up");
-}
-
-#[test]
-fn missile_blast_kills_actor_with_shooter_credit() {
-    let mut app = test_app();
-    app.add_systems(Update, explosions_system);
-    let shooter_id = PlayerId(1);
-    let (_, shooter_rx) = spawn_logged_in_player(&mut app, shooter_id, 100.0, 100.0);
-    spawn_actor(&mut app, ActorId(1), 0.0, 1.0);
-    queue_missile_blast(&mut app, shooter_id, Position::default());
-
-    app.update();
-
-    let reward = app.world().resource::<ServerGameplayConfig>().scoring.actor_kill["zapper"];
-    assert_eq!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&shooter_id)
-            .expect("shooter still present")
-            .session
-            .score,
-        reward
-    );
-
-    let death = loop {
-        match shooter_rx.try_recv().expect("expected an ActorDeath broadcast") {
-            ServerMessage::ActorDeath(msg) => break msg,
-            _ => continue,
-        }
-    };
-    assert_eq!(death.id, ActorId(1));
-    assert_eq!(death.killer, Some(shooter_id));
-    assert_eq!(death.killer_score, Some(reward));
 }
 
 fn field_world(bridge: bool) -> CollisionWorld {

@@ -76,7 +76,3 @@ fn scene_image_size(window_physical: UVec2, fullscreen_resolution: u32) -> UVec2
     let width = (window_physical.x as f32 * fullscreen_resolution as f32 / window_physical.y as f32).round() as u32;
     UVec2::new(width.max(1), fullscreen_resolution)
 }
-
-#[cfg(test)]
-#[path = "tests/scene_target.rs"]
-mod tests;

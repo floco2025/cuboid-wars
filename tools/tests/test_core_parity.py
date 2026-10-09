@@ -1,6 +1,7 @@
 import math
 import unittest
 
+from jump_fixtures import jump_physics
 from map_editor.core import call
 from map_editor.geometry import normalized_wall, rects_overlap, zone_rect
 from map_editor.jump_settings import JumpSettings
@@ -53,29 +54,7 @@ class CoreParityTests(unittest.TestCase):
                 self.assertEqual(rects_overlap(a, b), call("rects_overlap", a, b))
 
     def test_python_portal_frames_match_map_core(self):
-        physics = {
-            "server_hz": 30,
-            "gravity": 25,
-            "low_gravity": 5,
-            "player": {
-                "move_speed": 9,
-                "move_speed_power_up": 1.5,
-                "move_speed_ladder": 0.3,
-                "jump_speed": 12,
-                "ground_acceleration": 20,
-                "ground_deceleration": 30,
-                "ground_lateral_deceleration": 40,
-                "air_acceleration": 5,
-                "air_deceleration": 5,
-                "air_lateral_deceleration": 5,
-            },
-            "player_fall": {"safe_distance": 8, "lethal_distance": 15},
-            "max_health": 500,
-            "body": {"diameter": 0.6, "height": 1.8},
-            "portal_size": {"width": 1.4, "height": 2.6},
-            "funnel": {"capture_margin": 0.6, "capture_growth": 1.0},
-            "coyote_secs": 0.1,
-        }
+        physics = jump_physics()
         settings = JumpSettings(3.4, 4.4, 0.3, physics)
         shooter = (5.2, 5.7)
         surfaces = [

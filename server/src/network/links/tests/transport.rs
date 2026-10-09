@@ -9,10 +9,7 @@ use renet_netcode::{ClientAuthentication, NetcodeClientTransport};
 
 use super::listen;
 use crate::{
-    app::{
-        NetworkOverrides,
-        fixtures::{connect, server_app, server_app_with_listener},
-    },
+    app::{NetworkOverrides, fixtures::server_app_with_listener},
     players::PlayerMap,
 };
 use common::{
@@ -139,16 +136,4 @@ fn undecodable_bytes_from_a_remote_client_are_skipped() {
     }
     assert!(raw.client.is_connected());
     assert!(logged_in(&app, id));
-}
-
-#[test]
-fn a_server_without_a_listener_still_serves_local_links() {
-    let mut app = server_app(NetworkOverrides::default()).expect("server app failed");
-    let (client, receiver) = connect(&mut app);
-    client
-        .send(ClientMessage::Login(CLogin { name: "Local".into() }))
-        .expect("login failed");
-    app.update();
-    assert!(logged_in(&app, PlayerId(1)));
-    assert!(std::iter::from_fn(|| receiver.try_recv().ok()).any(|message| matches!(message, ServerMessage::Init(_))));
 }

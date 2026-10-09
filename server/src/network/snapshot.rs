@@ -148,3 +148,7 @@ pub fn capture_snapshot(world: &mut World) -> SSnapshot {
 fn capture_snapshot_system(source: SnapshotSource) -> SSnapshot {
     source.capture()
 }
+
+#[cfg(test)]
+#[path = "tests/snapshot.rs"]
+mod tests;

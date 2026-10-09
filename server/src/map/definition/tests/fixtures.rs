@@ -63,17 +63,12 @@ pub(crate) fn compile_with(
     nested: &LoadedMaps,
     kinds: &FieldTable,
 ) -> anyhow::Result<(MapLayout, MapConfig)> {
-    compile_with_settings(map, nested, &compile_settings(kinds))
+    compile_map(map, 30, &compile_settings(kinds), nested, kinds, &switch_table(kinds))
 }
 
-pub(crate) fn compile_with_settings(
-    map: &MapDef,
-    nested: &LoadedMaps,
-    settings: &MapSettings,
-) -> anyhow::Result<(MapLayout, MapConfig)> {
-    let fields = settings.field_table().expect("test field table rejected");
-    let switches = SwitchTable::from_switch_defs(&settings.switches).expect("test switch table rejected");
-    compile_map(map, 30, settings, nested, &fields, &switches)
+// A map with no nested maps and no fields.
+pub(crate) fn compile_bare(map: &MapDef) -> anyhow::Result<(MapLayout, MapConfig)> {
+    compile_with(map, &no_nested(), &empty_kind_table())
 }
 
 pub(crate) fn plate_def(level: u32, col: i32, row: i32, switch: &str) -> PressurePlateDef {

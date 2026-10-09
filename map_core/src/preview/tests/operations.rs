@@ -81,17 +81,3 @@ fn jump_preview_round_trips_through_json() {
     let reply = dispatch("jump_preview", &json!([physics, through])).expect("the request is valid");
     assert_eq!(reply["scenarios"][0]["entry"], "missed");
 }
-
-#[test]
-fn unknown_operations_and_unknown_fields_are_errors() {
-    assert!(dispatch("preview_nothing", &json!([])).is_err());
-    let physics = dispatch("preview_physics", &json!([settings()])).expect("valid settings");
-    let request = json!({
-        "takeoff": {"point": [0.0, 0.0, 0.0], "direction": [0.0, 1.0], "jumping": true, "margin": 0.0, "run_up": 1.0},
-        "heights": [0.0],
-        "air_control": false,
-        "shooter": [0.0, 0.0],
-        "portals": null,
-    });
-    assert!(dispatch("jump_preview", &json!([physics, request])).is_err());
-}

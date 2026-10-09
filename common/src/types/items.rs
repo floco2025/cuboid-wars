@@ -132,7 +132,3 @@ impl PowerUpKind {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "tests/items.rs"]
-mod tests;

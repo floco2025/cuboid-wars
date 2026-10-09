@@ -149,7 +149,3 @@ impl SurfaceSpec {
 pub fn portal_frame(physics: &PreviewPhysics, surface: &SurfaceSpec) -> PortalFrame {
     physics.frame(surface)
 }
-
-#[cfg(test)]
-#[path = "tests/physics.rs"]
-mod tests;

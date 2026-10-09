@@ -1,5 +1,5 @@
 use super::*;
-use common::protocol::CarrierId;
+use common::protocol::{CarrierId, Position};
 
 fn portal(pair: u32, end: PortalEnd, x: f32) -> Portal {
     Portal {
@@ -14,7 +14,18 @@ fn portal(pair: u32, end: PortalEnd, x: f32) -> Portal {
     }
 }
 
-use common::protocol::Position;
+const fn single(pair: u32, end: PortalEnd) -> PortalAccess {
+    PortalAccess::Single {
+        pair: PortalPairId(pair),
+        end,
+    }
+}
+
+const fn both(pair: u32) -> PortalAccess {
+    PortalAccess::Both {
+        pair: PortalPairId(pair),
+    }
+}
 
 #[test]
 fn reshooting_an_end_replaces_that_end_only() {
@@ -31,29 +42,17 @@ fn reshooting_an_end_replaces_that_end_only() {
 }
 
 #[test]
-fn remove_both_access_drops_both_ends() {
+fn removing_an_access_drops_only_the_ends_it_controls() {
     let mut map = PortalMap::default();
     map.set(portal(1, PortalEnd::A, 1.0));
     map.set(portal(1, PortalEnd::B, 2.0));
     map.set(portal(2, PortalEnd::A, 3.0));
+    map.set(portal(2, PortalEnd::B, 4.0));
 
-    assert!(map.remove_access(PortalAccess::Both { pair: PortalPairId(1) }));
-    assert!(!map.remove_access(PortalAccess::Both { pair: PortalPairId(1) }));
-    let portals = map.snapshot_portals();
-    assert_eq!(portals.len(), 1);
-    assert_eq!(portals[0].pair, PortalPairId(2));
-}
-
-#[test]
-fn remove_single_access_preserves_the_partner_end() {
-    let mut map = PortalMap::default();
-    map.set(portal(1, PortalEnd::A, 1.0));
-    map.set(portal(1, PortalEnd::B, 2.0));
-
-    assert!(map.remove_access(PortalAccess::Single {
-        pair: PortalPairId(1),
-        end: PortalEnd::A,
-    }));
+    assert!(map.remove_access(single(1, PortalEnd::A)));
+    assert!(!map.remove_access(single(1, PortalEnd::A)));
+    assert!(map.remove_access(both(2)));
+    assert!(!map.remove_access(both(2)));
     assert_eq!(map.snapshot_portals(), vec![portal(1, PortalEnd::B, 2.0)]);
 }
 
@@ -67,19 +66,6 @@ fn snapshot_portals_sorts_by_pair_then_end() {
     let portals = map.snapshot_portals();
     let keys: Vec<(u32, PortalEnd)> = portals.iter().map(|p| (p.pair.0, p.end)).collect();
     assert_eq!(keys, vec![(1, PortalEnd::B), (2, PortalEnd::A), (2, PortalEnd::B)]);
-}
-
-const fn single(pair: u32, end: PortalEnd) -> PortalAccess {
-    PortalAccess::Single {
-        pair: PortalPairId(pair),
-        end,
-    }
-}
-
-const fn both(pair: u32) -> PortalAccess {
-    PortalAccess::Both {
-        pair: PortalPairId(pair),
-    }
 }
 
 #[test]

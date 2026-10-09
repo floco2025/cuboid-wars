@@ -88,3 +88,7 @@ pub fn players_respawn_system(
         info!("{} respawned at {:?}", players.describe(&id), spawn.pos);
     }
 }
+
+#[cfg(test)]
+#[path = "tests/respawn.rs"]
+mod tests;

@@ -1,14 +1,13 @@
-from map_editor.constants import MODE_SELECT
 import copy
 import unittest
 
 from PySide6.QtWidgets import QDialogButtonBox
 
-from editor_fixtures import DEFAULT_ALIAS, WindowTestCase
+from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, actor_zone, blank_map
 from map_editor.catalogs import MapCatalogs
-from map_editor.io import read_map
+from map_editor.constants import MODE_ACTOR_SPAWN_ZONE, MODE_SELECT
 from map_editor.dialogs import ActorSpawnFieldsDialog
-from map_editor.constants import MODE_ACTOR_SPAWN_ZONE
+from map_editor.io import read_map
 from map_editor.normalization import canonicalize_map, empty_level, empty_map
 from map_editor.geometry import roam_slice_radius, zone_spans_level
 from map_editor.transforms import insert_level_data, remove_level_data, record_levels
@@ -18,12 +17,8 @@ ACTOR_KINDS = ["turret", "scuttler", "zapper"]
 
 
 def spawn_map(kind="turret"):
-    data = empty_map(4, 2)
-    data["checkpoints"] = []
-    data["actor_spawn_zones"] = [
-        {"level": 0, "cols": [0, 4], "rows": [0, 2], "kind": kind, "count": [100], "respawn_secs": 90}
-    ]
-    data["levels"][0]["floors"] = []
+    data = blank_map(4, 2)
+    data["actor_spawn_zones"] = [actor_zone(cols=[0, 4], rows=[0, 2], kind=kind, count=[100])]
     return data
 
 
@@ -201,20 +196,3 @@ class SpawnWindowTests(WindowTestCase):
         saved = read_map(self.path)
         zone = saved["actor_spawn_zones"][0]
         self.assertEqual((zone["levels"], zone["count"], zone["roam_distance"]), (2, [1], 3.5))
-
-    def test_unsupported_spawn_zones_can_be_created_saved_and_reloaded(self):
-        window = self.window
-        window.recent_actor_spawn_count = [100]
-        for kind in ACTOR_KINDS:
-            window.recent_actor_spawn_kind = kind
-            window.add_actor_spawn_zone_rect((2, 2), (3, 3))
-        zones = window.map_data["actor_spawn_zones"]
-        self.assertEqual(len(zones), len(ACTOR_KINDS))
-        self.assertEqual(window.validate_document(window.doc.root_data), [])
-        self.assertTrue(window.save())
-        saved = read_map(self.path)
-        self.assertEqual(saved["actor_spawn_zones"], zones)
-        window.load_path(self.path)
-        window.reload_dependencies()
-        self.assertEqual(window.map_data["actor_spawn_zones"], zones)
-        self.assertEqual(window.validate_document(window.doc.root_data), [])

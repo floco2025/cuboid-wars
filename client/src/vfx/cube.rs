@@ -69,7 +69,3 @@ pub(super) fn repeated_indices(count: usize, vertices_per_particle: usize, templ
     }
     indices
 }
-
-#[cfg(test)]
-#[path = "tests/cube.rs"]
-mod tests;

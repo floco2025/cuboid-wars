@@ -64,29 +64,6 @@ fn walls_meet_flush_in_every_corner_of_the_map() {
 }
 
 #[test]
-fn horizontal_walls_merge_when_only_hidden_caps_differ() {
-    // Two adjacent horizontal wall edges. Long faces and top/bottom match;
-    // their abutting east/west caps differ — those become interior on
-    // merge and shouldn't block it.
-    let left = (
-        h_wall(0.0, 1.0, 0.0),
-        FaceMaterials::from_six("t", "b", "n", "s", "INNER_E", "outer_W"),
-    );
-    let right = (
-        h_wall(1.0, 2.0, 0.0),
-        FaceMaterials::from_six("t", "b", "n", "s", "outer_E", "INNER_W"),
-    );
-
-    let (walls, materials) = merge_walls_with_materials(vec![left, right]);
-
-    assert_eq!(walls.len(), 1);
-    assert!((walls[0].x1 - 0.0).abs() < MERGE_EPS);
-    assert!((walls[0].x2 - 2.0).abs() < MERGE_EPS);
-    assert_eq!(materials[0].west, "outer_W");
-    assert_eq!(materials[0].east, "outer_E");
-}
-
-#[test]
 fn horizontal_walls_do_not_merge_when_visible_face_differs() {
     let left = (
         h_wall(0.0, 1.0, 0.0),

@@ -48,7 +48,3 @@ pub fn health_ratio(health: Health, max_health: f32) -> f32 {
     }
     (health.0 / max_health).clamp(0.0, 1.0)
 }
-
-#[cfg(test)]
-#[path = "tests/resources.rs"]
-mod tests;

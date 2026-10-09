@@ -3,65 +3,33 @@ use crate::{
     actors::test_kinds::{self, BEAM, CONTACT, IMMOVABLE},
     map::{CellGrid, CheckpointResponse, EdgeGrid, LevelGrid},
     players::{PlayerCheckpoint, PlayerInfo},
+    test_geometry::{LEVEL_HEIGHT, geometry},
 };
 use bevy::{ecs::system::RunSystemOnce, time::TimeUpdateStrategy};
-use common::protocol::{ActorId, Carrier, CarrierId, Checkpoint, CheckpointKind, MapLayout, PlayerId, SwitchId};
+use common::{
+    config::ActorLocomotion,
+    protocol::{ActorId, CarrierId, Checkpoint, CheckpointKind, MapLayout, PlayerId, SwitchId, Wall},
+};
 use crossbeam_channel::unbounded;
 use std::time::Duration;
+
+const GUARDS: SwitchId = SwitchId(0);
 
 fn spawn_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
     spawn_app_for(IMMOVABLE, cols, counts, respawn_secs)
 }
 
-#[test]
-fn multilevel_zone_shares_its_count_and_fills_both_floors_when_needed() {
-    let mut app = spawn_app(1, &[2], None);
-    {
-        let mut map = app.world_mut().resource_mut::<MapConfig>();
-        let upper = map.grids[0].levels[0].clone();
-        map.grids[0].levels.push(upper);
-        map.actor_spawn_zones[0].levels = 2;
-    }
-    app.update();
-    let pending = app.world().resource::<PendingActorSpawns>();
-    assert_eq!(pending.0.len(), 2);
-    let mut levels: Vec<_> = pending.0.iter().map(|spawn| spawn.pos.y).collect();
-    levels.sort_by(f32::total_cmp);
-    assert_eq!(levels, vec![0.0, crate::test_geometry::LEVEL_HEIGHT]);
-}
-
 fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
     let config = test_kinds::server_config();
     let settings = config.settings.clone();
-    let mut cells = CellGrid::new(cols, 1);
-    for cell in &mut cells.rows[0] {
-        cell.has_floor = true;
-    }
-    let mut map = MapConfig::for_grid(
-        vec![LevelGrid {
-            cells,
-            edges: EdgeGrid::new(cols, 1),
-        }],
-        crate::test_geometry::geometry(cols, 1),
-    );
+    let mut map = MapConfig::for_grid(vec![floored_row(cols)], geometry(cols, 1));
     map.actor_spawn_zones = counts
         .iter()
         .map(|&count| ActorSpawnZone {
-            initially_on: true,
-
-            carrier: CarrierId::WORLD,
-            level: 0,
-            levels: 1,
-            roam_distance: 0.0,
-            cols: [0, cols],
-            rows: [0, 1],
-            kind: kind.into(),
             count: vec![count],
             respawn_secs,
             beam_in_secs: 3.0,
-            switch: None,
-            until_checkpoint: None,
-            on_checkpoint: Default::default(),
+            ..test_kinds::spawn_zone(kind, [0, cols], [0, 1])
         })
         .collect();
     let mut app = App::new();
@@ -82,6 +50,72 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
     app
 }
 
+fn floored_row(cols: i32) -> LevelGrid {
+    let mut cells = CellGrid::new(cols, 1);
+    for cell in &mut cells.rows[0] {
+        cell.has_floor = true;
+    }
+    LevelGrid {
+        cells,
+        edges: EdgeGrid::new(cols, 1),
+    }
+}
+
+// A one-zone app whose zone is operated by `GUARDS`, switched off.
+fn switched_app(respawn_secs: Option<f32>, count: u32) -> App {
+    let mut app = spawn_app_for(CONTACT, 3, &[count], respawn_secs);
+    let zone = &mut app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0];
+    zone.switch = Some(GUARDS);
+    zone.initially_on = false;
+    app
+}
+
+fn scaled_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
+    let mut app = spawn_app(cols, &[counts[0]], respawn_secs);
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].count = counts.to_vec();
+    add_player(&mut app, 1, true);
+    app
+}
+
+// A one-zone app on a three-checkpoint course, its zone ending at checkpoint `until`.
+fn course_app(until: u32, on_checkpoint: CheckpointResponse, respawn_secs: Option<f32>) -> App {
+    let mut app = spawn_app_for(CONTACT, 3, &[1], respawn_secs);
+    {
+        let mut map = app.world_mut().resource_mut::<MapConfig>();
+        map.actor_spawn_zones[0].until_checkpoint = Some(until);
+        map.actor_spawn_zones[0].on_checkpoint = on_checkpoint;
+    }
+    app.world_mut().resource_mut::<MapLayout>().checkpoints = (1..=3)
+        .map(|number| Checkpoint {
+            kind: CheckpointKind::Individual,
+            number,
+            carrier: CarrierId::WORLD,
+            level: 0,
+            cols: [0, 1],
+            rows: [0, 1],
+            min_x: 0.0,
+            max_x: 1.0,
+            min_z: 0.0,
+            max_z: 1.0,
+            y: 0.0,
+        })
+        .collect();
+    app
+}
+
+fn pending_spawn(id: u32, due_tick: u32) -> PendingActorSpawn {
+    PendingActorSpawn {
+        actor_id: ActorId(id),
+        zone_idx: 0,
+        kind: BEAM.to_string(),
+        carrier: CarrierId::WORLD,
+        pos: Position::default(),
+        face_yaw: 0.0,
+        reserved_tick: 0,
+        due_tick,
+    }
+}
+
 fn blocked(app: &App, zone_idx: usize) -> bool {
     app.world().resource::<ActorSpawner>().blocked.contains(&zone_idx)
 }
@@ -96,6 +130,14 @@ fn refills(app: &App) -> Vec<Option<f32>> {
         .unwrap_or_default()
 }
 
+fn pending_count(app: &App) -> usize {
+    app.world().resource::<PendingActorSpawns>().0.len()
+}
+
+fn live_count(app: &App) -> usize {
+    app.world().resource::<ActorMap>().values().count()
+}
+
 fn reset(app: &mut App, scope: ActorRespawnScope) {
     app.world_mut()
         .run_system_once(
@@ -107,6 +149,130 @@ fn reset(app: &mut App, scope: ActorRespawnScope) {
             },
         )
         .expect("reset system failed");
+}
+
+fn materialize_pending(app: &mut App) {
+    let due = app
+        .world()
+        .resource::<PendingActorSpawns>()
+        .0
+        .iter()
+        .map(|spawn| spawn.due_tick)
+        .max()
+        .expect("nothing pending to materialize");
+    app.world_mut().resource_mut::<ServerTick>().0 = due;
+    app.update();
+    assert_eq!(pending_count(app), 0);
+}
+
+fn destroy(app: &mut App, id: ActorId) {
+    let removed = app
+        .world_mut()
+        .resource_mut::<ActorMap>()
+        .remove(&id)
+        .expect("live actor missing");
+    app.world_mut().despawn(removed.entity);
+}
+
+fn destroy_one(app: &mut App) {
+    let id = *app
+        .world()
+        .resource::<ActorMap>()
+        .iter()
+        .next()
+        .expect("no live actor to destroy")
+        .0;
+    destroy(app, id);
+}
+
+fn expire_countdown(app: &mut App) {
+    for secs in app
+        .world_mut()
+        .resource_mut::<ActorSpawner>()
+        .refills
+        .entry(0)
+        .or_default()
+        .iter_mut()
+        .flatten()
+    {
+        *secs = 0.0;
+    }
+}
+
+fn set_ramps(app: &mut App, has_ramp: bool) {
+    for cell in &mut app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
+        .cells
+        .rows[0]
+    {
+        cell.has_ramp = has_ramp;
+    }
+}
+
+fn set_switch(app: &mut App, active: bool) {
+    let mut switch_state = app.world_mut().resource_mut::<SwitchState>();
+    switch_state.active_switches = if active { vec![GUARDS] } else { Vec::new() };
+}
+
+fn make_beam_kind_fly(app: &mut App) {
+    app.world_mut()
+        .resource_mut::<ServerGameplayConfig>()
+        .actors
+        .get_mut(BEAM)
+        .expect("test beam kind missing")
+        .character
+        .locomotion = ActorLocomotion::Flying;
+}
+
+fn set_walls(app: &mut App, walls: Vec<Wall>) {
+    app.world_mut()
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout { walls, ..default() }));
+}
+
+fn add_player(app: &mut App, id: u32, logged_in: bool) {
+    let entity = app.world_mut().spawn_empty().id();
+    let (channel, _) = unbounded();
+    let mut info = PlayerInfo::new(entity, channel);
+    info.connection.logged_in = logged_in;
+    app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(id), info);
+}
+
+fn leave_player(app: &mut App, id: u32) {
+    app.world_mut()
+        .resource_mut::<PlayerMap>()
+        .get_mut(&PlayerId(id))
+        .expect("test player")
+        .connection
+        .logged_in = false;
+}
+
+// Logs `player` in if needed and saves checkpoint `number` for it.
+fn reach(app: &mut App, player: PlayerId, number: u32) {
+    if app.world().resource::<PlayerMap>().get(&player).is_none() {
+        add_player(app, player.0, true);
+    }
+    app.world_mut()
+        .resource_mut::<PlayerMap>()
+        .get_mut(&player)
+        .expect("player missing")
+        .session
+        .checkpoint = PlayerCheckpoint::numbered(number);
+}
+
+#[test]
+fn multilevel_zone_shares_its_count_and_fills_both_floors_when_needed() {
+    let mut app = spawn_app(1, &[2], None);
+    {
+        let mut map = app.world_mut().resource_mut::<MapConfig>();
+        let upper = map.grids[0].levels[0].clone();
+        map.grids[0].levels.push(upper);
+        map.actor_spawn_zones[0].levels = 2;
+    }
+    app.update();
+    let pending = app.world().resource::<PendingActorSpawns>();
+    assert_eq!(pending.0.len(), 2);
+    let mut levels: Vec<_> = pending.0.iter().map(|spawn| spawn.pos.y).collect();
+    levels.sort_by(f32::total_cmp);
+    assert_eq!(levels, vec![0.0, LEVEL_HEIGHT]);
 }
 
 #[test]
@@ -123,19 +289,14 @@ fn overlapping_zones_reserve_pending_and_live_centers_then_fill_a_vacancy() {
     for _ in 0..10 {
         app.update();
     }
-    assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 2);
+    assert_eq!(pending_count(&app), 2);
     assert_eq!(app.world().resource::<ActorSpawner>().next_id, 2);
     app.world_mut().resource_mut::<ServerTick>().0 = due_tick;
     app.update();
-    assert_eq!(app.world().resource::<ActorMap>().values().count(), 2);
-    assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+    assert_eq!(live_count(&app), 2);
+    assert_eq!(pending_count(&app), 0);
     assert!(blocked(&app, 1));
-    let removed = app
-        .world_mut()
-        .resource_mut::<ActorMap>()
-        .remove(&first_id)
-        .expect("live actor missing");
-    app.world_mut().despawn(removed.entity);
+    destroy(&mut app, first_id);
     app.update();
     let pending = &app.world().resource::<PendingActorSpawns>().0;
     assert_eq!(pending.len(), 1);
@@ -149,7 +310,7 @@ fn blocked_initial_immovable_spawn_retries_even_when_respawns_are_disabled() {
     let mut app = spawn_app(1, &[1], None);
     let player = app.world_mut().spawn((PlayerMarker, Position::default())).id();
     app.update();
-    assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+    assert_eq!(pending_count(&app), 0);
     assert!(blocked(&app, 0));
     app.world_mut().despawn(player);
     app.update();
@@ -160,34 +321,14 @@ fn blocked_initial_immovable_spawn_retries_even_when_respawns_are_disabled() {
 }
 
 #[test]
-fn blocked_movable_spawn_waits_for_space_when_respawns_are_disabled() {
-    let mut app = spawn_app_for(CONTACT, 1, &[1], None);
-    app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
-        .cells
-        .rows[0][0]
-        .has_ramp = true;
-    app.update();
-    assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
-    assert!(blocked(&app, 0));
-    app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
-        .cells
-        .rows[0][0]
-        .has_ramp = false;
-    app.update();
-    assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 1);
-    assert!(!blocked(&app, 0));
-}
-
-#[test]
 fn resetting_every_actor_keeps_peace() {
     let mut app = spawn_app(1, &[1], Some(1.0));
     app.update();
     app.world_mut().resource_mut::<ActorMap>().set_peaceful(true);
     reset(&mut app, ActorRespawnScope::All);
-    let actors = app.world().resource::<ActorMap>();
-    assert!(actors.peaceful);
-    assert_eq!(actors.values().count(), 0);
-    assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+    assert!(app.world().resource::<ActorMap>().peaceful);
+    assert_eq!(live_count(&app), 0);
+    assert_eq!(pending_count(&app), 0);
 }
 
 #[test]
@@ -201,34 +342,19 @@ fn blocked_reset_refills_retry_as_soon_as_space_clears() {
         app.world_mut().resource_mut::<ServerTick>().0 = due_tick;
         app.update();
         if scope == ActorRespawnScope::Dead {
-            let removed = app
-                .world_mut()
-                .resource_mut::<ActorMap>()
-                .remove(&id)
-                .expect("live actor missing");
-            app.world_mut().despawn(removed.entity);
+            destroy(&mut app, id);
         }
-        app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
-            .cells
-            .rows[0][0]
-            .has_ramp = true;
+        set_ramps(&mut app, true);
         reset(&mut app, scope);
         for _ in 0..3 {
             app.update();
-            assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+            assert_eq!(pending_count(&app), 0);
         }
 
-        app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
-            .cells
-            .rows[0][0]
-            .has_ramp = false;
+        set_ramps(&mut app, false);
         app.update();
 
-        assert_eq!(
-            app.world().resource::<PendingActorSpawns>().0.len(),
-            1,
-            "scope {scope:?}"
-        );
+        assert_eq!(pending_count(&app), 1, "scope {scope:?}");
         assert!(!blocked(&app, 0));
     }
 }
@@ -304,99 +430,21 @@ fn deaths_in_the_same_tick_each_wait_for_their_delay() {
     assert_eq!(pending_count(&app), 2, "the expired delays refill both");
 }
 
-fn pending_spawn(id: u32, due_tick: u32) -> PendingActorSpawn {
-    PendingActorSpawn {
-        actor_id: ActorId(id),
-        zone_idx: 0,
-        kind: BEAM.to_string(),
-        carrier: CarrierId::WORLD,
-        pos: Position::default(),
-        face_yaw: 0.0,
-        reserved_tick: 0,
-        due_tick,
-    }
-}
-
-#[test]
-fn a_pending_spawn_on_a_carrier_materializes_where_the_carrier_is_now() {
-    let carrier = Carrier {
-        motion: Default::default(),
-        initially_on: true,
-
-        parent: CarrierId::WORLD,
-        level: 0,
-        levels: 0,
-        from: Position { x: 0.0, y: 0.0, z: 0.0 },
-        to: Position {
-            x: 12.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        travel_ticks: 12,
-        pause_ticks: 0,
-        phase_ticks: 0,
-        switch: None,
-    };
-    let mut carriers = Carriers::from_layout(&MapLayout {
-        carriers: vec![carrier],
-        ..MapLayout::default()
-    });
-    let mut spawn = pending_spawn(1, 90);
-    spawn.carrier = CarrierId(1);
-    spawn.pos = Position { x: 1.0, y: 0.0, z: 2.0 };
-    assert_eq!(spawn.world_position(&carriers), Position { x: 1.0, y: 0.0, z: 2.0 });
-
-    carriers.advance(6, &SwitchState::default());
-
-    assert_eq!(spawn.world_position(&carriers), Position { x: 7.0, y: 0.0, z: 2.0 });
-}
-
 #[test]
 fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
     let map_config = MapConfig {
         actor_spawn_zones: vec![
             ActorSpawnZone {
-                initially_on: true,
-
-                carrier: CarrierId::WORLD,
-                level: 0,
-                levels: 1,
-                roam_distance: 0.0,
-                cols: [0, 1],
-                rows: [0, 1],
-                kind: CONTACT.to_owned(),
                 count: vec![2],
                 respawn_secs: Some(90.0),
-                beam_in_secs: 3.0,
-                switch: None,
-                until_checkpoint: None,
-                on_checkpoint: Default::default(),
+                ..test_kinds::spawn_zone(CONTACT, [0, 1], [0, 1])
             },
             ActorSpawnZone {
-                initially_on: true,
-
-                carrier: CarrierId::WORLD,
-                level: 0,
-                levels: 1,
-                roam_distance: 0.0,
-                cols: [0, 1],
-                rows: [0, 1],
-                kind: BEAM.to_owned(),
-                count: vec![1],
                 respawn_secs: Some(180.0),
-                beam_in_secs: 3.0,
-                switch: None,
-                until_checkpoint: None,
-                on_checkpoint: Default::default(),
+                ..test_kinds::spawn_zone(BEAM, [0, 1], [0, 1])
             },
         ],
-        ..MapConfig::for_grid(
-            vec![LevelGrid {
-                cells: CellGrid::new(1, 1),
-                edges: EdgeGrid::new(1, 1),
-            }],
-            crate::test_geometry::geometry(1, 1),
-        )
+        ..MapConfig::for_grid(vec![floored_row(1)], geometry(1, 1))
     };
     let mut contact = pending_spawn(1, 60);
     contact.kind = CONTACT.to_owned();
@@ -434,107 +482,24 @@ fn a_zone_without_beam_in_spawns_its_actors_the_tick_their_slots_fill() {
 }
 
 #[test]
-fn spawns_before_their_due_tick_stay_queued() {
-    let mut pending = vec![pending_spawn(1, 60), pending_spawn(2, 15)];
+fn due_spawns_drain_in_queue_order_from_their_due_tick() {
+    let mut pending = vec![pending_spawn(1, 3), pending_spawn(2, 15), pending_spawn(3, 6)];
 
-    let due = take_due_spawns(&mut pending, 7);
-
-    assert!(due.is_empty());
-    assert_eq!(pending.len(), 2);
-}
-
-#[test]
-fn due_spawns_drain_in_queue_order() {
-    let mut pending = vec![pending_spawn(1, 3), pending_spawn(2, 150), pending_spawn(3, 6)];
-
-    let due = take_due_spawns(&mut pending, 9);
-
+    assert!(take_due_spawns(&mut pending, 2).is_empty());
+    let due = take_due_spawns(&mut pending, 14);
     assert_eq!(
         due.iter().map(|spawn| spawn.actor_id).collect::<Vec<_>>(),
         vec![ActorId(1), ActorId(3)]
     );
     assert_eq!(pending.len(), 1);
-    assert_eq!(pending[0].actor_id, ActorId(2));
-}
-
-#[test]
-fn a_spawn_is_due_on_its_due_tick() {
-    let mut pending = vec![pending_spawn(1, 15)];
-
-    assert!(take_due_spawns(&mut pending, 14).is_empty());
     let due = take_due_spawns(&mut pending, 15);
-
     assert_eq!(due.len(), 1);
     assert!(pending.is_empty());
 }
 
-const GUARDS: SwitchId = SwitchId(0);
-
-// A one-zone app whose zone is operated by `GUARDS`, switched off.
-fn switched_app(respawn_secs: Option<f32>, count: u32) -> App {
-    let mut app = spawn_app_for(CONTACT, 3, &[count], respawn_secs);
-    let zone = &mut app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0];
-    zone.switch = Some(GUARDS);
-    zone.initially_on = false;
-    app
-}
-
-fn set_switch(app: &mut App, active: bool) {
-    let mut switch_state = app.world_mut().resource_mut::<SwitchState>();
-    switch_state.active_switches = if active { vec![GUARDS] } else { Vec::new() };
-}
-
-fn pending_count(app: &App) -> usize {
-    app.world().resource::<PendingActorSpawns>().0.len()
-}
-
-fn materialize_pending(app: &mut App) {
-    let due = app
-        .world()
-        .resource::<PendingActorSpawns>()
-        .0
-        .iter()
-        .map(|spawn| spawn.due_tick)
-        .max()
-        .expect("nothing pending to materialize");
-    app.world_mut().resource_mut::<ServerTick>().0 = due;
-    app.update();
-    assert_eq!(pending_count(app), 0);
-}
-
-fn destroy_one(app: &mut App) {
-    let id = *app
-        .world()
-        .resource::<ActorMap>()
-        .iter()
-        .next()
-        .expect("no live actor to destroy")
-        .0;
-    let removed = app
-        .world_mut()
-        .resource_mut::<ActorMap>()
-        .remove(&id)
-        .expect("live actor missing");
-    app.world_mut().despawn(removed.entity);
-}
-
-fn expire_countdown(app: &mut App) {
-    for secs in app
-        .world_mut()
-        .resource_mut::<ActorSpawner>()
-        .refills
-        .entry(0)
-        .or_default()
-        .iter_mut()
-        .flatten()
-    {
-        *secs = 0.0;
-    }
-}
-
 #[test]
-fn a_switched_zone_spawns_nothing_until_its_switch_turns_on() {
-    let mut app = switched_app(Some(0.0), 2);
+fn a_switched_zone_spawns_nothing_until_its_switch_turns_on_then_fills_at_once() {
+    let mut app = switched_app(Some(1000.0), 2);
     for _ in 0..3 {
         app.update();
     }
@@ -542,18 +507,13 @@ fn a_switched_zone_spawns_nothing_until_its_switch_turns_on() {
 
     set_switch(&mut app, true);
     app.update();
-    assert_eq!(pending_count(&app), 2, "turning on fills on the next pass");
+    assert_eq!(
+        pending_count(&app),
+        2,
+        "turning on fills on the next pass, whatever the respawn time"
+    );
     app.update();
     assert_eq!(pending_count(&app), 2, "an active full zone queues nothing more");
-}
-
-#[test]
-fn an_activation_fills_the_zone_at_once_whatever_its_respawn_time() {
-    let mut app = switched_app(Some(1000.0), 2);
-    app.update();
-    set_switch(&mut app, true);
-    app.update();
-    assert_eq!(pending_count(&app), 2);
 }
 
 #[test]
@@ -633,7 +593,7 @@ fn a_reset_leaves_a_switched_off_zone_waiting_and_refills_an_active_one() {
     app.update();
     materialize_pending(&mut app);
     reset(&mut app, ActorRespawnScope::All);
-    assert_eq!(app.world().resource::<ActorMap>().values().count(), 0);
+    assert_eq!(live_count(&app), 0);
     app.update();
     assert_eq!(
         pending_count(&app),
@@ -725,13 +685,8 @@ fn a_zone_without_a_respawn_time_never_refills_even_when_toggled() {
 
 #[test]
 fn flying_spawns_reselect_blocked_reservations_and_restart_the_warning() {
-    use common::{config::ActorLocomotion, protocol::Wall};
     let mut app = spawn_app_for(BEAM, 2, &[1], None);
-    {
-        let mut config = app.world_mut().resource_mut::<ServerGameplayConfig>();
-        let kind = config.actors.get_mut(BEAM).expect("test beam kind missing");
-        kind.character.locomotion = ActorLocomotion::Flying;
-    }
+    make_beam_kind_fly(&mut app);
     app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].beam_in_secs = 1.0;
     for cell in &mut app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
         .cells
@@ -745,27 +700,25 @@ fn flying_spawns_reselect_blocked_reservations_and_restart_the_warning() {
         (spawn.pos, spawn.due_tick, spawn.actor_id)
     };
     assert!(spawn_pos.y > 0.0);
-    app.world_mut()
-        .insert_resource(CollisionWorld::from_map_layout(&MapLayout {
-            walls: vec![Wall {
-                x1: -10.0,
-                z1: spawn_pos.z,
-                x2: 10.0,
-                z2: spawn_pos.z,
-                y: -1.0,
-                height: 10.0,
-                width: 1.0,
-                level: 0,
-                carrier: CarrierId::WORLD,
-            }],
-            ..Default::default()
-        }));
+    set_walls(
+        &mut app,
+        vec![Wall {
+            x1: -10.0,
+            z1: spawn_pos.z,
+            x2: 10.0,
+            z2: spawn_pos.z,
+            y: -1.0,
+            height: 10.0,
+            width: 1.0,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+    );
     app.world_mut().resource_mut::<ServerTick>().0 = due_tick;
     app.update();
-    assert_eq!(app.world().resource::<ActorMap>().values().count(), 0);
-    assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 1);
-    app.world_mut()
-        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()));
+    assert_eq!(live_count(&app), 0);
+    assert_eq!(pending_count(&app), 1);
+    set_walls(&mut app, Vec::new());
     let replacement_due = {
         let pending = app.world().resource::<PendingActorSpawns>();
         let replacement = &pending.0[0];
@@ -777,7 +730,7 @@ fn flying_spawns_reselect_blocked_reservations_and_restart_the_warning() {
     };
     app.world_mut().resource_mut::<ServerTick>().0 = replacement_due - 1;
     app.update();
-    assert_eq!(app.world().resource::<ActorMap>().values().count(), 0);
+    assert_eq!(live_count(&app), 0);
     app.world_mut().resource_mut::<ServerTick>().0 = replacement_due;
     app.update();
     let actors = app.world().resource::<ActorMap>();
@@ -786,34 +739,6 @@ fn flying_spawns_reselect_blocked_reservations_and_restart_the_warning() {
         .next()
         .expect("flying actor missing after obstruction cleared");
     assert!(actor.flight.is_some());
-}
-
-fn add_player(app: &mut App, id: u32, logged_in: bool) {
-    let entity = app.world_mut().spawn_empty().id();
-    let (channel, _) = crossbeam_channel::unbounded();
-    let mut info = PlayerInfo::new(entity, channel);
-    info.connection.logged_in = logged_in;
-    app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(id), info);
-}
-
-fn leave_player(app: &mut App, id: u32) {
-    app.world_mut()
-        .resource_mut::<PlayerMap>()
-        .get_mut(&PlayerId(id))
-        .expect("test player")
-        .connection
-        .logged_in = false;
-}
-
-fn scaled_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
-    let mut app = spawn_app(cols, &[counts[0]], respawn_secs);
-    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].count = counts.to_vec();
-    add_player(&mut app, 1, true);
-    app
-}
-
-fn live_count(app: &App) -> usize {
-    app.world().resource::<ActorMap>().values().count()
 }
 
 #[test]
@@ -981,32 +906,6 @@ fn a_rejoin_after_a_kill_neither_revives_a_permanent_loss_nor_skips_the_countdow
     }
 }
 
-fn set_ramps(app: &mut App, has_ramp: bool) {
-    for cell in &mut app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
-        .cells
-        .rows[0]
-    {
-        cell.has_ramp = has_ramp;
-    }
-}
-
-#[test]
-fn a_blocked_join_fills_the_tick_a_spot_clears() {
-    let mut app = spawn_app_for(CONTACT, 3, &[1], Some(90.0));
-    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].count = vec![1, 3];
-    add_player(&mut app, 1, true);
-    app.update();
-    materialize_pending(&mut app);
-    set_ramps(&mut app, true);
-    add_player(&mut app, 2, true);
-    app.update();
-    assert_eq!(pending_count(&app), 0);
-    assert!(blocked(&app, 0));
-    set_ramps(&mut app, false);
-    app.update();
-    assert_eq!(pending_count(&app), 2);
-}
-
 #[test]
 fn blocked_join_slots_fill_when_space_clears_without_refilling_other_dead_slots() {
     let mut app = scaled_app(2, &[2, 3], None);
@@ -1066,16 +965,9 @@ fn multiplayer_only_zones_stay_empty_without_two_logged_in_players() {
 
 #[test]
 fn blocked_flying_beam_ins_retry_only_their_reserved_slot() {
-    use common::{config::ActorLocomotion, protocol::Wall};
     let mut app = spawn_app_for(BEAM, 8, &[2], None);
     app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].count = vec![2, 3];
-    app.world_mut()
-        .resource_mut::<ServerGameplayConfig>()
-        .actors
-        .get_mut(BEAM)
-        .expect("beam kind")
-        .character
-        .locomotion = ActorLocomotion::Flying;
+    make_beam_kind_fly(&mut app);
     add_player(&mut app, 1, true);
     app.update();
     materialize_pending(&mut app);
@@ -1085,27 +977,25 @@ fn blocked_flying_beam_ins_retry_only_their_reserved_slot() {
     app.update();
     assert_eq!(pending_count(&app), 1);
     let due_tick = app.world().resource::<PendingActorSpawns>().0[0].due_tick;
-    app.world_mut()
-        .insert_resource(CollisionWorld::from_map_layout(&MapLayout {
-            walls: vec![Wall {
-                x1: -100.0,
-                x2: 100.0,
-                z1: 0.0,
-                z2: 0.0,
-                y: -10.0,
-                height: 100.0,
-                width: 100.0,
-                level: 0,
-                carrier: CarrierId::WORLD,
-            }],
-            ..Default::default()
-        }));
+    set_walls(
+        &mut app,
+        vec![Wall {
+            x1: -100.0,
+            x2: 100.0,
+            z1: 0.0,
+            z2: 0.0,
+            y: -10.0,
+            height: 100.0,
+            width: 100.0,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+    );
     app.world_mut().resource_mut::<ServerTick>().0 = due_tick;
     app.update();
     assert_eq!(live_count(&app), 1);
     assert_eq!(pending_count(&app), 0);
-    app.world_mut()
-        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()));
+    set_walls(&mut app, Vec::new());
     app.update();
     assert_eq!(
         pending_count(&app),
@@ -1114,44 +1004,6 @@ fn blocked_flying_beam_ins_retry_only_their_reserved_slot() {
     );
     materialize_pending(&mut app);
     assert_eq!(live_count(&app), 2);
-}
-
-// A one-zone app on a three-checkpoint course, its zone ending at checkpoint `until`.
-fn course_app(until: u32, on_checkpoint: CheckpointResponse, respawn_secs: Option<f32>) -> App {
-    let mut app = spawn_app_for(CONTACT, 3, &[1], respawn_secs);
-    {
-        let mut map = app.world_mut().resource_mut::<MapConfig>();
-        map.actor_spawn_zones[0].until_checkpoint = Some(until);
-        map.actor_spawn_zones[0].on_checkpoint = on_checkpoint;
-    }
-    app.world_mut().resource_mut::<MapLayout>().checkpoints = (1..=3)
-        .map(|number| Checkpoint {
-            kind: CheckpointKind::Individual,
-            number,
-            carrier: CarrierId::WORLD,
-            level: 0,
-            cols: [0, 1],
-            rows: [0, 1],
-            min_x: 0.0,
-            max_x: 1.0,
-            min_z: 0.0,
-            max_z: 1.0,
-            y: 0.0,
-        })
-        .collect();
-    app
-}
-
-// Logs `player` in if needed and saves checkpoint `number` for it.
-fn reach(app: &mut App, player: PlayerId, number: u32) {
-    let mut players = app.world_mut().resource_mut::<PlayerMap>();
-    if players.get(&player).is_none() {
-        let (tx, _rx) = unbounded();
-        let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-        info.connection.logged_in = true;
-        players.insert(player, info);
-    }
-    players.get_mut(&player).expect("player missing").session.checkpoint = PlayerCheckpoint::numbered(number);
 }
 
 #[test]

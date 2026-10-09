@@ -18,7 +18,3 @@ impl PlayerGeneration {
         sequence_is_newer(self.0, other.0)
     }
 }
-
-#[cfg(test)]
-#[path = "tests/player_generation.rs"]
-mod tests;

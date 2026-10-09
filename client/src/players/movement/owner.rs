@@ -44,11 +44,6 @@ impl Default for JumpRequest {
 }
 
 impl JumpRequest {
-    #[must_use]
-    pub fn pending(&self) -> bool {
-        self.pressed || self.buffered_secs.is_some()
-    }
-
     fn take_press(&mut self) -> bool {
         if std::mem::take(&mut self.pressed) {
             self.buffered_secs = Some(PLAYER_JUMP_BUFFER_SECS);

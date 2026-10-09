@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from editor_fixtures import DEFAULT_ALIAS, floor, nested
+from editor_fixtures import DEFAULT_ALIAS, actor_zone, blank_map, floor, nested
 from map_editor.transforms import transform_block
 from map_editor.geometry import wall_endpoints_for_cell_side
 from map_editor.normalization import empty_level, empty_map, normalize_map
@@ -9,8 +9,7 @@ from map_editor.normalization import empty_level, empty_map, normalize_map
 
 class BlockTransformTests(unittest.TestCase):
     def block(self):
-        data = empty_map(5, 4)
-        data["checkpoints"] = []
+        data = blank_map(5, 4)
         data["levels"].append(empty_level(1))
         data["levels"][0]["floors"] = [floor(1, 1)]
         data["levels"][0]["walls"] = [
@@ -30,24 +29,13 @@ class BlockTransformTests(unittest.TestCase):
         data["levels"][0]["lights"] = [{"col": 1, "row": 1, "side": "N", "kind": "utility"}]
         data["ramps"] = [{"lower_level": 0, "cols": [1, 4], "rows": [2, 3], "direction": "E", "all": DEFAULT_ALIAS}]
         data["ladders"] = [{"col": 4, "row": 3, "side": "W", "lower_level": 0, "levels": 1}]
-        data["actor_spawn_zones"] = [
-            {
-                "level": 0,
-                "levels": 2,
-                "cols": [0, 2],
-                "rows": [0, 1],
-                "kind": "scuttler",
-                "count": [2, 4],
-                "respawn_secs": None,
-            }
-        ]
+        data["actor_spawn_zones"] = [actor_zone(levels=2, cols=[0, 2], count=[2, 4])]
         data["items"] = [{"col": 1, "row": 1, "level": 0, "type": "gold"}]
         data["pressure_plates"] = [{"col": 1, "row": 1, "level": 0, "switch": "door"}]
         return normalize_map(data)
 
     def test_a_square_ramp_turns_its_direction_with_the_block(self):
-        data = empty_map(5, 5)
-        data["checkpoints"] = []
+        data = blank_map(5, 5)
         data["levels"].append(empty_level(1))
         data["ramps"] = [{"lower_level": 0, "cols": [1, 3], "rows": [1, 3], "direction": "E", "all": DEFAULT_ALIAS}]
         block = normalize_map(data)
@@ -89,11 +77,9 @@ class BlockTransformTests(unittest.TestCase):
             self.assertEqual(result, original, operation)
 
     def test_nested_geometry_is_copied_and_motion_nudges_rotate_with_it(self):
-        room = empty_map(2, 1)
-        room["checkpoints"] = []
+        room = blank_map(2, 1)
         room["levels"][0]["floors"] = [floor(0, 0)]
-        block = empty_map(6, 4)
-        block["checkpoints"] = []
+        block = blank_map(6, 4)
         entry = nested("room", 0, [1, 1], [3, 2])
         entry["from_nudge"] = [0.5, 2.0, -0.25]
         block["nested_maps"] = [entry]

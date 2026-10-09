@@ -1,3 +1,4 @@
+use super::super::fixtures::{wall, world};
 use crate::{
     actors::ActorMap,
     carriers::CarrierEntities,
@@ -103,6 +104,19 @@ fn missile(app: &mut App, id: MissileId, owned: bool, speed: f32, lifetime: f32)
     entity
 }
 
+// A living player body at `pos` the missiles can hit.
+fn add_player(app: &mut App, id: PlayerId, pos: Position, player: &Player) -> Entity {
+    let entity = app.world_mut().spawn((PlayerMarker, id, pos, FaceYaw(0.0))).id();
+    app.world_mut()
+        .resource_mut::<PlayerMap>()
+        .insert(id, PlayerInfo::from_snapshot(entity, player, 0));
+    entity
+}
+
+fn player(pos: Position, health: f32) -> Player {
+    Player::new("Player".into(), pos, PlayerMoveIntent::NONE, 0.0, 0, Health(health))
+}
+
 #[test]
 fn only_shooters_flights_simulate_and_report_at_the_configured_rate_without_a_living_shooter() {
     for hz in [7, 10, 30] {
@@ -140,12 +154,11 @@ fn a_fast_missile_reports_the_swept_hit_and_victim_generation_once() {
     let (mut app, receiver) = app(10);
     let id = PlayerId(2);
     let pos = Position { x: 5.0, y: 0.0, z: 0.0 };
-    let target = app.world_mut().spawn((PlayerMarker, id, pos, FaceYaw(0.0))).id();
-    let mut player = Player::new("Player".into(), pos, PlayerMoveIntent::NONE, 0.0, 0, Health(100.0));
-    player.generation = PlayerGeneration(4);
-    app.world_mut()
-        .resource_mut::<PlayerMap>()
-        .insert(id, PlayerInfo::from_snapshot(target, &player, 0));
+    let victim = Player {
+        generation: PlayerGeneration(4),
+        ..player(pos, 100.0)
+    };
+    add_player(&mut app, id, pos, &victim);
     let entity = missile(&mut app, MissileId(3), true, 300.0, 10.0);
     app.update();
     assert!(app.world().get_entity(entity).is_err());
@@ -194,14 +207,11 @@ fn a_retired_body_kept_for_the_death_camera_does_not_block_flight() {
     let (mut app, receiver) = app(10);
     let id = PlayerId(1);
     let pos = Position { x: 5.0, y: 0.0, z: 0.0 };
-    let target = app.world_mut().spawn((PlayerMarker, id, pos, FaceYaw(0.0))).id();
-    let player = Player::new("Player".into(), pos, PlayerMoveIntent::NONE, 0.0, 0, Health(0.0));
+    let dead = player(pos, 0.0);
+    add_player(&mut app, id, pos, &dead);
     app.world_mut()
         .resource_mut::<PlayerMap>()
-        .insert(id, PlayerInfo::from_snapshot(target, &player, 0));
-    app.world_mut()
-        .resource_mut::<PlayerMap>()
-        .retire_body(id, player.generation);
+        .retire_body(id, dead.generation);
     let entity = missile(&mut app, MissileId(3), true, 300.0, 10.0);
     app.update();
     assert!(app.world().get::<Position>(entity).expect("flight hit the dead body").x > 9.0);
@@ -213,21 +223,13 @@ fn a_retired_body_kept_for_the_death_camera_does_not_block_flight() {
 #[test]
 fn a_missile_inside_geometry_detonates_where_it_is() {
     let (mut app, receiver) = app(10);
-    let layout = MapLayout {
+    app.insert_resource(world(&MapLayout {
         walls: vec![Wall {
-            x1: 0.0,
-            z1: -4.0,
-            x2: 0.0,
-            z2: 4.0,
             width: 1.0,
-            y: 0.0,
-            height: 4.0,
-            level: 0,
-            carrier: CarrierId::WORLD,
+            ..wall(0.0, -4.0, 0.0, 4.0)
         }],
         ..default()
-    };
-    app.insert_resource(CollisionWorld::from_map_layout(&layout));
+    }));
     let entity = missile(&mut app, MissileId(1), true, 20.0, 10.0);
     app.update();
     assert!(app.world().get_entity(entity).is_err());
@@ -240,22 +242,12 @@ fn a_missile_inside_geometry_detonates_where_it_is() {
 #[test]
 fn a_missile_arms_against_its_shooter_only_after_leaving_them() {
     let (mut app, receiver) = app(10);
-    let id = PlayerId(1);
-    let shooter = app
-        .world_mut()
-        .spawn((PlayerMarker, id, Position::default(), FaceYaw(0.0)))
-        .id();
-    let player = Player::new(
-        "Player".into(),
+    let shooter = add_player(
+        &mut app,
+        PlayerId(1),
         Position::default(),
-        PlayerMoveIntent::NONE,
-        0.0,
-        0,
-        Health(100.0),
+        &player(Position::default(), 100.0),
     );
-    app.world_mut()
-        .resource_mut::<PlayerMap>()
-        .insert(id, PlayerInfo::from_snapshot(shooter, &player, 0));
     let entity = missile(&mut app, MissileId(1), true, 20.0, 10.0);
     app.update();
     assert!(
@@ -303,11 +295,7 @@ fn a_dead_target_clears_the_missiles_lock() {
         y: 0.0,
         z: 0.0,
     };
-    let target = app.world_mut().spawn((PlayerMarker, id, pos, FaceYaw(0.0))).id();
-    let player = Player::new("Player".into(), pos, PlayerMoveIntent::NONE, 0.0, 0, Health(100.0));
-    app.world_mut()
-        .resource_mut::<PlayerMap>()
-        .insert(id, PlayerInfo::from_snapshot(target, &player, 0));
+    add_player(&mut app, id, pos, &player(pos, 100.0));
     let entity = missile(&mut app, MissileId(1), true, 20.0, 10.0);
     app.world_mut()
         .get_mut::<OwnedMissile>(entity)

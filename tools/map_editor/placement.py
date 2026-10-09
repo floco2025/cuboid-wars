@@ -308,9 +308,6 @@ class PlacementMixin:
 
     # === Material assignment ===
 
-    def edit_materials_at(self, hit) -> None:
-        self.inspect_hit(hit, show=True)
-
     def assign_floor_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
         self.open_properties_for(

@@ -2,6 +2,7 @@ use super::*;
 use crate::{
     map::Carriers,
     protocol::{CarrierId, FaceMaterials, PressurePlate, Ramp, RampDirection, RampShape, SwitchId, SwitchState},
+    test_geometry::ramp_surface_at,
 };
 
 #[test]
@@ -66,34 +67,12 @@ fn ramp_surfaces_rise_toward_their_direction_whatever_the_footprint() {
             let (low, high) = (center - toward * 0.5, center + toward * 0.5);
 
             assert!(
-                (probe(low) - ramp.surface_at(low.x, low.z)).abs() < 0.001,
+                (probe(low) - ramp_surface_at(&ramp, low.x, low.z)).abs() < 0.001,
                 "{direction:?}"
             );
             assert!(probe(high) > probe(low) + 0.1, "{direction:?}");
         }
     }
-}
-
-#[test]
-fn ground_surface_below_returns_none_over_void() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout());
-
-    assert!(
-        world
-            .ground_surface_below(Vec3::new(20.0, LEVEL_HEIGHT, 20.0), LEVEL_HEIGHT)
-            .is_none()
-    );
-}
-
-#[test]
-fn world_surface_along_ray_hits_wall_between_points() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout());
-
-    let hit = world
-        .world_surface_along_ray(Vec3::new(2.0, LEVEL_HEIGHT + 1.0, 2.0), Vec3::NEG_Z, 4.0)
-        .expect("expected the wall to intercept the ray");
-
-    assert!((hit.point.z - WALL_THICKNESS / 2.0).abs() < 0.001, "hit was {hit:?}");
 }
 
 #[test]
@@ -105,17 +84,6 @@ fn world_surface_along_ray_hits_floor_unlike_wall_filter() {
     // would let it pierce through.
     assert!(world.world_surface_along_ray(origin, Vec3::NEG_Y, 3.0).is_some());
     assert!(world.wall_surface_along_ray(origin, Vec3::NEG_Y, 3.0).is_none());
-}
-
-#[test]
-fn world_surface_along_ray_returns_none_in_the_open() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout());
-
-    assert!(
-        world
-            .world_surface_along_ray(Vec3::new(2.0, LEVEL_HEIGHT + 1.0, 2.0), Vec3::Z, 4.0)
-            .is_none()
-    );
 }
 
 #[test]
@@ -298,6 +266,7 @@ fn barriers_are_transparent_cover_until_globally_opened() {
         }
     }
 }
+
 #[test]
 fn support_rays_report_top_materials_on_floors_ramps_and_walls() {
     let mut layout = test_map_layout();

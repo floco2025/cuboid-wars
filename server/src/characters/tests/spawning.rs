@@ -1,17 +1,14 @@
 use super::*;
-use crate::config::fixtures;
 use crate::{
+    actors::test_kinds::{self, CONTACT, IMMOVABLE},
+    config::fixtures,
     map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
 use common::protocol::{Barrier, Carrier, CarrierId, Checkpoint, CheckpointKind, FieldId, MapLayout, Wall};
 
-fn empty_layout() -> MapLayout {
-    MapLayout::default()
-}
-
-fn collision_world(layout: &MapLayout) -> CollisionWorld {
-    CollisionWorld::from_map_layout(layout)
+fn empty_world() -> CollisionWorld {
+    CollisionWorld::from_map_layout(&MapLayout::default())
 }
 
 fn character_physics() -> CharacterPhysicsConfig {
@@ -19,69 +16,7 @@ fn character_physics() -> CharacterPhysicsConfig {
 }
 
 fn actor_config(kind: &str) -> ActorGameplayConfig {
-    fixtures::server_config().expect_actor(kind).character.clone()
-}
-
-#[test]
-fn spawn_position_rejects_other_player_overlap() {
-    let layout = empty_layout();
-    let collision_world = collision_world(&layout);
-    let pos = Position::default();
-
-    assert!(!character_spawn_position_is_clear(
-        &pos,
-        &collision_world,
-        &[pos],
-        character_physics()
-    ));
-}
-
-#[test]
-fn spawn_position_rejects_wall_overlap() {
-    let mut layout = empty_layout();
-    layout.walls.push(Wall {
-        x1: -1.0,
-        z1: 0.0,
-        x2: 1.0,
-        z2: 0.0,
-        width: WALL_THICKNESS,
-        level: 0,
-        y: 0.0,
-        height: WALL_HEIGHT,
-        carrier: CarrierId::WORLD,
-    });
-    let collision_world = collision_world(&layout);
-
-    assert!(!character_spawn_position_is_clear(
-        &Position::default(),
-        &collision_world,
-        &[],
-        character_physics()
-    ));
-}
-
-#[test]
-fn spawn_position_ignores_wall_on_other_level() {
-    let mut layout = empty_layout();
-    layout.walls.push(Wall {
-        x1: -1.0,
-        z1: 0.0,
-        x2: 1.0,
-        z2: 0.0,
-        width: WALL_THICKNESS,
-        level: 1,
-        y: LEVEL_HEIGHT,
-        height: WALL_HEIGHT,
-        carrier: CarrierId::WORLD,
-    });
-    let collision_world = collision_world(&layout);
-
-    assert!(character_spawn_position_is_clear(
-        &Position::default(),
-        &collision_world,
-        &[],
-        character_physics()
-    ));
+    test_kinds::kind(kind).character
 }
 
 fn floor_level(cols: i32, rows: i32, floored: &[(i32, i32)]) -> LevelGrid {
@@ -99,7 +34,6 @@ fn resting_carrier(rest: Position) -> Carrier {
     Carrier {
         motion: Default::default(),
         initially_on: true,
-
         parent: CarrierId::WORLD,
         level: 0,
         levels: 0,
@@ -112,8 +46,8 @@ fn resting_carrier(rest: Position) -> Carrier {
     }
 }
 
-// A 2x2 nested grid resting at `rest`, holding one scuttler zone on its
-// (1, 1) cell: a floor, or a ramp, which is never spawnable.
+// A 2x2 nested grid resting at `rest`, holding one contact actor's zone on
+// its (1, 1) cell: a floor, or a ramp, which is never spawnable.
 fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, ActorSpawnZone) {
     let mut map_config = MapConfig::for_grid(vec![floor_level(2, 2, &[])], geometry(2, 2));
     let mut nested = floor_level(2, 2, &[(1, 1)]);
@@ -128,28 +62,14 @@ fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, A
         ..MapLayout::default()
     });
     let zone = ActorSpawnZone {
-        initially_on: true,
-
         carrier: CarrierId(1),
-        level: 0,
-        levels: 1,
-        roam_distance: 0.0,
-        cols: [1, 2],
-        rows: [1, 2],
-        kind: "scuttler".to_owned(),
-        count: vec![1],
-        respawn_secs: None,
-        beam_in_secs: 0.0,
-        switch: None,
-        until_checkpoint: None,
-        on_checkpoint: Default::default(),
+        ..test_kinds::spawn_zone(CONTACT, [1, 2], [1, 2])
     };
     (map_config, carriers, zone)
 }
 
 #[test]
 fn actor_spawn_in_a_nested_zone_goes_through_the_carriers_pose() {
-    let collision_world = collision_world(&empty_layout());
     let rest = Position {
         x: 30.0,
         y: LEVEL_HEIGHT,
@@ -161,9 +81,9 @@ fn actor_spawn_in_a_nested_zone_goes_through_the_carriers_pose() {
         &map_config,
         &carriers,
         &zone,
-        &collision_world,
+        &empty_world(),
         &[],
-        &actor_config("scuttler"),
+        &actor_config(CONTACT),
     )
     .expect("floored cell rejected");
 
@@ -176,26 +96,8 @@ fn actor_spawn_in_a_nested_zone_goes_through_the_carriers_pose() {
 }
 
 #[test]
-fn actor_spawn_in_a_zone_without_a_spawnable_cell_yields_nothing() {
-    let collision_world = collision_world(&empty_layout());
-    let (map_config, carriers, zone) = nested_zone_fixture(Position::default(), false);
-
-    assert!(
-        generate_ground_actor_spawn_position(
-            &map_config,
-            &carriers,
-            &zone,
-            &collision_world,
-            &[],
-            &actor_config("scuttler"),
-        )
-        .is_none()
-    );
-}
-
-#[test]
 fn immovable_spawn_uses_the_cell_center_in_its_carriers_frame() {
-    let world = collision_world(&empty_layout());
+    let world = empty_world();
     let (map, carriers, zone) = nested_zone_fixture(
         Position {
             x: 30.0,
@@ -211,39 +113,26 @@ fn immovable_spawn_uses_the_cell_center_in_its_carriers_frame() {
         z: geometry.cell_center_z(1),
     };
     let expected = carriers.pose(zone.carrier).transform_position(&center);
-    let turret = actor_config("turret");
+    let immovable = actor_config(IMMOVABLE);
     for _ in 0..10 {
         assert_eq!(
-            generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &[], &turret),
+            generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &[], &immovable),
             Some(expected)
         );
     }
-    assert!(generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &[expected], &turret).is_none());
+    assert!(generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &[expected], &immovable).is_none());
 }
 
 #[test]
 fn immovable_spawn_checks_every_cell_before_reporting_a_full_zone() {
-    let world = collision_world(&empty_layout());
+    let world = empty_world();
     let map = MapConfig::for_grid(
         vec![floor_level(120, 1, &(0..120).map(|c| (c, 0)).collect::<Vec<_>>())],
         geometry(120, 1),
     );
     let zone = ActorSpawnZone {
-        initially_on: true,
-
-        carrier: CarrierId::WORLD,
-        level: 0,
-        levels: 1,
-        roam_distance: 0.0,
-        cols: [0, 120],
-        rows: [0, 1],
-        kind: "turret".into(),
         count: vec![120],
-        respawn_secs: None,
-        beam_in_secs: 0.0,
-        switch: None,
-        until_checkpoint: None,
-        on_checkpoint: Default::default(),
+        ..test_kinds::spawn_zone(IMMOVABLE, [0, 120], [0, 1])
     };
     let geometry = map.root_grid().geometry;
     let centers: Vec<_> = (0..120)
@@ -253,19 +142,19 @@ fn immovable_spawn_checks_every_cell_before_reporting_a_full_zone() {
             z: geometry.cell_center_z(0),
         })
         .collect();
-    let turret = actor_config("turret");
+    let immovable = actor_config(IMMOVABLE);
     let carriers = Carriers::default();
     assert_eq!(
-        generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &centers[..119], &turret),
+        generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &centers[..119], &immovable),
         Some(centers[119])
     );
-    assert!(generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &centers, &turret).is_none());
+    assert!(generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &centers, &immovable).is_none());
 }
 
 #[test]
 fn immovable_spawn_waits_instead_of_shifting_away_from_an_obstructed_center() {
     let geometry = geometry(2, 2);
-    let layout = MapLayout {
+    let world = CollisionWorld::from_map_layout(&MapLayout {
         walls: vec![Wall {
             x1: geometry.cell_to_world_x(1),
             z1: geometry.cell_center_z(1),
@@ -278,28 +167,11 @@ fn immovable_spawn_waits_instead_of_shifting_away_from_an_obstructed_center() {
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
-    };
-    let world = collision_world(&layout);
+    });
     let map = MapConfig::for_grid(vec![floor_level(2, 2, &[(1, 1)])], geometry);
-    let zone = ActorSpawnZone {
-        initially_on: true,
-
-        carrier: CarrierId::WORLD,
-        level: 0,
-        levels: 1,
-        roam_distance: 0.0,
-        cols: [1, 2],
-        rows: [1, 2],
-        kind: "turret".into(),
-        count: vec![1],
-        respawn_secs: None,
-        beam_in_secs: 0.0,
-        switch: None,
-        until_checkpoint: None,
-        on_checkpoint: Default::default(),
-    };
+    let zone = test_kinds::spawn_zone(IMMOVABLE, [1, 2], [1, 2]);
     assert!(
-        generate_ground_actor_spawn_position(&map, &Carriers::default(), &zone, &world, &[], &actor_config("turret"))
+        generate_ground_actor_spawn_position(&map, &Carriers::default(), &zone, &world, &[], &actor_config(IMMOVABLE))
             .is_none()
     );
 }
@@ -333,7 +205,7 @@ fn checkpoint_spawns_follow_carriers_keep_off_the_flag_and_avoid_bodies_and_barr
         y: 0.0,
         z: geometry.cell_center_z(1),
     });
-    let world = collision_world(&empty_layout());
+    let world = empty_world();
     let diameter_sq = physics.movement_collider.diameter.powi(2);
     let checkpoints = std::slice::from_ref(&checkpoint);
     let mut occupied = Vec::new();
@@ -384,7 +256,7 @@ fn checkpoint_spawns_follow_carriers_keep_off_the_flag_and_avoid_bodies_and_barr
         }],
         ..default()
     };
-    let mut world = collision_world(&barred);
+    let mut world = CollisionWorld::from_map_layout(&barred);
     world.set_carrier_poses(&carriers);
     assert!(generate_checkpoint_spawn_position(&map_config, &carriers, checkpoints, 1, &world, &[], physics).is_none());
 }

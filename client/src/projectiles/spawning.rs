@@ -106,3 +106,7 @@ pub(super) fn projectile_spawn_is_blocked(
             .cast_moving_ball_against_fields(start_vec, translation, radius, open_fields)
             .is_some()
 }
+
+#[cfg(test)]
+#[path = "tests/spawning.rs"]
+mod tests;

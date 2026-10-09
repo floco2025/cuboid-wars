@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    config::gameplay::load_test_gameplay,
+    config::fixtures::load_test_gameplay,
     constants::TICK_SECS,
     protocol::{Carrier, CarrierId},
 };
@@ -18,6 +18,12 @@ fn pushing_wall(axis: Vec3) -> Wall {
         height: WALL_HEIGHT,
         carrier: TILE,
     }
+}
+
+// `slider` with its slab sunk out of reach, so only the walls it carries touch a body.
+fn wall_slider() -> (Carrier, Floor) {
+    let (carrier, floor) = slider();
+    (carrier, Floor { y: -10.0, ..floor })
 }
 
 fn push_ground() -> Floor {
@@ -39,12 +45,11 @@ fn a_sliding_wall_pushes_a_body_on_static_ground_even_against_its_input() {
         let body = player_physics().movement_collider;
         let half_extents = Vec3::new(body.radius(), body.height / 2.0, body.radius());
         let half_width = half_extents.x * axis.x.abs() + half_extents.z * axis.z.abs();
-        let (carrier, floor) = slider();
+        let (carrier, floor) = wall_slider();
         let carrier = Carrier {
             to: Position::from(axis * 4.0),
             ..carrier
         };
-        let floor = Floor { y: -10.0, ..floor };
         for control in [Vec3::ZERO, -axis * TEST_PLAYER_SPEED, -axis * TEST_PLAYER_SPEED * 2.0] {
             let mut pos = Position::from(axis * (0.1 + half_width + 0.01));
             for tick in 1..=45 {
@@ -64,8 +69,7 @@ fn a_sliding_wall_pushes_a_body_on_static_ground_even_against_its_input() {
 
 #[test]
 fn a_body_can_step_sideways_out_of_a_sliding_walls_path() {
-    let (carrier, floor) = slider();
-    let floor = Floor { y: -10.0, ..floor };
+    let (carrier, floor) = wall_slider();
     let mut pos = Position {
         x: 0.41,
         y: 0.0,
@@ -125,8 +129,7 @@ fn a_body_can_board_a_low_slab_while_it_slides_towards_them() {
 
 #[test]
 fn a_sliding_wall_crushes_only_when_the_body_is_pinned_against_another_wall() {
-    let (carrier, floor) = slider();
-    let floor = Floor { y: -10.0, ..floor };
+    let (carrier, floor) = wall_slider();
     let wall = pushing_wall(Vec3::X);
     let blocker = Wall {
         x1: 2.0,
@@ -157,8 +160,7 @@ fn a_sliding_wall_crushes_only_when_the_body_is_pinned_against_another_wall() {
 
 #[test]
 fn a_wall_does_not_drag_bystanders_when_moving_parallel_away_or_not_at_all() {
-    let (carrier, floor) = slider();
-    let floor = Floor { y: -10.0, ..floor };
+    let (carrier, floor) = wall_slider();
     for travel in [Vec3::Z * 4.0, Vec3::NEG_X * 4.0, Vec3::ZERO] {
         let carrier = Carrier {
             to: Position::from(travel),
@@ -181,12 +183,11 @@ fn a_wall_does_not_drag_bystanders_when_moving_parallel_away_or_not_at_all() {
 
 #[test]
 fn a_very_slow_wall_still_pushes_instead_of_accumulating_penetration() {
-    let (carrier, floor) = slider();
+    let (carrier, floor) = wall_slider();
     let carrier = Carrier {
         travel_ticks: 40_000,
         ..carrier
     };
-    let floor = Floor { y: -10.0, ..floor };
     let mut pos = Position {
         x: 0.41,
         y: 0.0,
@@ -203,12 +204,11 @@ fn a_very_slow_wall_still_pushes_instead_of_accumulating_penetration() {
 
 #[test]
 fn a_diagonally_moving_wall_pushes_only_perpendicular_to_its_face() {
-    let (carrier, floor) = slider();
+    let (carrier, floor) = wall_slider();
     let carrier = Carrier {
         to: Position { x: 4.0, y: 1.0, z: 4.0 },
         ..carrier
     };
-    let floor = Floor { y: -10.0, ..floor };
     let (world, carriers) = carried_world((carrier, floor), &[pushing_wall(Vec3::X)], &[push_ground()], 1);
     let step = ride(
         &world,
@@ -232,8 +232,7 @@ fn a_diagonally_moving_wall_pushes_only_perpendicular_to_its_face() {
 #[test]
 fn a_sliding_wall_pushes_actor_bodies_too() {
     let gameplay = load_test_gameplay().expect("test gameplay config invalid");
-    let (carrier, floor) = slider();
-    let floor = Floor { y: -10.0, ..floor };
+    let (carrier, floor) = wall_slider();
     for (kind, actor) in &gameplay.actors {
         let physics = actor.physics();
         let mut pos = Position {

@@ -5,10 +5,26 @@ use crate::actors::{
 };
 use bevy::{ecs::system::SystemState, prelude::*};
 use common::{
-    config::ActorLocomotion,
+    config::{ActorGameplayConfig, ActorLocomotion},
     physics::{CharacterSupport, CharacterVerticalVelocity},
     protocol::{ActorId, ActorMarker, ActorMoveIntent, FaceYaw, MapLayout, Position},
 };
+
+fn spawn_actor(ecs: &mut World, character: ActorGameplayConfig, start: Position, vertical_velocity: f32) -> Entity {
+    ecs.spawn((
+        ActorId(1),
+        ActorMarker,
+        start,
+        CharacterVerticalVelocity(vertical_velocity),
+        ActorMoveIntent::Idle,
+        FaceYaw(0.0),
+        CharacterSupport::Airborne,
+        ActorCrushed(false),
+        ActorLanding(0.0),
+        ActorCharacter(character),
+    ))
+    .id()
+}
 
 #[test]
 fn rejected_flying_step_does_not_apply_its_vertical_velocity_or_crush_result() {
@@ -17,20 +33,7 @@ fn rejected_flying_step_does_not_apply_its_vertical_velocity_or_crush_result() {
     character.locomotion = ActorLocomotion::Flying;
     let physics = character.physics();
     let start = Position::default();
-    let entity = ecs
-        .spawn((
-            ActorId(1),
-            ActorMarker,
-            start,
-            CharacterVerticalVelocity(2.0),
-            ActorMoveIntent::Idle,
-            FaceYaw(0.0),
-            CharacterSupport::Airborne,
-            ActorCrushed(false),
-            ActorLanding(0.0),
-            ActorCharacter(character),
-        ))
-        .id();
+    let entity = spawn_actor(&mut ecs, character, start, 2.0);
     let target = Position { y: 2.0, ..start };
     let plans = [
         CharacterMovePlan::from_target(entity, start, target, 20.0, physics, true),
@@ -61,20 +64,7 @@ fn an_applied_step_records_its_landing_speed_until_the_next_step() {
     let character = test_kinds::kind(CONTACT).character;
     let physics = character.physics();
     let start = Position { y: 1.0, ..default() };
-    let entity = ecs
-        .spawn((
-            ActorId(1),
-            ActorMarker,
-            start,
-            CharacterVerticalVelocity(-9.0),
-            ActorMoveIntent::Idle,
-            FaceYaw(0.0),
-            CharacterSupport::Airborne,
-            ActorCrushed(false),
-            ActorLanding(0.0),
-            ActorCharacter(character),
-        ))
-        .id();
+    let entity = spawn_actor(&mut ecs, character, start, -9.0);
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
     let landed = Position::default();
     let landing = CharacterMovePlan {

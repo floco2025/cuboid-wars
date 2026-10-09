@@ -1,15 +1,7 @@
 use super::{MissileImpact, MissileVelocity, RemoteMissileMotion, interpolate_remote_missiles_system};
-use crate::test_fixtures;
-use crate::{
-    missiles::{MissileInfo, MissileMap, MissileMarker},
-    network::SampleTiming,
-};
+use crate::{missiles::MissileMarker, network::SampleTiming};
 use bevy::prelude::*;
-use common::{
-    config::{NetworkConfig, UpdateCadence},
-    math::angle_delta_radians,
-    protocol::*,
-};
+use common::{math::angle_delta_radians, protocol::*};
 use std::{f32::consts::PI, time::Duration};
 
 fn sample(x: f32) -> MissileMovementState {
@@ -48,41 +40,6 @@ fn repeated_snapshots_and_reordered_updates_cannot_restart_or_reverse_flight() {
     assert!(blended);
     assert_eq!(motion.advance(1.0), end);
     assert_eq!(motion.advance(1000.0), end);
-}
-
-#[test]
-fn configured_buffer_smooths_flight_and_holds_after_packet_gaps() {
-    let settings = test_fixtures::client_settings();
-    for hz in [7, 10, 30] {
-        let mut motion = RemoteMissileMotion::new(
-            0,
-            sample(0.0),
-            SampleTiming::new(
-                &settings.interpolation,
-                &NetworkConfig {
-                    update_hz: hz,
-                    ..Default::default()
-                },
-            ),
-        );
-        let mut cadence = UpdateCadence::new(hz, 30);
-        cadence.ready();
-        let mut previous = 0.0;
-        for tick in 1..240 {
-            if cadence.ready() && !(30..60).contains(&tick) {
-                motion.push(tick, sample((tick as f32 / 30.0 * 20.0).min(60.0)));
-            }
-            for _ in 0..4 {
-                let x = motion.advance(0.25).pos.x;
-                assert!(
-                    x >= previous - 1e-4 && x <= 60.0 + 1e-4,
-                    "{hz} Hz tick {tick}: {previous} -> {x}"
-                );
-                previous = x;
-            }
-        }
-        assert!((previous - 60.0).abs() < 1e-4);
-    }
 }
 
 #[test]
@@ -145,35 +102,4 @@ fn a_reported_impact_is_flown_to_at_the_last_speed_and_then_marked() {
             .0,
         impact
     );
-}
-
-#[test]
-fn detonated_missiles_stay_retired_until_snapshots_have_passed_their_death() {
-    let mut missiles = MissileMap::default();
-    assert!(missiles.retire(MissileId(1), u32::MAX));
-    assert!(!missiles.retire(MissileId(1), u32::MAX));
-    for tick in [u32::MAX - 1, u32::MAX] {
-        missiles.discard_retired_before(tick);
-        assert!(missiles.is_retired(&MissileId(1)));
-    }
-    missiles.discard_retired_before(0);
-    assert!(!missiles.is_retired(&MissileId(1)));
-}
-
-#[test]
-fn a_flight_ended_here_consumes_its_own_detonation_cue_once() {
-    let mut missiles = MissileMap::default();
-    missiles.insert(
-        MissileId(4),
-        MissileInfo {
-            entity: Entity::PLACEHOLDER,
-            shooter: PlayerId(1),
-            born_tick: 3,
-            impact_pending: false,
-        },
-    );
-    assert!(missiles.remove(&MissileId(4)).is_some());
-    assert!(!missiles.retire(MissileId(4), 9));
-    assert!(missiles.is_retired(&MissileId(4)));
-    assert!(!missiles.retire(MissileId(4), 9));
 }

@@ -1,8 +1,8 @@
 use super::*;
-use crate::test_fixtures;
+use crate::test_fixtures::{self, portal};
 use common::{
     config::MapMovementConfig,
-    protocol::{Floor, MapLayout, Portal, PortalEnd, PortalPairId, SwitchState},
+    protocol::{Floor, MapLayout, Portal, PortalEnd, SwitchState},
 };
 
 struct Harness {
@@ -124,25 +124,16 @@ fn floor() -> MapLayout {
     }
 }
 
-fn wall_pair() -> Vec<Portal> {
-    [PortalEnd::A, PortalEnd::B]
-        .into_iter()
-        .enumerate()
-        .map(|(i, end)| Portal {
-            pair: PortalPairId(1),
-            end,
-            pos: Position {
-                x: i as f32 * 10.0,
-                y: 1.6,
-                z: 0.0,
-            },
-            nx: 0.0,
-            ny: 0.0,
-            nz: 1.0,
-            yaw: 0.0,
-            carrier: CarrierId::WORLD,
-        })
-        .collect()
+fn wall_pair() -> [Portal; 2] {
+    [
+        portal(PortalEnd::A, Vec3::new(0.0, 1.6, 0.0), Vec3::Z),
+        portal(PortalEnd::B, Vec3::new(10.0, 1.6, 0.0), Vec3::Z),
+    ]
+}
+
+// Whether a press is waiting for a tick to spend it.
+fn pending(jump: &JumpRequest) -> bool {
+    jump.pressed || jump.buffered_secs.is_some()
 }
 
 #[test]
@@ -172,14 +163,14 @@ fn a_jump_request_fires_once_unless_crouched_or_stunned() {
     owner.jump.pressed = true;
     owner.stance.crouched = true;
     assert!(owner.tick().jump.is_none(), "a crouched body cannot jump");
-    assert!(!owner.jump.pending(), "a crouched press is dropped");
+    assert!(!pending(&owner.jump), "a crouched press is dropped");
     owner.stance.crouched = false;
     owner.intent.crouch = false;
     owner.tick();
     owner.jump.pressed = true;
     owner.stunned = true;
     assert!(owner.tick().jump.is_none(), "a stunned body cannot jump");
-    assert!(!owner.jump.pending(), "a stunned press is dropped");
+    assert!(!pending(&owner.jump), "a stunned press is dropped");
     owner.stunned = false;
     owner.tick();
     owner.jump.pressed = true;
@@ -206,10 +197,10 @@ fn a_press_just_before_landing_jumps_on_the_landing_tick() {
         owner.jump.pressed = true;
     }
     assert!(ticks > 1 && ticks <= 3, "the fall should take a tick or two: {ticks}");
-    assert!(owner.jump.pending(), "the press waits for the landing");
+    assert!(pending(&owner.jump), "the press waits for the landing");
     let landing = owner.tick();
     assert_eq!(landing.jump, Some(PlayerJump::Rise(12.0)));
-    assert!(!owner.jump.pending());
+    assert!(!pending(&owner.jump));
 }
 
 #[test]

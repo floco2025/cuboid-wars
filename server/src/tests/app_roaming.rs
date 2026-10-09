@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    fixtures::{connect, options},
+    *,
+};
 use crate::actors::{
     ActorMode, SurfaceAgent, SurfaceGoal,
     navigation::{
@@ -16,8 +19,9 @@ fn roaming_rejects_detours_outside_home_and_keeps_roaming_on_reachable_surfaces(
     for wall_rows in [1..7, 3..5] {
         let detour_leaves_home = wall_rows.start == 1;
         let mut app = build_server_app_with_loader(fixtures::config(), ServerAppOptions {
-            map: None, god: true, peace: true, initial_spawn: None,
-            checkpoint: None, logging: false, network: NetworkOverrides::default(),
+            god: true,
+            peace: true,
+            ..options()
         }, None, None, |_, hz, settings| {
             let floor = |col, row| serde_json::json!({"col":col,"row":row,"all":"basement-floor"});
             fixtures::compile(serde_json::json!({"map": {
@@ -28,7 +32,7 @@ fn roaming_rejects_detours_outside_home_and_keeps_roaming_on_reachable_surfaces(
                 "actor_spawn_zones":[{"level":0,"cols":[2,6],"rows":[2,6],"kind":"scuttler","count":[1],"respawn_secs":null,"roam_distance":0}]
             }}), hz, settings)
         }).expect("roaming scene");
-        let (client, _receiver) = super::fixtures::connect(&mut app);
+        let (client, _receiver) = connect(&mut app);
         client
             .send(ClientMessage::Login(CLogin {
                 name: "Observer".into(),

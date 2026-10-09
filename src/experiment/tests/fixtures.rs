@@ -1,17 +1,7 @@
-use super::script::{Script, script_path};
+use super::script::{Action, Script};
 use serde_json::{Value, json};
 use std::fs;
 use tempfile::TempDir;
-
-// A shipped map's own script, over gameplay defaults that pin what its route
-// was proved against.
-pub(super) fn scenario(name: &str) -> (TempDir, Script) {
-    let folder = TempDir::new().expect("experiment directory");
-    let mut script = Script::load(&script_path(name)).expect("example script");
-    script.gameplay = folder.path().join("gameplay.json");
-    fs::write(&script.gameplay, gameplay().to_string()).expect("write test defaults");
-    (folder, script)
-}
 
 // A test-owned map with no actions: 4 m cells under 4 m walls, so one wall
 // section backs a portal, and both weapons from the start.
@@ -49,17 +39,21 @@ pub(super) fn chamber(layout: Value, spawn: [f32; 3]) -> (TempDir, Script) {
     (folder, script)
 }
 
+// Every cell of a `size` by `size` grid, floored.
+pub(super) fn floors(size: i32) -> Vec<Value> {
+    (0..size)
+        .flat_map(|col| (0..size).map(move |row| json!({"col": col, "row": row, "all": "solid"})))
+        .collect()
+}
+
 // A flat floor with a wall between the spawn and a turret, and a portalable
 // wall to one side of each.
 pub(super) fn turret_room() -> (TempDir, Script) {
-    let floors: Vec<_> = (0..8)
-        .flat_map(|col| (0..8).map(move |row| json!({"col": col, "row": row, "all": "solid"})))
-        .collect();
     let layout = json!({"map": {"fireworks": null, "grid_cols": 8, "grid_rows": 8,
         "checkpoints": [{"level": 0, "cols": [1, 2], "rows": [4, 5], "type": "individual", "number": 0}],
         "actor_spawn_zones": [{"level": 0, "cols": [5, 6], "rows": [4, 5], "kind": "turret", "count": [1],
             "respawn_secs": null, "beam_in_secs": 0.1}],
-        "levels": [{"name": "Chamber", "floors": floors, "walls": [
+        "levels": [{"name": "Chamber", "floors": floors(8), "walls": [
             {"c0": 4, "r0": 3, "c1": 4, "r1": 4, "all": "solid"},
             {"c0": 4, "r0": 4, "c1": 4, "r1": 5, "all": "solid"},
             {"c0": 1, "r0": 2, "c1": 2, "r1": 2, "all": "portal"},
@@ -67,6 +61,45 @@ pub(super) fn turret_room() -> (TempDir, Script) {
         ]}],
     }});
     chamber(layout, [-10.0, 0.0, 2.0])
+}
+
+// A floor with a portalable wall north of the spawn and a wall of texture
+// `east_wall` east of it.
+pub(super) fn walled_floor(east_wall: &str) -> (TempDir, Script) {
+    let layout = json!({"map": {"fireworks": null, "grid_cols": 10, "grid_rows": 10,
+        "checkpoints": [{"level": 0, "cols": [2, 3], "rows": [3, 4], "number": 0, "type": "individual"}],
+        "levels": [{"name": "Walled", "floors": floors(10), "walls": [
+            {"c0": 2, "r0": 2, "c1": 3, "r1": 2, "all": "portal"},
+            {"c0": 7, "r0": 3, "c1": 7, "r1": 4, "all": east_wall},
+        ]}],
+    }});
+    chamber(layout, [-10.0, 0.0, -6.0])
+}
+
+pub(super) fn walk(direction: [f32; 2], ticks: u32) -> Action {
+    Action::Move {
+        direction,
+        ticks,
+        crouch: false,
+        jump: false,
+    }
+}
+
+pub(super) fn jump(direction: [f32; 2], ticks: u32) -> Action {
+    Action::Move {
+        direction,
+        ticks,
+        crouch: false,
+        jump: true,
+    }
+}
+
+pub(super) fn events(report: &Value) -> impl Iterator<Item = &Value> {
+    report["steps"]
+        .as_array()
+        .expect("steps missing from the report")
+        .iter()
+        .flat_map(|step| step["events"].as_array().expect("events missing from a step"))
 }
 
 fn gameplay() -> Value {

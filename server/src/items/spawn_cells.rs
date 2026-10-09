@@ -67,3 +67,7 @@ pub(super) fn eligible_item_spawn_cells(grid: &CarrierGrid) -> Vec<ItemSpawnCell
 pub(super) fn target_active_random_items(eligible_cell_count: usize, max_number: usize) -> usize {
     max_number.min(eligible_cell_count)
 }
+
+#[cfg(test)]
+#[path = "tests/spawn_cells.rs"]
+mod tests;

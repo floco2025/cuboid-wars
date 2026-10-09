@@ -140,13 +140,6 @@ impl MultiShotConfig {
     }
 
     #[must_use]
-    pub fn pattern(&self, name: &str) -> Option<&MultiShotPatternConfig> {
-        self.patterns
-            .get(name)
-            .filter(|_| self.allowed_patterns.iter().any(|allowed| allowed == name))
-    }
-
-    #[must_use]
     pub fn allowed_pattern(&self, index: usize) -> Option<(&str, &MultiShotPatternConfig)> {
         let name = self.allowed_patterns.get(index)?;
         let pattern = self
@@ -154,26 +147,6 @@ impl MultiShotConfig {
             .get(name)
             .expect("allowed multi-shot pattern missing after config validation");
         Some((name, pattern))
-    }
-
-    #[must_use]
-    pub fn first_allowed_pattern(&self) -> (&str, &MultiShotPatternConfig) {
-        self.allowed_pattern(0)
-            .expect("allowed multi-shot patterns missing after config validation")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn from_stencil(path: &str, column_degrees: f32, row_degrees: f32, stencil: &[String]) -> Result<Self> {
-        let pattern = MultiShotPatternConfig::from_stencil(path, column_degrees, row_degrees, stencil)?;
-        Ok(Self {
-            allowed_patterns: vec!["test".to_owned()],
-            patterns: HashMap::from([("test".to_owned(), pattern)]),
-        })
-    }
-
-    #[cfg(test)]
-    fn shots(&self) -> &[(f32, f32)] {
-        self.first_allowed_pattern().1.shots()
     }
 }
 

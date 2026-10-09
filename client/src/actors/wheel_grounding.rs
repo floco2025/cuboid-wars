@@ -16,7 +16,7 @@ pub(crate) struct WheelGrounding {
     pub rest: Transform,
 }
 
-pub(super) fn ground_pose(
+fn ground_pose(
     world: &CollisionWorld,
     open_fields: &[FieldId],
     grounding: &WheelGrounding,
@@ -99,3 +99,7 @@ pub(crate) fn wheel_grounding_system(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "tests/wheel_grounding.rs"]
+mod tests;

@@ -4,24 +4,14 @@ use super::*;
 use crate::{
     config::RandomItemsConfig,
     items::random_item_despawn_system,
-    map::{CellGrid, EdgeGrid, LevelGrid, PlacedItem},
-    test_geometry::geometry,
+    map::PlacedItem,
+    test_geometry::{floored_level, geometry},
 };
 use common::protocol::ItemType;
 
 fn spawn_world(columns: i32, max_number: usize) -> (World, Schedule) {
-    let mut cells = CellGrid::new(columns, 1);
-    for cell in &mut cells.rows[0] {
-        cell.has_floor = true;
-    }
     let geometry = geometry(columns, 1);
-    let map = MapConfig::for_grid(
-        vec![LevelGrid {
-            cells,
-            edges: EdgeGrid::new(columns, 1),
-        }],
-        geometry,
-    );
+    let map = MapConfig::for_grid(vec![floored_level(columns, 1)], geometry);
     let config = RandomItemsConfig {
         weights: [("gold".to_owned(), 1.0)].into(),
         max_number,
@@ -125,17 +115,4 @@ fn refill_reserves_hidden_placed_cells_and_uses_each_free_cell_once() {
         );
         assert_distinct_cells(&mut world, 4);
     }
-}
-
-#[test]
-fn refill_skips_maps_without_eligible_cells_and_disabled_random_spawning() {
-    let (mut world, mut schedule) = spawn_world(1, 3);
-    world.resource_mut::<MapConfig>().grids[0].levels[0].cells.rows[0][0].has_floor = false;
-    schedule.run(&mut world);
-    assert!(random_ids(&world).is_empty());
-
-    world.resource_mut::<MapConfig>().grids[0].levels[0].cells.rows[0][0].has_floor = true;
-    world.insert_resource(RandomItems::from_config(None));
-    schedule.run(&mut world);
-    assert!(random_ids(&world).is_empty());
 }

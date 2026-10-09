@@ -331,10 +331,6 @@ pub fn run_server_loop(mut app: App) -> ! {
 mod tests;
 
 #[cfg(test)]
-#[path = "tests/app_rate.rs"]
-mod rate_tests;
-
-#[cfg(test)]
 #[path = "tests/app_surface.rs"]
 mod surface_tests;
 

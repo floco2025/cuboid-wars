@@ -1,6 +1,6 @@
 use super::*;
 use crate::actors::{
-    movement::tests::{actor_info, context, test_entity},
+    movement::tests::{actor_info, actor_physics, context, test_entity},
     navigation::air::FlightState,
 };
 use common::{
@@ -26,7 +26,6 @@ fn diagonal_flight_uses_total_speed() {
 
 #[test]
 fn ascending_flyer_cannot_pass_through_a_character_above_it() {
-    use crate::actors::movement::tests::actor_physics;
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
     let pos = Position::default();
     let above = Vec3::new(0.0, actor_physics().movement_collider.height + 0.05, 0.0).into();

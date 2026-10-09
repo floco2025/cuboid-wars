@@ -279,3 +279,7 @@ fn contains(checkpoint: &Checkpoint, local: &Position) -> bool {
         && local.z >= checkpoint.min_z
         && local.z < checkpoint.max_z
 }
+
+#[cfg(test)]
+#[path = "tests/checkpoints.rs"]
+mod tests;

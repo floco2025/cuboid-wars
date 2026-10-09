@@ -252,3 +252,7 @@ impl Playback {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "tests/playback.rs"]
+mod tests;

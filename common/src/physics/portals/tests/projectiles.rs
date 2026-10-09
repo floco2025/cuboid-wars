@@ -131,15 +131,10 @@ fn a_projectile_emerges_at_the_moving_exits_crossing_time() {
 
 #[test]
 fn half_placed_pair_is_inert() {
-    let set = PortalSet::rebuild(
+    let set = portal_set(
         &[portal(PortalEnd::A, Vec3::new(0.0, 1.0, 0.0), Vec3::Z, 0.0)],
         &empty_world(),
         &Carriers::default(),
-        crate::config::gameplay::load_test_gameplay()
-            .expect("fixture gameplay")
-            .portals
-            .size,
-        player_physics(),
     );
     assert!(set.is_empty());
     let hop = set.projectile_hop(

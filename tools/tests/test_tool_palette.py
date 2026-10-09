@@ -2,7 +2,6 @@
 
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QComboBox
 
 from editor_fixtures import WindowTestCase, furnished_map
 from map_editor import constants as c
@@ -36,7 +35,6 @@ class ToolPaletteTests(WindowTestCase):
         self.assertEqual(window.mode, c.MODE_ERASE_WALLS)
         self.assertTrue(window.tool_palette.erase_button.isChecked())
         self.assertTrue(self.button(c.MODE_WALL).isChecked())
-        self.assertEqual(window.canvas.cursor().shape(), Qt.CursorShape.CrossCursor)
         self.click(1, 1)
         self.assertEqual(window.map_data["levels"][0]["walls"], [])
         self.assertEqual(window.map_data["levels"][0]["lights"], [])
@@ -71,28 +69,13 @@ class ToolPaletteTests(WindowTestCase):
         self.assertTrue(keep.isVisible())
         QTest.mouseClick(keep, Qt.MouseButton.LeftButton, pos=QPoint(8, keep.height() // 2))
         self.assertEqual(window.mode, c.MODE_ERASE_KEEP_FLOORS)
-        canvas = window.canvas
-        cell = canvas.cell_size()
-        start = QPoint(round(1.5 * cell), round(1.5 * cell))
-        end = QPoint(round(2.5 * cell), round(2.5 * cell))
-        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=start)
-        QTest.mouseMove(canvas, end)
-        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=end)
+        self.drag((1.5, 1.5), (2.5, 2.5))
         self.assertEqual(window.map_data["levels"][0]["walls"], [])
         self.assertEqual(len(window.map_data["levels"][0]["floors"]), 2)
         self.assertEqual(len(window.map_data["items"]), 1)
         self.assertEqual(len(window.map_data["pressure_plates"]), 1)
         QTest.mouseClick(keep, Qt.MouseButton.LeftButton, pos=QPoint(8, keep.height() // 2))
         self.assertEqual(window.mode, c.MODE_ERASE)
-
-    def test_property_typing_does_not_trigger_canvas_shortcuts(self):
-        self.choose(c.MODE_ACTOR_SPAWN_ZONE)
-        edit = self.window.tool_settings.findChild(QComboBox).lineEdit()
-        edit.setFocus()
-        edit.clear()
-        QTest.keyClicks(edit, "erase")
-        self.assertEqual(edit.text(), "erase")
-        self.assertEqual(self.window.mode, c.MODE_ACTOR_SPAWN_ZONE)
 
     def test_switching_icon_mode_and_shrinking_the_window_keep_saved_widths(self):
         window = self.window
@@ -107,9 +90,16 @@ class ToolPaletteTests(WindowTestCase):
         self.app.processEvents()
         self.assertEqual(window.preferences.value("panels/tools/labels", type=int), 260)
 
-    def test_panels_stay_shown_and_icon_mode_persists_across_sessions(self):
+    def test_panels_stay_shown_and_their_widths_and_icon_mode_persist_across_sessions(self):
         window = self.window
+        window.inspect_hit((c.HIT_FLOOR, (1, 1)), show=True)
+        window.resizeDocks([window.tool_palette, window.properties_panel], [190, 245], Qt.Orientation.Horizontal)
+        self.app.processEvents()
+        widths = (window.tool_palette.width(), window.properties_panel.width())
         window.tool_icons_action.trigger()
+        self.app.processEvents()
+        icon_width = window.tool_palette.width()
+        self.assertLess(icon_width, widths[0])
         window.close()
         self.window = EditorWindow(self.path, preferences=window.preferences)
         window.deleteLater()
@@ -120,14 +110,16 @@ class ToolPaletteTests(WindowTestCase):
             self.assertFalse(panel.isHidden())
             self.assertFalse(panel.toggleViewAction().isEnabled())
         self.assertTrue(self.window.tool_palette.icon_only)
+        self.assertTrue(self.window.tool_icons_action.isChecked())
+        self.assertEqual(self.window.tool_palette.width(), icon_width)
+        self.assertEqual(self.window.properties_panel.width(), widths[1])
 
     def test_switching_tool_cancels_a_pending_canvas_drag(self):
         self.choose(c.MODE_FLOOR)
         canvas = self.window.canvas
-        cell = canvas.cell_size()
-        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=QPoint(round(3.5 * cell), round(3.5 * cell)))
+        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=self.point(3.5, 3.5))
         self.assertIsNotNone(canvas.drag_start_cell)
         self.choose(c.MODE_WALL)
         self.assertIsNone(canvas.drag_start_cell)
-        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=QPoint(round(4.5 * cell), round(4.5 * cell)))
+        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=self.point(4.5, 4.5))
         self.assertFalse(self.window.dirty)

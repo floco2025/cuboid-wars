@@ -29,27 +29,4 @@ impl FeedConfig {
     pub(super) fn validate<T>(&self, actors: &HashMap<String, T>, path: &str) -> Result<()> {
         validate_covers_actor_kinds(self.actor_destroyed.keys(), actors, &format!("{path}.actor_destroyed"))
     }
-
-    // Every switch set to `enabled`, with the given actor kinds.
-    #[cfg(test)]
-    pub(crate) fn all(enabled: bool, actor_kinds: &[&str]) -> Self {
-        Self {
-            player_joined: enabled,
-            player_left: enabled,
-            player_died: enabled,
-            actor_destroyed: actor_kinds.iter().map(|kind| ((*kind).to_owned(), enabled)).collect(),
-            key_found: enabled,
-            quest_completed: enabled,
-            quest_part_done: enabled,
-            group_quest_completed: enabled,
-            switch_on: enabled,
-            switch_off: enabled,
-            admin_action: enabled,
-            chat: enabled,
-        }
-    }
 }
-
-#[cfg(test)]
-#[path = "tests/feed.rs"]
-mod tests;

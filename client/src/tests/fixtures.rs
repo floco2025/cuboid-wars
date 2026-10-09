@@ -3,10 +3,12 @@ use std::collections::HashMap;
 use common::{
     celestial::{CelestialMapSettings, LocalTime, Season},
     config::{GameplayConfig, KnockbackConfig, MapGeometryConfig, MapMovementConfig, PlayerMovementConfig},
-    constants::BARRIER_THICKNESS_FRACTION,
     map::MapGeometry,
-    physics::{CollisionWorld, Solid},
-    protocol::{Carrier, CarrierId, CarrierMotion, MapLayout, MapSettings, PortalMode, Position},
+    physics::{CollisionWorld, PortalFrame, Solid},
+    protocol::{
+        Carrier, CarrierId, CarrierMotion, MapLayout, MapSettings, Portal, PortalEnd, PortalMode, PortalPairId,
+        Position,
+    },
 };
 
 use bevy::{audio::GlobalVolume, prelude::*};
@@ -48,7 +50,6 @@ pub(crate) const LEVEL_HEIGHT: f32 = 4.4;
 pub(crate) const FLOOR_THICKNESS: f32 = 0.4;
 pub(crate) const WALL_THICKNESS: f32 = 0.3;
 pub(crate) const WALL_HEIGHT: f32 = LEVEL_HEIGHT - FLOOR_THICKNESS;
-pub(crate) const BARRIER_THICKNESS: f32 = WALL_THICKNESS * BARRIER_THICKNESS_FRACTION;
 
 pub(crate) fn geometry(cols: i32, rows: i32) -> MapGeometry {
     MapGeometry::new(cols, rows, sizes())
@@ -122,6 +123,25 @@ pub(crate) fn follow_camera() -> FollowCameraConfig {
 
 pub(crate) const PORTAL_HALF_WIDTH: f32 = 0.7;
 pub(crate) const PORTAL_HALF_HEIGHT: f32 = 1.3;
+
+// One end of pair 1 on the static world, facing `normal`.
+pub(crate) fn portal(end: PortalEnd, center: Vec3, normal: Vec3) -> Portal {
+    Portal {
+        pair: PortalPairId(1),
+        end,
+        pos: center.into(),
+        nx: normal.x,
+        ny: normal.y,
+        nz: normal.z,
+        yaw: 0.0,
+        carrier: CarrierId::WORLD,
+    }
+}
+
+// An aperture of the test gameplay's portal size on a surface facing `normal`.
+pub(crate) fn portal_frame(center: Vec3, normal: Vec3) -> PortalFrame {
+    PortalFrame::from_surface(center, normal, 0.0, gameplay_config().portals.size)
+}
 
 // The structural solids of a layout, for code that reads the collision
 // world's geometry. Records may name carriers the layout does not list:

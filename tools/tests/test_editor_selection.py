@@ -3,12 +3,20 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PySide6.QtCore import QMimeData, QPoint, QPointF, Qt
+from PySide6.QtCore import QMimeData, QPointF, Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMessageBox
 
-from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, nested, start_checkpoint
+from editor_fixtures import (
+    DEFAULT_ALIAS,
+    WindowTestCase,
+    actor_zone,
+    blank_map,
+    nested,
+    start_checkpoint,
+    toggle_switch,
+)
 from map_editor.constants import MODE_ERASE, MODE_FLOOR, MODE_SELECT
 from map_editor.elements import ElementRef
 from map_editor.io import write_map
@@ -37,9 +45,7 @@ def furnished_block() -> dict:
             "lights": [{"col": 0, "row": 0, "side": "N"}],
         }
     )
-    data["actor_spawn_zones"] = [
-        {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "scuttler", "count": [2], "respawn_secs": 90}
-    ]
+    data["actor_spawn_zones"] = [actor_zone()]
     data["checkpoints"] = [{"level": 1, "cols": [0, 1], "rows": [0, 1], "type": "individual", "number": 1}]
     data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "gold"}]
     data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "type": "firework"}]
@@ -53,8 +59,7 @@ class RegionTests(unittest.TestCase):
     def test_every_object_family_survives_copy_paste_at_another_position_and_level(self):
         block = furnished_block()
         snapshot = copy.deepcopy(block)
-        destination = empty_map(12, 12)
-        destination["checkpoints"] = []
+        destination = blank_map(12, 12)
         pasted = canonicalize_map(paste_region(destination, block, (5, 6), 1))
         recovered = copy_region(pasted, TileRegion((5, 6, 9, 10), 1, 2))
         for name in GLOBAL_LISTS:
@@ -78,19 +83,16 @@ class RegionTests(unittest.TestCase):
         self.assertEqual(remaining["levels"][2], data["levels"][2])
 
     def test_paste_replaces_empty_cells_too_and_preserves_neighbors(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["levels"][0]["floors"] = [{"col": c, "row": 3, "all": DEFAULT_ALIAS} for c in (2, 3, 4)]
         data["items"] = [{"level": 0, "col": 3, "row": 3, "type": "gold"}]
-        block = empty_map(2, 1)
-        block["checkpoints"] = []
+        block = blank_map(2, 1)
         result = canonicalize_map(paste_region(data, block, (2, 3), 0))
         self.assertEqual([(f["col"], f["row"]) for f in result["levels"][0]["floors"]], [(4, 3)])
         self.assertEqual(result["items"], [])
 
     def test_boundary_edges_are_copied_and_replaced(self):
-        data = empty_map(4, 4)
-        data["checkpoints"] = []
+        data = blank_map(4, 4)
         edges = [(1, 1, 2, 1), (1, 2, 2, 2), (1, 1, 1, 2), (2, 1, 2, 2)]
         data["levels"][0]["walls"] = [dict(zip(("c0", "r0", "c1", "r1"), e)) for e in edges]
         region = TileRegion((1, 1, 2, 2), 0)
@@ -119,8 +121,7 @@ class RegionTests(unittest.TestCase):
         self.assertEqual(data, before)
 
     def test_deleting_a_shared_wall_cannot_silently_lose_an_unselected_light(self):
-        data = empty_map(4, 4)
-        data["checkpoints"] = []
+        data = blank_map(4, 4)
         data["levels"][0]["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1}]
         data["levels"][0]["lights"] = [{"col": 1, "row": 0, "side": "S"}]
         region = TileRegion((1, 1, 2, 2), 0)
@@ -131,8 +132,7 @@ class RegionTests(unittest.TestCase):
         self.assertEqual(pasted["levels"][0]["lights"], data["levels"][0]["lights"])
 
     def test_orphan_reversed_and_invalid_lights_far_away_do_not_block_edits(self):
-        data = empty_map(10, 10)
-        data["checkpoints"] = []
+        data = blank_map(10, 10)
         data["levels"][0]["walls"] = [
             {"c0": 1, "r0": 0, "c1": 0, "r1": 0},
             {"c0": 8, "r0": 8, "c1": 9, "r1": 8},
@@ -148,20 +148,15 @@ class RegionTests(unittest.TestCase):
         paste_region(data, block, (3, 3), 0)
 
     def test_paste_refusals_speak_of_the_destination(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
+        data = blank_map()
         data["ramps"] = [{"lower_level": 0, "cols": [2, 5], "rows": [2, 3], "direction": "E", "all": DEFAULT_ALIAS}]
-        block = empty_map(1, 1)
-        block["checkpoints"] = []
+        block = blank_map(1, 1)
         with self.assertRaisesRegex(ValueError, "destination crosses a ramp"):
             paste_region(data, block, (2, 2), 0)
 
     def test_partial_spawn_zone_does_not_get_split_or_duplicate_actor_counts(self):
-        data = empty_map(8, 8)
-        data["checkpoints"] = []
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [0, 2], "rows": [0, 2], "kind": "scuttler", "count": [2], "respawn_secs": 90}
-        ]
+        data = blank_map()
+        data["actor_spawn_zones"] = [actor_zone(cols=[0, 2], rows=[0, 2])]
         with self.assertRaisesRegex(ValueError, "spawn zone"):
             copy_region(data, TileRegion((0, 0, 1, 1), 0))
 
@@ -224,7 +219,7 @@ class ObjectBlockTests(unittest.TestCase):
 
 class SelectHostTests(WindowTestCase):
     def pointer(self, action, point, alternate=False):
-        position = self.window.canvas.viewport.from_grid(point).toPoint()
+        position = self.point(point.x(), point.y())
         modifiers = Qt.KeyboardModifier.AltModifier if alternate else Qt.KeyboardModifier.NoModifier
         if action == "move":
             QTest.mouseMove(self.window.canvas, position)
@@ -232,11 +227,8 @@ class SelectHostTests(WindowTestCase):
             getattr(QTest, action)(self.window.canvas, Qt.MouseButton.LeftButton, modifiers, pos=position)
 
     def test_a_press_selects_a_spawn_zone_before_a_drag_can_move_it(self) -> None:
-        data = empty_map(8, 8)
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "scuttler", "count": [2], "respawn_secs": 90}
-        ]
-        data["checkpoints"] = []
+        data = blank_map()
+        data["actor_spawn_zones"] = [actor_zone(cols=[1, 3], rows=[1, 3])]
         self.window.doc.replace_with_new(data)
         host = self.window
         inside = QPointF(2.5, 2.5)
@@ -259,12 +251,9 @@ class SelectHostTests(WindowTestCase):
         self.assertIsNone(host.selected_spawn_zone_ref)
 
     def test_object_drag_moves_only_the_chosen_nested_map_end(self) -> None:
-        data = empty_map(8, 8)
+        data = blank_map()
         data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1])]
-        child = empty_map(3, 2)
-        child["checkpoints"] = []
-        data["nested_geometry"] = {"cabin": child}
-        data["checkpoints"] = []
+        data["nested_geometry"] = {"cabin": blank_map(3, 2)}
         self.window.doc.replace_with_new(data)
         host = self.window
 
@@ -298,9 +287,7 @@ class SelectionWindowTests(WindowTestCase):
         self.assertTrue(window.cut_action.isEnabled())
         self.assertTrue(window.delete_action.isEnabled())
         self.assertFalse(window.paste_action.isEnabled())
-        size = window.canvas.cell_size()
-        QTest.mousePress(window.canvas, Qt.MouseButton.LeftButton, pos=QPoint(round(4.5 * size), round(3.5 * size)))
-        QTest.mouseRelease(window.canvas, Qt.MouseButton.LeftButton, pos=QPoint(round(2.5 * size), round(1.5 * size)))
+        self.drag((4.5, 3.5), (2.5, 1.5))
         self.assertEqual(window.selection.area.rect, (2, 1, 5, 4))
         self.assertFalse(window.dirty)
 
@@ -308,16 +295,11 @@ class SelectionWindowTests(WindowTestCase):
         window = self.window
         before = copy.deepcopy(window.map_data)
         self.click(1, 1)
-        with patch(
-            "PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")
-        ) as prompt:
-            window.copy_action.trigger()
-            prompt.assert_not_called()
+        window.copy_action.trigger()
         self.assertEqual(window.map_data, before)
         self.assertFalse(window.dirty)
         self.assertTrue(window.paste_action.isEnabled())
-        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
-            window.cut_action.trigger()
+        window.cut_action.trigger()
         self.assertEqual([(f["col"], f["row"]) for f in window.map_data["levels"][0]["floors"]], [(7, 7)])
         self.assertEqual(window.undo_stack.count(), 1)
         clipboard = bytes(self.app.clipboard().mimeData().data(CLIPBOARD_MIME))
@@ -327,8 +309,7 @@ class SelectionWindowTests(WindowTestCase):
         self.click(4, 4)
         window.paste_action.trigger()
         self.assertEqual(len(window.map_data["levels"][0]["floors"]), 3)
-        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
-            window.delete_action.trigger()
+        window.delete_action.trigger()
         self.assertEqual(window.map_data, before)
         self.assertEqual(bytes(self.app.clipboard().mimeData().data(CLIPBOARD_MIME)), clipboard)
         window.undo_stack.undo()
@@ -375,19 +356,12 @@ class SelectionWindowTests(WindowTestCase):
         self.window.activateWindow()
         self.click(1, 1)
         self.app.processEvents()
-        with patch(
-            "PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")
-        ) as prompt:
-            QTest.keySequence(self.window.canvas, QKeySequence(QKeySequence.StandardKey.Copy))
-            prompt.assert_not_called()
+        QTest.keySequence(self.window.canvas, QKeySequence(QKeySequence.StandardKey.Copy))
         self.click(5, 5)
         QTest.keySequence(self.window.canvas, QKeySequence(QKeySequence.StandardKey.Paste))
         self.assertEqual(len(self.window.map_data["levels"][0]["floors"]), 3)
-        with patch(
-            "PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")
-        ) as prompt:
-            QTest.keyClick(self.window.canvas, Qt.Key.Key_Backspace)
-            prompt.assert_not_called()
+        QTest.keyClick(self.window.canvas, Qt.Key.Key_Backspace)
+        self.assertEqual(len(self.window.map_data["levels"][0]["floors"]), 2)
         QTest.keySequence(self.window.canvas, QKeySequence(QKeySequence.StandardKey.SelectAll))
         self.assertEqual(self.window.selection.area.rect, (0, 0, 8, 8))
         QTest.keyClick(self.window.canvas, Qt.Key.Key_Escape)
@@ -398,8 +372,7 @@ class SelectionWindowTests(WindowTestCase):
         window = self.window
         window.activateWindow()
         window.set_mode(MODE_ERASE)
-        size = window.canvas.cell_size()
-        pos = QPoint(round(1.5 * size), round(1.5 * size))
+        pos = self.point(1.5, 1.5)
         QTest.mousePress(window.canvas, Qt.MouseButton.LeftButton, pos=pos)
         self.app.processEvents()
         QTest.keyClick(window.canvas, Qt.Key.Key_Escape)
@@ -407,27 +380,9 @@ class SelectionWindowTests(WindowTestCase):
         self.assertEqual(len(window.map_data["levels"][0]["floors"]), 2)
         self.assertFalse(window.dirty)
 
-    def test_multilevel_paste_extends_map_and_undo_removes_added_levels(self):
-        window = self.window
-        window.apply_change("Add Level", insert_level_data(window.map_data, 1))
-        window.set_level_index(0)
-        self.click(1, 1)
-        window.selection_scope_changed(2)
-        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
-            window.copy_selection()
-        window.set_level_index(1)
-        self.click(4, 4)
-        window.paste_selection()
-        self.assertEqual(len(window.map_data["levels"]), 3)
-        self.assertEqual(window.map_data["levels"][1]["floors"][0]["col"], 4)
-        window.undo_stack.undo()
-        self.assertEqual(len(window.map_data["levels"]), 2)
-        self.assertEqual(window.map_data["levels"][1]["floors"], [])
-
     def test_clipboard_survives_opening_a_map_but_selection_does_not(self):
         self.click(1, 1)
-        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
-            self.window.copy_selection()
+        self.window.copy_selection()
         block = copy.deepcopy(self.window.tile_clipboard)
         other = Path(self.temp.name) / "obby" / "layout.json"
         other_map = empty_map(8, 8)
@@ -446,26 +401,15 @@ class SelectionWindowTests(WindowTestCase):
     def test_paste_accepts_a_block_whose_switch_plate_lies_outside_it(self):
         data = empty_map(8, 8)
         data["checkpoints"] = [start_checkpoint(6, 6)]
-        data["switches"] = [{"id": "guards", "activation": "toggle", "reset_on_player_death": "never"}]
+        data["switches"] = [toggle_switch("guards")]
         data["pressure_plates"] = [{"col": 6, "row": 6, "level": 0, "switch": "guards"}]
         data["levels"][0]["floors"] = [{"col": 6, "row": 6, "all": DEFAULT_ALIAS}]
-        data["actor_spawn_zones"] = [
-            {
-                "level": 0,
-                "cols": [1, 2],
-                "rows": [1, 2],
-                "kind": "scuttler",
-                "count": [1],
-                "respawn_secs": 90,
-                "switch": "guards",
-            }
-        ]
+        data["actor_spawn_zones"] = [actor_zone(cols=[1, 2], rows=[1, 2], switch="guards")]
         other = Path(self.temp.name) / "obby" / "layout.json"
         write_map(other, data)
         self.window.load_path(other)
         self.click(1, 1)
-        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
-            self.window.copy_selection()
+        self.window.copy_selection()
         self.click(3, 3)
         with patch.object(self.window, "notify", side_effect=AssertionError("paste refused")):
             self.window.paste_selection()

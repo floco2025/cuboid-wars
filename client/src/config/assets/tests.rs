@@ -1,8 +1,10 @@
-use crate::{config::AssetSet, test_fixtures};
 use common::protocol::{MapLayout, TextureSettings};
 
 use super::{ModelDef, model::validate_model, sound::SoundDef};
-use crate::test_fixtures::map_settings;
+use crate::{
+    config::AssetSet,
+    test_fixtures::{self, map_settings},
+};
 
 #[test]
 fn sound_definitions_default_to_zero_db_and_reject_invalid_files_and_gains() {
@@ -134,34 +136,27 @@ fn malformed_model_capabilities_are_rejected() {
 }
 
 #[test]
-fn missing_required_actor_sound_is_rejected() {
-    let mut assets = test_fixtures::asset_set();
-    assets
+fn missing_required_sound_or_invalid_model_names_the_actor_path() {
+    let mut missing_sound = test_fixtures::asset_set();
+    missing_sound
         .actors
         .kinds
         .get_mut("scuttler")
         .expect("scuttler actor missing from assets")
         .sounds
         .remove("explodes");
-
-    let error = assets.validate().expect_err("missing sound must fail");
-
+    let error = missing_sound.validate().expect_err("missing sound must fail");
     assert!(error.to_string().contains("actors.kinds.scuttler.sounds.explodes"));
-}
 
-#[test]
-fn invalid_actor_model_is_rejected() {
-    let mut assets = test_fixtures::asset_set();
-    assets
+    let mut flat_model = test_fixtures::asset_set();
+    flat_model
         .actors
         .kinds
         .get_mut("scuttler")
         .expect("scuttler actor missing from assets")
         .model
         .scale = 0.0;
-
-    let error = assets.validate().expect_err("invalid model must fail");
-
+    let error = flat_model.validate().expect_err("invalid model must fail");
     assert!(error.to_string().contains("actors.kinds.scuttler.model.scale"));
 }
 

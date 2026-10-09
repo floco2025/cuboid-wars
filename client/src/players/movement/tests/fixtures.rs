@@ -2,7 +2,7 @@ pub(super) use bevy::prelude::*;
 pub(super) use common::{
     config::CharacterPhysicsConfig,
     map::Carriers,
-    physics::{CharacterMovementResult, CharacterSupport, CollisionWorld, KnockbackVelocity, PortalSet},
+    physics::{CharacterSupport, CollisionWorld, KnockbackVelocity, PortalSet},
     protocol::{
         Carrier, CarrierId, Floor, Ladder, MapLayout, MapSettings, PlayerMoveIntent, PlayerStance, Position, Ramp,
     },
@@ -192,14 +192,6 @@ pub(super) fn test_wall() -> Wall {
         height: WALL_HEIGHT,
         carrier: CarrierId::WORLD,
     }
-}
-
-pub(super) fn collision_world(floors: &[Floor], ramps: &[Ramp]) -> CollisionWorld {
-    CollisionWorld::from_map_layout(&MapLayout {
-        floors: floors.to_vec(),
-        ramps: ramps.to_vec(),
-        ..Default::default()
-    })
 }
 
 pub(super) fn ladder_collision_world(floors: &[Floor], ladders: &[Ladder]) -> CollisionWorld {

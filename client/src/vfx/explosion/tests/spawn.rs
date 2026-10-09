@@ -1,16 +1,8 @@
-use super::{super::scorch::ScorchMark, *};
-use crate::{map::GrassBurn, test_fixtures::WALL_HEIGHT};
+use bevy::ecs::world::CommandQueue;
 use common::protocol::{Carrier, CarrierId, Floor, MapLayout, SwitchState, Wall};
 
-#[test]
-fn density_scales_particle_count_and_zero_disables_it() {
-    let full = scaled_particle_count(10.0, 4.0, 4.0, 2, 100);
-    let half = scaled_particle_count(10.0, 2.0, 4.0, 2, 100);
-    assert_eq!(half, full / 2);
-    assert_eq!(scaled_particle_count(10.0, 0.0, 4.0, 2, 100), 0);
-    assert_eq!(scaled_particle_count(0.1, 4.0, 4.0, 2, 100), 2);
-    assert_eq!(scaled_particle_count(1000.0, 4.0, 4.0, 2, 100), 100);
-}
+use super::{super::scorch::ScorchMark, *};
+use crate::{map::GrassBurn, test_fixtures::WALL_HEIGHT};
 
 // The marks an explosion at `center` leaves on `map_layout`, with one
 // root entity per carrier, at the carriers' pose at tick 0.
@@ -28,7 +20,7 @@ fn explode(map_layout: &MapLayout, center: Vec3, blast_radius: f32) -> (World, V
         .map(|_| world.spawn_empty().id())
         .collect();
     let carrier_entities = CarrierEntities::new(roots.clone());
-    let mut queue = bevy::ecs::world::CommandQueue::default();
+    let mut queue = CommandQueue::default();
 
     {
         let mut commands = Commands::new(&mut queue, &world);
@@ -75,6 +67,12 @@ fn mark_points(world: &mut World, meshes: &Assets<Mesh>) -> Vec<(Transform, Vec<
         .collect()
 }
 
+// The scorch sphere's cross-section with the floor a metre below the blast.
+fn ground_mark_diameter(blast_radius: f32) -> f32 {
+    let scorch_radius = blast_radius * EXPLOSION_SCORCH_BLAST_DIAMETER_FACTOR;
+    2.0 * scorch_radius.mul_add(scorch_radius, -1.0).sqrt()
+}
+
 fn floor(carrier: CarrierId) -> Floor {
     Floor {
         x1: -10.0,
@@ -115,9 +113,7 @@ fn large_grounded_explosion_spawns_one_sized_scorch_and_grass_burn() {
     assert_eq!(marks.len(), 1);
     let transform = marks[0].1;
     assert!((transform.translation.y - SCORCH_SURFACE_OFFSET).abs() < 0.001);
-    let scorch_radius = 15.0 * EXPLOSION_SCORCH_BLAST_DIAMETER_FACTOR;
-    let expected_diameter = 2.0 * scorch_radius.mul_add(scorch_radius, -1.0).sqrt();
-    assert_eq!(transform.scale, Vec3::splat(expected_diameter));
+    assert_eq!(transform.scale, Vec3::splat(ground_mark_diameter(15.0)));
     drop(marks);
     assert_eq!(world.query::<&GrassBurn>().iter(&world).count(), 1);
 }
@@ -164,9 +160,7 @@ fn ground_mark_is_cut_at_the_floor_edge() {
     let marks = mark_points(&mut world, &meshes);
     assert_eq!(marks.len(), 1);
     let (transform, points) = &marks[0];
-    let scorch_radius = 15.0 * EXPLOSION_SCORCH_BLAST_DIAMETER_FACTOR;
-    let expected_diameter = 2.0 * scorch_radius.mul_add(scorch_radius, -1.0).sqrt();
-    assert_eq!(transform.scale, Vec3::splat(expected_diameter));
+    assert_eq!(transform.scale, Vec3::splat(ground_mark_diameter(15.0)));
     assert!(points.iter().all(|p| p.x <= 10.0 + 0.001));
     assert!(points.iter().any(|p| p.x > 9.99));
 }

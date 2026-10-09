@@ -7,7 +7,7 @@ use common::{
 };
 use crossbeam_channel::unbounded;
 
-use super::{broadcast::snapshot_actors, snapshot::network_broadcast_actor_moves_system};
+use super::{network_broadcast_actor_moves_system, snapshot_actors};
 use crate::{
     actors::{
         ActorCharacter, ActorInfo, ActorMap, ActorMotionQuery, ActorStateQuery,

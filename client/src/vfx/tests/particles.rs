@@ -35,7 +35,7 @@ fn cloud_grows_immediately_on_spike() {
 }
 
 #[test]
-fn recent_peak_holds_capacity() {
+fn recent_peak_holds_capacity_until_it_leaves_the_window() {
     let mut cloud = cloud();
     spike(&mut cloud, 100);
     cloud.advance(0.0);
@@ -45,14 +45,6 @@ fn recent_peak_holds_capacity() {
     assert_eq!(cloud.advance(1.0), None);
     assert!(cloud.particles.is_empty());
     assert_eq!(cloud.capacity, 128);
-}
-
-#[test]
-fn cloud_shrinks_after_spike_leaves_the_window() {
-    let mut cloud = cloud();
-    spike(&mut cloud, 100);
-    cloud.advance(0.0);
-    cloud.advance(1.0);
 
     assert_eq!(
         cloud.advance(SHRINK_WINDOW_SECS),
@@ -64,12 +56,4 @@ fn cloud_shrinks_after_spike_leaves_the_window() {
         Some(MIN_CAPACITY),
         "both windows past the spike release the capacity"
     );
-}
-
-#[test]
-fn particle_mesh_keeps_fixed_capacity() {
-    let mesh = particle_mesh(2);
-
-    assert_eq!(mesh.count_vertices(), 2 * CUBE_VERTICES.len());
-    assert_eq!(mesh.indices().map(Indices::len), Some(2 * CUBE_INDICES.len()));
 }

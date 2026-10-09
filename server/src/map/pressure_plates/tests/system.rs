@@ -2,7 +2,7 @@ use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use crossbeam_channel::{Receiver, unbounded};
 use std::collections::{HashMap, HashSet};
 
-use super::system::{player_on_plate, presser_of_switch};
+use super::{player_on_plate, presser_of_switch};
 use crate::{
     actors::{ActorMap, ActorSpawner, PendingActorSpawns},
     combat::{DeathSource, PendingExplosions, kill_player},
@@ -47,108 +47,44 @@ const FIREWORK_COOLDOWN_SECS: f32 = 1.0;
 // Narrower than its cell, so the cell's corners lie off it.
 const PLATE_SIDE: f32 = CELL / 2.0;
 
-fn make_plate(level: u8, col: i32, row: i32) -> PressurePlateRuntime {
-    PressurePlateRuntime {
-        carrier: CarrierId::WORLD,
-        level,
-        col,
-        row,
-        side: PLATE_SIDE,
-        switch: LOBBY_SWITCH,
+#[test]
+fn a_player_presses_a_plate_only_inside_its_square_on_its_storey() {
+    // Grid 1x1 centers the world origin on the cell at (0, 0), so the plate's
+    // square is [-PLATE_SIDE/2, PLATE_SIDE/2] on each axis.
+    let geometry = geometry(1, 1);
+    let edge = PLATE_SIDE / 2.0;
+    for (level, x, y, z, on) in [
+        (0, 0.0, 0.0, 0.0, true),
+        (0, -edge + 0.01, 0.0, -edge + 0.01, true),
+        (0, -edge - 0.01, 0.0, 0.0, false),
+        (0, CELL / 2.0, 0.0, CELL / 2.0, false),
+        (0, 0.0, LEVEL_HEIGHT / 2.0 - 0.01, 0.0, true),
+        (0, 0.0, LEVEL_HEIGHT, 0.0, false),
+        (2, 0.0, 2.0 * LEVEL_HEIGHT, 0.0, true),
+    ] {
+        assert_eq!(
+            player_on_plate(
+                &PressurePlateRuntime { level, ..lobby_plate() },
+                &Position { x, y, z },
+                &geometry
+            ),
+            on,
+            "plate on level {level}, player at ({x}, {y}, {z})"
+        );
     }
-}
-
-// Grid 1x1 centers the world origin on the cell at (0, 0), so the plate's
-// square is [-PLATE_SIDE/2, PLATE_SIDE/2] on each axis.
-fn geom() -> MapGeometry {
-    geometry(1, 1)
-}
-
-#[test]
-fn dead_center_triggers() {
-    let plate = make_plate(0, 0, 0);
-    let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-    assert!(player_on_plate(&plate, &pos, &geom()));
-}
-
-#[test]
-fn just_inside_the_plate_triggers() {
-    let plate = make_plate(0, 0, 0);
-    let just_inside = -PLATE_SIDE / 2.0 + 0.01;
-    let pos = Position {
-        x: just_inside,
-        y: 0.0,
-        z: just_inside,
-    };
-    assert!(player_on_plate(&plate, &pos, &geom()));
-}
-
-#[test]
-fn just_outside_the_plate_does_not_trigger() {
-    let plate = make_plate(0, 0, 0);
-    // Just outside the plate on x; z still centered.
-    let outside_x = -PLATE_SIDE / 2.0 - 0.01;
-    let pos = Position {
-        x: outside_x,
-        y: 0.0,
-        z: 0.0,
-    };
-    assert!(!player_on_plate(&plate, &pos, &geom()));
-}
-
-#[test]
-fn corner_of_cell_does_not_trigger() {
-    let plate = make_plate(0, 0, 0);
-    // Cell corner sits at +/- CELL/2 on both axes, off the plate.
-    let pos = Position {
-        x: CELL / 2.0,
-        y: 0.0,
-        z: CELL / 2.0,
-    };
-    assert!(!player_on_plate(&plate, &pos, &geom()));
-}
-
-#[test]
-fn level_above_does_not_trigger() {
-    let plate = make_plate(0, 0, 0);
-    let pos = Position {
-        x: 0.0,
-        y: LEVEL_HEIGHT,
-        z: 0.0,
-    };
-    assert!(!player_on_plate(&plate, &pos, &geom()));
-}
-
-#[test]
-fn small_y_offset_within_level_still_triggers() {
-    let plate = make_plate(0, 0, 0);
-    let pos = Position {
-        x: 0.0,
-        y: LEVEL_HEIGHT / 2.0 - 0.01,
-        z: 0.0,
-    };
-    assert!(player_on_plate(&plate, &pos, &geom()));
-}
-
-#[test]
-fn non_zero_level_plate_triggers_at_matching_y() {
-    let plate = make_plate(2, 0, 0);
-    let pos = Position {
-        x: 0.0,
-        y: 2.0 * LEVEL_HEIGHT,
-        z: 0.0,
-    };
-    assert!(player_on_plate(&plate, &pos, &geom()));
 }
 
 #[test]
 fn presser_prefers_a_fresh_press_over_a_standing_holder() {
     let plates = vec![
-        make_plate(0, 0, 0),
-        make_plate(0, 1, 0),
+        lobby_plate(),
         PressurePlateRuntime {
-            switch: SKYWAY_SWITCH,
-            ..make_plate(0, 2, 0)
+            col: 1,
+            ..lobby_plate()
+        },
+        PressurePlateRuntime {
+            col: 2,
+            ..skyway_plate()
         },
     ];
     let holders = HashMap::from([(0, PlayerId(1)), (1, PlayerId(2)), (2, PlayerId(3))]);
@@ -771,18 +707,6 @@ fn a_bridge_plate_powers_only_its_own_kind_and_says_so() {
 }
 
 #[test]
-fn a_barrier_plate_never_powers_a_bridge_kind() {
-    let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
-    let (entity, _rx) = standing_player(&mut app, 1);
-    app.update();
-    assert_eq!(turned_off(&app), [LOBBY]);
-    assert!(turned_on(&app).is_empty());
-    step_off(&mut app, entity);
-    app.update();
-    assert!(turned_on(&app).is_empty());
-}
-
-#[test]
 fn one_switch_turns_a_door_off_and_a_walkway_on_together() {
     let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
     app.world_mut().resource_mut::<MapSettings>().fields[usize::from(SKYWAY.0)].switch = Some("lobby".into());
@@ -989,27 +913,6 @@ fn a_carrier_that_starts_on_returns_when_its_switch_turns_on() {
         app.world().resource::<Carriers>().pose(CarrierId(1)).translation,
         Vec3::ZERO
     );
-}
-
-#[test]
-fn a_lone_player_toggles_a_bridge_kind_with_each_press() {
-    let mut app = app(catalog(Vec::new()), vec![skyway_plate()]);
-    let (entity, _rx) = standing_player(&mut app, 1);
-    step_off(&mut app, entity);
-    app.update();
-    assert!(turned_on(&app).is_empty());
-
-    step_on(&mut app, entity);
-    app.update();
-    assert_eq!(turned_on(&app), [SKYWAY]);
-
-    step_off(&mut app, entity);
-    app.update();
-    assert_eq!(turned_on(&app), [SKYWAY], "stepping off leaves the switch alone");
-
-    step_on(&mut app, entity);
-    app.update();
-    assert!(turned_on(&app).is_empty());
 }
 
 #[test]

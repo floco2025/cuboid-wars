@@ -1,8 +1,5 @@
 use super::*;
 
-#[derive(Resource, Default)]
-struct PhaseTrace(Vec<&'static str>);
-
 #[derive(Component)]
 struct Prepared;
 
@@ -21,46 +18,6 @@ struct FlushObservations {
     behavior_saw_received: bool,
     lifecycle_saw_fought: bool,
     snapshot_saw_maintained: bool,
-}
-
-fn trace_prepare(mut trace: ResMut<PhaseTrace>) {
-    trace.0.push("prepare");
-}
-
-fn trace_ingress(mut trace: ResMut<PhaseTrace>) {
-    trace.0.push("ingress");
-}
-
-fn trace_behavior(mut trace: ResMut<PhaseTrace>) {
-    trace.0.push("behavior");
-}
-
-fn trace_movement(mut trace: ResMut<PhaseTrace>) {
-    trace.0.push("movement");
-}
-
-fn trace_combat_damage(mut trace: ResMut<PhaseTrace>) {
-    trace.0.push("combat_damage");
-}
-
-fn trace_combat_removal(mut trace: ResMut<PhaseTrace>) {
-    trace.0.push("combat_removal");
-}
-
-fn trace_combat_explosions(mut trace: ResMut<PhaseTrace>) {
-    trace.0.push("combat_explosions");
-}
-
-fn trace_lifecycle(mut trace: ResMut<PhaseTrace>) {
-    trace.0.push("lifecycle");
-}
-
-fn trace_maintenance(mut trace: ResMut<PhaseTrace>) {
-    trace.0.push("maintenance");
-}
-
-fn trace_snapshot(mut trace: ResMut<PhaseTrace>) {
-    trace.0.push("snapshot");
 }
 
 fn queue_prepared(mut commands: Commands) {
@@ -94,46 +51,6 @@ fn queue_maintained(mut commands: Commands) {
 
 fn observe_maintained(maintained: Query<(), With<Maintained>>, mut observations: ResMut<FlushObservations>) {
     observations.snapshot_saw_maintained = !maintained.is_empty();
-}
-
-#[test]
-fn phases_run_in_declared_order() {
-    let mut app = App::new();
-    app.init_resource::<PhaseTrace>();
-    configure_server_schedule(&mut app);
-    app.add_systems(
-        Update,
-        (
-            trace_prepare.in_set(ServerSet::Prepare),
-            trace_ingress.in_set(ServerSet::Ingress),
-            trace_behavior.in_set(ServerSet::Behavior),
-            trace_movement.in_set(ServerSet::Movement),
-            trace_combat_damage.in_set(ServerSet::CombatDamage),
-            trace_combat_removal.in_set(ServerSet::CombatRemoval),
-            trace_combat_explosions.in_set(ServerSet::CombatExplosions),
-            trace_lifecycle.in_set(ServerSet::Lifecycle),
-            trace_maintenance.in_set(ServerSet::Maintenance),
-            trace_snapshot.in_set(ServerSet::Snapshot),
-        ),
-    );
-
-    app.update();
-
-    assert_eq!(
-        app.world().resource::<PhaseTrace>().0,
-        [
-            "prepare",
-            "ingress",
-            "behavior",
-            "movement",
-            "combat_damage",
-            "combat_removal",
-            "combat_explosions",
-            "lifecycle",
-            "maintenance",
-            "snapshot",
-        ]
-    );
 }
 
 #[test]

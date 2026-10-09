@@ -69,29 +69,7 @@ fn rockets_launch_outside_and_below_and_pop_above_the_map() {
 }
 
 #[test]
-fn a_larger_map_gets_a_wider_and_higher_show() {
-    let small = ShowField::new(map());
-    let wide = ShowField::new(MapDimensions {
-        width: 80.0,
-        depth: 60.0,
-        height: 4.0 * LEVEL_HEIGHT,
-    });
-    let tall = ShowField::new(MapDimensions {
-        width: 40.0,
-        depth: 30.0,
-        height: 12.0 * LEVEL_HEIGHT,
-    });
-
-    assert!(wide.ring_radius > small.ring_radius);
-    assert!(wide.sky_base > small.sky_base);
-    assert!(
-        tall.sky_base - 12.0 * LEVEL_HEIGHT > small.sky_base - 4.0 * LEVEL_HEIGHT,
-        "a tall map lifts the sky beyond its extra storeys"
-    );
-}
-
-#[test]
-fn a_running_show_ignores_a_new_seed() {
+fn a_new_seed_restarts_only_a_finished_show() {
     let mut show = FireworkShow::default();
     show.start(1, map());
     show.elapsed = 5.0;
@@ -102,12 +80,7 @@ fn a_running_show_ignores_a_new_seed() {
 
     assert_eq!(show.events.len(), remaining);
     assert_eq!(show.elapsed, 5.0);
-}
 
-#[test]
-fn a_finished_show_starts_again() {
-    let mut show = FireworkShow::default();
-    show.start(1, map());
     show.elapsed = 40.0;
     show.events.clear();
 

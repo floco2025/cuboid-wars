@@ -3,13 +3,10 @@ use super::*;
 #[test]
 fn immovable_actor_fires_over_cover_below_its_gun_despite_its_lower_body_center() {
     let (mut app, player, _) = actor_app(IMMOVABLE, 5000.0);
-    let actor = app
+    let actor_pos = *app
         .world()
-        .resource::<ActorMap>()
-        .get(&ActorId(1))
-        .expect("actor missing")
-        .entity;
-    let actor_pos = *app.world().get::<Position>(actor).expect("actor position missing");
+        .get::<Position>(actor(&app).entity)
+        .expect("actor position missing");
     let player_pos = *app.world().get::<Position>(player).expect("player position missing");
     let gameplay = app.world().resource::<GameplayConfig>();
     let immovable = gameplay.expect_actor(IMMOVABLE);
@@ -34,7 +31,7 @@ fn immovable_actor_fires_over_cover_below_its_gun_despite_its_lower_body_center(
     };
     app.insert_resource(CollisionWorld::from_map_layout(&layout));
     step_tick(&mut app);
-    assert!(app.world().get::<Health>(player).expect("player health missing").0 < 5000.0);
+    assert!(health(&app, player) < 5000.0);
 }
 
 #[test]
@@ -42,30 +39,19 @@ fn peace_stops_attacks_and_targeting_until_disabled_for_every_actor_kind() {
     for kind in KINDS {
         let (mut app, player, _) = actor_app(kind, 5000.0);
         step_tick(&mut app);
-        let health = app.world().get::<Health>(player).expect("player health missing").0;
+        let before = health(&app, player);
         app.world_mut().resource_mut::<ActorMap>().set_peaceful(true);
         for _ in 0..30 {
             step_tick(&mut app);
-            let info = app
-                .world()
-                .resource::<ActorMap>()
-                .get(&ActorId(1))
-                .expect("actor missing");
+            let info = actor(&app);
             assert!(info.awareness.is_empty(), "{kind} noticed a player during peace");
             assert!(info.beam.target().is_none(), "{kind} fired during peace");
             assert!(!matches!(info.mode, ActorMode::Engage { .. } | ActorMode::Evade { .. }));
-            assert_eq!(
-                app.world().get::<Health>(player).expect("player health missing").0,
-                health
-            );
+            assert_eq!(health(&app, player), before);
         }
         app.world_mut().resource_mut::<ActorMap>().set_peaceful(false);
         step_tick(&mut app);
-        let info = app
-            .world()
-            .resource::<ActorMap>()
-            .get(&ActorId(1))
-            .expect("actor missing");
+        let info = actor(&app);
         assert!(
             !info.awareness.is_empty(),
             "{kind} failed to notice players after peace"
@@ -82,14 +68,9 @@ fn immovable_actor_holds_long_burst_and_stops_when_player_disconnects() {
     for _ in 0..120 {
         step_tick(&mut app);
     }
-    let health = app.world().get::<Health>(player).expect("player health missing").0;
-    assert!((health - 3000.0).abs() < 0.1);
-    let actor = app
-        .world()
-        .resource::<ActorMap>()
-        .get(&ActorId(1))
-        .expect("actor missing");
-    assert_eq!(actor.beam.target(), Some(PlayerId(7)));
+    let burst_end = health(&app, player);
+    assert!((burst_end - 3000.0).abs() < 0.1);
+    assert_eq!(actor(&app).beam.target(), Some(PlayerId(7)));
     let mut targets = Vec::new();
     while let Ok(message) = receiver.try_recv() {
         if let ServerMessage::ActorBeam(cue) = message {
@@ -110,19 +91,12 @@ fn immovable_actor_holds_long_burst_and_stops_when_player_disconnects() {
         .disconnect(&PlayerId(7), 2.0);
     step_tick(&mut app);
     assert_eq!(
-        app.world()
-            .resource::<ActorMap>()
-            .get(&ActorId(1))
-            .expect("actor missing")
-            .beam,
+        actor(&app).beam,
         BeamState::Cooldown {
             remaining_secs: cooldown
         }
     );
-    assert_eq!(
-        app.world().get::<Health>(player).expect("player health missing").0,
-        health
-    );
+    assert_eq!(health(&app, player), burst_end);
 }
 
 #[test]
@@ -140,19 +114,14 @@ fn immovable_actor_repeats_bursts_with_a_damage_free_cooldown_and_transition_cue
     let mut cooldown_ticks = 0;
     for _ in 0..total_ticks {
         step_tick(&mut app);
-        let health = app.world().get::<Health>(player).expect("player health missing").0;
-        let actor = app
-            .world()
-            .resource::<ActorMap>()
-            .get(&ActorId(1))
-            .expect("actor missing");
-        if actor.beam.target().is_none() {
+        let current = health(&app, player);
+        if actor(&app).beam.target().is_none() {
             cooldown_ticks += 1;
-            assert_eq!(health, previous_health);
+            assert_eq!(current, previous_health);
         } else {
-            assert!(health < previous_health);
+            assert!(current < previous_health);
         }
-        previous_health = health;
+        previous_health = current;
     }
     let expected_cooldown_ticks = (attack.cooldown_secs / TICK_SECS).ceil() as u32;
     assert!((expected_cooldown_ticks..=expected_cooldown_ticks + 1).contains(&cooldown_ticks));
@@ -177,23 +146,9 @@ fn active_beams_retarget_disconnected_players_before_the_next_navigation_decisio
     for kind in [IMMOVABLE, BEAM, CONTACT_BEAM] {
         let (mut app, player, _) = actor_app(kind, 5000.0);
         step_tick(&mut app);
-        let first = app
-            .world()
-            .resource::<ActorMap>()
-            .get(&ActorId(1))
-            .expect("actor missing")
-            .beam
-            .snapshot()
-            .expect("first burst missing");
+        let first = actor(&app).beam.snapshot().expect("first burst missing");
         let pos = *app.world().get::<Position>(player).expect("player position missing");
-        let next = app
-            .world_mut()
-            .spawn((PlayerMarker, PlayerId(8), pos, Health(5000.0)))
-            .id();
-        let (sender, _receiver) = unbounded();
-        let mut info = PlayerInfo::new(next, sender);
-        info.connection.logged_in = true;
-        app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(8), info);
+        add_player(&mut app, 8, pos, 5000.0);
         app.world_mut()
             .resource_mut::<PlayerMap>()
             .disconnect(&PlayerId(7), 2.0);
@@ -203,14 +158,7 @@ fn active_beams_retarget_disconnected_players_before_the_next_navigation_decisio
             .expect("actor missing")
             .decision_timer = 1.0;
         step_tick(&mut app);
-        let after = app
-            .world()
-            .resource::<ActorMap>()
-            .get(&ActorId(1))
-            .expect("actor missing")
-            .beam
-            .snapshot()
-            .expect("burst ended during retarget");
+        let after = actor(&app).beam.snapshot().expect("burst ended during retarget");
         assert_eq!(after.target, PlayerId(8), "{kind}");
         assert_eq!(after.started_tick, first.started_tick, "{kind}");
         assert!(after.remaining_secs < first.remaining_secs, "{kind}");

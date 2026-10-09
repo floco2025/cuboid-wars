@@ -1,41 +1,18 @@
 use serde_json::{Value, json};
 
 use super::{
-    fixtures::{chamber, turret_room},
+    fixtures::{chamber, events, floors, jump, turret_room, walk, walled_floor},
     script::{Action, End},
 };
-
-fn events(report: &Value) -> impl Iterator<Item = &Value> {
-    report["steps"]
-        .as_array()
-        .expect("steps")
-        .iter()
-        .flat_map(|step| step["events"].as_array().expect("events"))
-}
 
 #[test]
 fn walking_cannot_pass_a_wall_and_a_jump_requires_ground_support() {
     let (_folder, mut script) = turret_room();
     script.actions = vec![
-        Action::Move {
-            direction: [1.0, 0.0],
-            ticks: 90,
-            crouch: false,
-            jump: false,
-        },
+        walk([1.0, 0.0], 90),
         Action::Reset { spawn: None },
-        Action::Move {
-            direction: [0.0, 0.0],
-            ticks: 1,
-            crouch: false,
-            jump: true,
-        },
-        Action::Move {
-            direction: [0.0, 0.0],
-            ticks: 1,
-            crouch: false,
-            jump: true,
-        },
+        jump([0.0, 0.0], 1),
+        jump([0.0, 0.0], 1),
         Action::Check {
             min: [-12.0, -1.0, 0.0],
             max: [-8.0, 10.0, 4.0],
@@ -68,18 +45,8 @@ fn a_jump_clears_a_gap_that_walking_cannot() {
     }});
     let (_folder, mut script) = chamber(layout, [-11.0, 0.0, -6.0]);
     script.actions = vec![
-        Action::Move {
-            direction: [1.0, 0.0],
-            ticks: 19,
-            crouch: false,
-            jump: false,
-        },
-        Action::Move {
-            direction: [1.0, 0.0],
-            ticks: 28,
-            crouch: false,
-            jump: true,
-        },
+        walk([1.0, 0.0], 19),
+        jump([1.0, 0.0], 28),
         Action::Advance { ticks: 10 },
         Action::Check {
             min: [-4.0, -0.1, -8.0],
@@ -93,12 +60,7 @@ fn a_jump_clears_a_gap_that_walking_cannot() {
         "{}",
         jumping["steps"][3]
     );
-    script.actions[1] = Action::Move {
-        direction: [1.0, 0.0],
-        ticks: 28,
-        crouch: false,
-        jump: false,
-    };
+    script.actions[1] = walk([1.0, 0.0], 28);
     let walking = script.run().expect("walk gap");
     assert_eq!(walking["steps"][3]["result"]["status"], "failed");
 }
@@ -129,17 +91,7 @@ fn a_walk_ends_standing_on_its_point_or_says_how_far_short_a_wall_stopped_it() {
 
 #[test]
 fn a_wall_portal_turns_held_movement_and_reports_the_owners_exit_position() {
-    let floors: Vec<_> = (0..10)
-        .flat_map(|col| (0..10).map(move |row| json!({"col":col,"row":row,"all":"solid"})))
-        .collect();
-    let layout = json!({"map": {"fireworks": null, "grid_cols":10,"grid_rows":10,
-        "checkpoints":[{"level":0,"cols":[2,3],"rows":[3,4],"number":0,"type":"individual"}],
-        "levels":[{"name":"Turn", "floors":floors, "walls":[
-            {"c0":2,"r0":2,"c1":3,"r1":2,"all":"portal"},
-            {"c0":7,"r0":3,"c1":7,"r1":4,"all":"portal"}
-        ]}]
-    }});
-    let (_folder, mut script) = chamber(layout, [-10.0, 0.0, -6.0]);
+    let (_folder, mut script) = walled_floor("portal");
     script.actions = vec![
         Action::Aim {
             target: [-10.0, 1.62, -11.8],
@@ -150,12 +102,7 @@ fn a_wall_portal_turns_held_movement_and_reports_the_owners_exit_position() {
             target: [7.8, 1.62, -6.0],
         },
         Action::Portal { end: End::B },
-        Action::Move {
-            direction: [0.0, -1.0],
-            ticks: 75,
-            crouch: false,
-            jump: false,
-        },
+        walk([0.0, -1.0], 75),
         Action::Check {
             min: [1.0, -0.1, -6.1],
             max: [2.5, 0.1, -5.9],
@@ -182,15 +129,12 @@ fn a_wall_portal_turns_held_movement_and_reports_the_owners_exit_position() {
 
 #[test]
 fn a_body_landing_on_a_portal_on_a_low_ramp_sinks_through_the_floor_under_it_and_crosses() {
-    let floors: Vec<_> = (0..10)
-        .flat_map(|col| (0..10).map(move |row| json!({"col":col,"row":row,"all":"solid"})))
-        .collect();
     let layout = json!({"map": {"fireworks": null, "grid_cols":10,"grid_rows":10,
         "checkpoints":[{"level":0,"cols":[0,1],"rows":[0,1],"number":0,"type":"individual"}],
         "ramps":[{"lower_level":0,"levels":1,"cols":[2,8],"rows":[4,6],"direction":"W","shape":"solid",
             "all":"solid","top":"portal"}],
         "levels":[
-            {"name":"Slope", "floors":floors, "walls":[{"c0":8,"r0":2,"c1":9,"r1":2,"all":"portal"}]},
+            {"name":"Slope", "floors":floors(10), "walls":[{"c0":8,"r0":2,"c1":9,"r1":2,"all":"portal"}]},
             {"name":"Above", "floors":[], "walls":[]}
         ]
     }});

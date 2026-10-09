@@ -34,7 +34,3 @@ pub fn ui_hud_scale_system(
         ui_scale.0 = scale;
     }
 }
-
-#[cfg(test)]
-#[path = "tests/scale.rs"]
-mod tests;

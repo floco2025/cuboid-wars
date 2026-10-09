@@ -4,6 +4,17 @@ const fn level(level: u8, span: u8) -> MapLevel {
     MapLevel { level, span }
 }
 
+fn focus_app(storey: u8) -> App {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins)
+        .insert_resource(FocusedMapLevel(Some(storey)))
+        .add_systems(
+            Update,
+            (map_level_focus_visibility_system, added_map_level_visibility_system).chain(),
+        );
+    app
+}
+
 #[test]
 fn one_span_rule_covers_floors_ramps_ladders_and_stacked_barriers() {
     let focused = FocusedMapLevel(Some(2));
@@ -30,13 +41,7 @@ fn one_span_rule_covers_floors_ramps_ladders_and_stacked_barriers() {
 
 #[test]
 fn light_bridges_erasers_and_checkpoints_follow_level_focus_like_floors() {
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins)
-        .insert_resource(FocusedMapLevel(Some(1)))
-        .add_systems(
-            Update,
-            (map_level_focus_visibility_system, added_map_level_visibility_system).chain(),
-        );
+    let mut app = focus_app(1);
     let bridge = app
         .world_mut()
         .spawn((LightBridgeMarker, level(2, 0), Visibility::Visible))
@@ -67,13 +72,7 @@ fn light_bridges_erasers_and_checkpoints_follow_level_focus_like_floors() {
 
 #[test]
 fn a_record_on_a_moving_carrier_shows_on_every_storey_it_may_reach() {
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins)
-        .insert_resource(FocusedMapLevel(Some(1)))
-        .add_systems(
-            Update,
-            (map_level_focus_visibility_system, added_map_level_visibility_system).chain(),
-        );
+    let mut app = focus_app(1);
     // A lift's slab: its own storey 2, one more through the motion.
     let slab = app
         .world_mut()

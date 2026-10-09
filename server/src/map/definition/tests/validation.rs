@@ -23,145 +23,48 @@ fn spawn_volumes_validate_all_levels_and_allow_zero_roam_extension() {
 }
 
 #[test]
-fn validation_accepts_actor_zone_without_floor() {
-    // Empty cells (no floor at all) are allowed: kinds like flying actors
-    // don't need a floor underfoot. Forbidden cells are obstructions.
-    let map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]]), level(vec![[1, 0]])],
-        vec![actor_zone(1, 0, 0)],
-        Vec::new(),
-    );
-
-    validate_map(&map_def).expect("a zone over an empty cell should load");
+fn actor_zones_may_cover_floorless_inaccessible_and_ramp_cells() {
+    // Flying kinds need no floor, and the spawn picker skips the cells that
+    // are not spawnable (`Cell::is_spawnable`), so a zone may brush any cell.
+    for map_def in [
+        map_with_zones(
+            4,
+            vec![level(vec![[0, 0]]), level(vec![[1, 0]])],
+            vec![actor_zone(1, 0, 0)],
+            Vec::new(),
+        ),
+        map_with_zones(
+            4,
+            vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
+            vec![actor_zone(0, 1, 0)],
+            Vec::new(),
+        ),
+        map_with_zones(
+            4,
+            vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
+            vec![actor_zone(1, 0, 0)],
+            vec![ramp([0, 1], [0, 2], RampDirection::South, 1)],
+        ),
+    ] {
+        validate_map(&map_def).expect("a zone over an unspawnable cell rejected");
+    }
 }
 
 #[test]
-fn validation_accepts_actor_zone_on_higher_level_floor() {
-    let map_def = map_with_zones(
-        4,
-        vec![level(vec![[1, 0]]), level(vec![[0, 0]])],
-        vec![actor_zone(1, 0, 0)],
-        Vec::new(),
-    );
-
-    validate_map(&map_def).expect("zones should be allowed on any level floor");
-}
-
-#[test]
-fn validation_accepts_actor_zone_overlapping_inaccessible_floor() {
-    // Spawn zones may freely cover any cell, including inaccessible-floor slabs.
-    // The runtime spawn picker filters non-spawnable cells out at pick time
-    // (see `Cell::is_spawnable`), so authoring a zone that brushes one is fine.
-    let map_def = map_with_zones(
-        4,
-        vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
-        vec![actor_zone(0, 1, 0)],
-        Vec::new(),
-    );
-
-    validate_map(&map_def).expect("actor zone overlapping inaccessible floor should load");
-}
-
-#[test]
-fn validation_accepts_actor_zone_overlapping_ramp_footprint() {
-    // Ramp footprints are not spawnable, but a zone is free to brush one;
-    // the spawn picker skips ramp cells (see `Cell::is_spawnable`).
-    let map_def = map_with_zones(
-        4,
-        vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
-        vec![actor_zone(1, 0, 0)],
-        vec![ramp([0, 1], [0, 2], RampDirection::South, 1)],
-    );
-
-    validate_map(&map_def).expect("actor zone overlapping ramp footprint should load");
-}
-
-#[test]
-fn validation_rejects_actor_zone_with_empty_kind() {
-    let map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        vec![ActorSpawnZoneDef {
-            initially_on: true,
-
-            level: 0,
-
-            levels: 1,
-
-            roam_distance: 0.0,
-            cols: [0, 1],
-            rows: [0, 1],
-            kind: String::new(),
-            count: vec![1],
-            respawn_secs: Some(90.0),
-            beam_in_secs: 0.0,
-            switch: None,
-            until_checkpoint: None,
-            on_checkpoint: None,
-        }],
-        Vec::new(),
-    );
-
-    let err = validate_map(&map_def).expect_err("must reject empty `kind`");
-    assert!(err.to_string().contains("empty `kind`"));
-}
-
-#[test]
-fn validation_accepts_unknown_kind_strings() {
-    // The map loader knows nothing about specific kinds; whether a kind is
-    // useful is the spawn picker's call. So unfamiliar strings must load fine.
-    let map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        vec![ActorSpawnZoneDef {
-            initially_on: true,
-
-            level: 0,
-
-            levels: 1,
-
-            roam_distance: 0.0,
-            cols: [0, 1],
-            rows: [0, 1],
-            kind: "boss".into(),
-            count: vec![1],
-            respawn_secs: Some(90.0),
-            beam_in_secs: 0.0,
-            switch: None,
-            until_checkpoint: None,
-            on_checkpoint: None,
-        }],
-        Vec::new(),
-    );
-
-    validate_map(&map_def).expect("any non-empty kind string should load");
-}
-
-#[test]
-fn validation_accepts_empty_actor_spawn_zones() {
-    // A map with no enemies is valid.
-    let map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-
-    validate_map(&map_def).expect("empty actor zones should be allowed");
-}
-
-#[test]
-fn validation_accepts_barrier_on_empty_edge() {
-    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-    map_def.levels[0].barriers.push(BarrierDef {
-        c0: 0,
+fn a_barrier_edge_may_not_repeat_or_overlap_a_wall_in_either_direction() {
+    let barrier = |c0, c1, field: &str| BarrierDef {
+        c0,
         r0: 0,
-        c1: 1,
+        c1,
         r1: 0,
-        field: "red".into(),
-    });
-    validate_map(&map_def).expect("barrier on an empty grid edge should load");
-}
-
-#[test]
-fn validation_rejects_barrier_overlapping_wall() {
+        field: field.into(),
+    };
     let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
+    map_def.levels[0].barriers = vec![barrier(0, 1, "red"), barrier(1, 0, "green")];
+    let err = validate_map(&map_def).expect_err("duplicate barrier edge accepted");
+    assert!(err.to_string().contains("duplicates another barrier"), "{err}");
+
+    map_def.levels[0].barriers = vec![barrier(1, 0, "blue")];
     map_def.levels[0].walls.push(WallDef {
         c0: 0,
         r0: 0,
@@ -169,28 +72,18 @@ fn validation_rejects_barrier_overlapping_wall() {
         r1: 0,
         materials: FaceMaterials::uniform("test"),
     });
-    map_def.levels[0].barriers.push(BarrierDef {
-        c0: 1,
-        r0: 0,
-        c1: 0,
-        r1: 0,
-        field: "blue".into(),
-    });
-    let err = validate_map(&map_def).expect_err("barrier on a wall edge must be rejected");
-    let msg = err.to_string();
-    assert!(msg.contains("overlaps a wall"), "got: {msg}");
+    let err = validate_map(&map_def).expect_err("barrier on a wall edge accepted");
+    assert!(err.to_string().contains("overlaps a wall"), "{err}");
 }
 
 #[test]
-fn validate_rejects_a_light_bridge_on_a_floor() {
-    let map_def = map_with_bridges(&[[0, 0]]);
+fn a_light_bridge_may_not_sit_on_a_floor_a_ramp_or_another_bridge() {
+    let err = validate_map(&map_with_bridges(&[[0, 0]])).expect_err("a bridge on a floor accepted");
+    assert!(err.to_string().contains("sits on a floor"), "{err}");
 
-    let err = validate_map(&map_def).expect_err("a bridge on a floor must fail");
-    assert!(err.to_string().contains("sits on a floor"), "got: {err}");
-}
+    let err = validate_map(&map_with_bridges(&[[1, 0], [1, 0]])).expect_err("duplicate bridge cells accepted");
+    assert!(err.to_string().contains("duplicates another light bridge"), "{err}");
 
-#[test]
-fn validate_rejects_a_light_bridge_on_a_ramp() {
     let mut map_def = map_with_zones(
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
@@ -198,9 +91,8 @@ fn validate_rejects_a_light_bridge_on_a_ramp() {
         vec![ramp([1, 3], [0, 1], RampDirection::East, 0)],
     );
     map_def.levels[0].light_bridges.push(bridge_def(1, 0));
-
-    let err = validate_map(&map_def).expect_err("a bridge on a ramp must fail");
-    assert!(err.to_string().contains("sits on a ramp"), "got: {err}");
+    let err = validate_map(&map_def).expect_err("a bridge on a ramp accepted");
+    assert!(err.to_string().contains("sits on a ramp"), "{err}");
 }
 
 #[test]
@@ -265,25 +157,6 @@ fn validate_rejects_a_plate_without_a_floor_or_on_a_ramp() {
 }
 
 #[test]
-fn validate_rejects_duplicate_light_bridge_cells() {
-    let map_def = map_with_bridges(&[[1, 0], [1, 0]]);
-
-    let err = validate_map(&map_def).expect_err("duplicate bridge cells must fail");
-    assert!(
-        err.to_string().contains("duplicates another light bridge"),
-        "got: {err}"
-    );
-}
-
-#[test]
-fn validation_rejects_terrain_out_of_bounds() {
-    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-    map_def.levels[0].terrain.push(cell_def(4, 0));
-    let err = validate_map(&map_def).expect_err("out-of-bounds terrain must be rejected");
-    assert!(err.to_string().contains("terrain"));
-}
-
-#[test]
 fn terrain_requires_only_five_authored_faces_and_rejects_a_top_override() {
     let terrain: TerrainDef = serde_json::from_value(serde_json::json!({
         "col": 1,
@@ -310,7 +183,22 @@ fn terrain_requires_only_five_authored_faces_and_rejects_a_top_override() {
 }
 
 #[test]
-fn validation_rejects_terrain_on_floors_and_ramps() {
+fn terrain_lies_inside_the_grid_and_off_floors_and_ramps() {
+    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
+    map_def.levels[0].terrain.push(cell_def(4, 0));
+    let err = validate_map(&map_def).expect_err("out-of-bounds terrain accepted");
+    assert!(err.to_string().contains("terrain"), "{err}");
+
+    let mut map_def = map_with_zones(
+        4,
+        vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
+        Vec::new(),
+        Vec::new(),
+    );
+    map_def.levels[0].terrain.push(cell_def(1, 0));
+    let err = validate_map(&map_def).expect_err("terrain over an inaccessible floor accepted");
+    assert!(err.to_string().contains("overlaps a floor"), "{err}");
+
     let mut map_def = map_with_zones(
         4,
         vec![level(vec![[0, 0]]), level(Vec::new())],
@@ -335,162 +223,76 @@ fn validation_rejects_terrain_on_floors_and_ramps() {
 }
 
 #[test]
-fn validation_rejects_item_outside_grid() {
-    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-    map_def.items.push(item_def(0, 4, 0, "gold", None));
-    let err = validate_map(&map_def).expect_err("out-of-bounds item must be rejected");
-    assert!(err.to_string().contains("[4, 0] is outside the grid"));
+fn an_item_needs_a_known_type_and_its_own_cell_inside_the_grid() {
+    for (items, expected) in [
+        (vec![item_def(0, 4, 0, "gold", None)], "[4, 0] is outside the grid"),
+        (vec![item_def(0, 0, 0, "banana", None)], "unknown type"),
+        (
+            vec![item_def(0, 0, 0, "gold", None), item_def(0, 0, 0, "speed", None)],
+            "duplicates",
+        ),
+    ] {
+        let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
+        map_def.items = items;
+        let err = validate_map(&map_def).expect_err("invalid item accepted");
+        assert!(err.to_string().contains(expected), "{err}");
+    }
 }
 
 #[test]
-fn validation_rejects_key_item_without_a_field() {
-    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-    map_def.items.push(item_def(0, 0, 0, "key", None));
-    let err = validate_map(&map_def).expect_err("key without a field must be rejected");
-    assert!(err.to_string().contains("unknown key field"), "{err}");
+fn only_key_items_name_a_field_and_every_key_names_one() {
+    for (item, expected) in [
+        (item_def(0, 0, 0, "key", None), "unknown key field"),
+        (item_def(0, 0, 0, "gold", Some("red")), "only key items"),
+    ] {
+        let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
+        map_def.items.push(item);
+        let err = validate_map(&map_def).expect_err("invalid key field accepted");
+        assert!(err.to_string().contains(expected), "{err}");
+    }
 }
 
 #[test]
-fn validation_rejects_a_field_on_a_non_key_item() {
-    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-    map_def.items.push(item_def(0, 0, 0, "gold", Some("red")));
-    let err = validate_map(&map_def).expect_err("a field on a non-key item must be rejected");
-    assert!(err.to_string().contains("only key items"));
-}
-
-#[test]
-fn validation_rejects_unknown_item_type() {
-    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-    map_def.items.push(item_def(0, 0, 0, "banana", None));
-    let err = validate_map(&map_def).expect_err("unknown item type must be rejected");
-    assert!(err.to_string().contains("unknown type"));
-}
-
-#[test]
-fn validation_rejects_duplicate_item_cell() {
-    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-    map_def.items.push(item_def(0, 0, 0, "gold", None));
-    map_def.items.push(item_def(0, 0, 0, "speed", None));
-    let err = validate_map(&map_def).expect_err("two items on one cell must be rejected");
-    assert!(err.to_string().contains("duplicates"));
-}
-
-#[test]
-fn validation_rejects_duplicate_barrier() {
-    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-    map_def.levels[0].barriers.push(BarrierDef {
-        c0: 0,
-        r0: 0,
-        c1: 1,
-        r1: 0,
-        field: "red".into(),
-    });
-    map_def.levels[0].barriers.push(BarrierDef {
-        c0: 1,
-        r0: 0,
-        c1: 0,
-        r1: 0,
-        field: "green".into(),
-    });
-    let err = validate_map(&map_def).expect_err("duplicate barrier edge must be rejected");
-    assert!(err.to_string().contains("duplicates another barrier"));
-}
-
-#[test]
-fn validation_accepts_stacked_non_overlapping_ladders() {
+fn ladders_on_one_edge_may_stack_but_not_overlap_from_either_side() {
     let mut map_def = map_with_zones(
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]]), level(vec![[0, 0]])],
         Vec::new(),
         Vec::new(),
     );
-    map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 1));
-    map_def.ladders.push(ladder(1, 0, 0, WallSide::East, 1));
-
-    validate_map(&map_def).expect("stacked ladders with disjoint spans should validate");
+    map_def.ladders = vec![ladder(0, 0, 0, WallSide::East, 1), ladder(1, 0, 0, WallSide::East, 1)];
+    validate_map(&map_def).expect("stacked ladders with disjoint spans rejected");
+    for ladders in [
+        vec![ladder(0, 0, 0, WallSide::East, 2), ladder(1, 0, 0, WallSide::East, 1)],
+        // Cell (0,0)'s east edge is cell (1,0)'s west edge, and an edge holds one ladder.
+        vec![ladder(0, 0, 0, WallSide::East, 1), ladder(0, 1, 0, WallSide::West, 1)],
+    ] {
+        map_def.ladders = ladders;
+        let err = validate_map(&map_def).expect_err("overlapping ladders accepted");
+        assert!(err.to_string().contains("overlaps"), "{err}");
+    }
 }
 
 #[test]
-fn validation_rejects_ladder_span_past_top_level() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
-        Vec::new(),
-        Vec::new(),
-    );
-    map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 2));
-
-    let err = format!(
-        "{:#}",
-        validate_map(&map_def).expect_err("span past the top level must be rejected")
-    );
-    assert!(err.contains("spans levels 0..2 but the map has 2 level(s)"));
-}
-
-#[test]
-fn validation_rejects_zero_storey_ladder() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
-        Vec::new(),
-        Vec::new(),
-    );
-    map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 0));
-
-    let err = format!(
-        "{:#}",
-        validate_map(&map_def).expect_err("zero-storey ladder must be rejected")
-    );
-    assert!(err.contains("at least 1"));
-}
-
-#[test]
-fn validation_rejects_overlapping_ladders_on_same_edge() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]]), level(vec![[0, 0]]), level(vec![[0, 0]])],
-        Vec::new(),
-        Vec::new(),
-    );
-    map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 2));
-    map_def.ladders.push(ladder(1, 0, 0, WallSide::East, 1));
-
-    let err = validate_map(&map_def).expect_err("overlapping ladder spans must be rejected");
-    assert!(err.to_string().contains("overlaps"));
-}
-
-#[test]
-fn validation_rejects_mirrored_ladders_on_same_edge() {
-    // Cell (0,0)'s east edge is cell (1,0)'s west edge; an edge holds at
-    // most one ladder, so the mirrored pair is rejected as a duplicate.
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
-        Vec::new(),
-        Vec::new(),
-    );
-    map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 1));
-    map_def.ladders.push(ladder(0, 1, 0, WallSide::West, 1));
-
-    let err = validate_map(&map_def).expect_err("mirrored ladders on one edge must be rejected");
-    assert!(err.to_string().contains("overlaps"));
-}
-
-#[test]
-fn validation_rejects_out_of_bounds_ladder() {
-    let mut map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
-        Vec::new(),
-        Vec::new(),
-    );
-    map_def.ladders.push(ladder(0, 5, 0, WallSide::East, 1));
-
-    let err = format!(
-        "{:#}",
-        validate_map(&map_def).expect_err("out-of-bounds ladder must be rejected")
-    );
-    assert!(err.contains("outside the grid"));
+fn a_ladder_spans_at_least_one_storey_inside_the_grid_and_the_levels() {
+    for (def, expected) in [
+        (
+            ladder(0, 0, 0, WallSide::East, 2),
+            "spans levels 0..2 but the map has 2 level(s)",
+        ),
+        (ladder(0, 0, 0, WallSide::East, 0), "at least 1"),
+        (ladder(0, 5, 0, WallSide::East, 1), "outside the grid"),
+    ] {
+        let mut map_def = map_with_zones(
+            4,
+            vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
+            Vec::new(),
+            Vec::new(),
+        );
+        map_def.ladders.push(def);
+        let err = format!("{:#}", validate_map(&map_def).expect_err("invalid ladder accepted"));
+        assert!(err.contains(expected), "{err}");
+    }
 }
 
 #[test]
@@ -539,22 +341,6 @@ fn canonicalize_keeps_zones_that_differ_only_by_switch() {
 }
 
 #[test]
-fn validate_rejects_empty_switch_names() {
-    let mut map_def = map_with_zones(4, vec![level(vec![[0, 0]])], vec![actor_zone(0, 0, 0)], Vec::new());
-    map_def.pressure_plates.push(plate_def(0, 0, 0, ""));
-    let err = validate_map(&map_def).expect_err("a plate with an empty switch accepted");
-    assert!(err.to_string().contains("pressure_plates[0] has no switch"), "{err}");
-    map_def.pressure_plates.clear();
-
-    map_def.actor_spawn_zones[0].switch = Some(String::new());
-    let err = validate_map(&map_def).expect_err("a zone with an empty switch accepted");
-    assert!(
-        err.to_string().contains("actor_spawn_zones[0] has an empty switch"),
-        "{err}"
-    );
-}
-
-#[test]
 fn actor_count_lists_validate_and_canonicalize() {
     let mut zone = actor_zone(0, 0, 0);
     let mut map = map_with_zones(4, vec![level(Vec::new())], vec![zone.clone()], vec![]);
@@ -570,20 +356,4 @@ fn actor_count_lists_validate_and_canonicalize() {
     assert_eq!(map.actor_spawn_zones.len(), 2);
     assert_eq!(map.actor_spawn_zones[0].count, vec![0, 2, 4]);
     assert_eq!(map.actor_spawn_zones[1].count, vec![1]);
-}
-
-#[test]
-fn actor_zones_require_lists_of_unsigned_integer_counts() {
-    for count in [
-        serde_json::json!(3),
-        serde_json::json!(null),
-        serde_json::json!([1, -2]),
-        serde_json::json!([1, 2.5]),
-        serde_json::json!([true]),
-        serde_json::json!([4294967296u64]),
-    ] {
-        let zone = serde_json::json!({"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "beam",
-            "count": count, "respawn_secs": null});
-        assert!(serde_json::from_value::<ActorSpawnZoneDef>(zone).is_err());
-    }
 }

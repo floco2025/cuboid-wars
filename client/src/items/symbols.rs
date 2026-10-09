@@ -131,7 +131,3 @@ fn contains(polygon: &[[f32; 2]], point: Vec2) -> bool {
         (b - a).perp_dot(point - a) >= 0.0
     })
 }
-
-#[cfg(test)]
-#[path = "tests/symbols.rs"]
-mod tests;

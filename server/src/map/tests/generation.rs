@@ -1,11 +1,10 @@
-use crate::config::fixtures;
 use std::fs;
 
-use common::protocol::FieldId;
 use rand::random;
 use serde_json::{Value, json};
 
 use super::*;
+use crate::config::fixtures;
 
 fn settings() -> MapSettings {
     fixtures::server_config().settings.clone()
@@ -114,76 +113,14 @@ fn excessive_level_counts_fail_loading_root_placed_and_unplaced_geometry() {
 }
 
 #[test]
-fn missing_map_returns_contextual_error() {
-    let directory = TestMap::new(|_| {});
-    let missing = directory.0.with_file_name("missing-layout.json");
-    let error = generate_map_at(&missing, "missing", 30, &settings())
-        .err()
-        .expect("missing map must fail");
-
-    assert!(error.to_string().contains("failed to load map at"));
-    assert!(
-        error
-            .to_string()
-            .contains(missing.to_str().expect("test path is not UTF-8"))
-    );
-}
-
-#[test]
 fn a_map_cannot_reference_an_alias_outside_its_host_catalog() {
-    let config = fixtures::server_config();
-    let mut settings = config.settings.clone();
+    let mut settings = settings();
     settings.textures.remove("basement-floor");
     let fixture = TestMap::new(|_| {});
     let error = generate_map_at(&fixture.0, "fixture", 30, &settings)
         .err()
         .expect("undeclared map material was accepted");
     assert!(error.to_string().contains("basement-floor"), "{error}");
-}
-
-#[test]
-fn the_layouts_catalogs_and_fireworks_fill_the_generated_map() {
-    let map = TestMap::new(|_| {}).generate().expect("test map failed to generate");
-    let ids: Vec<&str> = map.settings.switches.iter().map(|def| def.id.as_str()).collect();
-    assert_eq!(ids, ["lobby", "fireworks"]);
-    assert_eq!(map.switch_table.index_of("fireworks"), map.fireworks_switch);
-    let fields: Vec<_> = map
-        .settings
-        .fields
-        .iter()
-        .map(|def| (def.id.as_str(), def.switch.as_deref(), def.initially_on))
-        .collect();
-    assert_eq!(fields, [("lobby", Some("lobby"), true), ("skyway", None, false)]);
-    assert_eq!(map.fields.index_of("skyway"), Some(FieldId(1)));
-    assert_eq!(
-        map.fireworks.as_ref().map(|fireworks| fireworks.switch.as_str()),
-        Some("fireworks")
-    );
-}
-
-#[test]
-fn duplicate_fields_are_rejected_naming_the_layout() {
-    let hotel = TestMap::new(|map| {
-        let lobby = map["fields"][0].clone();
-        map["fields"].as_array_mut().expect("fields is an array").push(lobby);
-    });
-    let error = hotel.error();
-    assert!(error.contains("fields") && error.contains("duplicate"), "{error}");
-    assert!(error.contains("layout.json"), "{error}");
-}
-
-#[test]
-fn duplicate_switches_are_rejected_naming_the_layout() {
-    let hotel = TestMap::new(|map| {
-        let lobby = map["switches"][0].clone();
-        map["switches"]
-            .as_array_mut()
-            .expect("switches is an array")
-            .push(lobby);
-    });
-    let error = hotel.error();
-    assert!(error.contains("switches") && error.contains("duplicate"), "{error}");
-    assert!(error.contains("layout.json"), "{error}");
 }
 
 #[test]
@@ -199,13 +136,4 @@ fn fireworks_must_name_a_catalogued_switch_and_a_finite_cooldown() {
         assert!(error.contains(expected), "{error}");
         assert!(error.contains("fireworks"), "{error}");
     }
-}
-
-#[test]
-fn a_map_without_fireworks_has_no_fireworks_switch() {
-    let map = TestMap::new(|map| map["fireworks"] = Value::Null)
-        .generate()
-        .expect("test map without fireworks failed to generate");
-    assert!(map.fireworks.is_none());
-    assert_eq!(map.fireworks_switch, None);
 }

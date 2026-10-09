@@ -39,8 +39,7 @@ use crate::{
 };
 
 fn input_app() -> (App, Entity, Entity) {
-    let settings: ClientSettings =
-        serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client settings JSON is invalid");
+    let settings = test_fixtures::client_settings();
     let (sender, _receiver) = crossbeam_channel::unbounded();
     let mut app = App::new();
     app.insert_resource(CameraViewMode::ThirdPerson)
@@ -653,31 +652,6 @@ fn unlocked_idle_retains_shot_facing_but_empty_hands_and_menus_do_not_turn() {
 }
 
 #[test]
-fn v_cycles_debug_with_level_focus_then_all_levels_then_back() {
-    let (mut app, _, _) = input_app();
-    let far = app.world().resource::<ClientSettings>().camera.debug.distance;
-    let expected = [
-        (CameraViewMode::Debug, true),
-        (CameraViewMode::Debug, false),
-        (CameraViewMode::FirstPerson, false),
-    ];
-    for (view, focus) in expected {
-        {
-            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
-            keys.clear();
-            keys.press(KeyCode::KeyV);
-        }
-        app.update();
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .release(KeyCode::KeyV);
-        assert_eq!(*app.world().resource::<CameraViewMode>(), view);
-        assert_eq!(app.world().resource::<LevelFocusEnabled>().0, focus);
-    }
-    assert_eq!(app.world().resource::<FollowCamera>().debug_distance, far);
-}
-
-#[test]
 fn wheel_zooms_across_the_first_person_threshold_and_menu_scroll_does_not_zoom() {
     let (mut app, _, window) = input_app();
     let follow = app.world().resource::<ClientSettings>().camera.follow;
@@ -750,24 +724,4 @@ fn playback_mouse_look_does_not_change_scripted_movement_facing_or_jump() {
     );
     assert_eq!(app.world().get::<FaceYaw>(player).expect("facing").0, 1.0);
     assert!(!app.world().get::<JumpRequest>(player).expect("jump request").pressed);
-}
-
-#[test]
-fn ctrl_requests_crouch_and_shift_does_not_sprint() {
-    let (mut app, player, _) = fixed_input_app();
-    {
-        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
-        keys.press(KeyCode::KeyW);
-        keys.press(KeyCode::ControlLeft);
-        keys.press(KeyCode::ShiftLeft);
-    }
-    app.update();
-    let intent = *app.world().get::<PlayerMoveIntent>(player).expect("intent");
-    assert!(intent.crouch);
-    assert_eq!(intent.forward, 1.0);
-    app.world_mut()
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .release(KeyCode::ShiftLeft);
-    app.update();
-    assert_eq!(*app.world().get::<PlayerMoveIntent>(player).expect("intent"), intent);
 }

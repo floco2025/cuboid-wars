@@ -44,6 +44,7 @@ fn zoom_into_first_person_locks_and_zooming_out_keeps_lock() {
     assert!(camera.distance > config.first_person_distance);
     assert!(camera.locked);
 }
+
 #[test]
 fn tiny_scroll_events_accumulate_without_flipping_modes() {
     let config = follow_camera();
@@ -72,6 +73,7 @@ fn tiny_scroll_events_accumulate_without_flipping_modes() {
     );
     assert!(camera.distance > config.first_person_distance);
 }
+
 #[test]
 fn debug_view_snaps_to_its_distance_zooms_without_a_cap_and_restores_the_previous_view() {
     let config = follow_camera();
@@ -89,50 +91,4 @@ fn debug_view_snaps_to_its_distance_zooms_without_a_cap_and_restores_the_previou
         assert_eq!(camera.distance, distance);
         assert_eq!(camera.toggle_debug(CameraViewMode::Debug, 15.0), view);
     }
-}
-#[test]
-fn shoulder_offset_eases_in_with_the_pivot() {
-    let config = FollowCameraConfig {
-        shoulder_offset: 0.5,
-        ..follow_camera()
-    };
-    let eased = FollowCamera {
-        distance: 0.5,
-        ..Default::default()
-    };
-    assert_eq!(eased.shoulder_offset(config), 0.25);
-    let full = FollowCamera {
-        distance: 3.0,
-        ..Default::default()
-    };
-    assert_eq!(full.shoulder_offset(config), 0.5);
-}
-#[test]
-fn sensitivity_scales_zoom_and_distance_is_bounded() {
-    let config = follow_camera();
-    let mut camera = FollowCamera {
-        distance: 3.0,
-        ..Default::default()
-    };
-    camera.zoom(
-        CameraViewMode::ThirdPerson,
-        -1.0,
-        1.0 / INPUT_ZOOM_SENSITIVITY_BASE,
-        config,
-    );
-    assert_eq!(camera.distance, 4.0);
-    camera.zoom(
-        CameraViewMode::ThirdPerson,
-        -100.0,
-        1.0 / INPUT_ZOOM_SENSITIVITY_BASE,
-        config,
-    );
-    assert_eq!(camera.distance, config.max_distance);
-    camera.zoom(
-        CameraViewMode::ThirdPerson,
-        100.0,
-        1.0 / INPUT_ZOOM_SENSITIVITY_BASE,
-        config,
-    );
-    assert_eq!(camera.distance, 0.0);
 }

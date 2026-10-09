@@ -1,25 +1,13 @@
-use crate::{
-    map::Carriers,
-    physics::{
-        CharacterSupport,
-        world::{CollisionWorld, tests::wide_body},
-    },
-    protocol::{CarrierId, Floor, MapLayout, Position, Wall},
-};
 use bevy_math::Vec3;
 
-#[test]
-fn unsupported_flight_holds_altitude_and_moves_in_three_dimensions() {
-    let world = CollisionWorld::from_map_layout(&MapLayout::default());
-    let start = Position::from(Vec3::new(4.0, -120.0, 3.0));
-    let physics = wide_body();
-    let carriers = Carriers::default();
-    let idle = world.move_flying_character(start, Vec3::ZERO, 0.1, physics, &[], &carriers);
-    assert_eq!(idle.position, start);
-    assert_eq!(idle.support, CharacterSupport::Airborne);
-    let step = world.move_flying_character(start, Vec3::new(2.0, 3.0, -1.0), 0.1, physics, &[], &carriers);
-    assert!(Vec3::from(step.position).distance(Vec3::from(start) + Vec3::new(2.0, 3.0, -1.0)) < 0.001);
-}
+use crate::{
+    map::Carriers,
+    physics::world::{CollisionWorld, tests::wide_body},
+    protocol::{
+        Barrier, Carrier, CarrierId, FieldId, Floor, LightBridge, MapLayout, Position, Ramp, RampDirection, RampShape,
+        SwitchState, Wall,
+    },
+};
 
 #[test]
 fn flight_sweeps_block_walls_and_ceilings_and_slide_along_them() {
@@ -61,7 +49,6 @@ fn flight_sweeps_block_walls_and_ceilings_and_slide_along_them() {
 
 #[test]
 fn flying_body_is_pushed_by_rising_geometry_and_crushed_only_when_pinned() {
-    use crate::protocol::{Carrier, SwitchState};
     for ceiling in [false, true] {
         let mut layout = MapLayout {
             carriers: vec![Carrier {
@@ -127,7 +114,6 @@ fn flying_body_is_pushed_by_rising_geometry_and_crushed_only_when_pinned() {
 
 #[test]
 fn flight_respects_barrier_and_bridge_power_and_ramp_solids() {
-    use crate::protocol::{Barrier, FieldId, LightBridge, Ramp, RampDirection, RampShape};
     let physics = wide_body();
     let mut layout = MapLayout {
         barriers: vec![Barrier {

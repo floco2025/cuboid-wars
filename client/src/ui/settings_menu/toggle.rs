@@ -27,7 +27,3 @@ pub(super) fn settings_menu_toggle_system(
     menu.open = !menu.open;
     input_state.released = false;
 }
-
-#[cfg(test)]
-#[path = "tests/toggle.rs"]
-mod tests;

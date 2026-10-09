@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 
 use super::{
-    fixtures::turret_room,
+    fixtures::{events, turret_room},
     script::{Action, End, Script},
 };
 
@@ -32,14 +32,6 @@ fn chamber() -> (TempDir, Script) {
         Action::Inspect,
     ];
     (folder, script)
-}
-
-fn events(report: &Value) -> impl Iterator<Item = &Value> {
-    report["steps"]
-        .as_array()
-        .expect("steps")
-        .iter()
-        .flat_map(|step| step["events"].as_array().expect("events"))
 }
 
 #[test]

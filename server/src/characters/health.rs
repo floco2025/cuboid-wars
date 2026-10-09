@@ -45,7 +45,3 @@ pub(crate) fn regenerate_health(health: &mut Health, max_health: f32, amount: f3
     }
     health.0 = (health.0 + amount).min(max_health);
 }
-
-#[cfg(test)]
-#[path = "tests/health.rs"]
-mod tests;

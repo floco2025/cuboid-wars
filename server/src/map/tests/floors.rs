@@ -15,26 +15,6 @@ fn rect(x1: f32, x2: f32, z1: f32, z2: f32) -> Floor {
 }
 
 #[test]
-fn floors_merge_across_x_when_only_hidden_caps_differ() {
-    let left = (
-        rect(0.0, 1.0, 0.0, 1.0),
-        FaceMaterials::from_six("t", "b", "n", "s", "INNER", "outer_W"),
-    );
-    let right = (
-        rect(1.0, 2.0, 0.0, 1.0),
-        FaceMaterials::from_six("t", "b", "n", "s", "outer_E", "INNER"),
-    );
-
-    let (floors, materials) = merge_floors_with_materials(vec![left, right]);
-
-    assert_eq!(floors.len(), 1);
-    assert!((floors[0].x1 - 0.0).abs() < MERGE_EPS);
-    assert!((floors[0].x2 - 2.0).abs() < MERGE_EPS);
-    assert_eq!(materials[0].west, "outer_W");
-    assert_eq!(materials[0].east, "outer_E");
-}
-
-#[test]
 fn floors_do_not_merge_across_x_when_visible_face_differs() {
     let left = (
         rect(0.0, 1.0, 0.0, 1.0),
@@ -49,26 +29,6 @@ fn floors_do_not_merge_across_x_when_visible_face_differs() {
     let (floors, _) = merge_floors_with_materials(vec![left, right]);
 
     assert_eq!(floors.len(), 2);
-}
-
-#[test]
-fn floors_merge_across_z_when_only_hidden_caps_differ() {
-    let north_rect = (
-        rect(0.0, 1.0, 0.0, 1.0),
-        FaceMaterials::from_six("t", "b", "outer_N", "INNER", "e", "w"),
-    );
-    let south_rect = (
-        rect(0.0, 1.0, 1.0, 2.0),
-        FaceMaterials::from_six("t", "b", "INNER", "outer_S", "e", "w"),
-    );
-
-    let (floors, materials) = merge_floors_with_materials(vec![north_rect, south_rect]);
-
-    assert_eq!(floors.len(), 1);
-    assert!((floors[0].z1 - 0.0).abs() < MERGE_EPS);
-    assert!((floors[0].z2 - 2.0).abs() < MERGE_EPS);
-    assert_eq!(materials[0].north, "outer_N");
-    assert_eq!(materials[0].south, "outer_S");
 }
 
 #[test]

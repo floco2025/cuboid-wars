@@ -1,8 +1,8 @@
+use super::super::fixtures::{wall, world};
 use super::*;
-use crate::test_fixtures::{WALL_HEIGHT, WALL_THICKNESS};
 use common::{
-    config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
-    protocol::{ActorId, CarrierId, MapLayout, PlayerId, Wall},
+    config::{HitboxConfig, MovementColliderConfig},
+    protocol::{ActorId, MapLayout, PlayerId},
 };
 
 fn physics() -> CharacterPhysicsConfig {
@@ -20,100 +20,70 @@ fn physics() -> CharacterPhysicsConfig {
     }
 }
 
-fn empty_world() -> CollisionWorld {
-    CollisionWorld::from_map_layout(&MapLayout::default())
+fn candidate(target: HomingTarget, x: f32, z: f32) -> (HomingTarget, Position, f32, CharacterPhysicsConfig) {
+    (target, Position { x, y: 0.0, z }, 0.0, physics())
 }
 
-fn candidate(target: HomingTarget, z: f32) -> (HomingTarget, Position, f32, CharacterPhysicsConfig) {
-    (target, Position { x: 0.0, y: 0.0, z }, 0.0, physics())
+// The lock from just above the origin looking along +Z.
+fn lock(
+    world: &CollisionWorld,
+    max_distance: f32,
+    assist_radius: f32,
+    candidates: &[(HomingTarget, Position, f32, CharacterPhysicsConfig)],
+) -> Option<HomingTarget> {
+    acquire_lock(
+        world,
+        &[],
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::Z,
+        max_distance,
+        assist_radius,
+        candidates.iter().copied(),
+    )
 }
 
 #[test]
 fn acquire_lock_picks_nearest_candidate_on_ray() {
     let near = HomingTarget::Player(PlayerId(1));
     let far = HomingTarget::Actor(ActorId(2));
-    let locked = acquire_lock(
-        &empty_world(),
-        &[],
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::Z,
-        60.0,
-        0.05,
-        [candidate(far, 20.0), candidate(near, 5.0)].into_iter(),
+    let open = world(&MapLayout::default());
+    assert_eq!(
+        lock(
+            &open,
+            60.0,
+            0.05,
+            &[candidate(far, 0.0, 20.0), candidate(near, 0.0, 5.0)]
+        ),
+        Some(near)
     );
-    assert_eq!(locked, Some(near));
 }
 
 #[test]
-fn acquire_lock_misses_candidate_off_ray() {
+fn acquire_lock_stops_at_its_range_and_at_a_wall() {
     let target = HomingTarget::Player(PlayerId(1));
-    let locked = acquire_lock(
-        &empty_world(),
-        &[],
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::Z,
-        60.0,
-        0.05,
-        [(target, Position { x: 8.0, y: 0.0, z: 5.0 }, 0.0, physics())].into_iter(),
-    );
-    assert_eq!(locked, None);
-}
-
-#[test]
-fn acquire_lock_rejects_candidate_beyond_range() {
-    let target = HomingTarget::Player(PlayerId(1));
-    let locked = acquire_lock(
-        &empty_world(),
-        &[],
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::Z,
-        10.0,
-        0.05,
-        [candidate(target, 20.0)].into_iter(),
-    );
-    assert_eq!(locked, None);
-}
-
-#[test]
-fn acquire_lock_rejects_candidate_behind_wall() {
-    let layout = MapLayout {
-        walls: vec![Wall {
-            x1: -4.0,
-            z1: 5.0,
-            x2: 4.0,
-            z2: 5.0,
-            width: WALL_THICKNESS,
-            level: 0,
-            y: 0.0,
-            height: WALL_HEIGHT,
-            carrier: CarrierId::WORLD,
-        }],
+    let open = world(&MapLayout::default());
+    assert_eq!(lock(&open, 10.0, 0.05, &[candidate(target, 0.0, 20.0)]), None);
+    let walled = world(&MapLayout {
+        walls: vec![wall(-4.0, 5.0, 4.0, 5.0)],
         ..Default::default()
-    };
-    let world = CollisionWorld::from_map_layout(&layout);
-    let target = HomingTarget::Player(PlayerId(1));
-    let locked = acquire_lock(
-        &world,
-        &[],
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::Z,
-        60.0,
-        0.05,
-        [candidate(target, 10.0)].into_iter(),
-    );
-    assert_eq!(locked, None);
+    });
+    assert_eq!(lock(&walled, 60.0, 0.05, &[candidate(target, 0.0, 10.0)]), None);
 }
 
 #[test]
 fn acquire_lock_assist_radius_forgives_near_misses() {
     let target = HomingTarget::Player(PlayerId(1));
+    let open = world(&MapLayout::default());
     // ~1 m off the aim line (collider half-width 0.5 leaves ~0.5 m gap).
-    let off_axis = (target, Position { x: 1.0, y: 0.0, z: 8.0 }, 0.0, physics());
-    let aim = Vec3::new(0.0, 1.0, 0.0);
-
-    let strict = acquire_lock(&empty_world(), &[], aim, Vec3::Z, 60.0, 0.05, [off_axis].into_iter());
-    assert_eq!(strict, None, "thin ray misses the off-axis target");
-
-    let assisted = acquire_lock(&empty_world(), &[], aim, Vec3::Z, 60.0, 1.2, [off_axis].into_iter());
-    assert_eq!(assisted, Some(target), "assist radius bridges the gap");
+    let off_axis = [candidate(target, 1.0, 8.0)];
+    assert_eq!(
+        lock(&open, 60.0, 0.05, &off_axis),
+        None,
+        "thin ray misses the off-axis target"
+    );
+    assert_eq!(
+        lock(&open, 60.0, 1.2, &off_axis),
+        Some(target),
+        "assist radius bridges the gap"
+    );
 }

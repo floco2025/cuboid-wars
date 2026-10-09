@@ -3,8 +3,21 @@ use crate::{
     config::RespawnConfig,
     players::{PlayerInfo, PowerUpState, erase_equipment_system},
 };
-use common::protocol::{CarrierId, PlayerId, Portal, PortalEnd, PortalMode, Position};
+use common::protocol::{CarrierId, PlayerId, Portal, PortalEnd, PortalMode, PortalPairId, Position};
 use crossbeam_channel::unbounded;
+
+fn portal(pair: PortalPairId, end: PortalEnd) -> Portal {
+    Portal {
+        pair,
+        end,
+        pos: Position::default(),
+        nx: 0.0,
+        ny: 0.0,
+        nz: 1.0,
+        yaw: 0.0,
+        carrier: CarrierId::WORLD,
+    }
+}
 
 #[test]
 fn gun_loss_removes_controlled_ends_and_preserves_assignments_and_equipped_partners() {
@@ -27,16 +40,7 @@ fn gun_loss_removes_controlled_ends_and_preserves_assignments_and_equipped_partn
                     let access = assignments.get(&PlayerId(id));
                     for end in [PortalEnd::A, PortalEnd::B] {
                         if access.allows(end) {
-                            portals.set(Portal {
-                                pair: access.pair().expect("portal pair missing"),
-                                end,
-                                pos: Position::default(),
-                                nx: 0.0,
-                                ny: 0.0,
-                                nz: 1.0,
-                                yaw: 0.0,
-                                carrier: CarrierId::WORLD,
-                            });
+                            portals.set(portal(access.pair().expect("portal pair missing"), end));
                         }
                     }
                 }
@@ -91,16 +95,7 @@ fn an_eraser_closes_its_players_portals_keeps_an_always_held_gun_and_cues_once()
         let pair = assignments.get(&PlayerId(1)).pair().expect("portal pair missing");
         let mut portals = PortalMap::default();
         for end in [PortalEnd::A, PortalEnd::B] {
-            portals.set(Portal {
-                pair,
-                end,
-                pos: Position::default(),
-                nx: 0.0,
-                ny: 0.0,
-                nz: 1.0,
-                yaw: 0.0,
-                carrier: CarrierId::WORLD,
-            });
+            portals.set(portal(pair, end));
         }
         let mut app = App::new();
         app.insert_resource(players)

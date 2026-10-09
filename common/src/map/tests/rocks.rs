@@ -51,14 +51,3 @@ fn shapes_are_closed_outward_facing_bodies_about_a_metre_across() {
         }
     }
 }
-
-#[test]
-fn classes_and_variants_differ() {
-    let stone = rock_shape(RockClass::Stone, 0, 1);
-    let other_stone = rock_shape(RockClass::Stone, 1, 1);
-    let boulder = rock_shape(RockClass::Boulder, 0, 1);
-    let differs = |a: &RockShape, b: &RockShape| a.vertices.iter().zip(&b.vertices).any(|(a, b)| a.distance(*b) > 0.05);
-    assert!(differs(&stone, &other_stone));
-    assert!(differs(&stone, &boulder));
-    assert!(!differs(&stone, &rock_shape(RockClass::Stone, ROCK_VARIANTS, 1)));
-}

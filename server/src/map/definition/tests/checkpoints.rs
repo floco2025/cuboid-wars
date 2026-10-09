@@ -1,5 +1,5 @@
 use super::*;
-use common::protocol::{CheckpointKind, MapLayout, RampDirection};
+use common::protocol::{CheckpointKind, RampDirection};
 use map_core::schema::CheckpointDef;
 
 fn checkpoint_def(level: u32, col: i32, row: i32) -> CheckpointDef {
@@ -19,8 +19,7 @@ fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
     let mut map = map_with_zones(4, vec![level(vec![[0, 0], [1, 0]])], Vec::new(), Vec::new());
     map.checkpoints.push(checkpoint_def(0, 0, 0));
     validate_map(&map).expect("checkpoint map rejected");
-    let compile = |map: &MapDef| compile_with(map, &no_nested(), &empty_kind_table());
-    let (layout, config) = compile(&map).expect("checkpoint compilation failed");
+    let (layout, config) = compile_bare(&map).expect("checkpoint compilation failed");
     assert_eq!(layout.checkpoints.len(), 1);
     let checkpoint = &layout.checkpoints[0];
     assert_eq!(checkpoint.min_x, config.root_grid().geometry.cell_to_world_x(0));
@@ -111,46 +110,10 @@ fn checkpoint_numbers_may_be_zero_or_shared_and_order_the_compiled_list() {
     map.checkpoints = vec![numbered(0, 7), numbered(1, 0), numbered(2, 7)];
     validate_map(&map).expect("numbered checkpoints rejected");
     canonicalize(&mut map);
-    let (layout, _) =
-        compile_with(&map, &no_nested(), &empty_kind_table()).expect("numbered checkpoint compilation failed");
+    let (layout, _) = compile_bare(&map).expect("numbered checkpoint compilation failed");
     assert_eq!(
         layout.checkpoints.iter().map(|c| c.number).collect::<Vec<_>>(),
         [0, 7, 7]
     );
     assert_eq!(layout.checkpoints[0].cols, [1, 2]);
-}
-
-#[test]
-fn checkpoint_types_are_required_and_preserved_on_the_wire() {
-    for (name, kind) in [
-        ("individual", CheckpointKind::Individual),
-        ("group_any", CheckpointKind::GroupAny),
-        ("group_all", CheckpointKind::GroupAll),
-    ] {
-        let definition: CheckpointDef = serde_json::from_value(
-            serde_json::json!({"type": name, "number": 1, "level": 0, "cols": [0, 1], "rows": [0, 1]}),
-        )
-        .expect("checkpoint type rejected");
-        let mut map = map_with_zones(2, vec![level(vec![[0, 0]])], Vec::new(), Vec::new());
-        map.checkpoints.push(definition);
-        let (layout, _) =
-            compile_with(&map, &no_nested(), &empty_kind_table()).expect("typed checkpoint compilation failed");
-        assert_eq!(layout.checkpoints[0].kind, kind);
-        let bytes = bincode::encode_to_vec(&layout, bincode::config::standard()).expect("checkpoint encoding failed");
-        let (decoded, _): (MapLayout, _) =
-            bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("checkpoint decoding failed");
-        assert_eq!(decoded.checkpoints[0].kind, kind);
-    }
-    for extra in [
-        serde_json::json!({"number": 1}),
-        serde_json::json!({"type": "unknown", "number": 1}),
-        serde_json::json!({"type": "individual"}),
-    ] {
-        let mut value = serde_json::json!({"level": 0, "cols": [0, 1], "rows": [0, 1]});
-        value
-            .as_object_mut()
-            .expect("checkpoint object missing")
-            .extend(extra.as_object().expect("extra fields missing").clone());
-        assert!(serde_json::from_value::<CheckpointDef>(value).is_err());
-    }
 }

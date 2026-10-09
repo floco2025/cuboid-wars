@@ -24,29 +24,6 @@ fn upward_jump_velocity_moves_player_above_support() {
 }
 
 #[test]
-fn landing_reports_ground_support() {
-    let floor = lower_floor();
-    let collision_world = collision_world(&[floor], &[]);
-    let pos = Position { x: 0.0, y: 0.4, z: 0.0 };
-
-    let step = step_in(
-        &collision_world,
-        character_step_toward(pos, -10.0, pos.x, pos.z, 0.1),
-        LadderMode::Automatic,
-    );
-
-    assert_eq!(step.vertical_velocity, 0.0);
-    assert_eq!(step.support, CharacterSupport::Ground);
-    assert_eq!(step.impact_speed, 10.0 + TEST_GRAVITY * 0.05);
-    let standing = step_in(
-        &collision_world,
-        character_step_toward(step.position, 0.0, pos.x, pos.z, 0.1),
-        LadderMode::Automatic,
-    );
-    assert_eq!(standing.impact_speed, 0.0);
-}
-
-#[test]
 fn upward_motion_hits_floor_underside() {
     let floor = upper_floor();
     let collision_world = collision_world(&[floor], &[]);
@@ -161,7 +138,7 @@ fn landing_keeps_incoming_speed_when_a_ground_probe_stops_the_fall() {
 }
 
 #[test]
-fn landing_speed_uses_accumulated_velocity_with_the_fall_before_contact() {
+fn landing_reports_ground_support_and_the_speed_accumulated_before_contact() {
     let world = collision_world(&[lower_floor()], &[]);
     let carriers = Carriers::default();
     for gravity in [0.0, 5.0, 25.0] {
@@ -174,5 +151,8 @@ fn landing_speed_uses_accumulated_velocity_with_the_fall_before_contact() {
         let result = step_character_movement(character_step_toward(pos, -20.0, 0.0, 0.0, 0.1), &env);
         assert_eq!(result.impact_speed, 20.0 + gravity * 0.05);
         assert_eq!(result.vertical_velocity, 0.0);
+        assert_eq!(result.support, CharacterSupport::Ground);
+        let standing = step_character_movement(character_step_toward(result.position, 0.0, 0.0, 0.0, 0.1), &env);
+        assert_eq!(standing.impact_speed, 0.0);
     }
 }

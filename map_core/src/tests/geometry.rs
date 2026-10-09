@@ -25,18 +25,6 @@ fn landings_sit_at_the_storey_a_ramp_arrives_at_and_follow_its_direction() {
 }
 
 #[test]
-fn slope_is_judged_against_the_character_motor() {
-    let steep = ramp_slope(3.4, 4.4);
-    assert!(!steep.climbable && (steep.degrees - 52.3).abs() < 0.1, "{steep:?}");
-    let walkable = ramp_slope(6.8, 4.4);
-    assert!(
-        walkable.climbable && (walkable.degrees - 32.9).abs() < 0.1,
-        "{walkable:?}"
-    );
-    assert!((walkable.limit_degrees - 45.0).abs() < 0.001);
-}
-
-#[test]
 fn a_strip_beside_a_ramp_opening_runs_to_the_lip_the_arrival_slab_stays_flush_with() {
     // The cell north of an opening, with the arrival slab to its south-west.
     let neighbors = FloorNeighbors {

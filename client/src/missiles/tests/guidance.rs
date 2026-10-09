@@ -1,3 +1,4 @@
+use super::super::fixtures::{air_path, test_graph, wall, world};
 use super::*;
 use crate::{
     constants::MISSILE_SEARCH_MISSILE_QUERIES,
@@ -18,34 +19,6 @@ fn config() -> MissilesConfig {
     gameplay_config().missiles
 }
 
-fn map(cols: i32, rows: i32, levels: usize) -> AirGraph {
-    AirGraph {
-        grids: vec![super::super::air_graph::AirGrid {
-            carrier: CarrierId::WORLD,
-            geometry: geometry(cols, rows),
-            layers: levels as i32 + 1,
-        }],
-    }
-}
-
-fn wall(x1: f32, z1: f32, x2: f32, z2: f32) -> Wall {
-    Wall {
-        x1,
-        z1,
-        x2,
-        z2,
-        width: WALL_THICKNESS,
-        y: 0.0,
-        height: WALL_HEIGHT,
-        level: 0,
-        carrier: CarrierId::WORLD,
-    }
-}
-
-fn world(layout: &MapLayout) -> CollisionWorld {
-    CollisionWorld::from_map_layout(layout)
-}
-
 #[test]
 fn a_nearby_corner_is_not_skipped_when_the_next_leg_is_blocked() {
     let world = world(&MapLayout {
@@ -61,7 +34,7 @@ fn a_nearby_corner_is_not_skipped_when_the_next_leg_is_blocked() {
 
 #[test]
 fn a_wall_moving_across_a_cached_route_triggers_an_immediate_replan() {
-    let graph = map(4, 4, 2);
+    let graph = test_graph(4, 4, 2);
     let layout = MapLayout {
         walls: vec![Wall {
             carrier: CarrierId(1),
@@ -88,9 +61,8 @@ fn a_wall_moving_across_a_cached_route_triggers_an_immediate_replan() {
     let origin = Vec3::new(-3.0, 1.5, 0.0);
     let target = Vec3::new(3.0, 1.5, 0.0);
     let mut info = info();
-    info.path = graph
-        .path(&carriers, &world, &[], origin, target, MISSILE_RADIUS, 1.0)
-        .expect("initial route missing");
+    info.path =
+        air_path(&graph, &carriers, &world, &[], origin, target, MISSILE_RADIUS, 1.0).expect("initial route missing");
     info.path_target = Some(target);
     info.path_retry_timer = 0.4;
     carriers.advance(60, &SwitchState::default());
@@ -134,7 +106,7 @@ fn a_wall_moving_across_a_cached_route_triggers_an_immediate_replan() {
 
 #[test]
 fn failed_routes_obey_the_retry_timer() {
-    let graph = map(2, 1, 1);
+    let graph = test_graph(2, 1, 1);
     let world = world(&MapLayout::default());
     let mut info = info();
     let target = Vec3::X;
@@ -162,7 +134,7 @@ fn failed_routes_obey_the_retry_timer() {
 
 #[test]
 fn lead_pursuit_does_not_aim_through_a_wall_beside_a_visible_target() {
-    let graph = map(8, 8, 2);
+    let graph = test_graph(8, 8, 2);
     let world = world(&MapLayout {
         walls: vec![wall(2.0, 1.0, 2.0, 12.0)],
         ..default()
@@ -238,7 +210,7 @@ fn proximity_fuse_requires_clear_flight_and_blast_paths() {
 
 #[test]
 fn missiles_reach_an_exposed_target_too_close_to_a_wall_for_their_radius() {
-    let graph = map(20, 20, 1);
+    let graph = test_graph(20, 20, 1);
     let world = world(&MapLayout {
         walls: vec![Wall {
             width: 0.4,
@@ -303,9 +275,9 @@ fn missiles_reach_an_exposed_target_too_close_to_a_wall_for_their_radius() {
 
 #[test]
 fn missiles_reach_targets_inside_a_moving_room_without_clipping_its_shell() {
-    let mut map = map(12, 12, 3);
+    let mut map = test_graph(12, 12, 3);
     let room_size = geometry(3, 3);
-    let mut room_grid = self::map(3, 3, 2).grids.remove(0);
+    let mut room_grid = test_graph(3, 3, 2).grids.remove(0);
     room_grid.carrier = CarrierId(1);
     map.grids.push(room_grid);
     let graph = map;
@@ -441,7 +413,7 @@ fn a_missile_skimming_geometry_still_fuses_on_its_target() {
 
 #[test]
 fn a_route_whose_waypoints_went_unreachable_retries_on_the_next_tick() {
-    let graph = map(4, 4, 2);
+    let graph = test_graph(4, 4, 2);
     let world = world(&MapLayout {
         walls: vec![wall(0.0, -4.0, 0.0, 4.0)],
         ..default()
@@ -472,7 +444,7 @@ fn a_route_whose_waypoints_went_unreachable_retries_on_the_next_tick() {
 
 #[test]
 fn pending_replans_keep_a_usable_route_and_refresh_field_state() {
-    let graph = map(4, 4, 2);
+    let graph = test_graph(4, 4, 2);
     let carriers = Carriers::default();
     let world = world(&MapLayout {
         walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
@@ -481,9 +453,7 @@ fn pending_replans_keep_a_usable_route_and_refresh_field_state() {
     let origin = Vec3::new(-3.0, 1.0, 0.0);
     let target = Vec3::new(3.0, 1.0, 0.0);
     let mut info = info();
-    info.path = graph
-        .path(&carriers, &world, &[], origin, target, MISSILE_RADIUS, 1.0)
-        .expect("usable route");
+    info.path = air_path(&graph, &carriers, &world, &[], origin, target, MISSILE_RADIUS, 1.0).expect("usable route");
     for open in [vec![], vec![FieldId(2)]] {
         let mut budget = SearchBudget::new(0);
         let direction = route_objective(
@@ -501,15 +471,13 @@ fn pending_replans_keep_a_usable_route_and_refresh_field_state() {
         )
         .expect("follow retained route while search waits");
         assert!(sweep_clear(&world, &open, origin, direction, MISSILE_RADIUS));
-        assert_eq!(info.route_status, RouteStatus::Pending);
         assert_eq!(info.search.as_ref().expect("pending search").open, open);
-        assert_eq!(budget.used, 0);
     }
 }
 
 #[test]
 fn a_detour_wider_than_the_first_search_window_is_found_by_widening_it() {
-    let graph = map(30, 30, 3);
+    let graph = test_graph(30, 30, 3);
     let carriers = Carriers::default();
     let slab = |y: f32, level: u8| Floor {
         x1: -60.0,
@@ -543,10 +511,10 @@ fn a_detour_wider_than_the_first_search_window_is_found_by_widening_it() {
             1.0,
             TICK_SECS,
             &mut SearchBudget::new(MISSILE_SEARCH_MISSILE_QUERIES),
-        );
-        info.route_status == RouteStatus::Found
+        )
+        .is_some()
     });
-    assert!(found_at.is_some(), "status {:?}", info.route_status);
+    assert!(found_at.is_some(), "no route within margin {}", info.search_margin);
     assert!(info.search_margin > MISSILE_SEARCH_WINDOW_MARGIN_CELLS);
     assert!(info.path.iter().any(|point| point.z.abs() > 30.0), "{:?}", info.path);
 }

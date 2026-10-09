@@ -7,7 +7,6 @@ import copy
 from .constants import FACES, TERRAIN_FACES, ZONE_LISTS
 from .geometry import ramp_rect, rects_overlap, wall_segments_between, zone_intersects_rect
 from .normalization import edge_key, pressure_plate_key
-from .transforms import record_rect
 
 
 def replace_records(data: dict, name: str, entries: list[dict], level: int | None = None) -> dict:
@@ -135,12 +134,3 @@ def material_values(entries: list[dict], faces=FACES) -> dict[str, str | None]:
         values = {entry.get(face) for entry in entries}
         result[face] = next(iter(values)) if len(values) == 1 else None
     return result
-
-
-def top_left_materials(entries: list[dict], name: str, faces=FACES) -> dict[str, str | None]:
-    def spatial_order(entry):
-        c0, r0, c1, r1 = record_rect(name, entry)
-        return r0, c0, r1, c1
-
-    first = min(entries, key=spatial_order)
-    return {face: first.get(face) for face in faces}

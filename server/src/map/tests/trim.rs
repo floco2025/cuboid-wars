@@ -19,9 +19,7 @@ fn one_horizontal_edge() -> EdgeGrid {
 
 #[test]
 fn a_horizontal_wall_gets_a_strip_under_it() {
-    let mut edges = EdgeGrid::new(1, 1);
-    edges.horizontal[1][0] = true;
-    let floors = trim(&edges, &empty_mask(1, 1), 1, 1);
+    let floors = trim(&one_horizontal_edge(), &empty_mask(1, 1), 1, 1);
 
     let geometry = geometry(1, 1);
     let half_w = geometry.width() / 2.0;
@@ -52,12 +50,6 @@ fn a_vertical_wall_gets_a_strip_under_it() {
     assert_eq!(floors[0].z2, -half_d + CELL + WALL_HALF_THICKNESS);
 }
 
-// Only this level's walls are capped: the level below having a wall there is neither here nor there.
-#[test]
-fn a_level_without_walls_gets_no_strips() {
-    assert!(trim(&EdgeGrid::new(1, 1), &empty_mask(1, 1), 1, 1).is_empty());
-}
-
 #[test]
 fn band_edges_are_the_upper_walls_and_the_barriers_over_a_wall() {
     let none = EdgeGrid::new(1, 1);
@@ -70,8 +62,7 @@ fn band_edges_are_the_upper_walls_and_the_barriers_over_a_wall() {
 
 #[test]
 fn a_wall_beside_a_floor_slab_gets_no_strip() {
-    let mut edges = EdgeGrid::new(1, 1);
-    edges.horizontal[1][0] = true;
+    let mut edges = one_horizontal_edge();
     edges.vertical[0][1] = true;
     assert!(trim(&edges, &vec![vec![true]], 1, 1).is_empty());
 }

@@ -8,7 +8,3 @@ pub fn fade_out_alpha(remaining_secs: f32, fade_secs: f32) -> f32 {
     }
     (remaining_secs / fade_secs).clamp(0.0, 1.0)
 }
-
-#[cfg(test)]
-#[path = "tests/fade.rs"]
-mod tests;

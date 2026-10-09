@@ -1,10 +1,11 @@
-use crate::config::fixtures;
 use bevy::prelude::Entity;
 use crossbeam_channel::{Receiver, unbounded};
 
-use super::{QuestBoard, QuestCatalog, assign_quests};
+use super::{
+    QuestBoard, QuestCatalog, QuestEvent, assign_quests, complete_quest, recheck_everyone_quests, record_event,
+};
 use crate::{
-    config::{Quest, QuestKind, ServerGameplayConfig},
+    config::{Quest, QuestKind, ServerGameplayConfig, fixtures},
     players::{PlayerInfo, PlayerMap},
 };
 use common::protocol::{
@@ -32,54 +33,123 @@ pub(crate) fn catalog(quests: Vec<Quest>) -> ServerGameplayConfig {
     config
 }
 
-// An active player with every unlocked quest assigned; the assignment batch
-// is discarded so the receiver only sees what the test triggers.
-pub(crate) fn join(
-    players: &mut PlayerMap,
-    id: u32,
-    catalog: &QuestCatalog,
-    board: &QuestBoard,
-) -> Receiver<ServerMessage> {
-    join_with(players, id, catalog, board, false)
+// A fresh board over `quests` and the players who joined it.
+pub(crate) struct Quests {
+    pub(crate) config: ServerGameplayConfig,
+    pub(crate) catalog: QuestCatalog,
+    pub(crate) board: QuestBoard,
+    pub(crate) players: PlayerMap,
 }
 
-pub(crate) fn join_with(
-    players: &mut PlayerMap,
-    id: u32,
-    catalog: &QuestCatalog,
-    board: &QuestBoard,
-    dead: bool,
-) -> Receiver<ServerMessage> {
-    let (tx, rx) = unbounded();
-    let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    info.connection.logged_in = true;
-    info.connection.name = format!("P{id}");
-    if dead {
-        info.begin_respawn(2.0);
+impl Quests {
+    pub(crate) fn new(quests: Vec<Quest>) -> Self {
+        let config = catalog(quests);
+        let catalog = QuestCatalog::from_config(&config);
+        let board = QuestBoard::from_catalog(&catalog, None);
+        Self {
+            config,
+            catalog,
+            board,
+            players: PlayerMap::default(),
+        }
     }
-    let player = PlayerId(id);
-    players.insert(player, info);
-    assign_quests(players, player, catalog, board);
-    while rx.try_recv().is_ok() {}
-    rx
-}
 
-// What a fresh player would be assigned right now.
-pub(crate) fn assignment_for(catalog: &QuestCatalog, board: &QuestBoard) -> Vec<QuestState> {
-    let (tx, rx) = unbounded();
-    let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    info.connection.logged_in = true;
-    let player = PlayerId(1);
-    let mut players = PlayerMap::default();
-    players.insert(player, info);
-    assign_quests(&mut players, player, catalog, board);
-    match rx.try_recv() {
-        Ok(ServerMessage::QuestUpdates(message)) => message
-            .updates
-            .into_iter()
-            .filter_map(|update| (update.reason == QuestUpdateReason::Assigned).then_some(update.quest))
-            .collect(),
-        _ => Vec::new(),
+    // An active player with every unlocked quest assigned; the assignment
+    // batch is discarded so the receiver only sees what the test triggers.
+    pub(crate) fn join(&mut self, id: u32) -> Receiver<ServerMessage> {
+        self.join_with(id, false)
+    }
+
+    pub(crate) fn join_dead(&mut self, id: u32) -> Receiver<ServerMessage> {
+        self.join_with(id, true)
+    }
+
+    fn join_with(&mut self, id: u32, dead: bool) -> Receiver<ServerMessage> {
+        let (tx, rx) = unbounded();
+        let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
+        info.connection.logged_in = true;
+        info.connection.name = format!("P{id}");
+        if dead {
+            info.begin_respawn(2.0);
+        }
+        let player = PlayerId(id);
+        self.players.insert(player, info);
+        assign_quests(&mut self.players, player, &self.catalog, &self.board);
+        while rx.try_recv().is_ok() {}
+        rx
+    }
+
+    pub(crate) fn record(&mut self, event: QuestEvent) {
+        record_event(
+            &mut self.players,
+            &mut self.board,
+            &self.catalog,
+            &self.config.feed,
+            event,
+        );
+    }
+
+    pub(crate) fn gold(&mut self, id: u32) {
+        self.record(QuestEvent::GoldCollected { player: PlayerId(id) });
+    }
+
+    pub(crate) fn kill(&mut self, id: u32, kind: &str) {
+        self.record(QuestEvent::ActorKilled {
+            player: PlayerId(id),
+            kind,
+        });
+    }
+
+    pub(crate) fn complete(&mut self, quest: &str, targets: &[PlayerId]) -> usize {
+        let quest = self
+            .catalog
+            .get(&QuestId(quest.to_owned()))
+            .expect("quest missing from the catalog");
+        complete_quest(
+            &mut self.players,
+            &mut self.board,
+            &self.catalog,
+            &self.config.feed,
+            quest,
+            targets,
+        )
+    }
+
+    pub(crate) fn recheck(&mut self) {
+        recheck_everyone_quests(&mut self.players, &mut self.board, &self.catalog, &self.config.feed);
+    }
+
+    // What a fresh player would be assigned right now.
+    pub(crate) fn assignment(&self) -> Vec<QuestState> {
+        let (tx, rx) = unbounded();
+        let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
+        info.connection.logged_in = true;
+        let player = PlayerId(1);
+        let mut players = PlayerMap::default();
+        players.insert(player, info);
+        assign_quests(&mut players, player, &self.catalog, &self.board);
+        match rx.try_recv() {
+            Ok(ServerMessage::QuestUpdates(message)) => message
+                .updates
+                .into_iter()
+                .filter_map(|update| (update.reason == QuestUpdateReason::Assigned).then_some(update.quest))
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    pub(crate) fn score(&self, id: u32) -> i32 {
+        self.players.get(&PlayerId(id)).expect("player tracked").session.score
+    }
+
+    pub(crate) fn own_progress(&self, id: u32, quest: &str) -> u32 {
+        self.players
+            .get(&PlayerId(id))
+            .expect("player tracked")
+            .session
+            .quest_states[&QuestId(quest.to_owned())]
+            .own_progress()
+            .expect("quest has own progress")
     }
 }
 
@@ -141,14 +211,4 @@ pub(crate) fn assigned_ids(messages: &[ServerMessage]) -> Vec<String> {
         .filter(|update| update.reason == QuestUpdateReason::Assigned)
         .map(|update| update.quest.id.0.clone())
         .collect()
-}
-
-pub(crate) fn score(players: &PlayerMap, id: u32) -> i32 {
-    players.get(&PlayerId(id)).expect("player tracked").session.score
-}
-
-pub(crate) fn own_progress(players: &PlayerMap, id: u32, quest: &str) -> u32 {
-    players.get(&PlayerId(id)).expect("player tracked").session.quest_states[&QuestId(quest.to_owned())]
-        .own_progress()
-        .expect("quest has own progress")
 }

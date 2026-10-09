@@ -1,28 +1,12 @@
 use serde_json::{Value, json};
 
 use crate::experiment::{
-    fixtures::{chamber, turret_room},
-    script::{Action, End, Script},
+    fixtures::{turret_room, walk, walled_floor},
+    script::{Action, End},
 };
-use tempfile::TempDir;
 
 const EYE: [f32; 3] = [0.0, 1.62, -6.0];
 const PORTAL_WALL: [f32; 3] = [-10.0, 1.62, -11.8];
-
-// A floor with a portalable wall north of the spawn and a solid one east of it.
-fn walled_floor() -> (TempDir, Script) {
-    let floors: Vec<_> = (0..10)
-        .flat_map(|col| (0..10).map(move |row| json!({"col": col, "row": row, "all": "solid"})))
-        .collect();
-    let layout = json!({"map": {"fireworks": null, "grid_cols": 10, "grid_rows": 10,
-        "checkpoints": [{"level": 0, "cols": [2, 3], "rows": [3, 4], "number": 0, "type": "individual"}],
-        "levels": [{"name": "Probe", "floors": floors, "walls": [
-            {"c0": 2, "r0": 2, "c1": 3, "r1": 2, "all": "portal"},
-            {"c0": 7, "r0": 3, "c1": 7, "r1": 4, "all": "solid"},
-        ]}],
-    }});
-    chamber(layout, [-10.0, 0.0, -6.0])
-}
 
 fn close(value: &Value, expected: [f32; 3]) -> bool {
     let value: [f32; 3] = serde_json::from_value(value.clone()).expect("a point");
@@ -31,7 +15,7 @@ fn close(value: &Value, expected: [f32; 3]) -> bool {
 
 #[test]
 fn a_probe_reports_each_shot_and_changes_nothing() {
-    let (_folder, mut script) = walled_floor();
+    let (_folder, mut script) = walled_floor("solid");
     script.actions = vec![Action::Probe {
         eye: None,
         targets: vec![PORTAL_WALL, [7.8, 1.62, -6.0], [-10.0, 50.0, -6.0], [-10.0, 0.0, -4.0]],
@@ -51,7 +35,7 @@ fn a_probe_reports_each_shot_and_changes_nothing() {
 
 #[test]
 fn a_reset_starts_over_where_it_says_or_at_the_scripts_spawn() {
-    let (_folder, mut script) = walled_floor();
+    let (_folder, mut script) = walled_floor("solid");
     script.actions = vec![
         Action::Reset {
             spawn: Some([0.0, 0.0, -6.0]),
@@ -68,7 +52,7 @@ fn a_reset_starts_over_where_it_says_or_at_the_scripts_spawn() {
 
 #[test]
 fn a_placed_portal_opens_where_the_probe_from_its_eye_said() {
-    let (_folder, mut script) = walled_floor();
+    let (_folder, mut script) = walled_floor("solid");
     script.actions = vec![
         Action::Probe {
             eye: Some(EYE),
@@ -96,7 +80,7 @@ fn a_placed_portal_opens_where_the_probe_from_its_eye_said() {
 
 #[test]
 fn a_reset_into_geometry_is_refused_and_changes_nothing() {
-    let (_folder, mut script) = walled_floor();
+    let (_folder, mut script) = walled_floor("solid");
     script.actions = vec![Action::Reset {
         spawn: Some([-10.0, 0.0, -12.0]),
     }];
@@ -108,19 +92,14 @@ fn a_reset_into_geometry_is_refused_and_changes_nothing() {
 
 #[test]
 fn a_teleport_moves_the_body_at_rest_and_keeps_what_the_script_built() {
-    let (_folder, mut script) = walled_floor();
+    let (_folder, mut script) = walled_floor("solid");
     script.actions = vec![
         Action::Place {
             end: End::A,
             eye: EYE,
             target: PORTAL_WALL,
         },
-        Action::Move {
-            direction: [1.0, 0.0],
-            ticks: 6,
-            crouch: false,
-            jump: false,
-        },
+        walk([1.0, 0.0], 6),
         Action::Teleport { feet: [0.0, 0.0, -6.0] },
         Action::Advance { ticks: 3 },
         Action::Teleport {

@@ -21,3 +21,7 @@ pub(crate) fn queue_player_movement(id: PlayerId, report: CMove, players: &mut P
     info.life.movement = report.movement;
     info.life.portal_crossing = report.portal_crossing;
 }
+
+#[cfg(test)]
+#[path = "tests/movement_reports.rs"]
+mod tests;

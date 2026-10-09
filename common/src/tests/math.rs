@@ -1,5 +1,4 @@
 use super::*;
-use std::f32::consts::FRAC_PI_2;
 
 #[test]
 fn angle_delta_wraps_at_pi() {
@@ -8,10 +7,10 @@ fn angle_delta_wraps_at_pi() {
 }
 
 #[test]
-fn direction_from_yaw_pitch_is_unit_and_matches_axes() {
-    assert!((direction_from_yaw_pitch(0.0, 0.0) - Vec3::Z).length() < 1e-6);
-    assert!((direction_from_yaw_pitch(FRAC_PI_2, 0.0) - Vec3::X).length() < 1e-6);
-    assert!((direction_from_yaw_pitch(0.0, FRAC_PI_2) - Vec3::Y).length() < 1e-6);
-    let arbitrary = direction_from_yaw_pitch(1.1, -0.6);
-    assert!((arbitrary.length() - 1.0).abs() < 1e-6);
+fn sequence_comparison_wraps() {
+    assert!(sequence_is_newer(2, 1));
+    assert!(!sequence_is_newer(1, 2));
+    assert!(!sequence_is_newer(5, 5));
+    assert!(sequence_is_newer(0, u32::MAX));
+    assert!(!sequence_is_newer(u32::MAX, 0));
 }

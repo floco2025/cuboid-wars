@@ -13,17 +13,8 @@ mod spawning;
 mod status;
 
 #[cfg(test)]
-#[path = "tests/checkpoints.rs"]
-mod checkpoints_tests;
-#[cfg(test)]
-#[path = "tests/movement.rs"]
-mod movement_tests;
-#[cfg(test)]
-#[path = "tests/resources.rs"]
-mod resources_tests;
-#[cfg(test)]
-#[path = "tests/respawn.rs"]
-pub(crate) mod respawn_tests;
+#[path = "tests/fixtures.rs"]
+pub(crate) mod fixtures;
 
 pub use checkpoints::{CheckpointEntry, CheckpointId, PlayerCheckpoint};
 pub(crate) use checkpoints::{

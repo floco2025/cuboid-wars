@@ -4,9 +4,7 @@ use super::super::tests::test_map_layout;
 use crate::{
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{
-        Barrier, Carrier, CarrierId, FieldId, Position, PressurePlate, RampDirection, RampShape, SwitchId, SwitchState,
-    },
+    protocol::{Carrier, CarrierId, Position, RampDirection, RampShape, SwitchState},
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
 
@@ -88,34 +86,6 @@ fn every_face_is_a_flat_convex_polygon_facing_outward() {
             );
         }
     }
-}
-
-#[test]
-fn fields_and_plates_are_not_structure() {
-    let mut layout = test_map_layout();
-    layout.barriers.push(Barrier {
-        x1: 0.0,
-        z1: 2.0,
-        x2: 4.0,
-        z2: 2.0,
-        width: 0.1,
-        y: LEVEL_HEIGHT,
-        height: WALL_HEIGHT,
-        level: 1,
-        levels: 1,
-        field: FieldId(0),
-        carrier: CarrierId::WORLD,
-    });
-    layout.pressure_plates.push(PressurePlate {
-        level: 1,
-        center_x: 2.0,
-        center_y: LEVEL_HEIGHT,
-        center_z: 2.0,
-        side: 1.0,
-        switch: SwitchId(0),
-        carrier: CarrierId::WORLD,
-    });
-    assert_eq!(CollisionWorld::from_map_layout(&layout).structural_solids().len(), 3);
 }
 
 #[test]

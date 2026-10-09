@@ -1,33 +1,42 @@
-use super::fixtures::{connect, floor_map, server_app, server_app_with_map, server_app_with_options};
-use super::*;
-use crate::players::PlayerCheckpoint;
+use crossbeam_channel::{Receiver, Sender};
+
+use super::{
+    fixtures::{connect, options, server_app, server_app_with_options},
+    *,
+};
+use crate::{map::MapConfig, players::PlayerCheckpoint};
 use common::{
     config::GameplayConfig,
-    constants::{TICK_DURATION, TICK_SECS},
     protocol::{
-        CAdmin, CLogin, CMove, ClientMessage, FieldId, Health, ItemType, MapLayout, PlayerGeneration, PlayerId,
-        PlayerMoveIntent, PlayerMovementState, Position, ServerMessage,
+        CAdmin, CLogin, CMove, ClientMessage, Health, MapLayout, PlayerGeneration, PlayerId, PlayerMoveIntent,
+        PlayerMovementState, Position, ServerMessage,
     },
 };
-use crossbeam_channel::Receiver;
 
-fn feed_texts(receiver: &Receiver<ServerMessage>) -> Vec<String> {
-    std::iter::from_fn(|| receiver.try_recv().ok())
-        .filter_map(|message| match message {
-            ServerMessage::Feed(feed) => Some(feed.spans.into_iter().map(|span| span.text).collect()),
-            _ => None,
-        })
-        .collect()
+fn log_in(app: &mut App, name: &str) -> (Sender<ClientMessage>, Receiver<ServerMessage>) {
+    let (client, receiver) = connect(app);
+    client
+        .send(ClientMessage::Login(CLogin { name: name.into() }))
+        .expect("login failed");
+    app.update();
+    (client, receiver)
 }
 
-fn saved_checkpoint(app: &App, id: PlayerId) -> u32 {
+fn admin(client: &Sender<ClientMessage>, command: &str) {
+    client
+        .send(ClientMessage::Admin(CAdmin {
+            command: command.into(),
+        }))
+        .expect("admin command delivery failed");
+}
+
+fn body(app: &App, id: PlayerId) -> Entity {
     app.world()
         .resource::<PlayerMap>()
         .get(&id)
         .expect("logged-in player missing")
-        .session
-        .checkpoint
-        .number
+        .entity()
+        .expect("player has no body")
 }
 
 fn in_checkpoint(app: &App, number: u32, pos: &Position) -> bool {
@@ -44,16 +53,11 @@ fn in_checkpoint(app: &App, number: u32, pos: &Position) -> bool {
 
 #[test]
 fn checkpoint_option_starts_every_login_at_the_numbered_checkpoint_and_saves_it() {
-    let options = |checkpoint: u32| ServerAppOptions {
-        map: None,
-        god: false,
-        peace: false,
-        initial_spawn: None,
+    let starting_at = |checkpoint: u32| ServerAppOptions {
         checkpoint: Some(checkpoint),
-        network: NetworkOverrides::default(),
-        logging: false,
+        ..options()
     };
-    let error = server_app_with_options(options(7), None)
+    let error = server_app_with_options(starting_at(7), None)
         .expect_err("unknown checkpoint accepted")
         .to_string();
     assert!(
@@ -61,13 +65,10 @@ fn checkpoint_option_starts_every_login_at_the_numbered_checkpoint_and_saves_it(
         "{error}"
     );
 
-    let mut app = server_app_with_options(options(1), None).expect("server app failed to initialize");
-    let (client, receiver) = connect(&mut app);
-    client
-        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
-        .expect("login failed");
-    app.update();
-    let relocation = std::iter::from_fn(|| receiver.try_recv().ok())
+    let mut app = server_app_with_options(starting_at(1), None).expect("server app failed to initialize");
+    let (_, receiver) = log_in(&mut app, "Player");
+    let relocation = receiver
+        .try_iter()
         .find_map(|message| match message {
             ServerMessage::PlayerRelocated(relocation) => Some(relocation),
             _ => None,
@@ -75,61 +76,25 @@ fn checkpoint_option_starts_every_login_at_the_numbered_checkpoint_and_saves_it(
         .expect("login relocation missing");
     let pos = relocation.player.movement.pos;
     assert!(in_checkpoint(&app, 1, &pos), "{pos:?} is outside checkpoint 1");
-    assert_eq!(saved_checkpoint(&app, PlayerId(1)), 1);
-}
-
-#[test]
-fn checkpoint_command_reports_and_sets_the_senders_checkpoint() {
-    let mut app = server_app(NetworkOverrides::default()).expect("server app failed to initialize");
-    let (client, receiver) = connect(&mut app);
-    client
-        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
-        .expect("login failed");
-    app.update();
-    while receiver.try_recv().is_ok() {}
-    let reply = |app: &mut App, command: &str| {
-        client
-            .send(ClientMessage::Admin(CAdmin {
-                command: command.into(),
-            }))
-            .expect("admin command delivery failed");
-        app.update();
-        feed_texts(&receiver)
-    };
-    assert_eq!(reply(&mut app, "/checkpoint"), vec!["checkpoint: 0"]);
     assert_eq!(
-        reply(&mut app, "/checkpoint nowhere"),
-        vec!["usage: /checkpoint [number]"]
+        app.world()
+            .resource::<PlayerMap>()
+            .get(&PlayerId(1))
+            .expect("logged-in player missing")
+            .session
+            .checkpoint
+            .number,
+        1
     );
-    assert_eq!(
-        reply(&mut app, "/checkpoint 7"),
-        vec!["unknown checkpoint 7: the map's checkpoints are 0, 1"]
-    );
-    assert_eq!(saved_checkpoint(&app, PlayerId(1)), 0);
-    assert_eq!(reply(&mut app, "/checkpoint 1"), vec!["checkpoint set to 1"]);
-    assert_eq!(saved_checkpoint(&app, PlayerId(1)), 1);
-    assert_eq!(reply(&mut app, "/checkpoint"), vec!["checkpoint: 1"]);
 }
 
 #[test]
 fn return_command_relocates_the_living_sender_to_its_checkpoint_without_a_death() {
     let mut app = server_app(NetworkOverrides::default()).expect("server app failed to initialize");
-    let (client, receiver) = connect(&mut app);
-    client
-        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
-        .expect("login failed");
-    app.update();
+    let (client, receiver) = log_in(&mut app, "Player");
     while receiver.try_recv().is_ok() {}
     let id = PlayerId(1);
-    let body = |app: &App| {
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&id)
-            .expect("logged-in player missing")
-            .entity()
-            .expect("player has no body")
-    };
-    let entity = body(&app);
+    let entity = body(&app, id);
     let generation = |app: &App| {
         app.world()
             .resource::<PlayerMap>()
@@ -153,13 +118,9 @@ fn return_command_relocates_the_living_sender_to_its_checkpoint_without_a_death(
         player.session.score = 9;
         player.session.checkpoint = PlayerCheckpoint::numbered(1);
     }
-    client
-        .send(ClientMessage::Admin(CAdmin {
-            command: "/return".into(),
-        }))
-        .expect("admin command delivery failed");
+    admin(&client, "/return");
     app.update();
-    let messages: Vec<_> = std::iter::from_fn(|| receiver.try_recv().ok()).collect();
+    let messages: Vec<_> = receiver.try_iter().collect();
     let relocation = messages
         .iter()
         .find_map(|message| match message {
@@ -173,7 +134,7 @@ fn return_command_relocates_the_living_sender_to_its_checkpoint_without_a_death(
             .any(|message| matches!(message, ServerMessage::PlayerDeath(_))),
         "a return is no death"
     );
-    assert_eq!(body(&app), entity, "the body stays; only its generation advances");
+    assert_eq!(body(&app, id), entity, "the body stays; only its generation advances");
     assert_ne!(generation(&app), before);
     assert_eq!(relocation.player.generation, generation(&app));
     assert!(in_checkpoint(&app, 1, &relocation.player.movement.pos));
@@ -202,9 +163,7 @@ fn simultaneous_returns_reserve_their_destinations() {
     while receiver.try_recv().is_ok() {}
 
     // A body as wide as the start's only cell makes its centre the only spawn candidate.
-    let cell_size = app.world().resource::<crate::map::MapConfig>().grids[0]
-        .geometry
-        .cell_size();
+    let cell_size = app.world().resource::<MapConfig>().grids[0].geometry.cell_size();
     {
         let mut gameplay = app.world_mut().resource_mut::<GameplayConfig>();
         gameplay.player.movement_collider.diameter = cell_size;
@@ -227,30 +186,16 @@ fn simultaneous_returns_reserve_their_destinations() {
         app.world_mut().entity_mut(entity).insert(pos);
     }
     for client in [&first, &second] {
-        client
-            .send(ClientMessage::Admin(CAdmin {
-                command: "/return".into(),
-            }))
-            .expect("return delivery failed");
+        admin(client, "/return");
     }
     app.update();
 
-    let positions: Vec<_> = [PlayerId(1), PlayerId(2)]
-        .iter()
-        .map(|id| {
-            let entity = app
-                .world()
-                .resource::<PlayerMap>()
-                .get(id)
-                .expect("player missing")
-                .entity()
-                .expect("body missing");
-            *app.world().get::<Position>(entity).expect("position missing")
-        })
-        .collect();
+    let positions =
+        [PlayerId(1), PlayerId(2)].map(|id| *app.world().get::<Position>(body(&app, id)).expect("position missing"));
     assert_eq!(positions.iter().filter(|pos| in_checkpoint(&app, 0, pos)).count(), 1);
     assert_ne!(positions[0], positions[1], "both returns claimed the only spot");
-    let relocations = std::iter::from_fn(|| receiver.try_recv().ok())
+    let relocations = receiver
+        .try_iter()
         .filter(|message| matches!(message, ServerMessage::PlayerRelocated(_)))
         .count();
     assert_eq!(relocations, 1, "the blocked return must not relocate its player");
@@ -264,19 +209,9 @@ fn returns_preserve_heals_in_the_same_ingress_batch() {
         vec!["/return", "/heal", "/return"],
     ] {
         let mut app = server_app(NetworkOverrides::default()).expect("server app failed to initialize");
-        let (client, receiver) = connect(&mut app);
-        client
-            .send(ClientMessage::Login(CLogin { name: "Player".into() }))
-            .expect("login failed");
-        app.update();
+        let (client, receiver) = log_in(&mut app, "Player");
         while receiver.try_recv().is_ok() {}
-        let entity = app
-            .world()
-            .resource::<PlayerMap>()
-            .get(&PlayerId(1))
-            .expect("player missing")
-            .entity()
-            .expect("body missing");
+        let entity = body(&app, PlayerId(1));
         let initial_health = 17.0;
         app.world_mut().entity_mut(entity).insert(Health(initial_health));
         let max_health = app.world().resource::<ServerGameplayConfig>().combat.health.player.max;
@@ -288,15 +223,12 @@ fn returns_preserve_heals_in_the_same_ingress_batch() {
             } else {
                 expected_relocations.push(expected_health);
             }
-            client
-                .send(ClientMessage::Admin(CAdmin {
-                    command: (*command).into(),
-                }))
-                .expect("admin command delivery failed");
+            admin(&client, command);
         }
         app.update();
         assert_eq!(app.world().get::<Health>(entity).expect("health missing").0, max_health);
-        let relocation_health: Vec<_> = std::iter::from_fn(|| receiver.try_recv().ok())
+        let relocation_health: Vec<_> = receiver
+            .try_iter()
             .filter_map(|message| match message {
                 ServerMessage::PlayerRelocated(message) => Some(message.player.health.0),
                 _ => None,
@@ -307,78 +239,21 @@ fn returns_preserve_heals_in_the_same_ingress_batch() {
 }
 
 #[test]
-fn startup_god_and_peace_share_the_console_state() {
-    for god in [false, true] {
-        for peace in [false, true] {
-            let mut app = server_app_with_options(
-                ServerAppOptions {
-                    map: None,
-                    god,
-                    peace,
-                    initial_spawn: None,
-                    checkpoint: None,
-                    network: NetworkOverrides::default(),
-                    logging: false,
-                },
-                None,
-            )
-            .expect("server app failed to initialize");
-            assert_eq!(app.world().resource::<Invincibility>().0, god);
-            assert_eq!(app.world().resource::<ActorMap>().peaceful, peace);
-            let (client, receiver) = connect(&mut app);
-            client
-                .send(ClientMessage::Login(CLogin { name: "Player".into() }))
-                .expect("login failed");
-            app.update();
-            let snapshot = std::iter::from_fn(|| receiver.try_recv().ok())
-                .find_map(|message| match message {
-                    ServerMessage::Snapshot(snapshot) => Some(snapshot),
-                    _ => None,
-                })
-                .expect("initial snapshot missing");
-            assert_eq!(snapshot.actors_peaceful, peace);
-
-            for (command, expected_god, expected_peace) in [("/god", !god, peace), ("/peace", !god, !peace)] {
-                client
-                    .send(ClientMessage::Admin(CAdmin {
-                        command: command.into(),
-                    }))
-                    .expect("admin command delivery failed");
-                app.update();
-                assert_eq!(app.world().resource::<Invincibility>().0, expected_god);
-                assert_eq!(app.world().resource::<ActorMap>().peaceful, expected_peace);
-            }
-        }
-    }
-}
-
-#[test]
 fn initial_spawn_override_places_the_first_single_player_body_exactly() {
     let expected = Position {
         x: -8.5,
         y: 3.25,
         z: 11.0,
     };
-    let mut app = server_app_with_options(
-        ServerAppOptions {
-            map: None,
-            god: false,
-            peace: false,
-            initial_spawn: Some(expected),
-            checkpoint: None,
-            network: NetworkOverrides::default(),
-            logging: false,
-        },
-        None,
-    )
-    .expect("server app failed to initialize");
-    let (client, receiver) = connect(&mut app);
-    client
-        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
-        .expect("login failed");
-    app.update();
+    let spawning = ServerAppOptions {
+        initial_spawn: Some(expected),
+        ..options()
+    };
+    let mut app = server_app_with_options(spawning, None).expect("server app failed to initialize");
+    let (_, receiver) = log_in(&mut app, "Player");
 
-    let snapshot = std::iter::from_fn(|| receiver.try_recv().ok())
+    let snapshot = receiver
+        .try_iter()
         .find_map(|message| match message {
             ServerMessage::Snapshot(snapshot) => Some(snapshot),
             _ => None,
@@ -386,112 +261,6 @@ fn initial_spawn_override_places_the_first_single_player_body_exactly() {
         .expect("initial snapshot missing");
     let player = snapshot.players.first().expect("spawned player missing");
     assert_eq!(player.1.movement.pos, expected);
-}
-
-#[test]
-fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
-    let mut app = server_app(NetworkOverrides {
-        snapshot_hz: Some(1),
-        ..default()
-    })
-    .expect("server app failed to initialize");
-    let id = PlayerId(1);
-    let (client, receiver) = connect(&mut app);
-    client
-        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
-        .expect("login failed");
-    app.update();
-    while receiver.try_recv().is_ok() {}
-
-    let max = app.world().resource::<GameplayConfig>().missiles.max_missiles;
-    for ammo in [0, max / 2, max] {
-        app.world_mut()
-            .resource_mut::<PlayerMap>()
-            .get_mut(&id)
-            .expect("logged-in player missing")
-            .life
-            .missiles = ammo;
-        client
-            .send(ClientMessage::Admin(CAdmin {
-                command: "/give missiles".into(),
-            }))
-            .expect("admin command delivery failed");
-        app.update();
-        let statuses: Vec<_> = std::iter::from_fn(|| receiver.try_recv().ok())
-            .filter_map(|message| match message {
-                ServerMessage::PlayerStatus(status) => Some(status),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(
-            statuses.len(),
-            1,
-            "grant must request weapon selection once at {ammo} ammo"
-        );
-        let status = &statuses[0];
-        let players = app.world().resource::<PlayerMap>();
-        let player = players.get(&id).expect("logged-in player missing");
-        assert_eq!(status.id, id);
-        assert_eq!(status.generation, player.session.generation);
-        assert_eq!(status.collected, Some(ItemType::MissilePack));
-        assert_eq!(status.missiles, max);
-        assert_eq!(player.life.missiles, max);
-    }
-}
-
-#[test]
-fn give_keys_hands_out_only_the_keys_placed_on_the_map() {
-    let mut map = floor_map();
-    // Keep random login placement away from the key so only /give can grant it.
-    map["checkpoints"][0]["rows"] = serde_json::json!([1, 2]);
-    map["fields"] = serde_json::json!([
-        {"id": "lobby", "color": "#ff0000"},
-        {"id": "vault", "color": "#0000ff"}
-    ]);
-    map["items"] = serde_json::json!([{"level": 0, "col": 0, "row": 0, "type": "key", "field": "vault"}]);
-    let options = ServerAppOptions {
-        map: None,
-        god: false,
-        peace: false,
-        initial_spawn: None,
-        checkpoint: None,
-        network: NetworkOverrides::default(),
-        logging: false,
-    };
-    let mut app = server_app_with_map(options, None, map).expect("server app failed to initialize");
-    let id = PlayerId(1);
-    let (client, receiver) = connect(&mut app);
-    client
-        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
-        .expect("login failed");
-    app.update();
-    while receiver.try_recv().is_ok() {}
-
-    let held_keys = |app: &App| {
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&id)
-            .expect("logged-in player missing")
-            .life
-            .held_keys
-            .clone()
-    };
-    let vault = FieldId(1);
-    for (command, expected_reply) in [
-        ("/give key lobby", "no \"lobby\" key on this map (keys: vault)"),
-        ("/give keys", "gave 1 key(s)"),
-        ("/give keys", "gave 0 key(s)"),
-    ] {
-        client
-            .send(ClientMessage::Admin(CAdmin {
-                command: command.into(),
-            }))
-            .expect("admin command delivery failed");
-        app.update();
-        let replies = feed_texts(&receiver);
-        assert_eq!(replies, [expected_reply.to_owned()], "reply to {command}");
-    }
-    assert_eq!(held_keys(&app), [vault]);
 }
 
 #[test]
@@ -516,12 +285,7 @@ fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
     let targets: Vec<_> = clients
         .iter()
         .map(|(id, _, _)| {
-            let entity = app
-                .world()
-                .resource::<PlayerMap>()
-                .get(id)
-                .and_then(|info| info.entity())
-                .expect("player body missing");
+            let entity = body(&app, *id);
             let mut pos = *app.world().get::<Position>(entity).expect("player position missing");
             pos.x += 0.2;
             (*id, entity, pos)
@@ -544,32 +308,30 @@ fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
             pos
         );
     }
-    for (id, _, receiver) in &mut clients {
-        let latest = std::iter::from_fn(|| receiver.try_recv().ok())
+    let latest_moves = |receiver: &Receiver<ServerMessage>| {
+        receiver
+            .try_iter()
             .filter_map(|message| match message {
                 ServerMessage::PlayerMoves(moves) => Some(moves),
                 _ => None,
             })
             .last()
-            .expect("movement broadcast missing");
+            .expect("movement broadcast missing")
+    };
+    for (id, _, receiver) in &clients {
+        let latest = latest_moves(receiver);
         assert_eq!(latest.moves.len(), 1);
         assert!(latest.moves.iter().all(|entry| entry.id != *id && entry.seq == 1));
     }
     app.update();
-    for (id, _, receiver) in &mut clients {
-        let latest = std::iter::from_fn(|| receiver.try_recv().ok())
-            .filter_map(|message| match message {
-                ServerMessage::PlayerMoves(moves) => Some(moves),
-                _ => None,
-            })
-            .last()
-            .expect("live movement missing");
+    for (id, _, receiver) in &clients {
+        let latest = latest_moves(receiver);
         assert!(latest.moves.iter().all(|entry| entry.id != *id && entry.seq == 1));
     }
 }
 
 #[test]
-fn server_rate_overrides_reject_zero_duration_ticks_before_app_creation() {
+fn rate_overrides_are_checked_together_before_app_creation() {
     for server_hz in [1_000_000_001, u32::MAX] {
         let error = server_app(NetworkOverrides {
             server_hz: Some(server_hz),
@@ -580,65 +342,85 @@ fn server_rate_overrides_reject_zero_duration_ticks_before_app_creation() {
         assert!(error.contains("network.server_hz"), "{error}");
         assert!(error.contains("at least 1 ns"), "{error}");
     }
+    for (server, updates, snapshots) in [(0, 1, 1), (30, 60, 4), (60, 30, 61)] {
+        assert!(
+            server_app(NetworkOverrides {
+                server_hz: Some(server),
+                update_hz: Some(updates),
+                snapshot_hz: Some(snapshots),
+            })
+            .is_err()
+        );
+    }
 }
 
 #[test]
-fn independent_rate_overrides_reach_init_and_leave_simulation_unchanged() {
-    let mut app = server_app(NetworkOverrides {
-        update_hz: Some(2),
-        snapshot_hz: Some(7),
-        ..default()
-    })
-    .expect("server app failed");
-    let (client, receiver) = connect(&mut app);
-    client
-        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
-        .expect("login failed");
-    // Movement batches carry the other players, so the counted client needs company.
-    let (other, _other_receiver) = connect(&mut app);
-    other
-        .send(ClientMessage::Login(CLogin { name: "Other".into() }))
-        .expect("login failed");
-    app.update();
-    let init = std::iter::from_fn(|| receiver.try_recv().ok())
-        .filter_map(|message| match message {
-            ServerMessage::Init(init) => Some(init),
-            _ => None,
-        })
-        .last()
-        .expect("init missing");
-    assert_eq!(init.world.network.update_hz, 2);
-    assert_eq!(init.world.network.snapshot_hz, 7);
-    assert_eq!(app.world().resource::<NetworkConfig>().update_hz, 2);
-    let before = app.world().resource::<ServerTick>().0;
-    for _ in 0..60 {
+fn rate_overrides_reach_init_and_drive_the_tick_and_broadcast_cadences() {
+    for (overrides, expected_moves, expected_snapshots) in [
+        (
+            NetworkOverrides {
+                update_hz: Some(2),
+                snapshot_hz: Some(7),
+                ..default()
+            },
+            4,
+            14,
+        ),
+        (
+            NetworkOverrides {
+                server_hz: Some(60),
+                update_hz: Some(30),
+                snapshot_hz: Some(4),
+            },
+            30,
+            4,
+        ),
+    ] {
+        let mut app = server_app(overrides).expect("server app failed");
+        let (client, receiver) = connect(&mut app);
+        client
+            .send(ClientMessage::Login(CLogin { name: "Player".into() }))
+            .expect("login failed");
+        // Movement batches carry the other players, so the counted client needs company.
+        let (other, _other_receiver) = connect(&mut app);
+        other
+            .send(ClientMessage::Login(CLogin { name: "Other".into() }))
+            .expect("login failed");
         app.update();
-    }
-    assert_eq!(app.world().resource::<ServerTick>().0.wrapping_sub(before), 60);
-    let mut moves = 0;
-    let mut snapshots = 0;
-    for message in std::iter::from_fn(|| receiver.try_recv().ok()) {
-        match message {
-            ServerMessage::PlayerMoves(_) => moves += 1,
-            ServerMessage::Snapshot(_) => snapshots += 1,
-            _ => {}
+        let init = receiver
+            .try_iter()
+            .find_map(|message| match message {
+                ServerMessage::Init(init) => Some(init),
+                _ => None,
+            })
+            .expect("init missing");
+        let network = init.world.network;
+        assert_eq!(Some(network.update_hz), overrides.update_hz);
+        assert_eq!(Some(network.snapshot_hz), overrides.snapshot_hz);
+        if let Some(server_hz) = overrides.server_hz {
+            assert_eq!(network.server_hz, server_hz);
         }
+        assert_eq!(app.world().resource::<NetworkConfig>().server_hz, network.server_hz);
+        assert_eq!(app.world().resource::<NetworkConfig>().update_hz, network.update_hz);
+        while receiver.try_recv().is_ok() {}
+        let start_tick = app.world().resource::<ServerTick>().0;
+        let start_time = app.world().resource::<Time>().elapsed_secs();
+        for _ in 0..60 {
+            app.update();
+        }
+        assert_eq!(app.world().resource::<ServerTick>().0.wrapping_sub(start_tick), 60);
+        let elapsed = app.world().resource::<Time>().elapsed_secs() - start_time;
+        assert!((elapsed - 60.0 / network.server_hz as f32).abs() < 1e-5);
+        let mut moves = 0;
+        let mut snapshots = 0;
+        for message in receiver.try_iter() {
+            match message {
+                ServerMessage::PlayerMoves(_) => moves += 1,
+                ServerMessage::Snapshot(_) => snapshots += 1,
+                _ => {}
+            }
+        }
+        assert_eq!(moves, expected_moves);
+        assert_eq!(snapshots, expected_snapshots);
     }
-    assert_eq!(moves, 4);
-    assert_eq!(snapshots, 14);
-}
-
-#[test]
-fn server_time_advances_exactly_one_tick_per_update() {
-    let mut app = App::new();
-    app.insert_resource(TimeUpdateStrategy::ManualDuration(TICK_DURATION));
-    app.add_plugins(MinimalPlugins);
-    // The first update only records the start instant.
-    for _ in 0..3 {
-        app.update();
-    }
-
-    let time = app.world().resource::<Time>();
-    assert!((time.delta_secs() - TICK_SECS).abs() < 1e-6);
-    assert!((time.elapsed_secs() - 2.0 * TICK_SECS).abs() < 1e-6);
 }

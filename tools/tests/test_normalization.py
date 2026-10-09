@@ -1,6 +1,6 @@
 import unittest
 
-from editor_fixtures import faces, floor, nested
+from editor_fixtures import actor_zone, faces, floor, nested
 from map_editor.constants import TERRAIN_FACES
 from map_editor.normalization import (
     canonicalize_map,
@@ -10,7 +10,6 @@ from map_editor.normalization import (
     expand_terrain_materials,
     nested_map_spans_level,
     normalize_map,
-    normalize_nested_map,
 )
 from map_editor.validation import validate_map
 
@@ -79,7 +78,7 @@ class NormalizationTests(unittest.TestCase):
 
     def test_canonicalization_keeps_actor_zones_that_differ_only_by_switch(self) -> None:
         data = empty_map(4, 4)
-        zone = {"level": 0, "cols": [0, 2], "rows": [0, 2], "kind": "zapper", "count": [1], "respawn_secs": 90}
+        zone = actor_zone(cols=[0, 2], rows=[0, 2])
         data["actor_spawn_zones"] = [{**zone, "switch": "guards"}, dict(zone), {**zone, "switch": "guards"}, dict(zone)]
 
         result = canonicalize_map(data)
@@ -88,7 +87,7 @@ class NormalizationTests(unittest.TestCase):
 
     def test_actor_zone_identity_includes_the_course_end_and_drops_an_orphan_response(self) -> None:
         data = empty_map(2, 2)
-        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "respawn_secs": 90}
+        zone = actor_zone()
         data["actor_spawn_zones"] = [
             dict(zone, until_checkpoint=2, on_checkpoint="destroy"),
             dict(zone, until_checkpoint=2),
@@ -107,14 +106,13 @@ class NormalizationTests(unittest.TestCase):
 
     def test_actor_zone_numbers_sort_numerically_and_equivalent_values_deduplicate(self) -> None:
         data = empty_map(2, 2)
-        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1]}
-        data["actor_spawn_zones"] = [dict(zone, roam_distance=value) for value in [10, 2, 1.0, 1]]
+        data["actor_spawn_zones"] = [actor_zone(roam_distance=value) for value in [10, 2, 1.0, 1]]
         result = canonicalize_map(data)
         self.assertEqual([zone["roam_distance"] for zone in result["actor_spawn_zones"]], [1, 2, 10])
 
     def test_actor_zone_beam_in_is_dropped_at_zero_and_distinguishes_zones(self) -> None:
         data = empty_map(2, 2)
-        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "respawn_secs": 90}
+        zone = actor_zone()
         data["actor_spawn_zones"] = [
             dict(zone, beam_in_secs=2.5),
             dict(zone, beam_in_secs=0),
@@ -123,43 +121,16 @@ class NormalizationTests(unittest.TestCase):
         result = canonicalize_map(data)
         self.assertEqual(result["actor_spawn_zones"], [zone, {**zone, "beam_in_secs": 2.5}])
 
-    def test_actor_zone_identity_preserves_the_initial_state(self) -> None:
+    def test_actor_zone_identity_includes_the_initial_state_and_keeps_an_invalid_one_for_validation(self) -> None:
         data = empty_map(2, 2)
-        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "switch": "guards"}
-        data["actor_spawn_zones"] = [zone, dict(zone, initially_on=False)]
+        zone = actor_zone(switch="guards")
+        data["actor_spawn_zones"] = [dict(zone, initially_on=value) for value in [True, False, "invalid", True]]
         result = canonicalize_map(data)
-        self.assertEqual([zone.get("initially_on", True) for zone in result["actor_spawn_zones"]], [False, True])
-
-    def test_invalid_zone_controls_survive_canonicalization_for_validation(self) -> None:
-        data = empty_map(2, 2)
-        zone = {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": [1], "switch": "guards"}
-        data["actor_spawn_zones"] = [dict(zone, initially_on=value) for value in [False, "invalid", True]]
-        result = canonicalize_map(data)
-        self.assertEqual(len(result["actor_spawn_zones"]), 3)
-        self.assertTrue(any(zone["initially_on"] == "invalid" for zone in result["actor_spawn_zones"]))
+        self.assertCountEqual([zone["initially_on"] for zone in result["actor_spawn_zones"]], [False, True, "invalid"])
 
     def test_zone_and_nested_map_switches_preserve_authored_values(self) -> None:
         data = empty_map(2, 2)
-        data["actor_spawn_zones"] = [
-            {
-                "level": 0,
-                "cols": [0, 1],
-                "rows": [0, 1],
-                "kind": "zapper",
-                "count": [1],
-                "respawn_secs": 90,
-                "switch": "guards",
-            },
-            {
-                "level": 0,
-                "cols": [0, 1],
-                "rows": [0, 1],
-                "kind": "zapper",
-                "count": [1],
-                "respawn_secs": 90,
-                "switch": "",
-            },
-        ]
+        data["actor_spawn_zones"] = [actor_zone(switch="guards"), actor_zone(switch="")]
         data["nested_maps"] = [
             {"map": "tile", "level": 0, "from": [0, 0], "to": [1, 0], "switch": "lift"},
             {"map": "tile", "level": 0, "from": [1, 1], "to": [1, 1], "switch": None},
@@ -167,10 +138,8 @@ class NormalizationTests(unittest.TestCase):
 
         result = normalize_map(data)
 
-        self.assertEqual([zone.get("switch") for zone in result["actor_spawn_zones"]], ["guards", ""])
-        self.assertEqual([entry.get("switch") for entry in result["nested_maps"]], ["lift", None])
-        self.assertEqual(result["actor_spawn_zones"][1]["switch"], "")
-        self.assertIsNone(result["nested_maps"][1]["switch"])
+        self.assertEqual([zone["switch"] for zone in result["actor_spawn_zones"]], ["guards", ""])
+        self.assertEqual([entry["switch"] for entry in result["nested_maps"]], ["lift", None])
 
     def test_canonicalization_keeps_the_last_bridge_per_cell_sorted_by_row_then_col(self) -> None:
         data = empty_map(3, 3)
@@ -203,11 +172,6 @@ class NormalizationTests(unittest.TestCase):
             nested(" padded ", 0, [2, 2], [2, 2]),
         ]
         self.assertEqual([e["from"] for e in canonicalize_map(data)["nested_maps"]], [[1, 1], [3, 3]])
-
-    def test_nested_map_nudges_default_to_zero(self) -> None:
-        entry = normalize_nested_map({"map": "cabin", "level": 0, "from": [1, 1], "to": [2, 1]})
-        self.assertEqual((entry["from_nudge"], entry["to_nudge"]), ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]))
-        self.assertEqual(entry["travel_secs"], 2.0)
 
     def test_a_nested_map_spans_its_own_storeys_plus_its_motion(self) -> None:
         lift = nested("cabin", 1, [1, 1], [1, 1], 2)

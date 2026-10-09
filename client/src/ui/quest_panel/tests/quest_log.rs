@@ -1,3 +1,5 @@
+use common::protocol::QuestStatus;
+
 use super::{super::test_support::*, *};
 
 fn id(id: &str) -> QuestId {
@@ -37,37 +39,22 @@ fn quest_state(quest_id: &str, scope: QuestScope, progress: u32, completed: bool
         threshold: 10,
         scope,
         order: 0,
-        status: common::protocol::QuestStatus { completed, progress },
+        status: QuestStatus { completed, progress },
     }
 }
 
 #[test]
-fn assign_rejects_a_known_id() {
-    let mut log = log(vec![("gold", entry("Gold", QuestScope::Individual, 0, 10, 0))]);
-    assert!(!log.assign(id("gold"), entry("Gold", QuestScope::Individual, 0, 10, 0)));
-}
-
-#[test]
-fn progress_keeps_the_max() {
+fn the_first_state_installs_the_quest_and_progress_keeps_the_max() {
     let mut log = QuestLog::default();
 
-    log.apply_state(quest_state("gold", QuestScope::Individual, 4, false))
+    let change = log
+        .apply_state(quest_state("gold", QuestScope::Individual, 4, false))
         .expect("first state should apply");
+    assert!(change.inserted);
     log.apply_state(quest_state("gold", QuestScope::Individual, 2, false))
         .expect("stale state should apply without regressing");
 
     assert_eq!(log.entry("gold").expect("assigned").progress, QuestProgress::Own(4));
-}
-
-#[test]
-fn full_progress_state_installs_the_quest() {
-    let mut log = QuestLog::default();
-    let change = log
-        .apply_state(quest_state("gold", QuestScope::Individual, 9, false))
-        .expect("full state should apply");
-
-    assert!(change.inserted);
-    assert_eq!(log.entry("gold").expect("assigned").progress, QuestProgress::Own(9));
 }
 
 #[test]

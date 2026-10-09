@@ -136,7 +136,3 @@ pub(super) fn handle_login_message(
 #[cfg(test)]
 #[path = "tests/login.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "tests/login_checkpoint.rs"]
-mod checkpoint_tests;

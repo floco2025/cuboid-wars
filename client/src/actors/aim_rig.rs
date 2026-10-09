@@ -10,11 +10,11 @@ pub struct AimJointMarker;
 
 #[derive(Component)]
 pub struct AimRig {
-    pub(super) yaw: Entity,
-    pub(super) pitch: Entity,
-    pub(super) parents: Vec<Entity>,
-    pub(super) pivot: Vec3,
-    pub(super) muzzle_distance: f32,
+    yaw: Entity,
+    pitch: Entity,
+    parents: Vec<Entity>,
+    pivot: Vec3,
+    muzzle_distance: f32,
 }
 
 pub fn aim_rig_setup_system(
@@ -122,9 +122,13 @@ impl AimRig {
     }
 }
 
-pub(super) fn aim_rotations(direction: Vec3) -> (Quat, Quat) {
+fn aim_rotations(direction: Vec3) -> (Quat, Quat) {
     (
         Quat::from_rotation_y((-direction.x).atan2(-direction.z)),
         Quat::from_rotation_x(direction.y.atan2(direction.xz().length())),
     )
 }
+
+#[cfg(test)]
+#[path = "tests/aim_rig.rs"]
+mod tests;

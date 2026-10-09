@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from PySide6.QtTest import QSignalSpy
 
-from editor_fixtures import DEFAULT_ALIAS, qt_app
+from editor_fixtures import DEFAULT_ALIAS, actor_zone, blank_map, qt_app
 from map_editor.document import MapDocument
 from map_editor.editing import paint_floors
 from map_editor.erasing import erase_cell_rect
@@ -31,9 +31,6 @@ class DocumentTests(unittest.TestCase):
     def tearDown(self):
         self.doc.clear_autosave()
         self.temp.cleanup()
-
-    def test_unsaved_document_starts_dirty(self):
-        self.assertTrue(MapDocument(None).dirty)
 
     def test_save_as_failure_keeps_autosave_and_original_identity(self):
         path = self.directory / "original.json"
@@ -70,9 +67,7 @@ class DocumentTests(unittest.TestCase):
         data["levels"][0]["lights"] = [{"col": 2, "row": 2, "side": "invalid"}]
         data["ladders"] = [{"col": 3, "row": 3, "lower_level": 0, "levels": 0, "side": "invalid"}]
         data["items"] = [{"col": 8, "row": 7, "level": 0, "type": "gold"}]
-        data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "unknown", "count": [-2], "respawn_secs": 90}
-        ]
+        data["actor_spawn_zones"] = [actor_zone(kind="unknown", count=[-2])]
         write_map(self.path, data)
         self.doc.load(self.path)
         return self.doc.map_data
@@ -121,8 +116,7 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(sides, ["INVALID"])
 
     def test_an_edit_that_only_reorders_a_file_ordered_map_is_not_an_edit(self):
-        data = empty_map(6, 6)
-        data["checkpoints"] = []
+        data = blank_map(6, 6)
         data["levels"][0]["floors"] = [
             {"col": 3, "row": 3, "all": DEFAULT_ALIAS},
             {"col": 1, "row": 1, "all": DEFAULT_ALIAS},

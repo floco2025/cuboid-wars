@@ -218,21 +218,6 @@ impl CollisionWorld {
         }
     }
 
-    #[cfg(test)]
-    #[must_use]
-    pub(super) fn solid_count(&self) -> usize {
-        self.colliders.len()
-    }
-
-    #[cfg(test)]
-    #[must_use]
-    pub(super) fn solid_kinds(&self) -> Vec<ColliderKind> {
-        self.colliders
-            .iter()
-            .filter_map(|(_, collider)| ColliderKind::from_user_data(collider.user_data))
-            .collect()
-    }
-
     // Whether the oriented shape touches anything a body could stand on or
     // walk into right now: the static world plus the light bridges that are on.
     #[must_use]

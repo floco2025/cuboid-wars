@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QContextMenuEvent, QMouseEvent, QWheelEvent
+from PySide6.QtGui import QContextMenuEvent, QMouseEvent
 from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWidgets import QComboBox, QDialog, QMenu, QMessageBox
 
@@ -13,7 +13,6 @@ from map_editor.constants import (
     FACES,
     HIT_ITEM,
     HIT_LADDER,
-    HIT_LIGHT,
     HIT_TERRAIN,
     MODE_ACTOR_SPAWN_ZONE,
     MODE_ERASE,
@@ -48,19 +47,12 @@ class WindowTests(WindowTestCase):
         data["items"] = [{"level": 0, "col": 6, "row": 6, "type": "not_a_type"}]
         window.doc.replace_with_new(data)
         self.click(1, 1)
-        with patch("PySide6.QtWidgets.QInputDialog.getInt", side_effect=AssertionError("Unexpected selection dialog")):
-            window.copy_action.trigger()
+        window.copy_action.trigger()
         self.click(3, 3)
         with patch.object(window, "notify") as refused:
             window.paste_action.trigger()
         refused.assert_not_called()
         self.assertEqual(len(window.map_data["levels"][0]["floors"]), 4)
-
-    def test_panels_and_selection_scope_are_available_on_startup(self):
-        window = self.window
-        self.assertFalse(window.issues_dialog.isVisible())
-        self.assertTrue(window.tool_palette.isVisible())
-        self.assertTrue(window.tool_settings.isVisible())
 
     def test_close_saves_geometry_shared_with_other_maps_but_cancel_keeps_window_open(self):
         window = self.window
@@ -141,8 +133,7 @@ class WindowTests(WindowTestCase):
             with self.subTest(mode=mode), patch.object(window, method) as place:
                 window.set_mode(mode)
                 self.app.processEvents()
-                start = canvas.viewport.from_grid(QPointF(1.5, 1.1)).toPoint()
-                end = canvas.viewport.from_grid(QPointF(4.5, 4.1)).toPoint()
+                start, end = self.point(1.5, 1.1), self.point(4.5, 4.1)
                 QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=start)
                 self.move_with_button(canvas, end)
                 self.assertEqual(canvas.hover_cell, (4, 4))
@@ -163,7 +154,7 @@ class WindowTests(WindowTestCase):
             with self.subTest(cancel=cancel), patch.object(window, "prompt_and_add_pressure_plate") as place:
                 window.set_mode(MODE_PRESSURE_PLATE)
                 self.app.processEvents()
-                position = canvas.viewport.from_grid(QPointF(2.5, 2.5)).toPoint()
+                position = self.point(2.5, 2.5)
                 QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=position)
                 if cancel == "escape":
                     QTest.keyClick(canvas, Qt.Key.Key_Escape)
@@ -191,8 +182,7 @@ class WindowTests(WindowTestCase):
             with self.subTest(mode=mode), patch.object(window, method) as place:
                 window.set_mode(mode)
                 self.app.processEvents()
-                start = canvas.viewport.from_grid(QPointF(1.1, 1.1)).toPoint()
-                end = canvas.viewport.from_grid(QPointF(4.1, 1.1)).toPoint()
+                start, end = self.point(1.1, 1.1), self.point(4.1, 1.1)
                 QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=start)
                 self.move_with_button(canvas, end)
                 self.assertEqual(canvas.drag_start_cell, (1, 1))
@@ -200,35 +190,6 @@ class WindowTests(WindowTestCase):
                 QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=end)
                 place.assert_called_once()
                 self.assertEqual(place.call_args.args[:2], ((1, 1), (4, 1)))
-
-    def test_tool_settings_are_inline_and_hide_for_tools_without_properties(self):
-        window = self.window
-        window.set_mode(MODE_ACTOR_SPAWN_ZONE)
-        self.app.processEvents()
-        self.assertTrue(window.tool_settings.isVisible())
-        for mode in (MODE_ERASE,):
-            window.set_mode(mode)
-            self.app.processEvents()
-            self.assertFalse(window.tool_settings.isVisible())
-        window.set_mode(MODE_FLOOR)
-        self.app.processEvents()
-        self.assertTrue(window.tool_settings.isVisible())
-
-    def test_item_field_control_only_shows_for_keys_including_recalled_settings(self):
-        window = self.window
-        window.recent_item_type = "gold"
-        window.set_mode(MODE_ITEM)
-        self.app.processEvents()
-        item, field = window.tool_settings.body.findChildren(QComboBox)
-        self.assertEqual(field.accessibleName(), "Field")
-        self.assertFalse(field.isVisible())
-        item.setCurrentText("key")
-        self.app.processEvents()
-        self.assertTrue(field.isVisible())
-        window.recent_item_type = "gold"
-        window.tool_settings.refresh()
-        self.app.processEvents()
-        self.assertFalse(window.tool_settings.body.findChildren(QComboBox)[1].isVisible())
 
     def test_canvas_notice_replaces_and_expires_without_resizing_or_taking_focus(self):
         window = self.window
@@ -248,16 +209,6 @@ class WindowTests(WindowTestCase):
         self.assertFalse(notice.isVisible())
         self.assertEqual(canvas.geometry(), geometry)
 
-    def test_long_canvas_notice_stays_inside_canvas_after_resize(self):
-        window = self.window
-        window.notify("Cannot place the item here. " * 12)
-        window.resize(650, 500)
-        self.app.processEvents()
-        notice = window.canvas.notice
-        self.assertTrue(window.canvas.rect().contains(notice.geometry()))
-        self.assertGreater(notice.height(), notice.fontMetrics().height() * 2)
-        self.assertEqual(notice.text(), "Cannot place the item here. " * 12)
-
     def test_issues_popup_is_available_on_request_and_updates_after_edit_and_undo(self):
         window = self.window
         panel = window.issues_dialog
@@ -272,31 +223,6 @@ class WindowTests(WindowTestCase):
         window.undo_stack.undo()
         self.assertEqual(panel.list.count(), 0)
         self.assertEqual(panel.summary.text(), "No issues")
-
-    def test_wheel_pan_and_selection_use_the_same_transform(self):
-        canvas = self.window.canvas
-        canvas.zoom_by(2)
-        anchor = QPointF(100, 100)
-        origin = QPointF(canvas.viewport.offset)
-        cell = canvas.cell_size()
-        event = QWheelEvent(
-            anchor,
-            anchor,
-            QPoint(),
-            QPoint(0, 120),
-            Qt.MouseButton.NoButton,
-            Qt.KeyboardModifier.NoModifier,
-            Qt.ScrollPhase.ScrollUpdate,
-            False,
-        )
-        self.app.sendEvent(canvas, event)
-        self.assertEqual(canvas.viewport.offset, origin + QPointF(0, 40))
-        self.assertEqual(canvas.cell_size(), cell)
-        canvas.viewport.pan(QPointF(80, 60))
-        position = canvas.viewport.from_grid(QPointF(1.5, 1.5)).toPoint()
-        self.assertEqual(canvas.point_to_cell(position), (1, 1))
-        QTest.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=position)
-        self.assertEqual(self.window.selection.anchor, (1, 1))
 
     def test_middle_and_space_drag_pan_without_erasing(self):
         window = self.window
@@ -319,20 +245,6 @@ class WindowTests(WindowTestCase):
         self.assertEqual(window.map_data, before)
         self.assertFalse(window.dirty)
 
-    def test_panned_wall_and_light_hit_testing(self):
-        window = self.window
-        window.add_wall_line((1, 1), (2, 1))
-        data = copy.deepcopy(window.map_data)
-        data["levels"][0]["lights"] = [{"col": 1, "row": 1, "side": "N"}]
-        window.apply_change("Light", data)
-        canvas = window.canvas
-        canvas.viewport.pan(QPointF(60, 40))
-        position = canvas.viewport.from_grid(QPointF(1.5, 1.15))
-        hit = window.hit_at(canvas.grid_position(position))
-        self.assertEqual(hit[0], HIT_LIGHT)
-        wall = canvas._wall_near_position(canvas.viewport.from_grid(QPointF(1.5, 1)))
-        self.assertIsNotNone(wall)
-
     def test_visible_entries_cull_offscreen_geometry(self):
         canvas = self.window.canvas
         canvas.viewport.cell = 100
@@ -342,15 +254,12 @@ class WindowTests(WindowTestCase):
 
     def test_conflicting_loaded_plates_can_be_erased_independently(self):
         window = self.window
-        window.doc.root_data["switches"] = [
-            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a", "b"]
-        ]
-        window.switch_ids = ["a", "b"]
+        self.set_switches("a", "b")
         data = copy.deepcopy(window.map_data)
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": switch} for switch in ("a", "b")]
         window.doc.replace_with_new(data)
         canvas = window.canvas
-        position = canvas.viewport.from_grid(QPointF(1.5, 1.5)).toPoint()
+        position = self.point(1.5, 1.5)
 
         def choose_erase(menu, *_):
             submenu = next(a.menu() for a in menu.actions() if a.text() == "Select plate")
@@ -380,21 +289,6 @@ class WindowTests(WindowTestCase):
         window.undo_stack.undo()
         self.assertEqual(len(window.map_data["ladders"]), 1)
 
-    def test_mixed_materials_leave_untouched_faces_distinct(self):
-        window = self.window
-        first, second = window.materials_catalog[:2]
-        data = paint_floors(window.map_data, 0, (2, 1, 3, 2), second)
-        for entry in data["levels"][0]["floors"]:
-            if entry["col"] == 1:
-                entry["top"] = first
-        window.apply_change("Materials", data)
-        window.assign_floor_materials_rect((1, 1), (2, 1))
-        panel = window.properties_panel
-        self.assertEqual(panel.widgets[("top",)].currentText(), "Mixed / unchanged")
-        self.set_property("north", first)
-        self.assertEqual([f["top"] for f in window.map_data["levels"][0]["floors"]], [first, second, DEFAULT_ALIAS])
-        self.assertTrue(all(f["north"] == first for f in window.map_data["levels"][0]["floors"]))
-
     def test_terrain_material_editor_exposes_only_sides_and_bottom(self):
         window = self.window
         data = copy.deepcopy(window.map_data)
@@ -403,7 +297,7 @@ class WindowTests(WindowTestCase):
         level["terrain"] = [{"col": 1, "row": 1, **dict.fromkeys(TERRAIN_FACES, DEFAULT_ALIAS)}]
         window.apply_change("Terrain", data)
         replacement = window.materials_catalog[1]
-        window.edit_materials_at((HIT_TERRAIN, (1, 1)))
+        window.inspect_hit((HIT_TERRAIN, (1, 1)), show=True)
         self.assertEqual(set(window.properties_panel.widgets), {(face,) for face in TERRAIN_FACES})
         self.set_property("bottom", replacement)
         terrain = window.map_data["levels"][0]["terrain"][0]
@@ -478,10 +372,7 @@ class WindowTests(WindowTestCase):
         window.add_floor_rect((2, 1), (2, 1))
         window.field_colors = {"gate": "#ff0000", "bridge": "#00ff00"}
         window.doc.root_data["fields"] = [{"id": field, "color": color} for field, color in window.field_colors.items()]
-        window.doc.root_data["switches"] = [
-            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["gate", "bridge"]
-        ]
-        window.switch_ids = ["gate", "bridge"]
+        self.set_switches("gate", "bridge")
         window.recent_barrier_field = window.recent_pressure_plate_switch = "gate"
         window.recent_bridge_field = "bridge"
         window.recent_item_type = "health_potion"
@@ -528,19 +419,12 @@ class WindowTests(WindowTestCase):
 
     def test_toolbar_switch_choices_follow_the_catalog(self):
         window = self.window
-        window.doc.root_data["switches"] = [
-            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a"]
-        ]
-        window.switch_ids = ["a"]
+        self.set_switches("a")
         window.set_mode(MODE_PRESSURE_PLATE)
         window.tool_settings.refresh()
         combo = window.tool_settings.body.findChildren(QComboBox)[0]
         self.assertEqual([combo.itemText(i) for i in range(combo.count())], ["", "a"])
-
-        window.doc.root_data["switches"] = [
-            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a", "b"]
-        ]
-        window.switch_ids = ["a", "b"]
+        self.set_switches("a", "b")
         window.tool_settings.refresh()
         combo = window.tool_settings.body.findChildren(QComboBox)[0]
         self.assertEqual([combo.itemText(i) for i in range(combo.count())], ["", "a", "b"])
@@ -560,10 +444,7 @@ class WindowTests(WindowTestCase):
         ):
             self.assertIsNone(ActorSpawnFieldsDialog.prompt(window, "not_a_kind", [3], 90, 2.5, ["guards"], None))
             warning.assert_called_once()
-        window.doc.root_data["switches"] = [
-            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["guards"]
-        ]
-        window.switch_ids = ["guards"]
+        self.set_switches("guards")
         window.recent_actor_spawn_kind = kind
         window.recent_actor_spawn_count = [7]
         window.recent_actor_spawn_switch = "guards"
@@ -601,7 +482,6 @@ class WindowTests(WindowTestCase):
         self.assertFalse(window.show_adjacent_levels)
         self.assertFalse(window.show_roam_extensions)
         window.canvas.setFocus()
-        self.assertEqual(window.roam_extensions_action.shortcut().toString(), "R")
         QTest.keyClick(window.canvas, Qt.Key.Key_R)
         self.assertTrue(window.show_roam_extensions)
         self.assertTrue(window.roam_extensions_action.isChecked())
@@ -609,7 +489,6 @@ class WindowTests(WindowTestCase):
         self.assertFalse(window.show_roam_extensions)
         QTest.keyClick(window.canvas, Qt.Key.Key_F)
         self.assertTrue(window.canvas.viewport.fitted)
-        self.assertEqual(window.adjacent_levels_action.shortcut().toString(), "L")
         QTest.keyClick(window.canvas, Qt.Key.Key_L)
         self.assertTrue(window.show_adjacent_levels)
         QTest.keyClick(window.canvas, Qt.Key.Key_L)

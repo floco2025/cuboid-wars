@@ -20,7 +20,7 @@ fn a_light_bridge_supports_a_character_unless_it_is_passable() {
         ..Default::default()
     };
     let world = CollisionWorld::from_map_layout(&layout);
-    assert_eq!(world.solid_kinds(), vec![ColliderKind::Bridge]);
+    assert_eq!(solid_kinds(&world), vec![ColliderKind::Bridge]);
 
     let shape = character_movement_shape(wide_body());
     let pose = Pose::translation(2.0, LEVEL_HEIGHT + 0.0 + 0.05, 2.0);
