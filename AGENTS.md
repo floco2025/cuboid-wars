@@ -4,6 +4,10 @@
 
 Do not use the user's personal name in responses or add it to documentation, examples, fixtures, comments, generated assets, or attribution. Use neutral wording and fictional sample names. Avoid recording identifying usernames or absolute home-directory paths in project files.
 
+## Working
+
+Work in few rounds: batch edits into one build, do small and obvious things without announcing or asking first, and ask only for decisions that are the user's to make.
+
 ## Follow-ups
 
 Read [TODO.md](TODO.md) at the start of a task and keep it updated when discussing or completing follow-ups. Sections are Fixes (behaviour that is wrong), Enhancements (everything else, including cleanup), and Testing; no deferred or proposed categories, no approval labels. Listing an item does not authorize implementation. Remove completed items.
