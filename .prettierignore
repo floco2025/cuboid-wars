@@ -1,0 +1,6 @@
+# JSON the map editor and the game write is theirs.
+config/server/maps/*/layout.json
+config/client/client_local.json
+*.autosave.json
+.claude/
+target/

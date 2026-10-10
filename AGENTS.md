@@ -57,7 +57,7 @@ Invoke commands covered by saved approval prefixes directly, without redirection
 
 **All cargo invocations default to `--release`.** Never silently switch to debug.
 
-Run `./tools/format.sh` after all edits (rustfmt, prettier for hand-written JSON, ruff for Python; editor-managed layouts and local settings excluded).
+After your edits, format the files you changed, and only those, so no agent reformats another's work in progress: `rustfmt` for Rust, `ruff format` for Python, `prettier --write` for hand-written JSON. Their settings live in `rustfmt.toml`, `ruff.toml` and `.prettierrc.json`; `.prettierignore` names the JSON the editor and the game write (layouts, local settings).
 
 ```bash
 cargo run --release                                         # single-player
